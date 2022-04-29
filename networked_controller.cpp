@@ -40,7 +40,7 @@
 #include "scene_synchronizer.h"
 #include <algorithm>
 
-#include "godot_backward_utility_cpp.h" 
+#include "godot_backward_utility_cpp.h"
 
 #define METADATA_SIZE 1
 
@@ -1400,11 +1400,14 @@ void DollController::receive_batch(const Vector<uint8_t> &p_data) {
 
 	while (buffer_start_position < p_data.size()) {
 		const int buffer_size = p_data[buffer_start_position];
+		ERR_FAIL_COND_MSG(buffer_size <= 0, "The `buffer_size` is never networked when less than 0, this is a bug.");
 		const Vector<uint8_t> buffer = p_data.slice(
 				buffer_start_position + 1,
-				buffer_start_position + 1 + buffer_size - 1);
+				buffer_start_position + 1 + buffer_size);
 
-		ERR_FAIL_COND(buffer.size() <= 0);
+#ifdef DEBUG_ENABLED
+		CRASH_COND_MSG(buffer.size() != buffer_size, "The buffer.size() is expected to be the same at this point.");
+#endif
 
 		const uint32_t epoch = receive_epoch(buffer);
 		buffer_start_position += 1 + buffer_size;
