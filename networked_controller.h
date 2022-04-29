@@ -153,16 +153,17 @@ private:
 
 	/// Collect rate (in frames) used by the server to estabish when to collect
 	/// the state for a particular peer.
-	/// It's possible to scale down this rate, for a particular peer,
+	/// It's possible to scale down this rate when the character is faraway so to
+	/// send less precise data,
 	/// using the function: set_doll_collect_rate_factor(peer, factor);
-	/// Current default is 10Hz.
+	/// Current default is 1Hz.
 	///
 	/// The collected state is not immediatelly sent to the clients, rather it's
 	/// delayed so to be sent in batch. The states marked as important are
 	/// always collected.
 	int doll_epoch_collect_rate = 1;
 
-	/// The time rate at which a new batch is sent.
+	/// The time rate at which a new batch is sent. The time is in seconds.
 	real_t doll_epoch_batch_sync_rate = 0.25;
 
 	/// The doll interpolator will try to keep a margin of error, so that network
