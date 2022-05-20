@@ -298,7 +298,11 @@ void SceneSynchronizer::register_variable(Node *p_node, const StringName &p_vari
 	const int index = node_data->vars.find(p_variable);
 	if (index == -1) {
 		// The variable is not yet registered.
-		const Variant old_val = p_node->get(p_variable);
+		bool valid = false;
+		const Variant old_val = p_node->get(p_variable, &valid);
+		if (valid == false) {
+			NET_DEBUG_ERR("The variable `" + p_variable + "` on the node `" + p_node->get_path() + "` was not found, make sure the variable exist.");
+		}
 		const int var_id = generate_id ? node_data->vars.size() : UINT32_MAX;
 		node_data->vars.push_back(
 				NetUtility::VarData(
