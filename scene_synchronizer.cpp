@@ -298,7 +298,11 @@ void SceneSynchronizer::register_variable(Node *p_node, const StringName &p_vari
 	const int index = node_data->vars.find(p_variable);
 	if (index == -1) {
 		// The variable is not yet registered.
-		const Variant old_val = p_node->get(p_variable);
+		bool valid = false;
+		const Variant old_val = p_node->get(p_variable, &valid);
+		if (valid == false) {
+			NET_DEBUG_ERR("The variable `" + p_variable + "` on the node `" + p_node->get_path() + "` was not found, make sure the variable exist.");
+		}
 		const int var_id = generate_id ? node_data->vars.size() : UINT32_MAX;
 		node_data->vars.push_back(
 				NetUtility::VarData(
@@ -1292,13 +1296,13 @@ bool SceneSynchronizer::compare(const Variant &p_first, const Variant &p_second)
 
 bool SceneSynchronizer::compare(const Vector2 &p_first, const Vector2 &p_second, real_t p_tolerance) {
 	return Math::is_equal_approx(p_first.x, p_second.x, p_tolerance) &&
-		   Math::is_equal_approx(p_first.y, p_second.y, p_tolerance);
+			Math::is_equal_approx(p_first.y, p_second.y, p_tolerance);
 }
 
 bool SceneSynchronizer::compare(const Vector3 &p_first, const Vector3 &p_second, real_t p_tolerance) {
 	return Math::is_equal_approx(p_first.x, p_second.x, p_tolerance) &&
-		   Math::is_equal_approx(p_first.y, p_second.y, p_tolerance) &&
-		   Math::is_equal_approx(p_first.z, p_second.z, p_tolerance);
+			Math::is_equal_approx(p_first.y, p_second.y, p_tolerance) &&
+			Math::is_equal_approx(p_first.z, p_second.z, p_tolerance);
 }
 
 bool SceneSynchronizer::compare(const Variant &p_first, const Variant &p_second, real_t p_tolerance) {
@@ -1336,9 +1340,9 @@ bool SceneSynchronizer::compare(const Variant &p_first, const Variant &p_second,
 			}
 			return false;
 		}
-		case Variant::VECTOR3: 
+		case Variant::VECTOR3:
 			return compare(Vector3(p_first), Vector3(p_second), p_tolerance);
-		
+
 		case Variant::QUAT: {
 			const Quat a = p_first;
 			const Quat b = p_second;
@@ -3020,10 +3024,10 @@ bool ClientSynchronizer::compare_vars(
 			} else {
 				// The vars are different.
 				NET_DEBUG_PRINT("Difference found on var #" + itos(var_index) + " " + p_synchronizer_node_data->vars[var_index].var.name + " " +
-								"Server value: `" + s_vars[var_index].value + "` " +
-								"Client value: `" + c_vars[var_index].value + "`.    " +
-								"[Server name: `" + s_vars[var_index].name + "` " +
-								"Client name: `" + c_vars[var_index].name + "`].");
+						"Server value: `" + s_vars[var_index].value + "` " +
+						"Client value: `" + c_vars[var_index].value + "`.    " +
+						"[Server name: `" + s_vars[var_index].name + "` " +
+						"Client name: `" + c_vars[var_index].name + "`].");
 #ifdef DEBUG_ENABLED
 				diff = true;
 #else
