@@ -365,8 +365,8 @@ class ServerSynchronizer : public Synchronizer {
 
 	struct Change {
 		bool not_known_before = false;
-		Set<StringName> uknown_vars;
-		Set<StringName> vars;
+		RBSet<StringName> uknown_vars;
+		RBSet<StringName> vars;
 	};
 
 	/// The changes; the order matters because the index is the NetNodeId.
@@ -416,7 +416,7 @@ class ClientSynchronizer : public Synchronizer {
 		}
 	};
 
-	Set<EndSyncEvent> sync_end_events;
+	RBSet<EndSyncEvent> sync_end_events;
 
 public:
 	ClientSynchronizer(SceneSynchronizer *p_node);

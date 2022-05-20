@@ -156,8 +156,8 @@ void SceneSynchronizer::_notification(int p_what) {
 
 			// Init the peers already connected.
 			if (get_tree()->get_multiplayer()->get_multiplayer_peer().is_valid()) {
-				const Set<int> peer_ids = get_tree()->get_multiplayer()->get_connected_peers();
-				for (Set<int>::ConstIterator it = peer_ids.begin(); it != peer_ids.end(); ++it) {
+				const RBSet<int> peer_ids = get_tree()->get_multiplayer()->get_connected_peers();
+				for (RBSet<int>::ConstIterator it = peer_ids.begin(); it != peer_ids.end(); ++it) {
 					_on_peer_connected(*it);
 				}
 			}
@@ -2058,7 +2058,7 @@ void ClientSynchronizer::process() {
 
 	// Now trigger the END_SYNC event.
 	scene_synchronizer->change_events_begin(NetEventFlag::END_SYNC);
-	for (const Set<EndSyncEvent>::Element *e = sync_end_events.front();
+	for (const RBSet<EndSyncEvent>::Element *e = sync_end_events.front();
 			e != nullptr;
 			e = e->next()) {
 		// Check if the values between the variables before the sync and the
