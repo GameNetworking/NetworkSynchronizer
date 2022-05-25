@@ -42,7 +42,7 @@
 #ifndef SCENE_SYNCHRONIZER_H
 #define SCENE_SYNCHRONIZER_H
 
-#include "godot_backward_utility_header.h" 
+#include "godot_backward_utility_header.h"
 
 class Synchronizer;
 class NetworkedController;
@@ -250,6 +250,8 @@ public:
 
 	void reset_synchronizer_mode();
 	void clear();
+
+	void notify_controller_control_mode_changed(NetworkedController *controller);
 
 	void _rpc_send_state(const Variant &p_snapshot);
 	void _rpc_notify_need_full_snapshot();
