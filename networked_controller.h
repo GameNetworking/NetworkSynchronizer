@@ -240,6 +240,7 @@ public:
 
 public:
 	NetworkedController();
+	~NetworkedController();
 
 	void set_server_controlled(bool p_server_controlled);
 	bool get_server_controlled() const;

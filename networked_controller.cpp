@@ -163,6 +163,14 @@ NetworkedController::NetworkedController() {
 	rpc_config(SNAME("_rpc_doll_send_epoch_batch"), MultiplayerAPI::RPC_MODE_REMOTE);
 }
 
+NetworkedController::~NetworkedController() {
+	if (controller != nullptr) {
+		memdelete(controller);
+		controller = nullptr;
+		controller_type = CONTROLLER_TYPE_NULL;
+	}
+}
+
 void NetworkedController::set_server_controlled(bool p_server_controlled) {
 	if (server_controlled == p_server_controlled) {
 		// It's the same, nothing to do.
