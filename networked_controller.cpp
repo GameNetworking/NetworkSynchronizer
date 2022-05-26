@@ -49,6 +49,9 @@
 #define TICK_SPEED_CHANGE_NOTIF_THRESHOLD 4
 
 void NetworkedController::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("set_server_controlled", "server_controlled"), &NetworkedController::set_server_controlled);
+	ClassDB::bind_method(D_METHOD("get_server_controlled"), &NetworkedController::get_server_controlled);
+
 	ClassDB::bind_method(D_METHOD("set_player_input_storage_size", "size"), &NetworkedController::set_player_input_storage_size);
 	ClassDB::bind_method(D_METHOD("get_player_input_storage_size"), &NetworkedController::get_player_input_storage_size);
 
@@ -108,6 +111,7 @@ void NetworkedController::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_doll_peer_active", "peer_id", "active"), &NetworkedController::set_doll_peer_active);
 
 	ClassDB::bind_method(D_METHOD("_rpc_server_send_inputs"), &NetworkedController::_rpc_server_send_inputs);
+	ClassDB::bind_method(D_METHOD("_rpc_set_server_controlled"), &NetworkedController::_rpc_set_server_controlled);
 	ClassDB::bind_method(D_METHOD("_rpc_send_tick_additional_speed"), &NetworkedController::_rpc_send_tick_additional_speed);
 	ClassDB::bind_method(D_METHOD("_rpc_doll_notify_sync_pause"), &NetworkedController::_rpc_doll_notify_sync_pause);
 	ClassDB::bind_method(D_METHOD("_rpc_doll_send_epoch_batch"), &NetworkedController::_rpc_doll_send_epoch_batch);
@@ -128,6 +132,7 @@ void NetworkedController::_bind_methods() {
 	GDVIRTUAL_BIND(_parse_epoch_data, "interpolator", "buffer");
 	GDVIRTUAL_BIND(_apply_epoch, "delta", "interpolated_data");
 
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "server_controlled"), "set_server_controlled", "get_server_controlled");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "input_storage_size", PROPERTY_HINT_RANGE, "5,2000,1"), "set_player_input_storage_size", "get_player_input_storage_size");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "max_redundant_inputs", PROPERTY_HINT_RANGE, "0,1000,1"), "set_max_redundant_inputs", "get_max_redundant_inputs");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "tick_speedup_notification_delay", PROPERTY_HINT_RANGE, "0.001,2.0,0.001"), "set_tick_speedup_notification_delay", "get_tick_speedup_notification_delay");
@@ -152,9 +157,68 @@ void NetworkedController::_bind_methods() {
 NetworkedController::NetworkedController() {
 	constexpr bool call_local = false;
 	rpc_config(SNAME("_rpc_server_send_inputs"), Multiplayer::RPC_MODE_ANY_PEER, call_local, Multiplayer::TRANSFER_MODE_UNRELIABLE);
+	rpc_config(SNAME("_rpc_set_server_controlled"), Multiplayer::RPC_MODE_ANY_PEER, call_local, Multiplayer::TRANSFER_MODE_RELIABLE);
 	rpc_config(SNAME("_rpc_send_tick_additional_speed"), Multiplayer::RPC_MODE_ANY_PEER, call_local, Multiplayer::TRANSFER_MODE_UNRELIABLE);
 	rpc_config(SNAME("_rpc_doll_notify_sync_pause"), Multiplayer::RPC_MODE_ANY_PEER, call_local, Multiplayer::TRANSFER_MODE_RELIABLE);
 	rpc_config(SNAME("_rpc_doll_send_epoch_batch"), Multiplayer::RPC_MODE_ANY_PEER, call_local, Multiplayer::TRANSFER_MODE_UNRELIABLE);
+}
+
+NetworkedController::~NetworkedController() {
+	if (controller != nullptr) {
+		memdelete(controller);
+		controller = nullptr;
+		controller_type = CONTROLLER_TYPE_NULL;
+	}
+}
+
+void NetworkedController::set_server_controlled(bool p_server_controlled) {
+	if (server_controlled == p_server_controlled) {
+		// It's the same, nothing to do.
+		return;
+	}
+
+	if (is_networking_initialized()) {
+		if (is_server_controller()) {
+			// This is the server, let's start the procedure to switch controll mode.
+
+#ifdef DEBUG_ENABLED
+			CRASH_COND_MSG(scene_synchronizer == nullptr, "When the `NetworkedController` is a server, the `scene_synchronizer` is always set.");
+#endif
+
+			// First update the variable.
+			server_controlled = p_server_controlled;
+
+			// Notify the `SceneSynchronizer` about it.
+			scene_synchronizer->notify_controller_control_mode_changed(this);
+
+			// Tell the client to do the switch too.
+			rpc_id(
+					get_multiplayer_authority(),
+					SNAME("_rpc_set_server_controlled"),
+					server_controlled);
+
+		} else if (is_player_controller() || is_doll_controller()) {
+			NET_DEBUG_WARN("You should never call the function `set_server_controlled` on the client, this has an effect only if called on the server.");
+
+		} else if (is_nonet_controller()) {
+			// There is no networking, the same instance is both the client and the
+			// server already, nothing to do.
+			server_controlled = p_server_controlled;
+
+		} else {
+#ifdef DEBUG_ENABLED
+			CRASH_NOW_MSG("Unreachable, all the cases are handled.");
+#endif
+		}
+	} else {
+		// This called during initialization or on the editor, nothing special just
+		// set it.
+		server_controlled = p_server_controlled;
+	}
+}
+
+bool NetworkedController::get_server_controlled() const {
+	return server_controlled;
 }
 
 void NetworkedController::set_player_input_storage_size(int p_size) {
@@ -394,8 +458,12 @@ const NoNetController *NetworkedController::get_nonet_controller() const {
 	return static_cast<const NoNetController *>(controller);
 }
 
+bool NetworkedController::is_networking_initialized() const {
+	return controller_type != CONTROLLER_TYPE_NULL;
+}
+
 bool NetworkedController::is_server_controller() const {
-	return controller_type == CONTROLLER_TYPE_SERVER;
+	return controller_type == CONTROLLER_TYPE_SERVER || controller_type == CONTROLLER_TYPE_AUTONOMOUS_SERVER;
 }
 
 bool NetworkedController::is_player_controller() const {
@@ -438,6 +506,14 @@ bool NetworkedController::has_scene_synchronizer() const {
 void NetworkedController::_rpc_server_send_inputs(const Vector<uint8_t> &p_data) {
 	ERR_FAIL_COND(is_server_controller() == false);
 	static_cast<ServerController *>(controller)->receive_inputs(p_data);
+}
+
+void NetworkedController::_rpc_set_server_controlled(bool p_server_controlled) {
+	ERR_FAIL_COND_MSG(is_player_controller() == false, "This function is supposed to be called on the server.");
+	server_controlled = p_server_controlled;
+
+	ERR_FAIL_COND_MSG(scene_synchronizer == nullptr, "The server controller is supposed to be set on the client at this point.");
+	scene_synchronizer->notify_controller_control_mode_changed(this);
 }
 
 void NetworkedController::_rpc_send_tick_additional_speed(const Vector<uint8_t> &p_data) {
@@ -526,7 +602,7 @@ void ServerController::process(real_t p_delta) {
 		return;
 	}
 
-	fetch_next_input();
+	fetch_next_input(p_delta);
 
 	if (unlikely(current_input_buffer_id == UINT32_MAX)) {
 		// Skip this until the first input arrive.
@@ -733,7 +809,7 @@ int ServerController::get_inputs_count() const {
 	return snapshots.size();
 }
 
-bool ServerController::fetch_next_input() {
+bool ServerController::fetch_next_input(real_t p_delta) {
 	bool is_new_input = true;
 
 	if (unlikely(current_input_buffer_id == UINT32_MAX)) {
@@ -1070,6 +1146,38 @@ uint32_t ServerController::find_peer(int p_peer) const {
 	return UINT32_MAX;
 }
 
+AutonomousServerController::AutonomousServerController(
+		NetworkedController *p_node) :
+		ServerController(p_node, 1) {
+}
+
+void AutonomousServerController::receive_inputs(const Vector<uint8_t> &p_data) {
+	NET_DEBUG_WARN("`receive_input` called on the `AutonomousServerController` - If this is called just after `set_server_controlled(true)` is called, you can ignore this warning, as the client is not aware about the switch for a really small window after this function call.");
+}
+
+int AutonomousServerController::get_inputs_count() const {
+	// No input collected by this class.
+	return 0;
+}
+
+bool AutonomousServerController::fetch_next_input(real_t p_delta) {
+	node->get_inputs_buffer_mut().begin_write(METADATA_SIZE);
+	node->get_inputs_buffer_mut().seek(METADATA_SIZE);
+	node->call(SNAME("_collect_inputs"), p_delta, &node->get_inputs_buffer_mut());
+	node->get_inputs_buffer_mut().dry();
+
+	if (unlikely(current_input_buffer_id == UINT32_MAX)) {
+		// This is the first input.
+		current_input_buffer_id = 0;
+	} else {
+		// Just advance from now on.
+		current_input_buffer_id += 1;
+	}
+
+	// The input is always new.
+	return true;
+}
+
 PlayerController::PlayerController(NetworkedController *p_node) :
 		Controller(p_node),
 		current_input_id(UINT32_MAX),
@@ -1090,7 +1198,7 @@ void PlayerController::process(real_t p_delta) {
 
 		node->get_inputs_buffer_mut().begin_write(METADATA_SIZE);
 
-		node->get_inputs_buffer_mut().seek(1);
+		node->get_inputs_buffer_mut().seek(METADATA_SIZE);
 		GDVIRTUAL_CALL_PTR(node, _collect_inputs, p_delta, &node->get_inputs_buffer_mut());
 
 		// Set metadata data.

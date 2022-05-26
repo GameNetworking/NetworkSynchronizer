@@ -156,8 +156,8 @@ void SceneSynchronizer::_notification(int p_what) {
 
 			// Init the peers already connected.
 			if (get_tree()->get_multiplayer()->get_multiplayer_peer().is_valid()) {
-				const RBSet<int> peer_ids = get_tree()->get_multiplayer()->get_connected_peers();
-				for (RBSet<int>::ConstIterator it = peer_ids.begin(); it != peer_ids.end(); ++it) {
+				const HashSet<int> peer_ids = get_tree()->get_multiplayer()->get_connected_peers();
+				for (HashSet<int>::Iterator it = peer_ids.begin(); it != peer_ids.end(); ++it) {
 					_on_peer_connected(*it);
 				}
 			}
@@ -964,6 +964,10 @@ void SceneSynchronizer::clear() {
 	}
 }
 
+void SceneSynchronizer::notify_controller_control_mode_changed(NetworkedController *controller) {
+	reset_controller(find_node_data(controller));
+}
+
 void SceneSynchronizer::_rpc_send_state(const Variant &p_snapshot) {
 	ERR_FAIL_COND_MSG(is_client() == false, "Only clients are suposed to receive the server snapshot.");
 	static_cast<ClientSynchronizer *>(synchronizer)->receive_snapshot(p_snapshot);
@@ -1581,9 +1585,14 @@ void SceneSynchronizer::reset_controller(NetUtility::NodeData *p_controller_nd) 
 		controller->controller_type = NetworkedController::CONTROLLER_TYPE_NONETWORK;
 		controller->controller = memnew(NoNetController(controller));
 	} else if (get_tree()->get_multiplayer()->is_server()) {
-		controller->controller_type = NetworkedController::CONTROLLER_TYPE_SERVER;
-		controller->controller = memnew(ServerController(controller, controller->get_network_traced_frames()));
-	} else if (controller->is_multiplayer_authority()) {
+		if (controller->get_server_controlled()) {
+			controller->controller_type = NetworkedController::CONTROLLER_TYPE_AUTONOMOUS_SERVER;
+			controller->controller = memnew(AutonomousServerController(controller));
+		} else {
+			controller->controller_type = NetworkedController::CONTROLLER_TYPE_SERVER;
+			controller->controller = memnew(ServerController(controller, controller->get_network_traced_frames()));
+		}
+	} else if (controller->is_multiplayer_authority() && controller->get_server_controlled() == false) {
 		controller->controller_type = NetworkedController::CONTROLLER_TYPE_PLAYER;
 		controller->controller = memnew(PlayerController(controller));
 	} else {

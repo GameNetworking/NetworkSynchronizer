@@ -249,6 +249,8 @@ public:
 	void reset_synchronizer_mode();
 	void clear();
 
+	void notify_controller_control_mode_changed(NetworkedController *controller);
+
 	void _rpc_send_state(const Variant &p_snapshot);
 	void _rpc_notify_need_full_snapshot();
 	void _rpc_set_network_enabled(bool p_enabled);
