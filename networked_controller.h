@@ -79,11 +79,24 @@ public:
 		CONTROLLER_TYPE_NULL,
 		CONTROLLER_TYPE_NONETWORK,
 		CONTROLLER_TYPE_PLAYER,
+		CONTROLLER_TYPE_AUTONOMOUS_SERVER,
 		CONTROLLER_TYPE_SERVER,
 		CONTROLLER_TYPE_DOLL
 	};
 
 private:
+	/// When `true`, this controller is controlled by the server: All the clients
+	/// see it as a `Doll`.
+	/// This property is really useful to implement bots (Character controlled by
+	/// the AI).
+	///
+	/// NOTICE: Generally you specify this property on the editor, in addition
+	/// it's possible to change this at runtime: this will cause the server to
+	/// notify all the clients; so the switch is not immediate. This feature can be
+	/// used to switch the Character possession between the AI (Server) and
+	/// PlayerController (Client) without the need to re-instantiate the Character.
+	bool server_controlled = false;
+
 	/// The input storage size is used to cap the amount of inputs collected by
 	/// the `PlayerController`.
 	///
@@ -227,6 +240,10 @@ public:
 
 public:
 	NetworkedController();
+	~NetworkedController();
+
+	void set_server_controlled(bool p_server_controlled);
+	bool get_server_controlled() const;
 
 	void set_player_input_storage_size(int p_size);
 	int get_player_input_storage_size() const;
@@ -310,6 +327,7 @@ public:
 	NoNetController *get_nonet_controller();
 	const NoNetController *get_nonet_controller() const;
 
+	bool is_networking_initialized() const;
 	bool is_server_controller() const;
 	bool is_player_controller() const;
 	bool is_doll_controller() const;
@@ -326,6 +344,7 @@ public:
 	void _rpc_server_send_inputs(const Vector<uint8_t> &p_data);
 
 	/* On client rpc functions. */
+	void _rpc_set_server_controlled(bool p_server_controlled);
 	void _rpc_send_tick_additional_speed(const Vector<uint8_t> &p_data);
 
 	/* On puppet rpc functions. */
@@ -418,11 +437,11 @@ struct ServerController : public Controller {
 	virtual void activate_peer(int p_peer) override;
 	virtual void deactivate_peer(int p_peer) override;
 
-	void receive_inputs(const Vector<uint8_t> &p_data);
-	int get_inputs_count() const;
+	virtual void receive_inputs(const Vector<uint8_t> &p_data);
+	virtual int get_inputs_count() const;
 
 	/// Fetch the next inputs, returns true if the input is new.
-	bool fetch_next_input();
+	virtual bool fetch_next_input(real_t p_delta);
 
 	void notify_send_state();
 
@@ -443,6 +462,15 @@ struct ServerController : public Controller {
 	void adjust_player_tick_rate(real_t p_delta);
 
 	uint32_t find_peer(int p_peer) const;
+};
+
+struct AutonomousServerController : public ServerController {
+	AutonomousServerController(
+			NetworkedController *p_node);
+
+	virtual void receive_inputs(const Vector<uint8_t> &p_data) override;
+	virtual int get_inputs_count() const override;
+	virtual bool fetch_next_input(real_t p_delta) override;
 };
 
 struct PlayerController : public Controller {
