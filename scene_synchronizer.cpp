@@ -156,8 +156,8 @@ void SceneSynchronizer::_notification(int p_what) {
 
 			// Init the peers already connected.
 			if (get_tree()->get_multiplayer()->get_multiplayer_peer().is_valid()) {
-				const RBSet<int> peer_ids = get_tree()->get_multiplayer()->get_connected_peers();
-				for (RBSet<int>::ConstIterator it = peer_ids.begin(); it != peer_ids.end(); ++it) {
+				const HashSet<int> peer_ids = get_tree()->get_multiplayer()->get_connected_peers();
+				for (HashSet<int>::Iterator it = peer_ids.begin(); it != peer_ids.end(); ++it) {
 					_on_peer_connected(*it);
 				}
 			}
