@@ -964,6 +964,10 @@ void SceneSynchronizer::clear() {
 	}
 }
 
+void SceneSynchronizer::notify_controller_control_mode_changed(NetworkedController *controller) {
+	reset_controller(find_node_data(controller));
+}
+
 void SceneSynchronizer::_rpc_send_state(const Variant &p_snapshot) {
 	ERR_FAIL_COND_MSG(is_client() == false, "Only clients are suposed to receive the server snapshot.");
 	static_cast<ClientSynchronizer *>(synchronizer)->receive_snapshot(p_snapshot);
@@ -1581,9 +1585,14 @@ void SceneSynchronizer::reset_controller(NetUtility::NodeData *p_controller_nd) 
 		controller->controller_type = NetworkedController::CONTROLLER_TYPE_NONETWORK;
 		controller->controller = memnew(NoNetController(controller));
 	} else if (get_tree()->get_multiplayer()->is_server()) {
-		controller->controller_type = NetworkedController::CONTROLLER_TYPE_SERVER;
-		controller->controller = memnew(ServerController(controller, controller->get_network_traced_frames()));
-	} else if (controller->is_multiplayer_authority()) {
+		if (controller->get_server_controlled()) {
+			controller->controller_type = NetworkedController::CONTROLLER_TYPE_AUTONOMOUS_SERVER;
+			controller->controller = memnew(AutonomousServerController(controller));
+		} else {
+			controller->controller_type = NetworkedController::CONTROLLER_TYPE_SERVER;
+			controller->controller = memnew(ServerController(controller, controller->get_network_traced_frames()));
+		}
+	} else if (controller->is_multiplayer_authority() && controller->get_server_controlled() == false) {
 		controller->controller_type = NetworkedController::CONTROLLER_TYPE_PLAYER;
 		controller->controller = memnew(PlayerController(controller));
 	} else {
