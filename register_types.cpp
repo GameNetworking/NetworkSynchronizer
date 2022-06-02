@@ -54,6 +54,7 @@ void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
 
 	GLOBAL_DEF("NetworkSynchronizer/debug_server_speedup", false);
 	GLOBAL_DEF("NetworkSynchronizer/debug_doll_speedup", false);
+	GLOBAL_DEF("NetworkSynchronizer/show_only_errors", false);
 }
 
 void uninitialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
