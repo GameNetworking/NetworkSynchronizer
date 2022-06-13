@@ -156,8 +156,8 @@ void SceneSynchronizer::_notification(int p_what) {
 
 			// Init the peers already connected.
 			if (get_tree()->get_multiplayer()->get_multiplayer_peer().is_valid()) {
-				const Set<int> peer_ids = get_tree()->get_multiplayer()->get_connected_peers();
-				for (Set<int>::ConstIterator it = peer_ids.begin(); it != peer_ids.end(); ++it) {
+				const HashSet<int> peer_ids = get_tree()->get_multiplayer()->get_connected_peers();
+				for (HashSet<int>::Iterator it = peer_ids.begin(); it != peer_ids.end(); ++it) {
 					_on_peer_connected(*it);
 				}
 			}
@@ -298,7 +298,11 @@ void SceneSynchronizer::register_variable(Node *p_node, const StringName &p_vari
 	const int index = node_data->vars.find(p_variable);
 	if (index == -1) {
 		// The variable is not yet registered.
-		const Variant old_val = p_node->get(p_variable);
+		bool valid = false;
+		const Variant old_val = p_node->get(p_variable, &valid);
+		if (valid == false) {
+			NET_DEBUG_ERR("The variable `" + p_variable + "` on the node `" + p_node->get_path() + "` was not found, make sure the variable exist.");
+		}
 		const int var_id = generate_id ? node_data->vars.size() : UINT32_MAX;
 		node_data->vars.push_back(
 				NetUtility::VarData(
@@ -960,6 +964,10 @@ void SceneSynchronizer::clear() {
 	}
 }
 
+void SceneSynchronizer::notify_controller_control_mode_changed(NetworkedController *controller) {
+	reset_controller(find_node_data(controller));
+}
+
 void SceneSynchronizer::_rpc_send_state(const Variant &p_snapshot) {
 	ERR_FAIL_COND_MSG(is_client() == false, "Only clients are suposed to receive the server snapshot.");
 	static_cast<ClientSynchronizer *>(synchronizer)->receive_snapshot(p_snapshot);
@@ -1577,9 +1585,14 @@ void SceneSynchronizer::reset_controller(NetUtility::NodeData *p_controller_nd) 
 		controller->controller_type = NetworkedController::CONTROLLER_TYPE_NONETWORK;
 		controller->controller = memnew(NoNetController(controller));
 	} else if (get_tree()->get_multiplayer()->is_server()) {
-		controller->controller_type = NetworkedController::CONTROLLER_TYPE_SERVER;
-		controller->controller = memnew(ServerController(controller, controller->get_network_traced_frames()));
-	} else if (controller->is_multiplayer_authority()) {
+		if (controller->get_server_controlled()) {
+			controller->controller_type = NetworkedController::CONTROLLER_TYPE_AUTONOMOUS_SERVER;
+			controller->controller = memnew(AutonomousServerController(controller));
+		} else {
+			controller->controller_type = NetworkedController::CONTROLLER_TYPE_SERVER;
+			controller->controller = memnew(ServerController(controller, controller->get_network_traced_frames()));
+		}
+	} else if (controller->is_multiplayer_authority() && controller->get_server_controlled() == false) {
 		controller->controller_type = NetworkedController::CONTROLLER_TYPE_PLAYER;
 		controller->controller = memnew(PlayerController(controller));
 	} else {
@@ -2006,9 +2019,7 @@ void ClientSynchronizer::process() {
 
 #ifdef DEBUG_ENABLED
 	if (unlikely(Engine::get_singleton()->get_frames_per_second() < physics_ticks_per_second)) {
-		if (!ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/show_only_errors")) {
-			WARN_PRINT("Current FPS is " + itos(Engine::get_singleton()->get_frames_per_second()) + ", but the minimum required FPS is " + itos(physics_ticks_per_second) + ", the client is unable to generate enough inputs for the server.");
-		}
+		NET_DEBUG_PRINT("Current FPS is " + itos(Engine::get_singleton()->get_frames_per_second()) + ", but the minimum required FPS is " + itos(physics_ticks_per_second) + ", the client is unable to generate enough inputs for the server.");
 	}
 #endif
 
@@ -2060,7 +2071,7 @@ void ClientSynchronizer::process() {
 
 	// Now trigger the END_SYNC event.
 	scene_synchronizer->change_events_begin(NetEventFlag::END_SYNC);
-	for (const Set<EndSyncEvent>::Element *e = sync_end_events.front();
+	for (const RBSet<EndSyncEvent>::Element *e = sync_end_events.front();
 			e != nullptr;
 			e = e->next()) {
 		// Check if the values between the variables before the sync and the
