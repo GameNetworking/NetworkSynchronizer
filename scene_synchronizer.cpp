@@ -2019,7 +2019,7 @@ void ClientSynchronizer::process() {
 
 #ifdef DEBUG_ENABLED
 	if (unlikely(Engine::get_singleton()->get_frames_per_second() < physics_ticks_per_second)) {
-		WARN_PRINT("Current FPS is " + itos(Engine::get_singleton()->get_frames_per_second()) + ", but the minimum required FPS is " + itos(physics_ticks_per_second) + ", the client is unable to generate enough inputs for the server.");
+		NET_DEBUG_PRINT("Current FPS is " + itos(Engine::get_singleton()->get_frames_per_second()) + ", but the minimum required FPS is " + itos(physics_ticks_per_second) + ", the client is unable to generate enough inputs for the server.");
 	}
 #endif
 
