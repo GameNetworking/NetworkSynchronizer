@@ -464,8 +464,8 @@ struct ServerController : public Controller {
 	/// the server is artificial and no more dependent on the internet. For this
 	/// reason the server tells the client to slowdown so to keep the `frames_inputs`
 	/// size moderate to the needs.
-	void calculates_player_tick_rate(real_t p_delta);
-	void adjust_player_tick_rate(real_t p_delta);
+	virtual void calculates_player_tick_rate(real_t p_delta);
+	virtual void adjust_player_tick_rate(real_t p_delta);
 
 	uint32_t find_peer(int p_peer) const;
 };
@@ -477,6 +477,8 @@ struct AutonomousServerController : public ServerController {
 	virtual void receive_inputs(const Vector<uint8_t> &p_data) override;
 	virtual int get_inputs_count() const override;
 	virtual bool fetch_next_input(real_t p_delta) override;
+	virtual void calculates_player_tick_rate(real_t p_delta) override;
+	virtual void adjust_player_tick_rate(real_t p_delta) override;
 };
 
 struct PlayerController : public Controller {
