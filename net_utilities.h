@@ -38,15 +38,18 @@
 #include "core/math/math_funcs.h"
 #include "core/local_vector.h"
 #include "core/variant.h"
+#include "core/project_settings.h"
 
 #include "godot_backward_utility_header.h"  
 #define ObjectID CompatObjectID
 
 #ifdef DEBUG_ENABLED
-#define NET_DEBUG_PRINT(msg) \
-	print_line(String("[Net] ") + msg)
-#define NET_DEBUG_WARN(msg) \
-	WARN_PRINT(String("[Net] ") + msg)
+#define NET_DEBUG_PRINT(msg)                                                                                  \
+	if (ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/log_debug_warnings_and_messages")) \
+		print_line(String("[Net] ") + msg)     
+#define NET_DEBUG_WARN(msg)                                                                                   \
+	if (ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/log_debug_warnings_and_messages")) \
+		WARN_PRINT(String("[Net] ") + msg) 
 #define NET_DEBUG_ERR(msg) \
 	ERR_PRINT(String("[Net] ") + msg)
 #else
