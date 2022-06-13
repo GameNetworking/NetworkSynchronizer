@@ -1164,6 +1164,14 @@ bool AutonomousServerController::fetch_next_input(real_t p_delta) {
 	return true;
 }
 
+void AutonomousServerController::calculates_player_tick_rate(real_t p_delta) {
+	//No need to perform it in server controlled scenario
+}
+
+void AutonomousServerController::adjust_player_tick_rate(real_t p_delta) {
+	//No need to perform it in server controlled scenario
+}
+
 PlayerController::PlayerController(NetworkedController *p_node) :
 		Controller(p_node),
 		current_input_id(UINT32_MAX),
