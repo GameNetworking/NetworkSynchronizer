@@ -215,6 +215,24 @@ void NetworkedController::set_server_controlled(bool p_server_controlled) {
 		// set it.
 		server_controlled = p_server_controlled;
 	}
+
+#ifdef DEBUG_ENABLED
+	if(has_method("_collect_inputs") == false && server_controlled == false) {
+		WARN_PRINT("In your script you must inherit the virtual method `_collect_inputs` to correctly use the `NetworkedController`.");
+	}
+	
+	if(has_method("_controller_process") == false && server_controlled == false) {
+		WARN_PRINT("In your script you must inherit the virtual method `_controller_process` to correctly use the `NetworkedController`.");
+	}
+
+	if(has_method("_are_inputs_different") == false && server_controlled == false) {
+		WARN_PRINT("In your script you must inherit the virtual method `_are_inputs_different` to correctly use the `NetworkedController`.");
+	}
+
+	if(has_method("_count_input_size") == false && server_controlled == false) {
+		WARN_PRINT("In your script you must inherit the virtual method `_count_input_size` to correctly use the `NetworkedController`.");
+	}
+#endif
 }
 
 bool NetworkedController::get_server_controlled() const {
@@ -575,10 +593,10 @@ void NetworkedController::_notification(int p_what) {
 				return;
 			}
 
-			ERR_FAIL_COND_MSG(has_method("_collect_inputs") == false, "In your script you must inherit the virtual method `_collect_inputs` to correctly use the `NetworkedController`.");
-			ERR_FAIL_COND_MSG(has_method("_controller_process") == false, "In your script you must inherit the virtual method `_controller_process` to correctly use the `NetworkedController`.");
-			ERR_FAIL_COND_MSG(has_method("_are_inputs_different") == false, "In your script you must inherit the virtual method `_are_inputs_different` to correctly use the `NetworkedController`.");
-			ERR_FAIL_COND_MSG(has_method("_count_input_size") == false, "In your script you must inherit the virtual method `_count_input_size` to correctly use the `NetworkedController`.");
+			ERR_FAIL_COND_MSG(has_method("_collect_inputs") == false && server_controlled == false, "In your script you must inherit the virtual method `_collect_inputs` to correctly use the `NetworkedController`.");
+			ERR_FAIL_COND_MSG(has_method("_controller_process") == false && server_controlled == false, "In your script you must inherit the virtual method `_controller_process` to correctly use the `NetworkedController`.");
+			ERR_FAIL_COND_MSG(has_method("_are_inputs_different") == false && server_controlled == false, "In your script you must inherit the virtual method `_are_inputs_different` to correctly use the `NetworkedController`.");
+			ERR_FAIL_COND_MSG(has_method("_count_input_size") == false && server_controlled == false, "In your script you must inherit the virtual method `_count_input_size` to correctly use the `NetworkedController`.");
 			ERR_FAIL_COND_MSG(has_method("_collect_epoch_data") == false, "In your script you must inherit the virtual method `_collect_epoch_data` to correctly use the `NetworkedController`.");
 			ERR_FAIL_COND_MSG(has_method("_setup_interpolator") == false, "In your script you must inherit the virtual method `_setup_interpolator` to correctly use the `NetworkedController`.");
 			ERR_FAIL_COND_MSG(has_method("_parse_epoch_data") == false, "In your script you must inherit the virtual method `_parse_epoch_data` to correctly use the `NetworkedController`.");
