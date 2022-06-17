@@ -281,6 +281,7 @@ private:
 
 	void reset_controllers();
 	void reset_controller(NetUtility::NodeData *p_controller);
+	void reset_controller_gdscript(Node *controller);
 
 	void process();
 
