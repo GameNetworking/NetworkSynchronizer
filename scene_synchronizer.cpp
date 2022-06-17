@@ -49,6 +49,8 @@ void SceneSynchronizer::_bind_methods() {
 	BIND_ENUM_CONSTANT(SYNC)
 	BIND_ENUM_CONSTANT(ALWAYS)
 
+
+	ClassDB::bind_method(D_METHOD("reset_controller_gdscript", "controller"), &SceneSynchronizer::reset_controller_gdscript);
 	ClassDB::bind_method(D_METHOD("reset_synchronizer_mode"), &SceneSynchronizer::reset_synchronizer_mode);
 	ClassDB::bind_method(D_METHOD("clear"), &SceneSynchronizer::clear);
 
@@ -1555,15 +1557,23 @@ void SceneSynchronizer::reset_controllers() {
 	}
 }
 
+void SceneSynchronizer::reset_controller_gdscript(Node *p_controller){
+	NetUtility::NodeData *controller_nd = find_node_data(p_controller);
+	for (uint32_t i = 0; i < node_data_controllers.size(); i += 1) {
+		if (node_data_controllers[i]->node == p_controller) {
+			reset_controller(node_data_controllers[i]);
+		}
+	}
+}
+
+
 void SceneSynchronizer::reset_controller(NetUtility::NodeData *p_controller_nd) {
 #ifdef DEBUG_ENABLED
 	// This can't happen because the callers make sure the `NodeData` is a
 	// controller.
 	CRASH_COND(p_controller_nd->is_controller == false);
 #endif
-
 	NetworkedController *controller = static_cast<NetworkedController *>(p_controller_nd->node);
-
 	// Reset the controller type.
 	if (controller->controller != nullptr) {
 		memdelete(controller->controller);
