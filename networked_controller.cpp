@@ -192,10 +192,14 @@ void NetworkedController::set_server_controlled(bool p_server_controlled) {
 			scene_synchronizer->notify_controller_control_mode_changed(this);
 
 			// Tell the client to do the switch too.
-			rpc_id(
+			if (get_multiplayer_authority() != 1) {
+				rpc_id(
 					get_multiplayer_authority(),
 					SNAME("_rpc_set_server_controlled"),
 					server_controlled);
+			} else {
+				NET_DEBUG_WARN("The node is owned by the server, there is no client that can control it; please assign the proper authority.");
+			}
 
 		} else if (is_player_controller() || is_doll_controller()) {
 			NET_DEBUG_WARN("You should never call the function `set_server_controlled` on the client, this has an effect only if called on the server.");
