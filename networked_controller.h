@@ -82,13 +82,13 @@ public:
 		CONTROLLER_TYPE_DOLL
 	};
 
-	GDVIRTUAL2(_collect_inputs, real_t, DataBuffer*);
-	GDVIRTUAL2(_controller_process, real_t, const DataBuffer*);
-	GDVIRTUAL2R(bool, _are_inputs_different, const DataBuffer*, const DataBuffer*);
-	GDVIRTUAL1RC(int, _count_input_size, const DataBuffer*);
-	GDVIRTUAL1(_collect_epoch_data, DataBuffer*);
-	GDVIRTUAL1(_setup_interpolator, Interpolator*);
-	GDVIRTUAL2(_parse_epoch_data, Interpolator*, const DataBuffer*);
+	GDVIRTUAL2(_collect_inputs, real_t, DataBuffer *);
+	GDVIRTUAL2(_controller_process, real_t, const DataBuffer *);
+	GDVIRTUAL2R(bool, _are_inputs_different, const DataBuffer *, const DataBuffer *);
+	GDVIRTUAL1RC(int, _count_input_size, const DataBuffer *);
+	GDVIRTUAL1(_collect_epoch_data, DataBuffer *);
+	GDVIRTUAL1(_setup_interpolator, Interpolator *);
+	GDVIRTUAL2(_parse_epoch_data, Interpolator *, const DataBuffer *);
 	GDVIRTUAL2(_apply_epoch, real_t, Array);
 
 private:
@@ -364,8 +364,8 @@ public:
 
 	void __on_sync_paused();
 
-private:
-	virtual void _notification(int p_what);
+protected:
+	void _notification(int p_what);
 };
 
 struct FrameSnapshot {
