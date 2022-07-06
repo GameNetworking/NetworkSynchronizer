@@ -358,8 +358,8 @@ public:
 
 	void __on_sync_paused();
 
-private:
-	virtual void _notification(int p_what);
+protected:
+	void _notification(int p_what);
 };
 
 struct FrameSnapshot {
