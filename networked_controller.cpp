@@ -37,7 +37,7 @@
 #include "core/config/engine.h"
 #include "core/config/project_settings.h"
 #include "core/io/marshalls.h"
-#include "core/multiplayer/multiplayer_api.h"
+#include "scene/main/multiplayer_api.h"
 #include "scene_synchronizer.h"
 #include <algorithm>
 
@@ -155,12 +155,19 @@ void NetworkedController::_bind_methods() {
 }
 
 NetworkedController::NetworkedController() {
-	constexpr bool call_local = false;
-	rpc_config(SNAME("_rpc_server_send_inputs"), Multiplayer::RPC_MODE_ANY_PEER, call_local, Multiplayer::TRANSFER_MODE_UNRELIABLE);
-	rpc_config(SNAME("_rpc_set_server_controlled"), Multiplayer::RPC_MODE_ANY_PEER, call_local, Multiplayer::TRANSFER_MODE_RELIABLE);
-	rpc_config(SNAME("_rpc_send_tick_additional_speed"), Multiplayer::RPC_MODE_ANY_PEER, call_local, Multiplayer::TRANSFER_MODE_UNRELIABLE);
-	rpc_config(SNAME("_rpc_doll_notify_sync_pause"), Multiplayer::RPC_MODE_ANY_PEER, call_local, Multiplayer::TRANSFER_MODE_RELIABLE);
-	rpc_config(SNAME("_rpc_doll_send_epoch_batch"), Multiplayer::RPC_MODE_ANY_PEER, call_local, Multiplayer::TRANSFER_MODE_UNRELIABLE);
+	Dictionary rpc_config_reliable;
+	rpc_config_reliable["rpc_mode"] = MultiplayerAPI::RPC_MODE_ANY_PEER;
+	rpc_config_reliable["call_local"] = false;
+	rpc_config_reliable["transfer_mode"] = MultiplayerPeer::TRANSFER_MODE_RELIABLE;
+
+	Dictionary rpc_config_unreliable = rpc_config_reliable;
+	rpc_config_unreliable["transfer_mode"] = MultiplayerPeer::TRANSFER_MODE_UNRELIABLE;
+
+	rpc_config(SNAME("_rpc_server_send_inputs"), rpc_config_unreliable);
+	rpc_config(SNAME("_rpc_set_server_controlled"), rpc_config_reliable);
+	rpc_config(SNAME("_rpc_send_tick_additional_speed"), rpc_config_unreliable);
+	rpc_config(SNAME("_rpc_doll_notify_sync_pause"), rpc_config_reliable);
+	rpc_config(SNAME("_rpc_doll_send_epoch_batch"), rpc_config_unreliable);
 }
 
 NetworkedController::~NetworkedController() {

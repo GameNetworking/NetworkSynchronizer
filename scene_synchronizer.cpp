@@ -34,7 +34,7 @@
 
 #include "scene_synchronizer.h"
 
-#include "core/multiplayer/multiplayer_api.h"
+#include "scene/main/multiplayer_api.h"
 #include "networked_controller.h"
 #include "scene/main/window.h"
 #include "scene_diff.h"
@@ -156,8 +156,8 @@ void SceneSynchronizer::_notification(int p_what) {
 
 			// Init the peers already connected.
 			if (get_tree()->get_multiplayer()->get_multiplayer_peer().is_valid()) {
-				const HashSet<int> peer_ids = get_tree()->get_multiplayer()->get_connected_peers();
-				for (HashSet<int>::Iterator it = peer_ids.begin(); it != peer_ids.end(); ++it) {
+				const PackedInt32Array peer_ids = get_tree()->get_multiplayer()->get_peer_ids();
+				for (PackedInt32Array::ConstIterator it = peer_ids.begin(); it != peer_ids.end(); ++it) {
 					_on_peer_connected(*it);
 				}
 			}
@@ -191,11 +191,15 @@ void SceneSynchronizer::_notification(int p_what) {
 }
 
 SceneSynchronizer::SceneSynchronizer() {
-	constexpr bool call_local = false;
-	rpc_config(SNAME("_rpc_send_state"), Multiplayer::RPC_MODE_ANY_PEER, call_local, Multiplayer::TRANSFER_MODE_RELIABLE);
-	rpc_config(SNAME("_rpc_notify_need_full_snapshot"), Multiplayer::RPC_MODE_ANY_PEER, call_local, Multiplayer::TRANSFER_MODE_RELIABLE);
-	rpc_config(SNAME("_rpc_set_network_enabled"), Multiplayer::RPC_MODE_ANY_PEER, call_local, Multiplayer::TRANSFER_MODE_RELIABLE);
-	rpc_config(SNAME("_rpc_notify_peer_status"), Multiplayer::RPC_MODE_ANY_PEER, call_local, Multiplayer::TRANSFER_MODE_RELIABLE);
+	Dictionary rpc_config_reliable;
+	rpc_config_reliable["rpc_mode"] = MultiplayerAPI::RPC_MODE_ANY_PEER;
+	rpc_config_reliable["call_local"] = false;
+	rpc_config_reliable["transfer_mode"] = MultiplayerPeer::TRANSFER_MODE_RELIABLE;
+
+	rpc_config(SNAME("_rpc_send_state"), rpc_config_reliable);
+	rpc_config(SNAME("_rpc_notify_need_full_snapshot"), rpc_config_reliable);
+	rpc_config(SNAME("_rpc_set_network_enabled"), rpc_config_reliable);
+	rpc_config(SNAME("_rpc_notify_peer_status"), rpc_config_reliable);
 
 	// Avoid too much useless re-allocations.
 	event_listener.reserve(100);
