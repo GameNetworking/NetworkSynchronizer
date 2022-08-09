@@ -1325,6 +1325,7 @@ uint32_t PlayerController::get_stored_input_id(int p_i) const {
 bool PlayerController::process_instant(int p_i, real_t p_delta) {
 	const size_t i = p_i;
 	if (i < frames_snapshot.size()) {
+		current_input_id = frames_snapshot[i].id;
 		DataBuffer ib(frames_snapshot[i].inputs_buffer);
 		ib.shrink_to(METADATA_SIZE, frames_snapshot[i].buffer_size_bit - METADATA_SIZE);
 		ib.begin_read();

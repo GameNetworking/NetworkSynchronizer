@@ -2460,6 +2460,9 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 #ifdef DEBUG_ENABLED
 		// Used to double check all the instants have been processed.
 		bool has_next = false;
+		const uint32_t current_input_id = recover_controller && 
+			player_controller_node_data->sync_enabled ? 
+			controller->get_current_input_id():UINT32_MAX;
 #endif
 		for (int i = 0; i < remaining_inputs; i += 1) {
 			scene_synchronizer->change_events_begin(NetEventFlag::SYNC_RECOVER | NetEventFlag::SYNC_REWIND);
@@ -2515,6 +2518,9 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 #ifdef DEBUG_ENABLED
 		// Unreachable because the above loop consume all instants.
 		CRASH_COND(has_next);
+		if (recover_controller && player_controller_node_data->sync_enabled) {
+			CRASH_COND_MSG(current_input_id != controller->get_current_input_id(), "This should never happen because it process all the inputs and the input_id is restored to the current.");
+		}
 #endif
 
 	} else {
