@@ -312,6 +312,16 @@ public:
 	void set_doll_peer_active(int p_peer_id, bool p_active);
 	void pause_notify_dolls();
 
+	virtual void validate_script_implementation();
+	virtual void native_collect_inputs(real_t p_delta, DataBuffer &r_buffer);
+	virtual void native_controller_process(real_t p_delta, DataBuffer &p_buffer);
+	virtual bool native_are_inputs_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B);
+	virtual uint32_t native_count_input_size(DataBuffer &p_buffer);
+	virtual void native_collect_epoch_data(DataBuffer &r_buffer);
+	virtual void native_setup_interpolator(Interpolator &r_interpolator);
+	virtual void native_parse_epoch_data(Interpolator &p_interpolator, DataBuffer &r_buffer);
+	virtual void native_apply_epoch(real_t p_delta, Vector<Variant> p_epoch_data);
+
 	bool process_instant(int p_i, real_t p_delta);
 
 	/// Returns the server controller or nullptr if this is not a server.
