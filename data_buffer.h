@@ -294,6 +294,7 @@ public:
 	void skip_bool();
 	void skip_int(CompressionLevel p_compression);
 	void skip_real(CompressionLevel p_compression);
+	void skip_positive_unit_real(CompressionLevel p_compression);
 	void skip_unit_real(CompressionLevel p_compression);
 	void skip_vector2(CompressionLevel p_compression);
 	void skip_normalized_vector2(CompressionLevel p_compression);
@@ -305,6 +306,7 @@ public:
 	int get_bool_size() const;
 	int get_int_size(CompressionLevel p_compression) const;
 	int get_real_size(CompressionLevel p_compression) const;
+	int get_positive_unit_real_size(CompressionLevel p_compression) const;
 	int get_unit_real_size(CompressionLevel p_compression) const;
 	int get_vector2_size(CompressionLevel p_compression) const;
 	int get_normalized_vector2_size(CompressionLevel p_compression) const;
@@ -316,6 +318,7 @@ public:
 	int read_bool_size();
 	int read_int_size(CompressionLevel p_compression);
 	int read_real_size(CompressionLevel p_compression);
+	int read_positive_unit_real_size(CompressionLevel p_compression);
 	int read_unit_real_size(CompressionLevel p_compression);
 	int read_vector2_size(CompressionLevel p_compression);
 	int read_normalized_vector2_size(CompressionLevel p_compression);

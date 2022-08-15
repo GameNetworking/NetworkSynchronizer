@@ -201,9 +201,9 @@ void NetworkedController::set_server_controlled(bool p_server_controlled) {
 			// Tell the client to do the switch too.
 			if (get_multiplayer_authority() != 1) {
 				rpc_id(
-					get_multiplayer_authority(),
-					SNAME("_rpc_set_server_controlled"),
-					server_controlled);
+						get_multiplayer_authority(),
+						SNAME("_rpc_set_server_controlled"),
+						server_controlled);
 			} else {
 				NET_DEBUG_WARN("The node is owned by the server, there is no client that can control it; please assign the proper authority.");
 			}
@@ -227,19 +227,19 @@ void NetworkedController::set_server_controlled(bool p_server_controlled) {
 		server_controlled = p_server_controlled;
 	}
 #ifdef DEBUG_ENABLED
-	if(GDVIRTUAL_IS_OVERRIDDEN(_collect_inputs) == false && server_controlled == false) {
+	if (GDVIRTUAL_IS_OVERRIDDEN(_collect_inputs) == false && server_controlled == false) {
 		WARN_PRINT("In your script you must inherit the virtual method `_collect_inputs` to correctly use the `NetworkedController`.");
 	}
-	
-	if(GDVIRTUAL_IS_OVERRIDDEN(_controller_process) == false && server_controlled == false) {
+
+	if (GDVIRTUAL_IS_OVERRIDDEN(_controller_process) == false && server_controlled == false) {
 		WARN_PRINT("In your script you must inherit the virtual method `_controller_process` to correctly use the `NetworkedController`.");
 	}
 
-	if(GDVIRTUAL_IS_OVERRIDDEN(_are_inputs_different) == false && server_controlled == false) {
+	if (GDVIRTUAL_IS_OVERRIDDEN(_are_inputs_different) == false && server_controlled == false) {
 		WARN_PRINT("In your script you must inherit the virtual method `_are_inputs_different` to correctly use the `NetworkedController`.");
 	}
 
-	if(GDVIRTUAL_IS_OVERRIDDEN(_count_input_size) == false && server_controlled == false) {
+	if (GDVIRTUAL_IS_OVERRIDDEN(_count_input_size) == false && server_controlled == false) {
 		WARN_PRINT("In your script you must inherit the virtual method `_count_input_size` to correctly use the `NetworkedController`.");
 	}
 #endif
@@ -441,6 +441,96 @@ void NetworkedController::pause_notify_dolls() {
 	}
 }
 
+void NetworkedController::validate_script_implementation() {
+	ERR_FAIL_COND_MSG(has_method("_collect_inputs") == false && server_controlled == false, "In your script you must inherit the virtual method `_collect_inputs` to correctly use the `NetworkedController`.");
+	ERR_FAIL_COND_MSG(has_method("_controller_process") == false && server_controlled == false, "In your script you must inherit the virtual method `_controller_process` to correctly use the `NetworkedController`.");
+	ERR_FAIL_COND_MSG(has_method("_are_inputs_different") == false && server_controlled == false, "In your script you must inherit the virtual method `_are_inputs_different` to correctly use the `NetworkedController`.");
+	ERR_FAIL_COND_MSG(has_method("_count_input_size") == false && server_controlled == false, "In your script you must inherit the virtual method `_count_input_size` to correctly use the `NetworkedController`.");
+	ERR_FAIL_COND_MSG(has_method("_collect_epoch_data") == false, "In your script you must inherit the virtual method `_collect_epoch_data` to correctly use the `NetworkedController`.");
+	ERR_FAIL_COND_MSG(has_method("_setup_interpolator") == false, "In your script you must inherit the virtual method `_setup_interpolator` to correctly use the `NetworkedController`.");
+	ERR_FAIL_COND_MSG(has_method("_parse_epoch_data") == false, "In your script you must inherit the virtual method `_parse_epoch_data` to correctly use the `NetworkedController`.");
+	ERR_FAIL_COND_MSG(has_method("_apply_epoch") == false, "In your script you must inherit the virtual method `_apply_epoch` to correctly use the `NetworkedController`.");
+}
+
+void NetworkedController::native_collect_inputs(real_t p_delta, DataBuffer &r_buffer) {
+	const bool executed = GDVIRTUAL_CALL(_collect_inputs, p_delta, &r_buffer);
+	if (executed == false) {
+		NET_DEBUG_ERR("The function _collect_inputs was not executed!");
+	}
+}
+
+void NetworkedController::native_controller_process(real_t p_delta, DataBuffer &p_buffer) {
+	const bool executed = GDVIRTUAL_CALL(
+			_controller_process,
+			p_delta,
+			&p_buffer);
+
+	if (executed == false) {
+		NET_DEBUG_ERR("The function _controller_process was not executed!");
+	}
+}
+
+bool NetworkedController::native_are_inputs_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B) {
+	bool are_different = true;
+	const bool executed = GDVIRTUAL_CALL(
+			_are_inputs_different,
+			&p_buffer_A,
+			&p_buffer_B,
+			are_different);
+
+	if (executed == false) {
+		NET_DEBUG_ERR("The function _are_inputs_different was not executed!");
+		return true;
+	}
+
+	return are_different;
+}
+
+uint32_t NetworkedController::native_count_input_size(DataBuffer &p_buffer) {
+	int input_size = 0;
+	const bool executed = GDVIRTUAL_CALL(_count_input_size, &p_buffer, input_size);
+	if (executed == false) {
+		NET_DEBUG_ERR("The function `_count_input_size` was not executed.");
+	}
+	return uint32_t(input_size >= 0 ? input_size : 0);
+}
+
+void NetworkedController::native_collect_epoch_data(DataBuffer &r_buffer) {
+	const bool executed = GDVIRTUAL_CALL(_collect_epoch_data, &r_buffer);
+	if (executed == false) {
+		NET_DEBUG_ERR("The function _collect_epoch_data was not executed!");
+	}
+}
+
+void NetworkedController::native_setup_interpolator(Interpolator &r_interpolator) {
+	const bool executed = GDVIRTUAL_CALL(
+			_setup_interpolator,
+			&r_interpolator);
+
+	if (executed == false) {
+		NET_DEBUG_ERR("The function _setup_interpolator was not executed!");
+	}
+}
+
+void NetworkedController::native_parse_epoch_data(Interpolator &p_interpolator, DataBuffer &r_buffer) {
+	const bool executed = GDVIRTUAL_CALL(_parse_epoch_data, &p_interpolator, &r_buffer);
+
+	if (executed == false) {
+		NET_DEBUG_ERR("The function _parse_epoch_data was not executed!");
+	}
+}
+
+void NetworkedController::native_apply_epoch(real_t p_delta, const Array &p_epoch_data) {
+	const bool executed = GDVIRTUAL_CALL(
+			_apply_epoch,
+			p_delta,
+			p_epoch_data);
+
+	if (executed == false) {
+		NET_DEBUG_ERR("The function _apply_epoch was not executed!");
+	}
+}
+
 bool NetworkedController::process_instant(int p_i, real_t p_delta) {
 	ERR_FAIL_COND_V_MSG(is_player_controller() == false, false, "Can be executed only on player controllers.");
 	return static_cast<PlayerController *>(controller)->process_instant(p_i, p_delta);
@@ -603,15 +693,7 @@ void NetworkedController::_notification(int p_what) {
 				return;
 			}
 
-			ERR_FAIL_COND_MSG(GDVIRTUAL_IS_OVERRIDDEN(_collect_inputs) == false && server_controlled == false, "In your script you must inherit the virtual method `_collect_inputs` to correctly use the `NetworkedController`.");
-			ERR_FAIL_COND_MSG(GDVIRTUAL_IS_OVERRIDDEN(_controller_process) == false && server_controlled == false, "In your script you must inherit the virtual method `_controller_process` to correctly use the `NetworkedController`.");
-			ERR_FAIL_COND_MSG(GDVIRTUAL_IS_OVERRIDDEN(_are_inputs_different) == false && server_controlled == false, "In your script you must inherit the virtual method `_are_inputs_different` to correctly use the `NetworkedController`.");
-			ERR_FAIL_COND_MSG(GDVIRTUAL_IS_OVERRIDDEN(_count_input_size) == false && server_controlled == false, "In your script you must inherit the virtual method `_count_input_size` to correctly use the `NetworkedController`.");
-			ERR_FAIL_COND_MSG(GDVIRTUAL_IS_OVERRIDDEN(_collect_epoch_data) == false, "In your script you must inherit the virtual method `_collect_epoch_data` to correctly use the `NetworkedController`.");
-			ERR_FAIL_COND_MSG(GDVIRTUAL_IS_OVERRIDDEN(_setup_interpolator) == false, "In your script you must inherit the virtual method `_setup_interpolator` to correctly use the `NetworkedController`.");
-			ERR_FAIL_COND_MSG(GDVIRTUAL_IS_OVERRIDDEN(_parse_epoch_data) == false, "In your script you must inherit the virtual method `_parse_epoch_data` to correctly use the `NetworkedController`.");
-			ERR_FAIL_COND_MSG(GDVIRTUAL_IS_OVERRIDDEN(_apply_epoch) == false, "In your script you must inherit the virtual method `_apply_epoch` to correctly use the `NetworkedController`.");
-
+			validate_script_implementation();
 		} break;
 #endif
 	}
@@ -639,11 +721,9 @@ void ServerController::process(real_t p_delta) {
 
 	node->get_inputs_buffer_mut().begin_read();
 	node->get_inputs_buffer_mut().seek(METADATA_SIZE);
-	GDVIRTUAL_CALL_PTR(
-			node,
-			_controller_process,
+	node->native_controller_process(
 			p_delta,
-			&node->get_inputs_buffer_mut());
+			node->get_inputs_buffer_mut());
 
 	doll_sync(p_delta);
 
@@ -767,14 +847,7 @@ void ServerController::receive_inputs(const Vector<uint8_t> &p_data) {
 		// Read metadata
 		const bool has_data = pir.read_bool();
 
-		int input_size = 0;
-		if (has_data) {
-			if (!GDVIRTUAL_CALL_PTR(node, _count_input_size, const_cast<const DataBuffer *>(&pir), input_size)) {
-				ERR_PRINT("The function `_count_input_size` was not executed.");
-			}
-		}
-
-		const int input_size_in_bits = input_size + METADATA_SIZE;
+		const int input_size_in_bits = (has_data ? int(node->native_count_input_size(pir)) : 0) + METADATA_SIZE;
 
 		// Pad to 8 bits.
 		const int input_size_padded =
@@ -958,13 +1031,8 @@ bool ServerController::fetch_next_input(real_t p_delta) {
 						pir_B.begin_read();
 						pir_B.seek(METADATA_SIZE);
 
-						bool is_meaningful = true;
-						const bool executed = GDVIRTUAL_CALL_PTR(node, _are_inputs_different, const_cast<const DataBuffer *>(&pir_A), const_cast<const DataBuffer *>(&pir_B), is_meaningful);
-						if (executed == false) {
-							ERR_PRINT("The function _are_inputs_different was not executed!");
-						}
-
-						if (is_meaningful) {
+						const bool are_different = node->native_are_inputs_different(pir_A, pir_B);
+						if (are_different) {
 							break;
 						}
 					}
@@ -1031,7 +1099,7 @@ void ServerController::doll_sync(real_t p_delta) {
 			if (epoch_state_collected == false) {
 				epoch_state_data_cache.begin_write(0);
 				epoch_state_data_cache.add_int(epoch, DataBuffer::COMPRESSION_LEVEL_1);
-				GDVIRTUAL_CALL_PTR(node, _collect_epoch_data, &epoch_state_data_cache);
+				node->native_collect_epoch_data(epoch_state_data_cache);
 				epoch_state_data_cache.dry();
 				epoch_state_collected = true;
 			}
@@ -1191,7 +1259,7 @@ int AutonomousServerController::get_inputs_count() const {
 bool AutonomousServerController::fetch_next_input(real_t p_delta) {
 	node->get_inputs_buffer_mut().begin_write(METADATA_SIZE);
 	node->get_inputs_buffer_mut().seek(METADATA_SIZE);
-	node->call(SNAME("_collect_inputs"), p_delta, &node->get_inputs_buffer_mut());
+	node->native_collect_inputs(p_delta, node->get_inputs_buffer_mut());
 	node->get_inputs_buffer_mut().dry();
 
 	if (unlikely(current_input_buffer_id == UINT32_MAX)) {
@@ -1235,7 +1303,7 @@ void PlayerController::process(real_t p_delta) {
 		node->get_inputs_buffer_mut().begin_write(METADATA_SIZE);
 
 		node->get_inputs_buffer_mut().seek(METADATA_SIZE);
-		GDVIRTUAL_CALL_PTR(node, _collect_inputs, p_delta, &node->get_inputs_buffer_mut());
+		node->native_collect_inputs(p_delta, node->get_inputs_buffer_mut());
 
 		// Set metadata data.
 		node->get_inputs_buffer_mut().seek(0);
@@ -1255,7 +1323,7 @@ void PlayerController::process(real_t p_delta) {
 
 	// The physics process is always emitted, because we still need to simulate
 	// the character motion even if we don't store the player inputs.
-	GDVIRTUAL_CALL_PTR(node, _controller_process, p_delta, &node->get_inputs_buffer());
+	node->native_controller_process(p_delta, node->get_inputs_buffer_mut());
 
 	node->player_set_has_new_input(false);
 	if (accept_new_inputs) {
@@ -1340,7 +1408,7 @@ bool PlayerController::process_instant(int p_i, real_t p_delta) {
 		ib.shrink_to(METADATA_SIZE, frames_snapshot[i].buffer_size_bit - METADATA_SIZE);
 		ib.begin_read();
 		ib.seek(METADATA_SIZE);
-		GDVIRTUAL_CALL_PTR(node, _controller_process, p_delta, &ib);
+		node->native_controller_process(p_delta, ib);
 
 		return (i + 1) < frames_snapshot.size();
 	} else {
@@ -1416,12 +1484,7 @@ void PlayerController::send_frame_input_buffer_to_server() {
 					pir_B.begin_read();
 					pir_B.seek(METADATA_SIZE);
 
-					bool are_different = true;
-					const bool executed = GDVIRTUAL_CALL_PTR(node, _are_inputs_different, const_cast<const DataBuffer *>(&pir_A), const_cast<const DataBuffer *>(&pir_B), are_different);
-					if (executed == false) {
-						ERR_PRINT("The function _are_inputs_different was not executed!");
-					}
-
+					const bool are_different = node->native_are_inputs_different(pir_A, pir_B);
 					is_similar = are_different == false;
 
 				} else if (frames_snapshot[i].similarity == previous_input_similarity) {
@@ -1512,10 +1575,7 @@ DollController::DollController(NetworkedController *p_node) :
 
 void DollController::ready() {
 	interpolator.reset();
-	GDVIRTUAL_CALL_PTR(
-			node,
-			_setup_interpolator,
-			&interpolator);
+	node->native_setup_interpolator(interpolator);
 	interpolator.terminate_init();
 }
 
@@ -1528,9 +1588,7 @@ void DollController::process(real_t p_delta) {
 	}
 
 	const real_t fractional_part = advancing_epoch;
-	GDVIRTUAL_CALL_PTR(
-			node,
-			_apply_epoch,
+	node->native_apply_epoch(
 			p_delta,
 			interpolator.pop_epoch(frame_epoch, fractional_part));
 }
@@ -1635,7 +1693,7 @@ uint32_t DollController::receive_epoch(const Vector<uint8_t> &p_data) {
 	}
 
 	interpolator.begin_write(epoch);
-	GDVIRTUAL_CALL_PTR(node, _parse_epoch_data, &interpolator, &buffer);
+	node->native_parse_epoch_data(interpolator, buffer);
 	interpolator.end_write();
 
 	return epoch;
@@ -1728,10 +1786,10 @@ NoNetController::NoNetController(NetworkedController *p_node) :
 
 void NoNetController::process(real_t p_delta) {
 	node->get_inputs_buffer_mut().begin_write(0); // No need of meta in this case.
-	GDVIRTUAL_CALL_PTR(node, _collect_inputs, p_delta, &node->get_inputs_buffer_mut());
+	node->native_collect_inputs(p_delta, node->get_inputs_buffer_mut());
 	node->get_inputs_buffer_mut().dry();
 	node->get_inputs_buffer_mut().begin_read();
-	GDVIRTUAL_CALL_PTR(node, _controller_process, p_delta, &node->get_inputs_buffer_mut());
+	node->native_controller_process(p_delta, node->get_inputs_buffer_mut());
 	frame_id += 1;
 }
 
