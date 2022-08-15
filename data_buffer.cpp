@@ -644,6 +644,11 @@ void DataBuffer::skip_real(CompressionLevel p_compression) {
 	skip(bits);
 }
 
+void DataBuffer::skip_positive_unit_real(CompressionLevel p_compression) {
+	const int bits = get_positive_unit_real_size(p_compression);
+	skip(bits);
+}
+
 void DataBuffer::skip_unit_real(CompressionLevel p_compression) {
 	const int bits = get_unit_real_size(p_compression);
 	skip(bits);
@@ -681,6 +686,10 @@ int DataBuffer::get_real_size(CompressionLevel p_compression) const {
 	return DataBuffer::get_bit_taken(DATA_TYPE_REAL, p_compression);
 }
 
+int DataBuffer::get_positive_unit_real_size(CompressionLevel p_compression) const {
+	return DataBuffer::get_bit_taken(DATA_TYPE_POSITIVE_UNIT_REAL, p_compression);
+}
+
 int DataBuffer::get_unit_real_size(CompressionLevel p_compression) const {
 	return DataBuffer::get_bit_taken(DATA_TYPE_UNIT_REAL, p_compression);
 }
@@ -715,6 +724,12 @@ int DataBuffer::read_int_size(CompressionLevel p_compression) {
 
 int DataBuffer::read_real_size(CompressionLevel p_compression) {
 	const int bits = get_real_size(p_compression);
+	skip(bits);
+	return bits;
+}
+
+int DataBuffer::read_positive_unit_real_size(CompressionLevel p_compression) {
+	const int bits = get_positive_unit_real_size(p_compression);
 	skip(bits);
 	return bits;
 }
@@ -803,7 +818,7 @@ int DataBuffer::get_bit_taken(DataType p_data_type, CompressionLevel p_compressi
 		} break;
 		case DATA_TYPE_REAL: {
 			return get_mantissa_bits(p_compression) +
-				   get_exponent_bits(p_compression);
+					get_exponent_bits(p_compression);
 		} break;
 		case DATA_TYPE_POSITIVE_UNIT_REAL: {
 			switch (p_compression) {
