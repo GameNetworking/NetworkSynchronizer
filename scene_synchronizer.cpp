@@ -83,7 +83,7 @@ void SceneSynchronizer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("controller_get_dependency_count", "controller"), &SceneSynchronizer::controller_get_dependency_count);
 	ClassDB::bind_method(D_METHOD("controller_get_dependency", "controller", "index"), &SceneSynchronizer::controller_get_dependency);
 
-	ClassDB::bind_method(D_METHOD("register_process", "node", "function"), &SceneSynchronizer::register_process);
+	ClassDB::bind_method(D_METHOD("register_process", "node", "function", "after"), &SceneSynchronizer::register_process);
 	ClassDB::bind_method(D_METHOD("unregister_process", "node", "function"), &SceneSynchronizer::unregister_process);
 
 	ClassDB::bind_method(D_METHOD("start_tracking_scene_changes", "diff_handle"), &SceneSynchronizer::start_tracking_scene_changes);
@@ -117,7 +117,7 @@ void SceneSynchronizer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_rpc_notify_peer_status", "enabled"), &SceneSynchronizer::_rpc_notify_peer_status);
 
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "server_notify_state_interval", PROPERTY_HINT_RANGE, "0.001,10.0,0.0001"), "set_server_notify_state_interval", "get_server_notify_state_interval");
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "comparison_float_tolerance", PROPERTY_HINT_RANGE, "0.000001,0.01,0.000001"), "set_comparison_float_tolerance", "get_comparison_float_tolerance");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "comparison_float_tolerance", PROPERTY_HINT_RANGE, "0.0,0.01,0.000001"), "set_comparison_float_tolerance", "get_comparison_float_tolerance");
 
 	ADD_SIGNAL(MethodInfo("sync_started"));
 	ADD_SIGNAL(MethodInfo("sync_paused"));
@@ -623,14 +623,20 @@ Node *SceneSynchronizer::controller_get_dependency(Node *p_controller, int p_ind
 	return controller_nd->dependency_nodes[p_index]->node;
 }
 
-void SceneSynchronizer::register_process(Node *p_node, const StringName &p_function) {
+void SceneSynchronizer::register_process(Node *p_node, const StringName &p_function, const bool p_after_controller) {
 	ERR_FAIL_COND(p_node == nullptr);
 	ERR_FAIL_COND(p_function == StringName());
 	NetUtility::NodeData *node_data = register_node(p_node);
 	ERR_FAIL_COND(node_data == nullptr);
 
-	if (node_data->functions.find(p_function) == -1) {
-		node_data->functions.push_back(p_function);
+	if (!p_after_controller) {
+		if (node_data->pre_controller_functions.find(p_function) == -1) {
+			node_data->pre_controller_functions.push_back(p_function);
+		}
+	} else {
+		if (node_data->post_controller_functions.find(p_function) == -1) {
+			node_data->post_controller_functions.push_back(p_function);
+		}
 	}
 }
 
@@ -639,7 +645,8 @@ void SceneSynchronizer::unregister_process(Node *p_node, const StringName &p_fun
 	ERR_FAIL_COND(p_function == StringName());
 	NetUtility::NodeData *node_data = register_node(p_node);
 	ERR_FAIL_COND(node_data == nullptr);
-	node_data->functions.erase(p_function);
+	node_data->pre_controller_functions.erase(p_function);
+	node_data->post_controller_functions.erase(p_function);
 }
 
 void SceneSynchronizer::start_tracking_scene_changes(Object *p_diff_handle) const {
@@ -1662,16 +1669,22 @@ void NoNetSynchronizer::process() {
 
 	const real_t delta = scene_synchronizer->get_physics_process_delta_time();
 
-	// Process the scene
+	// Pre process the scene
 	for (uint32_t i = 0; i < scene_synchronizer->node_data.size(); i += 1) {
 		NetUtility::NodeData *nd = scene_synchronizer->node_data[i];
-		nd->process(delta);
+		nd->pre_process(delta);
 	}
 
 	// Process the controllers_node_data
 	for (uint32_t i = 0; i < scene_synchronizer->node_data_controllers.size(); i += 1) {
 		NetUtility::NodeData *nd = scene_synchronizer->node_data_controllers[i];
 		static_cast<NetworkedController *>(nd->node)->get_nonet_controller()->process(delta);
+	}
+
+	// Post process the scene
+	for (uint32_t i = 0; i < scene_synchronizer->node_data.size(); i += 1) {
+		NetUtility::NodeData *nd = scene_synchronizer->node_data[i];
+		nd->post_process(delta);
 	}
 
 	// Pull the changes.
@@ -1716,16 +1729,22 @@ void ServerSynchronizer::process() {
 
 	const real_t delta = scene_synchronizer->get_physics_process_delta_time();
 
-	// Process the scene
+	// Pre process the scene
 	for (uint32_t i = 0; i < scene_synchronizer->node_data.size(); i += 1) {
 		NetUtility::NodeData *nd = scene_synchronizer->node_data[i];
-		nd->process(delta);
+		nd->pre_process(delta);
 	}
 
 	// Process the controllers_node_data
 	for (uint32_t i = 0; i < scene_synchronizer->node_data_controllers.size(); i += 1) {
 		NetUtility::NodeData *nd = scene_synchronizer->node_data_controllers[i];
 		static_cast<NetworkedController *>(nd->node)->get_server_controller()->process(delta);
+	}
+
+	// Post process the scene
+	for (uint32_t i = 0; i < scene_synchronizer->node_data.size(); i += 1) {
+		NetUtility::NodeData *nd = scene_synchronizer->node_data[i];
+		nd->post_process(delta);
 	}
 
 	// Pull the changes.
@@ -1994,6 +2013,7 @@ void ServerSynchronizer::generate_snapshot_node_data(
 ClientSynchronizer::ClientSynchronizer(SceneSynchronizer *p_node) :
 		Synchronizer(p_node) {
 	clear();
+	RigidNetsyncInvestigation::register_stringable_4_logging(this, "ClientSynchronizer snapshot");
 }
 
 void ClientSynchronizer::clear() {
@@ -2043,14 +2063,20 @@ void ClientSynchronizer::process() {
 	int sub_ticks = player_controller->calculates_sub_ticks(delta, physics_ticks_per_second);
 
 	while (sub_ticks > 0) {
-		// Process the scene.
+		// Pre process the scene.
 		for (uint32_t i = 0; i < scene_synchronizer->node_data.size(); i += 1) {
 			NetUtility::NodeData *nd = scene_synchronizer->node_data[i];
-			nd->process(delta);
+			nd->pre_process(delta);
 		}
 
 		// Process the player controllers_node_data.
 		player_controller->process(delta);
+
+		// Post process the scene.
+		for (uint32_t i = 0; i < scene_synchronizer->node_data.size(); i += 1) {
+			NetUtility::NodeData *nd = scene_synchronizer->node_data[i];
+			nd->post_process(delta);
+		}
 
 		// Pull the changes.
 		scene_synchronizer->change_events_begin(NetEventFlag::CHANGE);
@@ -2306,7 +2332,7 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 #ifdef DEBUG_ENABLED
 	// These are unreachable at this point.
 	CRASH_COND(server_snapshots.empty());
-	CRASH_COND(server_snapshots.front().input_id != checkable_input_id);
+	CRASH_COND(server_snapshots.front().input_id != checkable_input_id); //TODO log this, jgrzesik
 
 	// This is unreachable, because we store all the client shapshots
 	// each time a new input is processed. Since the `checkable_input_id`
@@ -2437,7 +2463,7 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 
 				const Variant current_val = nodes_to_recover[i]->vars[v].var.value;
 				nodes_to_recover[i]->vars[v].var.value = s_vars_ptr[v].value.duplicate(true);
-				node->set(s_vars_ptr[v].name, s_vars_ptr[v].value);
+				node->set(s_vars_ptr[v].name, s_vars_ptr[v].value); //rewinding, jgrzesik
 
 				NET_DEBUG_PRINT(" |- Variable: " + s_vars_ptr[v].name + " New value: " + s_vars_ptr[v].value.stringify());
 				scene_synchronizer->change_event_add(
@@ -2460,9 +2486,10 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 #ifdef DEBUG_ENABLED
 		// Used to double check all the instants have been processed.
 		bool has_next = false;
-		const uint32_t current_input_id = recover_controller && 
-			player_controller_node_data->sync_enabled ? 
-			controller->get_current_input_id():UINT32_MAX;
+		const uint32_t current_input_id = recover_controller &&
+						player_controller_node_data->sync_enabled
+				? controller->get_current_input_id()
+				: UINT32_MAX;
 #endif
 		for (int i = 0; i < remaining_inputs; i += 1) {
 			scene_synchronizer->change_events_begin(NetEventFlag::SYNC_RECOVER | NetEventFlag::SYNC_REWIND);
@@ -2473,10 +2500,10 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 					// This node is not sync.
 					continue;
 				}
-				nodes_to_recover[r]->process(p_delta);
+				nodes_to_recover[r]->pre_process(p_delta);
 #ifdef DEBUG_ENABLED
-				if (nodes_to_recover[r]->functions.size()) {
-					NET_DEBUG_PRINT("Rewind, processed node: " + nodes_to_recover[r]->node->get_path());
+				if (nodes_to_recover[r]->pre_controller_functions.size()) {
+					NET_DEBUG_PRINT("Rewind, pre processed node: " + nodes_to_recover[r]->node->get_path());
 				}
 #endif
 			}
@@ -2490,7 +2517,21 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 				NET_DEBUG_PRINT("Rewind, processed controller: " + controller->get_path());
 			}
 
-			// Step 3 -- Pull node changes and Update snapshots.
+			// Step 3 - Post process the scene nodes.
+			for (uint32_t r = 0; r < nodes_to_recover.size(); r += 1) {
+				if (nodes_to_recover[r]->sync_enabled == false) {
+					// This node is not sync.
+					continue;
+				}
+				nodes_to_recover[r]->post_process(p_delta);
+#ifdef DEBUG_ENABLED
+				if (nodes_to_recover[r]->post_controller_functions.size()) {
+					NET_DEBUG_PRINT("Rewind, post processed node: " + nodes_to_recover[r]->node->get_path());
+				}
+#endif
+			}
+
+			// Step 4 -- Pull node changes and Update snapshots.
 			for (uint32_t r = 0; r < nodes_to_recover.size(); r += 1) {
 				if (nodes_to_recover[r]->sync_enabled == false) {
 					// This node is not sync.
@@ -2552,7 +2593,7 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 
 				const Variant old_val = rew_node_data->vars[rew_var_index].var.value;
 				rew_node_data->vars[rew_var_index].var.value = vars_ptr[v].value.duplicate(true);
-				node->set(vars_ptr[v].name, vars_ptr[v].value);
+				node->set(vars_ptr[v].name, vars_ptr[v].value); //rewinding vals are set here, jgrzesik
 
 				NET_DEBUG_PRINT(" |- Variable: " + vars_ptr[v].name + "; old value: " + old_val.stringify() + " new value: " + vars_ptr[v].value.stringify());
 				scene_synchronizer->change_event_add(

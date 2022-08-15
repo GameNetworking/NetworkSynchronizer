@@ -39,6 +39,9 @@
 #include "net_utilities.h"
 #include <deque>
 
+#include "modules/rigid_netsync_investigation/stringable.h"
+#include "modules/rigid_netsync_investigation/rigid_netsync_investigation.h"
+
 #ifndef SCENE_SYNCHRONIZER_H
 #define SCENE_SYNCHRONIZER_H
 
@@ -217,7 +220,7 @@ public:
 	int controller_get_dependency_count(Node *p_controller) const;
 	Node *controller_get_dependency(Node *p_controller, int p_index);
 
-	void register_process(Node *p_node, const StringName &p_function);
+	void register_process(Node *p_node, const StringName &p_function, const bool p_after_controller = false);
 	void unregister_process(Node *p_node, const StringName &p_function);
 
 	void start_tracking_scene_changes(Object *p_diff_handle) const;
@@ -389,7 +392,7 @@ public:
 	void generate_snapshot_node_data(const NetUtility::NodeData *p_node_data, bool p_force_full_snapshot, Vector<Variant> &r_result) const;
 };
 
-class ClientSynchronizer : public Synchronizer {
+class ClientSynchronizer : public Synchronizer, public Stringable {
 	friend class SceneSynchronizer;
 
 	NetUtility::NodeData *player_controller_node_data = nullptr;
@@ -440,6 +443,13 @@ public:
 			void (*p_variable_parse)(void *p_user_pointer, NetUtility::NodeData *p_node_data, NetVarId p_var_id, const Variant &p_value));
 
 	void set_enabled(bool p_enabled);
+
+	String stringify(int tab_index) const override{
+		if (server_snapshots.size() == 1){
+			return RigidNetsyncInvestigation::get_tabs(tab_index + 1) + server_snapshots.front();
+		}
+		return "";
+	}
 
 private:
 	/// Store node data organized per controller.

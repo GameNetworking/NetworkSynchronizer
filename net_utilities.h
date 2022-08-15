@@ -35,20 +35,20 @@
 #ifndef NET_UTILITIES_H
 #define NET_UTILITIES_H
 
+#include "core/config/project_settings.h"
 #include "core/math/math_funcs.h"
 #include "core/templates/local_vector.h"
 #include "core/variant/variant.h"
-#include "core/config/project_settings.h"
 
 class Node;
 
 #ifdef DEBUG_ENABLED
 #define NET_DEBUG_PRINT(msg)                                                                                  \
 	if (ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/log_debug_warnings_and_messages")) \
-		print_line(String("[Net] ") + msg)                                                                                     
+	print_line(String("[Net] ") + msg)
 #define NET_DEBUG_WARN(msg)                                                                                   \
 	if (ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/log_debug_warnings_and_messages")) \
-		WARN_PRINT(String("[Net] ") + msg)  
+	WARN_PRINT(String("[Net] ") + msg)
 #define NET_DEBUG_ERR(msg) \
 	ERR_PRINT(String("[Net] ") + msg)
 #else
@@ -307,14 +307,16 @@ struct NodeData {
 	/// The sync variables of this node. The order of this vector matters
 	/// because the index is the `NetVarId`.
 	LocalVector<VarData> vars;
-	LocalVector<StringName> functions;
+	LocalVector<StringName> pre_controller_functions;
+	LocalVector<StringName> post_controller_functions;
 
-	// This is valid to use only inside the process function.
+	// This is valid to use only inside the pre_process function.
 	Node *node = nullptr;
 
 	NodeData() = default;
 
-	void process(const real_t p_delta) const;
+	void pre_process(const real_t p_delta) const;
+	void post_process(const real_t p_delta) const;
 };
 
 struct PeerData {
