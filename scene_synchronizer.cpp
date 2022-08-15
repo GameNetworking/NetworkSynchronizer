@@ -1230,6 +1230,12 @@ void SceneSynchronizer::drop_node_data(NetUtility::NodeData *p_node_data) {
 		p_node_data->controlled_by->controlled_nodes.erase(p_node_data);
 		p_node_data->controlled_by = nullptr;
 	}
+	
+	// Set all controlled nodes as not controlled by this.
+	for (uint32_t i = 0; i < p_node_data->controlled_nodes.size(); i += 1) {
+		p_node_data->controlled_nodes[i]->controlled_by = nullptr;
+	}
+	p_node_data->controlled_nodes.clear();
 
 	if (p_node_data->is_controller) {
 		// This is a controller, make sure to reset the peers.
