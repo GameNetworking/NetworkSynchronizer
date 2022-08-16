@@ -6,7 +6,7 @@ void InputNetworkEncoder::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("register_input", "name", "default_value", "type", "compression_level"), &InputNetworkEncoder::register_input);
 	ClassDB::bind_method(D_METHOD("find_input_id", "name"), &InputNetworkEncoder::find_input_id);
 	ClassDB::bind_method(D_METHOD("encode", "inputs", "buffer"), &InputNetworkEncoder::script_encode);
-	ClassDB::bind_method(D_METHOD("decode", "buffer", "inputs"), &InputNetworkEncoder::script_decode);
+	ClassDB::bind_method(D_METHOD("decode", "buffer"), &InputNetworkEncoder::script_decode);
 	ClassDB::bind_method(D_METHOD("get_defaults"), &InputNetworkEncoder::script_get_defaults);
 	ClassDB::bind_method(D_METHOD("are_different", "buffer_a", "buffer_b"), &InputNetworkEncoder::script_are_different);
 	ClassDB::bind_method(D_METHOD("count_size", "buffer"), &InputNetworkEncoder::script_count_size);
