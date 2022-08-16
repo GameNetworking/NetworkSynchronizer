@@ -3,7 +3,7 @@
 #include "core/io/resource.h"
 #include "core/templates/local_vector.h"
 #include "core/variant/variant.h"
-#include "network_synchronizer/data_buffer.h"
+#include "data_buffer.h"
 
 struct NetworkedInputInfo {
 	StringName name;
