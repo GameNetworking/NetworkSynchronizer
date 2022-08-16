@@ -317,6 +317,7 @@ struct NodeData {
 
 	void pre_process(const real_t p_delta) const;
 	void post_process(const real_t p_delta) const;
+	bool can_sync() const;
 };
 
 struct PeerData {

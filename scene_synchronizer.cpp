@@ -2351,7 +2351,7 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 	nodes_to_recover.reserve(server_snapshots.front().node_vars.size());
 	for (uint32_t net_node_id = 0; net_node_id < uint32_t(server_snapshots.front().node_vars.size()); net_node_id += 1) {
 		NetUtility::NodeData *rew_node_data = scene_synchronizer->get_node_data(net_node_id);
-		if (rew_node_data == nullptr || rew_node_data->sync_enabled == false) {
+		if (rew_node_data == nullptr || rew_node_data->can_sync() == false) {
 			continue;
 		}
 
@@ -2431,11 +2431,12 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 		// so to be able to correctly reply the movements.
 		scene_synchronizer->change_events_begin(NetEventFlag::SYNC_RECOVER | NetEventFlag::SYNC_RESET);
 		for (uint32_t i = 0; i < nodes_to_recover.size(); i += 1) {
-			if (nodes_to_recover[i]->id >= uint32_t(server_snapshots.front().node_vars.size())) {
+			const bool id_found = nodes_to_recover[i]->id < uint32_t(server_snapshots.front().node_vars.size());
+			if (!id_found) {
 				NET_DEBUG_WARN("The node: " + nodes_to_recover[i]->node->get_path() + " was not found on the server snapshot, this is not supposed to happen a lot.");
 				continue;
 			}
-			if (nodes_to_recover[i]->sync_enabled == false) {
+			if (nodes_to_recover[i]->can_sync() == false) {
 				// Don't sync this node.
 				// This check is also here, because the `recover_controller`
 				// mechanism, may have insert a no sync node.
@@ -2487,7 +2488,7 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 		// Used to double check all the instants have been processed.
 		bool has_next = false;
 		const uint32_t current_input_id = recover_controller &&
-						player_controller_node_data->sync_enabled
+						player_controller_node_data->can_sync()
 				? controller->get_current_input_id()
 				: UINT32_MAX;
 #endif
@@ -2496,7 +2497,7 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 
 			// Step 1 -- Process the scene nodes.
 			for (uint32_t r = 0; r < nodes_to_recover.size(); r += 1) {
-				if (nodes_to_recover[r]->sync_enabled == false) {
+				if (nodes_to_recover[r]->can_sync() == false) {
 					// This node is not sync.
 					continue;
 				}
@@ -2509,7 +2510,7 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 			}
 
 			// Step 2 -- Process the controller.
-			if (recover_controller && player_controller_node_data->sync_enabled) {
+			if (recover_controller && player_controller_node_data->can_sync()) {
 #ifdef DEBUG_ENABLED
 				has_next =
 #endif
@@ -2519,7 +2520,7 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 
 			// Step 3 - Post process the scene nodes.
 			for (uint32_t r = 0; r < nodes_to_recover.size(); r += 1) {
-				if (nodes_to_recover[r]->sync_enabled == false) {
+				if (nodes_to_recover[r]->can_sync() == false) {
 					// This node is not sync.
 					continue;
 				}
@@ -2533,10 +2534,15 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 
 			// Step 4 -- Pull node changes and Update snapshots.
 			for (uint32_t r = 0; r < nodes_to_recover.size(); r += 1) {
-				if (nodes_to_recover[r]->sync_enabled == false) {
+				if (nodes_to_recover[r]->can_sync() == false) {
 					// This node is not sync.
 					continue;
 				}
+
+				// This can't ever happen since we check that the id
+				// is not UINT32_MAX inside can_sync().
+				CRASH_COND(nodes_to_recover[r]->id == UINT32_MAX);
+
 				// Pull changes
 				scene_synchronizer->pull_node_changes(nodes_to_recover[r]);
 
@@ -2559,7 +2565,7 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 #ifdef DEBUG_ENABLED
 		// Unreachable because the above loop consume all instants.
 		CRASH_COND(has_next);
-		if (recover_controller && player_controller_node_data->sync_enabled) {
+		if (recover_controller && player_controller_node_data->can_sync()) {
 			CRASH_COND_MSG(current_input_id != controller->get_current_input_id(), "This should never happen because it process all the inputs and the input_id is restored to the current.");
 		}
 #endif
@@ -2569,7 +2575,7 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 		scene_synchronizer->change_events_begin(NetEventFlag::SYNC_RECOVER);
 		for (uint32_t i = 0; i < postponed_recover.size(); i += 1) {
 			NetUtility::NodeData *rew_node_data = postponed_recover[i].node_data;
-			if (rew_node_data->sync_enabled == false) {
+			if (rew_node_data->can_sync() == false) {
 				// This node sync is disabled.
 				continue;
 			}

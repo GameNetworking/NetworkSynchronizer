@@ -80,6 +80,10 @@ void NetUtility::NodeData::post_process(const real_t p_delta) const {
 	}
 }
 
+bool NetUtility::NodeData::can_sync() const {
+	return sync_enabled && id != UINT32_MAX;
+}
+
 NetUtility::Snapshot::operator String() const {
 	String s;
 	s += "Snapshot input ID: " + itos(input_id);
