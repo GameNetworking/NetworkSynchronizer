@@ -123,6 +123,22 @@ DataBuffer::DataBuffer(const BitArray &p_buffer) :
 		is_reading(true),
 		buffer(p_buffer) {}
 
+void DataBuffer::copy(const DataBuffer &p_other) {
+	metadata_size = p_other.metadata_size;
+	bit_offset = p_other.bit_offset;
+	bit_size = p_other.bit_size;
+	is_reading = p_other.is_reading;
+	buffer = p_other.buffer;
+}
+
+void DataBuffer::copy(const BitArray &p_buffer) {
+	metadata_size = 0;
+	bit_offset = 0;
+	bit_size = p_buffer.size_in_bits();
+	is_reading = true;
+	buffer = p_buffer;
+}
+
 void DataBuffer::begin_write(int p_metadata_size) {
 	CRASH_COND_MSG(p_metadata_size < 0, "Metadata size can't be negative");
 	metadata_size = p_metadata_size;

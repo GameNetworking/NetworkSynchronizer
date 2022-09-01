@@ -36,7 +36,6 @@
 
 #include "core/config/project_settings.h"
 #include "data_buffer.h"
-#include "interpolator.h"
 #include "networked_controller.h"
 #include "scene_diff.h"
 #include "scene_synchronizer.h"
@@ -48,7 +47,6 @@ void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
 
 	GDREGISTER_CLASS(DataBuffer);
 	GDREGISTER_CLASS(SceneDiff);
-	GDREGISTER_CLASS(Interpolator);
 	GDREGISTER_CLASS(NetworkedController);
 	GDREGISTER_CLASS(SceneSynchronizer);
 
