@@ -110,19 +110,19 @@ void InputNetworkEncoder::encode(const LocalVector<Variant> &p_input, DataBuffer
 						r_buffer.add_unit_real(pending_input.operator real_t(), info.compression_level);
 						break;
 					case DataBuffer::DATA_TYPE_VECTOR2:
-						r_buffer.add_vector2(pending_input.operator Vector2(), info.compression_level);
+						_ALLOW_DISCARD_ r_buffer.add_vector2(pending_input.operator Vector2(), info.compression_level);
 						break;
 					case DataBuffer::DATA_TYPE_NORMALIZED_VECTOR2:
-						r_buffer.add_normalized_vector2(pending_input.operator Vector2(), info.compression_level);
+						_ALLOW_DISCARD_ r_buffer.add_normalized_vector2(pending_input.operator Vector2(), info.compression_level);
 						break;
 					case DataBuffer::DATA_TYPE_VECTOR3:
-						r_buffer.add_vector3(pending_input.operator Vector3(), info.compression_level);
+						_ALLOW_DISCARD_ r_buffer.add_vector3(pending_input.operator Vector3(), info.compression_level);
 						break;
 					case DataBuffer::DATA_TYPE_NORMALIZED_VECTOR3:
-						r_buffer.add_normalized_vector3(pending_input.operator Vector3(), info.compression_level);
+						_ALLOW_DISCARD_ r_buffer.add_normalized_vector3(pending_input.operator Vector3(), info.compression_level);
 						break;
 					case DataBuffer::DATA_TYPE_VARIANT:
-						r_buffer.add_variant(pending_input);
+						_ALLOW_DISCARD_ r_buffer.add_variant(pending_input);
 						break;
 				};
 			}
