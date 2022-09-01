@@ -153,6 +153,9 @@ public:
 	DataBuffer(const DataBuffer &p_other);
 	DataBuffer(const BitArray &p_buffer);
 
+	void copy(const DataBuffer &p_other);
+	void copy(const BitArray &p_buffer);
+
 	const BitArray &get_buffer() const {
 		return buffer;
 	}
