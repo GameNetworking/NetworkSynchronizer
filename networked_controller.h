@@ -35,7 +35,6 @@
 #include "scene/main/node.h"
 
 #include "data_buffer.h"
-#include "interpolator.h"
 #include "net_utilities.h"
 #include <deque>
 
@@ -87,9 +86,7 @@ public:
 	GDVIRTUAL2R(bool, _are_inputs_different, DataBuffer *, DataBuffer *);
 	GDVIRTUAL1RC(int, _count_input_size, DataBuffer *);
 	GDVIRTUAL1(_collect_epoch_data, DataBuffer *);
-	GDVIRTUAL1(_setup_interpolator, Interpolator *);
-	GDVIRTUAL2(_parse_epoch_data, Interpolator *, DataBuffer *);
-	GDVIRTUAL2(_apply_epoch, real_t, Array);
+	GDVIRTUAL4(_apply_epoch, real_t, real_t, DataBuffer *, DataBuffer *);
 
 private:
 	/// When `true`, this controller is controlled by the server: All the clients
@@ -171,19 +168,8 @@ private:
 	/// matched.
 	real_t tick_acceleration = 2.0;
 
-	/// Collect rate (in frames) used by the server to estabish when to collect
-	/// the state for a particular peer.
-	/// It's possible to scale down this rate, for a particular peer,
-	/// using the function: set_doll_collect_rate_factor(peer, factor);
-	/// Current default is 10Hz.
-	///
-	/// The collected state is not immediatelly sent to the clients, rather it's
-	/// delayed so to be sent in batch. The states marked as important are
-	/// always collected.
-	int doll_epoch_collect_rate = 1;
-
-	/// The time rate at which a new batch is sent.
-	real_t doll_epoch_batch_sync_rate = 0.25;
+	/// The doll epoch send rate: in Hz (frames per seconds).
+	uint32_t doll_sync_rate = 30;
 
 	/// The doll interpolator will try to keep a margin of error, so that network
 	/// oscillations doesn't make the dolls freeze.
@@ -191,11 +177,22 @@ private:
 	/// This margin of error is called `optimal_frame_delay` and it changes
 	/// depending on the connection health:
 	/// it can go from `doll_min_frames_delay` to `doll_max_frames_delay`.
-	int doll_min_frames_delay = 2;
-	int doll_max_frames_delay = 5;
+	int doll_min_frames_delay = 0;
+	int doll_max_frames_delay = 25;
 
-	/// Max speedup / slowdown the doll can apply to recover its epoch buffer size.
-	real_t doll_interpolation_max_speedup = 0.2;
+	/// Sensitivity to network oscillations. The value is in seconds and can be
+	/// used to establish the connection quality.
+	///
+	/// The net sync checks the amount of time for each packet to arrive.
+	/// The different it is, the more unreliable the connection is, so virtual latency
+	/// is used to smooth the interpolation.
+	///
+	/// `doll_net_sensitivity` is an amount in seconds used to determine the maximum delta difference
+	/// between the packets.
+	real_t doll_net_sensitivity = 0.21;
+
+	/// Max doll interpolation overshot. Unit: normalized percentage.
+	real_t doll_interpolation_max_overshot = 0.2;
 
 	/// The connection quality is established by watching the time passed
 	/// between each batch arrival.
@@ -206,31 +203,8 @@ private:
 	/// - Big values make the mechanism too slow.
 	/// - Small values make the mechanism too sensible.
 	/// The correct value should be give considering the
-	/// `doll_epoch_batch_sync_rate`.
-	int doll_connection_stats_frame_span = 30;
-
-	/// Sensitivity to network oscillations. The value is in seconds and can be
-	/// used to establish the connection quality.
-	///
-	/// For each batch, the time needed for its arrival is traced; the standard
-	/// deviation of these is divided by `doll_net_sensitivity`: the result is
-	/// the connection quality.
-	///
-	/// The more the time needed for each batch to arrive is different the
-	/// bigger this value is: when this value approaches to
-	/// `doll_net_sensitivity` (or even surpasses it) the bad the connection is.
-	///
-	/// The result is the `connection_poorness` that goes from 0 to 1 and is
-	/// used to decide the `optimal_frames_delay` that is interpolated between
-	/// `doll_min_frames_delay` and `doll_max_frames_delay`.
-	real_t doll_net_sensitivity = 0.2;
-
-	/// Just after a bad connection phase, may happen that all the sent epochs
-	/// are received at once. To make sure the actor is always the more uptodate
-	/// possible, the number of epochs the actor has to fetch is clamped.
-	/// When `doll_max_delay` is surpassed the doll is teleported forward the
-	/// timeline so to be the more update possible.
-	uint64_t doll_max_delay = 60;
+	/// `doll_sync_rate`.
+	int doll_connection_stats_frame_span = 60;
 
 	ControllerType controller_type = CONTROLLER_TYPE_NULL;
 	Controller *controller = nullptr;
@@ -278,8 +252,8 @@ public:
 	void set_doll_epoch_collect_rate(int p_rate);
 	int get_doll_epoch_collect_rate() const;
 
-	void set_doll_epoch_batch_sync_rate(real_t p_rate);
-	real_t get_doll_epoch_batch_sync_rate() const;
+	void set_doll_sync_rate(uint32_t p_rate);
+	uint32_t get_doll_sync_rate() const;
 
 	void set_doll_min_frames_delay(int p_min);
 	int get_doll_min_frames_delay() const;
@@ -287,17 +261,17 @@ public:
 	void set_doll_max_frames_delay(int p_max);
 	int get_doll_max_frames_delay() const;
 
-	void set_doll_interpolation_max_speedup(real_t p_speedup);
-	real_t get_doll_interpolation_max_speedup() const;
+	void set_doll_net_sensitivity(real_t p_sensitivity);
+	real_t get_doll_net_sensitivity() const;
+
+	void set_doll_interpolation_max_overshot(real_t p_speedup);
+	real_t get_doll_interpolation_max_overshot() const;
 
 	void set_doll_connection_stats_frame_span(int p_span);
 	int get_doll_connection_stats_frame_span() const;
 
-	void set_doll_net_sensitivity(real_t p_sensitivity);
-	real_t get_doll_net_sensitivity() const;
-
-	void set_doll_max_delay(uint32_t p_max_delay);
-	uint32_t get_doll_max_delay() const;
+	void set_doll_virtual_delay_max_bias(uint32_t p_max_delay);
+	uint32_t get_doll_virtual_delay_max_bias() const;
 
 	uint32_t get_current_input_id() const;
 
@@ -324,9 +298,7 @@ public:
 	virtual bool native_are_inputs_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B);
 	virtual uint32_t native_count_input_size(DataBuffer &p_buffer);
 	virtual void native_collect_epoch_data(DataBuffer &r_buffer);
-	virtual void native_setup_interpolator(Interpolator &r_interpolator);
-	virtual void native_parse_epoch_data(Interpolator &p_interpolator, DataBuffer &r_buffer);
-	virtual void native_apply_epoch(real_t p_delta, const Array &p_epoch_data);
+	virtual void native_apply_epoch(real_t p_delta, real_t p_interpolation_alpha, DataBuffer &p_past_buffer, DataBuffer &p_future_buffer);
 
 	bool process_instant(int p_i, real_t p_delta);
 
@@ -413,11 +385,9 @@ struct ServerController : public Controller {
 
 		int peer = 0;
 		bool active = true;
-		real_t update_rate_factor = 1.0;
-		int collect_timer = 0; // In frames
-		int collect_threshold = 0; // In frames
-		LocalVector<Vector<uint8_t>> epoch_batch;
-		uint32_t batch_size = 0;
+		real_t doll_sync_rate_factor = 1.0;
+		real_t doll_sync_timer = 0.0;
+		real_t doll_sync_time_threshold = 0.0;
 	};
 
 	uint32_t current_input_buffer_id = UINT32_MAX;
@@ -437,7 +407,6 @@ struct ServerController : public Controller {
 	DataBuffer epoch_state_data_cache;
 	uint32_t epoch = 0;
 	bool is_epoch_important = false;
-	real_t batch_sync_timer = 0.0;
 
 	ServerController(
 			NetworkedController *p_node,
@@ -533,18 +502,25 @@ struct PlayerController : public Controller {
 /// with the server execution (see `soft_reset_to_server_state`) and the possibility
 /// for the server to stop the data streaming.
 struct DollController : public Controller {
-	Interpolator interpolator;
-	real_t additional_speed = 0.0;
-	uint32_t current_epoch = UINT32_MAX;
-	real_t advancing_epoch = 0.0;
-	uint32_t missing_epochs = 0;
+	real_t interpolation_alpha = 0.0;
+	real_t interpolation_time_window = 0.0;
+
+	uint32_t current_epoch = 0;
+
+	uint32_t past_epoch = 0;
+	DataBuffer past_epoch_buffer;
+
+	uint32_t future_epoch = 0;
+	DataBuffer future_epoch_buffer;
+
 	// Any received epoch prior to this one is discarded.
 	uint32_t paused_epoch = 0;
 
 	// Used to track the time taken for the next batch to arrive.
-	uint32_t batch_receiver_timer = UINT32_MAX;
+	uint32_t epoch_received_timestamp = UINT32_MAX;
+	real_t next_epoch_expected_in = 0.0;
 	/// Used to track how network is performing.
-	NetUtility::StatisticalRingBuffer<uint32_t> network_watcher;
+	NetUtility::StatisticalRingBuffer<real_t> network_watcher;
 
 	DollController(NetworkedController *p_node);
 
@@ -553,10 +529,8 @@ struct DollController : public Controller {
 	// TODO consider make this non virtual
 	virtual uint32_t get_current_input_id() const override;
 
-	void receive_batch(const Vector<uint8_t> &p_data);
-	uint32_t receive_epoch(const Vector<uint8_t> &p_data);
+	void receive_epoch(const Vector<uint8_t> &p_data);
 
-	uint32_t next_epoch();
 	void pause(uint32_t p_epoch);
 };
 
