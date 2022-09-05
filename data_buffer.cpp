@@ -355,7 +355,7 @@ real_t DataBuffer::add_positive_unit_real(real_t p_input, CompressionLevel p_com
 #endif
 	ERR_FAIL_COND_V(is_reading == true, p_input);
 
-	const int bits = get_bit_taken(DATA_TYPE_UNIT_REAL, p_compression_level);
+	const int bits = get_bit_taken(DATA_TYPE_POSITIVE_UNIT_REAL, p_compression_level);
 
 	const double max_value = static_cast<double>(~(UINT64_MAX << bits));
 
@@ -376,7 +376,7 @@ real_t DataBuffer::add_positive_unit_real(real_t p_input, CompressionLevel p_com
 real_t DataBuffer::read_positive_unit_real(CompressionLevel p_compression_level) {
 	ERR_FAIL_COND_V(is_reading == false, 0.0);
 
-	const int bits = get_bit_taken(DATA_TYPE_UNIT_REAL, p_compression_level);
+	const int bits = get_bit_taken(DATA_TYPE_POSITIVE_UNIT_REAL, p_compression_level);
 
 	const double max_value = static_cast<double>(~(UINT64_MAX << bits));
 
@@ -452,9 +452,12 @@ Vector2 DataBuffer::read_vector2(CompressionLevel p_compression_level) {
 }
 
 Vector2 DataBuffer::add_normalized_vector2(Vector2 p_input, CompressionLevel p_compression_level) {
+	const uint32_t is_not_zero = p_input.length_squared() > CMP_EPSILON;
+
 #ifdef DEBUG_ENABLED
-	ERR_FAIL_COND_V(p_input.is_normalized() == false, p_input);
+	ERR_FAIL_COND_V_MSG(p_input.is_normalized() == false && is_not_zero, p_input, "[FATAL] The encoding failed because this function expects a normalized vector.");
 #endif
+
 	ERR_FAIL_COND_V(is_reading == true, p_input);
 
 	const int bits = get_bit_taken(DATA_TYPE_NORMALIZED_VECTOR2, p_compression_level);
@@ -462,7 +465,6 @@ Vector2 DataBuffer::add_normalized_vector2(Vector2 p_input, CompressionLevel p_c
 	const int bits_for_zero = 1;
 
 	const double angle = p_input.angle();
-	const uint32_t is_not_zero = p_input.length_squared() > CMP_EPSILON;
 
 	const double max_value = static_cast<double>(~(UINT64_MAX << bits_for_the_angle));
 
@@ -543,7 +545,8 @@ Vector3 DataBuffer::read_vector3(CompressionLevel p_compression_level) {
 
 Vector3 DataBuffer::add_normalized_vector3(Vector3 p_input, CompressionLevel p_compression_level) {
 #ifdef DEBUG_ENABLED
-	ERR_FAIL_COND_V(p_input.is_normalized() == false, p_input);
+	const uint32_t is_not_zero = p_input.length_squared() > CMP_EPSILON;
+	ERR_FAIL_COND_V_MSG(p_input.is_normalized() == false && is_not_zero, p_input, "[FATAL] This function expects a normalized vector.");
 #endif
 	ERR_FAIL_COND_V(is_reading == true, p_input);
 
@@ -874,16 +877,7 @@ int DataBuffer::get_bit_taken(DataType p_data_type, CompressionLevel p_compressi
 			return get_bit_taken(DATA_TYPE_REAL, p_compression) * 3;
 		} break;
 		case DATA_TYPE_NORMALIZED_VECTOR3: {
-			switch (p_compression) {
-				case CompressionLevel::COMPRESSION_LEVEL_0:
-					return 11 * 3;
-				case CompressionLevel::COMPRESSION_LEVEL_1:
-					return 10 * 3;
-				case CompressionLevel::COMPRESSION_LEVEL_2:
-					return 8 * 3;
-				case CompressionLevel::COMPRESSION_LEVEL_3:
-					return 6 * 3;
-			}
+			return get_bit_taken(DATA_TYPE_UNIT_REAL, p_compression) * 3;
 		} break;
 		case DATA_TYPE_VARIANT: {
 			ERR_FAIL_V_MSG(0, "The variant size is dynamic and can't be know at compile time.");
@@ -899,6 +893,14 @@ int DataBuffer::get_bit_taken(DataType p_data_type, CompressionLevel p_compressi
 }
 
 int DataBuffer::get_mantissa_bits(CompressionLevel p_compression) {
+#ifndef REAL_T_IS_DOUBLE
+	// Fallback to compression level 1 if real_t is float
+	if (p_compression == DataBuffer::COMPRESSION_LEVEL_0) {
+		WARN_PRINT_ONCE("Compression level 0 is not supported for a binary compiled with single precision float. Falling back to compression level 1");
+		p_compression = DataBuffer::COMPRESSION_LEVEL_1;
+	}
+#endif
+
 	// https://en.wikipedia.org/wiki/IEEE_754#Basic_and_interchange_formats
 	switch (p_compression) {
 		case CompressionLevel::COMPRESSION_LEVEL_0:
@@ -917,6 +919,14 @@ int DataBuffer::get_mantissa_bits(CompressionLevel p_compression) {
 }
 
 int DataBuffer::get_exponent_bits(CompressionLevel p_compression) {
+#ifndef REAL_T_IS_DOUBLE
+	// Fallback to compression level 1 if real_t is float
+	if (p_compression == DataBuffer::COMPRESSION_LEVEL_0) {
+		WARN_PRINT_ONCE("Compression level 0 is not supported for a binary compiled with single precision float. Falling back to compression level 1");
+		p_compression = DataBuffer::COMPRESSION_LEVEL_1;
+	}
+#endif
+
 	// https://en.wikipedia.org/wiki/IEEE_754#Basic_and_interchange_formats
 	switch (p_compression) {
 		case CompressionLevel::COMPRESSION_LEVEL_0:
