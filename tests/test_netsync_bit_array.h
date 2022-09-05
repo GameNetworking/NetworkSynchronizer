@@ -28,59 +28,59 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#ifndef TEST_BIT_ARRAY_H
-#define TEST_BIT_ARRAY_H
+#ifndef TEST_NETSYNC_BIT_ARRAY_H
+#define TEST_NETSYNC_BIT_ARRAY_H
 
-#include "modules/network_synchronizer/bit_array.h"
+#include "../bit_array.h"
 
 #include "tests/test_macros.h"
 
-namespace TestBitArray {
+namespace test_netsync_BitArray {
 
-TEST_CASE("[Modules][BitArray] Read and write") {
+TEST_CASE("[NetSync][BitArray] Read and write") {
 	BitArray array;
 	int offset = 0;
 	int bits = {};
 	uint64_t value = {};
 
-	SUBCASE("[Modules][BitArray] One bit") {
+	SUBCASE("[NetSync][BitArray] One bit") {
 		bits = 1;
 
-		SUBCASE("[Modules][BitArray] One") {
+		SUBCASE("[NetSync][BitArray] One") {
 			value = 0b1;
 		}
-		SUBCASE("[Modules][BitArray] Zero") {
+		SUBCASE("[NetSync][BitArray] Zero") {
 			value = 0b0;
 		}
 	}
-	SUBCASE("[Modules][BitArray] 16 mixed bits") {
+	SUBCASE("[NetSync][BitArray] 16 mixed bits") {
 		bits = 16;
 		value = 0b1010101010101010;
 	}
-	SUBCASE("[Modules][BitArray] One and 4 zeroes") {
+	SUBCASE("[NetSync][BitArray] One and 4 zeroes") {
 		bits = 5;
 		value = 0b10000;
 	}
-	SUBCASE("[Modules][BitArray] 64 bits") {
+	SUBCASE("[NetSync][BitArray] 64 bits") {
 		bits = 64;
 
-		SUBCASE("[Modules][BitArray] One") {
+		SUBCASE("[NetSync][BitArray] One") {
 			value = UINT64_MAX;
 		}
-		SUBCASE("[Modules][BitArray] Zero") {
+		SUBCASE("[NetSync][BitArray] Zero") {
 			value = 0;
 		}
 	}
-	SUBCASE("[Modules][BitArray] One bit with offset") {
+	SUBCASE("[NetSync][BitArray] One bit with offset") {
 		bits = 1;
 		offset = 64;
 		array.resize_in_bits(offset);
 
-		SUBCASE("[Modules][BitArray] One") {
+		SUBCASE("[NetSync][BitArray] One") {
 			array.store_bits(0, UINT64_MAX, 64);
 			value = 0b0;
 		}
-		SUBCASE("[Modules][BitArray] Zero") {
+		SUBCASE("[NetSync][BitArray] Zero") {
 			array.store_bits(0, 0, 64);
 			value = 0b1;
 		}
@@ -91,7 +91,7 @@ TEST_CASE("[Modules][BitArray] Read and write") {
 	CHECK_MESSAGE(array.read_bits(offset, bits) == value, "Should read the same value");
 }
 
-TEST_CASE("[Modules][BitArray] Constructing from Vector") {
+TEST_CASE("[NetSync][BitArray] Constructing from Vector") {
 	Vector<uint8_t> data;
 	data.push_back(-1);
 	data.push_back(0);
@@ -105,7 +105,7 @@ TEST_CASE("[Modules][BitArray] Constructing from Vector") {
 	}
 }
 
-TEST_CASE("[Modules][BitArray] Pre-allocation and zeroing") {
+TEST_CASE("[NetSync][BitArray] Pre-allocation and zeroing") {
 	constexpr uint64_t value = UINT64_MAX;
 	constexpr int bits = sizeof(value);
 
@@ -115,6 +115,6 @@ TEST_CASE("[Modules][BitArray] Pre-allocation and zeroing") {
 	array.zero();
 	CHECK_MESSAGE(array.read_bits(0, bits) == 0, "Should read zero");
 }
-} // namespace TestBitArray
+} //namespace test_netsync_BitArray
 
-#endif // TEST_BIT_ARRAY_H
+#endif
