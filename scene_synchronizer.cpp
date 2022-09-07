@@ -34,8 +34,8 @@
 
 #include "scene_synchronizer.h"
 
-#include "scene/main/multiplayer_api.h"
 #include "networked_controller.h"
+#include "scene/main/multiplayer_api.h"
 #include "scene/main/window.h"
 #include "scene_diff.h"
 
@@ -1230,7 +1230,7 @@ void SceneSynchronizer::drop_node_data(NetUtility::NodeData *p_node_data) {
 		p_node_data->controlled_by->controlled_nodes.erase(p_node_data);
 		p_node_data->controlled_by = nullptr;
 	}
-	
+
 	// Set all controlled nodes as not controlled by this.
 	for (uint32_t i = 0; i < p_node_data->controlled_nodes.size(); i += 1) {
 		p_node_data->controlled_nodes[i]->controlled_by = nullptr;
@@ -1613,6 +1613,7 @@ void SceneSynchronizer::reset_controller(NetUtility::NodeData *p_controller_nd) 
 
 	dirty_peers();
 	controller->controller->ready();
+	controller->notify_controller_reset();
 
 	if (synchronizer) {
 		synchronizer->on_controller_reset(p_controller_nd);
