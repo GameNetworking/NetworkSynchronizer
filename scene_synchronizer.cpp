@@ -1609,6 +1609,7 @@ void SceneSynchronizer::reset_controller(NetUtility::NodeData *p_controller_nd) 
 
 	dirty_peers();
 	controller->controller->ready();
+	controller->notify_controller_reset();
 
 	if (synchronizer) {
 		synchronizer->on_controller_reset(p_controller_nd);

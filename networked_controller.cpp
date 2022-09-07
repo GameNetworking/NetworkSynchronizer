@@ -132,6 +132,7 @@ void NetworkedController::_bind_methods() {
 
 	ADD_SIGNAL(MethodInfo("doll_sync_started"));
 	ADD_SIGNAL(MethodInfo("doll_sync_paused"));
+	ADD_SIGNAL(MethodInfo("controller_reset"));
 }
 
 NetworkedController::NetworkedController() {
@@ -612,6 +613,10 @@ void NetworkedController::_notification(int p_what) {
 		} break;
 #endif
 	}
+}
+
+void NetworkedController::notify_controller_reset() {
+	emit_signal("controller_reset");
 }
 
 ServerController::ServerController(
