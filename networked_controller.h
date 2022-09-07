@@ -348,6 +348,7 @@ public:
 
 protected:
 	void _notification(int p_what);
+	void notify_controller_reset();
 };
 
 struct FrameSnapshot {
