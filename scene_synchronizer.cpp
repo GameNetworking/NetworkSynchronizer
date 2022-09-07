@@ -2013,7 +2013,6 @@ void ServerSynchronizer::generate_snapshot_node_data(
 ClientSynchronizer::ClientSynchronizer(SceneSynchronizer *p_node) :
 		Synchronizer(p_node) {
 	clear();
-	RigidNetsyncInvestigation::register_stringable_4_logging(this, "ClientSynchronizer snapshot");
 }
 
 void ClientSynchronizer::clear() {
@@ -2332,7 +2331,7 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 #ifdef DEBUG_ENABLED
 	// These are unreachable at this point.
 	CRASH_COND(server_snapshots.empty());
-	CRASH_COND(server_snapshots.front().input_id != checkable_input_id); //TODO log this, jgrzesik
+	CRASH_COND(server_snapshots.front().input_id != checkable_input_id);
 
 	// This is unreachable, because we store all the client shapshots
 	// each time a new input is processed. Since the `checkable_input_id`
@@ -2464,7 +2463,7 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 
 				const Variant current_val = nodes_to_recover[i]->vars[v].var.value;
 				nodes_to_recover[i]->vars[v].var.value = s_vars_ptr[v].value.duplicate(true);
-				node->set(s_vars_ptr[v].name, s_vars_ptr[v].value); //rewinding, jgrzesik
+				node->set(s_vars_ptr[v].name, s_vars_ptr[v].value);
 
 				NET_DEBUG_PRINT(" |- Variable: " + s_vars_ptr[v].name + " New value: " + s_vars_ptr[v].value.stringify());
 				scene_synchronizer->change_event_add(

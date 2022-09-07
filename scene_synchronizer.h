@@ -39,9 +39,6 @@
 #include "net_utilities.h"
 #include <deque>
 
-#include "modules/rigid_netsync_investigation/stringable.h"
-#include "modules/rigid_netsync_investigation/rigid_netsync_investigation.h"
-
 #ifndef SCENE_SYNCHRONIZER_H
 #define SCENE_SYNCHRONIZER_H
 
@@ -392,7 +389,7 @@ public:
 	void generate_snapshot_node_data(const NetUtility::NodeData *p_node_data, bool p_force_full_snapshot, Vector<Variant> &r_result) const;
 };
 
-class ClientSynchronizer : public Synchronizer, public Stringable {
+class ClientSynchronizer : public Synchronizer {
 	friend class SceneSynchronizer;
 
 	NetUtility::NodeData *player_controller_node_data = nullptr;
@@ -443,13 +440,6 @@ public:
 			void (*p_variable_parse)(void *p_user_pointer, NetUtility::NodeData *p_node_data, NetVarId p_var_id, const Variant &p_value));
 
 	void set_enabled(bool p_enabled);
-
-	String stringify(int tab_index) const override{
-		if (server_snapshots.size() == 1){
-			return RigidNetsyncInvestigation::get_tabs(tab_index + 1) + server_snapshots.front();
-		}
-		return "";
-	}
 
 private:
 	/// Store node data organized per controller.
