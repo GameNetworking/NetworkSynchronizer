@@ -80,6 +80,15 @@ void NetworkedController::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_doll_sync_rate", "rate"), &NetworkedController::set_doll_sync_rate);
 	ClassDB::bind_method(D_METHOD("get_doll_sync_rate"), &NetworkedController::get_doll_sync_rate);
 
+	ClassDB::bind_method(D_METHOD("set_doll_min_frames_delay", "delay"), &NetworkedController::set_doll_min_frames_delay);
+	ClassDB::bind_method(D_METHOD("get_doll_min_frames_delay"), &NetworkedController::get_doll_min_frames_delay);
+
+	ClassDB::bind_method(D_METHOD("set_doll_max_frames_delay", "delay"), &NetworkedController::set_doll_max_frames_delay);
+	ClassDB::bind_method(D_METHOD("get_doll_max_frames_delay"), &NetworkedController::get_doll_max_frames_delay);
+
+	ClassDB::bind_method(D_METHOD("set_doll_net_sensitivity", "sensitivity"), &NetworkedController::set_doll_net_sensitivity);
+	ClassDB::bind_method(D_METHOD("get_doll_net_sensitivity"), &NetworkedController::get_doll_net_sensitivity);
+
 	ClassDB::bind_method(D_METHOD("set_doll_interpolation_max_overshot", "speedup"), &NetworkedController::set_doll_interpolation_max_overshot);
 	ClassDB::bind_method(D_METHOD("get_doll_interpolation_max_overshot"), &NetworkedController::get_doll_interpolation_max_overshot);
 
@@ -126,6 +135,9 @@ void NetworkedController::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "net_sensitivity", PROPERTY_HINT_RANGE, "0,2,0.01"), "set_net_sensitivity", "get_net_sensitivity");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "tick_acceleration", PROPERTY_HINT_RANGE, "0.1,20.0,0.01"), "set_tick_acceleration", "get_tick_acceleration");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "doll_sync_rate", PROPERTY_HINT_RANGE, "1,240,1"), "set_doll_sync_rate", "get_doll_sync_rate");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "doll_min_frames_delay", PROPERTY_HINT_RANGE, "0,240,1"), "set_doll_min_frames_delay", "get_doll_min_frames_delay");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "doll_max_frames_delay", PROPERTY_HINT_RANGE, "0,240,1"), "set_doll_max_frames_delay", "get_doll_max_frames_delay");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "doll_net_sensitivity", PROPERTY_HINT_RANGE, "0,1.0,0.00001"), "set_doll_net_sensitivity", "get_doll_net_sensitivity");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "doll_interpolation_max_overshot", PROPERTY_HINT_RANGE, "0.01,5.0,0.01"), "set_doll_interpolation_max_overshot", "get_doll_interpolation_max_overshot");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "doll_connection_stats_frame_span", PROPERTY_HINT_RANGE, "1,1000,1"), "set_doll_connection_stats_frame_span", "get_doll_connection_stats_frame_span");
 
