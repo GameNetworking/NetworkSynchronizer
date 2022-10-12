@@ -182,6 +182,64 @@ TEST_CASE("[NetSync][DataBuffer] Int") {
 	CHECK_MESSAGE(buffer.read_int(compression_level) == value, "Should read the same value");
 }
 
+TEST_CASE("[NetSync][DataBuffer] Uint") {
+	DataBuffer::CompressionLevel compression_level = {};
+	int64_t value = {};
+
+	DataBuffer buffer;
+	SUBCASE("[NetSync][DataBuffer] Uint Compression level 3") {
+		compression_level = DataBuffer::COMPRESSION_LEVEL_3;
+
+		SUBCASE("[NetSync][DataBuffer] Uint CLevel 3 Positive") {
+			value = UINT8_MAX;
+		}
+		SUBCASE("[NetSync][DataBuffer] Uint CLevel 3 Zero") {
+			value = 0;
+		}
+	}
+
+	SUBCASE("[NetSync][DataBuffer] Compression level 2") {
+		compression_level = DataBuffer::COMPRESSION_LEVEL_2;
+
+		SUBCASE("[NetSync][DataBuffer] Positive") {
+			value = UINT16_MAX;
+		}
+		SUBCASE("[NetSync][DataBuffer] Zero") {
+			value = 0;
+		}
+	}
+
+	SUBCASE("[NetSync][DataBuffer] Compression level 1") {
+		compression_level = DataBuffer::COMPRESSION_LEVEL_1;
+
+		SUBCASE("[NetSync][DataBuffer] Positive") {
+			value = UINT32_MAX;
+		}
+		SUBCASE("[NetSync][DataBuffer] Zero") {
+			value = 0;
+		}
+	}
+
+	SUBCASE("[NetSync][DataBuffer] Compression level 0") {
+		compression_level = DataBuffer::COMPRESSION_LEVEL_0;
+
+		SUBCASE("[NetSync][DataBuffer] Positive") {
+			value = UINT64_MAX;
+		}
+		SUBCASE("[NetSync][DataBuffer] Zero") {
+			value = 0;
+		}
+	}
+
+	buffer.begin_write(0);
+	CHECK_MESSAGE(buffer.add_uint(value, compression_level) == value, "Should return the same value");
+
+	CHECK(buffer.get_bit_offset() == buffer.get_bit_taken(DataBuffer::DATA_TYPE_UINT, compression_level));
+
+	buffer.begin_read();
+	CHECK_MESSAGE(buffer.read_uint(compression_level) == value, "Should read the same value");
+}
+
 TEST_CASE("[NetSync][DataBuffer] Real") {
 	DataBuffer::CompressionLevel compression_level = {};
 
