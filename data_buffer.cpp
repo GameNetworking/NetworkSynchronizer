@@ -41,12 +41,15 @@
 void DataBuffer::_bind_methods() {
 	BIND_ENUM_CONSTANT(DATA_TYPE_BOOL);
 	BIND_ENUM_CONSTANT(DATA_TYPE_INT);
+	BIND_ENUM_CONSTANT(DATA_TYPE_UINT);
 	BIND_ENUM_CONSTANT(DATA_TYPE_REAL);
+	BIND_ENUM_CONSTANT(DATA_TYPE_POSITIVE_UNIT_REAL);
 	BIND_ENUM_CONSTANT(DATA_TYPE_UNIT_REAL);
 	BIND_ENUM_CONSTANT(DATA_TYPE_VECTOR2);
 	BIND_ENUM_CONSTANT(DATA_TYPE_NORMALIZED_VECTOR2);
 	BIND_ENUM_CONSTANT(DATA_TYPE_VECTOR3);
 	BIND_ENUM_CONSTANT(DATA_TYPE_NORMALIZED_VECTOR3);
+	BIND_ENUM_CONSTANT(DATA_TYPE_VARIANT);
 
 	BIND_ENUM_CONSTANT(COMPRESSION_LEVEL_0);
 	BIND_ENUM_CONSTANT(COMPRESSION_LEVEL_1);
@@ -57,6 +60,7 @@ void DataBuffer::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("add_bool", "value"), &DataBuffer::add_bool);
 	ClassDB::bind_method(D_METHOD("add_int", "value", "compression_level"), &DataBuffer::add_int, DEFVAL(COMPRESSION_LEVEL_1));
+	ClassDB::bind_method(D_METHOD("add_uint", "value", "compression_level"), &DataBuffer::add_uint, DEFVAL(COMPRESSION_LEVEL_1));
 	ClassDB::bind_method(D_METHOD("add_real", "value", "compression_level"), &DataBuffer::add_real, DEFVAL(COMPRESSION_LEVEL_1));
 	ClassDB::bind_method(D_METHOD("add_positive_unit_real", "value", "compression_level"), &DataBuffer::add_positive_unit_real, DEFVAL(COMPRESSION_LEVEL_1));
 	ClassDB::bind_method(D_METHOD("add_unit_real", "value", "compression_level"), &DataBuffer::add_unit_real, DEFVAL(COMPRESSION_LEVEL_1));
@@ -68,7 +72,9 @@ void DataBuffer::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("read_bool"), &DataBuffer::read_bool);
 	ClassDB::bind_method(D_METHOD("read_int", "compression_level"), &DataBuffer::read_int, DEFVAL(COMPRESSION_LEVEL_1));
+	ClassDB::bind_method(D_METHOD("read_uint", "compression_level"), &DataBuffer::read_uint, DEFVAL(COMPRESSION_LEVEL_1));
 	ClassDB::bind_method(D_METHOD("read_real", "compression_level"), &DataBuffer::read_real, DEFVAL(COMPRESSION_LEVEL_1));
+	ClassDB::bind_method(D_METHOD("read_positive_unit_real", "compression_level"), &DataBuffer::read_positive_unit_real, DEFVAL(COMPRESSION_LEVEL_1));
 	ClassDB::bind_method(D_METHOD("read_unit_real", "compression_level"), &DataBuffer::read_unit_real, DEFVAL(COMPRESSION_LEVEL_1));
 	ClassDB::bind_method(D_METHOD("read_vector2", "compression_level"), &DataBuffer::read_vector2, DEFVAL(COMPRESSION_LEVEL_1));
 	ClassDB::bind_method(D_METHOD("read_normalized_vector2", "compression_level"), &DataBuffer::read_normalized_vector2, DEFVAL(COMPRESSION_LEVEL_1));
@@ -78,6 +84,7 @@ void DataBuffer::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("skip_bool"), &DataBuffer::skip_bool);
 	ClassDB::bind_method(D_METHOD("skip_int", "compression_level"), &DataBuffer::skip_int, DEFVAL(COMPRESSION_LEVEL_1));
+	ClassDB::bind_method(D_METHOD("skip_uint", "compression_level"), &DataBuffer::skip_uint, DEFVAL(COMPRESSION_LEVEL_1));
 	ClassDB::bind_method(D_METHOD("skip_real", "compression_level"), &DataBuffer::skip_real, DEFVAL(COMPRESSION_LEVEL_1));
 	ClassDB::bind_method(D_METHOD("skip_unit_real", "compression_level"), &DataBuffer::skip_unit_real, DEFVAL(COMPRESSION_LEVEL_1));
 	ClassDB::bind_method(D_METHOD("skip_vector2", "compression_level"), &DataBuffer::skip_vector2, DEFVAL(COMPRESSION_LEVEL_1));
@@ -87,6 +94,7 @@ void DataBuffer::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("get_bool_size"), &DataBuffer::get_bool_size);
 	ClassDB::bind_method(D_METHOD("get_int_size", "compression_level"), &DataBuffer::get_int_size, DEFVAL(COMPRESSION_LEVEL_1));
+	ClassDB::bind_method(D_METHOD("get_uint_size", "compression_level"), &DataBuffer::get_uint_size, DEFVAL(COMPRESSION_LEVEL_1));
 	ClassDB::bind_method(D_METHOD("get_real_size", "compression_level"), &DataBuffer::get_real_size, DEFVAL(COMPRESSION_LEVEL_1));
 	ClassDB::bind_method(D_METHOD("get_unit_real_size", "compression_level"), &DataBuffer::get_unit_real_size, DEFVAL(COMPRESSION_LEVEL_1));
 	ClassDB::bind_method(D_METHOD("get_vector2_size", "compression_level"), &DataBuffer::get_vector2_size, DEFVAL(COMPRESSION_LEVEL_1));
@@ -96,6 +104,7 @@ void DataBuffer::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("read_bool_size"), &DataBuffer::read_bool_size);
 	ClassDB::bind_method(D_METHOD("read_int_size", "compression_level"), &DataBuffer::read_int_size, DEFVAL(COMPRESSION_LEVEL_1));
+	ClassDB::bind_method(D_METHOD("read_uint_size", "compression_level"), &DataBuffer::read_uint_size, DEFVAL(COMPRESSION_LEVEL_1));
 	ClassDB::bind_method(D_METHOD("read_real_size", "compression_level"), &DataBuffer::read_real_size, DEFVAL(COMPRESSION_LEVEL_1));
 	ClassDB::bind_method(D_METHOD("read_unit_real_size", "compression_level"), &DataBuffer::read_unit_real_size, DEFVAL(COMPRESSION_LEVEL_1));
 	ClassDB::bind_method(D_METHOD("read_vector2_size", "compression_level"), &DataBuffer::read_vector2_size, DEFVAL(COMPRESSION_LEVEL_1));
@@ -235,13 +244,32 @@ int64_t DataBuffer::add_int(int64_t p_input, CompressionLevel p_compression_leve
 	}
 
 	make_room_in_bits(bits);
-	buffer.store_bits(bit_offset, value, bits);
+
+	// Safely convert int to uint.
+	uint64_t uvalue;
+	memcpy(&uvalue, &value, sizeof(uint64_t));
+
+	buffer.store_bits(bit_offset, uvalue, bits);
 	bit_offset += bits;
 
 #ifdef DEBUG_ENABLED
 	// Can't never happen because the buffer size is correctly handled.
 	CRASH_COND((metadata_size + bit_size) > buffer.size_in_bits() && bit_offset > buffer.size_in_bits());
 #endif
+
+	return value;
+}
+
+int64_t DataBuffer::read_int(CompressionLevel p_compression_level) {
+	ERR_FAIL_COND_V(is_reading == false, 0);
+
+	const int bits = get_bit_taken(DATA_TYPE_INT, p_compression_level);
+
+	const uint64_t uvalue = buffer.read_bits(bit_offset, bits);
+	bit_offset += bits;
+
+	int64_t value;
+	memcpy(&value, &uvalue, sizeof(uint64_t));
 
 	if (bits == 8) {
 		return static_cast<int8_t>(value);
@@ -254,23 +282,46 @@ int64_t DataBuffer::add_int(int64_t p_input, CompressionLevel p_compression_leve
 	}
 }
 
-int64_t DataBuffer::read_int(CompressionLevel p_compression_level) {
+uint64_t DataBuffer::add_uint(uint64_t p_input, CompressionLevel p_compression_level) {
+	ERR_FAIL_COND_V(is_reading == true, p_input);
+
+	const int bits = get_bit_taken(DATA_TYPE_UINT, p_compression_level);
+
+	uint64_t value = p_input;
+
+	// Clamp the value to the max that the bit can store.
+	if (bits == 8) {
+		value = MIN(value, UINT8_MAX);
+	} else if (bits == 16) {
+		value = MIN(value, UINT16_MAX);
+	} else if (bits == 32) {
+		value = MIN(value, UINT32_MAX);
+	} else {
+		// Nothing to do here
+	}
+
+	make_room_in_bits(bits);
+
+	buffer.store_bits(bit_offset, value, bits);
+	bit_offset += bits;
+
+#ifdef DEBUG_ENABLED
+	// Can't never happen because the buffer size is correctly handled.
+	CRASH_COND((metadata_size + bit_size) > buffer.size_in_bits() && bit_offset > buffer.size_in_bits());
+#endif
+
+	return value;
+}
+
+uint64_t DataBuffer::read_uint(CompressionLevel p_compression_level) {
 	ERR_FAIL_COND_V(is_reading == false, 0);
 
-	const int bits = get_bit_taken(DATA_TYPE_INT, p_compression_level);
+	const int bits = get_bit_taken(DATA_TYPE_UINT, p_compression_level);
 
 	const uint64_t value = buffer.read_bits(bit_offset, bits);
 	bit_offset += bits;
 
-	if (bits == 8) {
-		return static_cast<int8_t>(value);
-	} else if (bits == 16) {
-		return static_cast<int16_t>(value);
-	} else if (bits == 32) {
-		return static_cast<int32_t>(value);
-	} else {
-		return static_cast<int64_t>(value);
-	}
+	return value;
 }
 
 double DataBuffer::add_real(double p_input, CompressionLevel p_compression_level) {
@@ -658,6 +709,11 @@ void DataBuffer::skip_int(CompressionLevel p_compression) {
 	skip(bits);
 }
 
+void DataBuffer::skip_uint(CompressionLevel p_compression) {
+	const int bits = get_uint_size(p_compression);
+	skip(bits);
+}
+
 void DataBuffer::skip_real(CompressionLevel p_compression) {
 	const int bits = get_real_size(p_compression);
 	skip(bits);
@@ -701,6 +757,10 @@ int DataBuffer::get_int_size(CompressionLevel p_compression) const {
 	return DataBuffer::get_bit_taken(DATA_TYPE_INT, p_compression);
 }
 
+int DataBuffer::get_uint_size(CompressionLevel p_compression) const {
+	return DataBuffer::get_bit_taken(DATA_TYPE_UINT, p_compression);
+}
+
 int DataBuffer::get_real_size(CompressionLevel p_compression) const {
 	return DataBuffer::get_bit_taken(DATA_TYPE_REAL, p_compression);
 }
@@ -737,6 +797,12 @@ int DataBuffer::read_bool_size() {
 
 int DataBuffer::read_int_size(CompressionLevel p_compression) {
 	const int bits = get_int_size(p_compression);
+	skip(bits);
+	return bits;
+}
+
+int DataBuffer::read_uint_size(CompressionLevel p_compression) {
+	const int bits = get_uint_size(p_compression);
 	skip(bits);
 	return bits;
 }
@@ -821,6 +887,21 @@ int DataBuffer::get_bit_taken(DataType p_data_type, CompressionLevel p_compressi
 			// No matter what, 1 bit.
 			return 1;
 		case DATA_TYPE_INT: {
+			switch (p_compression) {
+				case COMPRESSION_LEVEL_0:
+					return 64;
+				case COMPRESSION_LEVEL_1:
+					return 32;
+				case COMPRESSION_LEVEL_2:
+					return 16;
+				case COMPRESSION_LEVEL_3:
+					return 8;
+				default:
+					// Unreachable
+					CRASH_NOW_MSG("Compression level not supported!");
+			}
+		} break;
+		case DATA_TYPE_UINT: {
 			switch (p_compression) {
 				case COMPRESSION_LEVEL_0:
 					return 64;
