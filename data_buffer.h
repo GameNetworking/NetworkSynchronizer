@@ -46,6 +46,7 @@ public:
 	enum DataType {
 		DATA_TYPE_BOOL,
 		DATA_TYPE_INT,
+		DATA_TYPE_UINT,
 		DATA_TYPE_REAL,
 		DATA_TYPE_POSITIVE_UNIT_REAL,
 		DATA_TYPE_UNIT_REAL,
@@ -206,6 +207,12 @@ public:
 	/// Parse the next data as int.
 	int64_t read_int(CompressionLevel p_compression_level);
 
+	/// Add the next data as uint
+	uint64_t add_uint(uint64_t p_input, CompressionLevel p_compression_level);
+
+	/// Parse the next data as uint.
+	uint64_t read_uint(CompressionLevel p_compression_level);
+
 	/// Add a real into the buffer. Depending on the compression level is possible
 	/// to store different range level.
 	/// The fractional part has a precision of ~0.3%
@@ -296,6 +303,7 @@ public:
 
 	void skip_bool();
 	void skip_int(CompressionLevel p_compression);
+	void skip_uint(CompressionLevel p_compression);
 	void skip_real(CompressionLevel p_compression);
 	void skip_positive_unit_real(CompressionLevel p_compression);
 	void skip_unit_real(CompressionLevel p_compression);
@@ -308,6 +316,7 @@ public:
 
 	int get_bool_size() const;
 	int get_int_size(CompressionLevel p_compression) const;
+	int get_uint_size(CompressionLevel p_compression) const;
 	int get_real_size(CompressionLevel p_compression) const;
 	int get_positive_unit_real_size(CompressionLevel p_compression) const;
 	int get_unit_real_size(CompressionLevel p_compression) const;
@@ -320,6 +329,7 @@ public:
 
 	int read_bool_size();
 	int read_int_size(CompressionLevel p_compression);
+	int read_uint_size(CompressionLevel p_compression);
 	int read_real_size(CompressionLevel p_compression);
 	int read_positive_unit_real_size(CompressionLevel p_compression);
 	int read_unit_real_size(CompressionLevel p_compression);

@@ -36,6 +36,7 @@
 
 #include "core/local_vector.h"
 #include "core/oa_hash_map.h"
+#include "net_action.h"
 #include "net_utilities.h"
 #include <deque>
 
@@ -128,6 +129,11 @@ public:
 private:
 	real_t server_notify_state_interval = 1.0;
 	real_t comparison_float_tolerance = 0.001;
+	/// The amount of time the same act is sent to a client before being considered delivered.
+	/// This is part of the UDP reliability mechanism.
+	int actions_redundancy = 3;
+	/// Send the act again in (seconds):
+	real_t actions_resend_time = 1.0 / 30.0;
 
 	SynchronizerType synchronizer_type = SYNCHRONIZER_TYPE_NULL;
 	Synchronizer *synchronizer = nullptr;
@@ -175,6 +181,12 @@ public:
 	void set_comparison_float_tolerance(real_t p_tolerance);
 	real_t get_comparison_float_tolerance() const;
 
+	void set_actions_redundancy(int p_redundancy);
+	int get_actions_redundancy() const;
+
+	void set_actions_resend_time(real_t p_time);
+	real_t get_actions_resend_time() const;
+
 	/// Register a new node and returns its `NodeData`.
 	NetUtility::NodeData *register_node(Node *p_node);
 	uint32_t register_node_gdscript(Node *p_node);
@@ -195,6 +207,36 @@ public:
 	/// Stop local node sync.
 	void stop_node_sync(const Node *p_node);
 	bool is_node_sync(const Node *p_node) const;
+
+	/// Register an new action.
+	///
+	/// @param p_node The node that owns the event
+	/// @param p_action_func The function that is triggered when the event is executed.
+	/// @param p_action_encoding_func The function called to definte the validation encoding.
+	/// @param p_can_client_trigger If true this `Action` can be triggered on client.
+	/// @param p_wait_server_validation If true the event will be emitted locally only if the server validates it.
+	/// @param p_server_action_validation_func The validation function, must return a boolean.
+	NetActionId register_action(
+			Node *p_node,
+			const StringName &p_action_func,
+			const StringName &p_action_encoding_func,
+			bool p_can_client_trigger = false,
+			bool p_wait_server_validation = false,
+			const StringName &p_server_action_validation_func = StringName());
+
+	NetActionId find_action_id(Node *p_node, const StringName &p_action_func) const;
+
+	void trigger_action_by_name(
+			Node *p_node,
+			const StringName &p_action_func,
+			const Array &p_arguments = Array(),
+			const Vector<int> &p_recipients = Vector<int>());
+
+	void trigger_action(
+			Node *p_node,
+			NetActionId p_id,
+			const Array &p_arguments = Array(),
+			const Vector<int> &p_recipients = Vector<int>());
 
 	/// Returns the variable ID relative to the `Node`.
 	/// This may return `UINT32_MAX` in various cases:
@@ -257,6 +299,7 @@ public:
 	void _rpc_notify_need_full_snapshot();
 	void _rpc_set_network_enabled(bool p_enabled);
 	void _rpc_notify_peer_status(bool p_enabled);
+	void _rpc_send_actions(const Vector<uint8_t> &p_data);
 
 	void update_peers();
 	void clear_peers();
@@ -265,7 +308,7 @@ public:
 	void change_event_add(NetUtility::NodeData *p_node_data, NetVarId p_var_id, const Variant &p_old);
 	void change_events_flush();
 
-private:
+public: // -------------------------------------------------------------------------------- INTERNAL
 	void expand_organized_node_data_vector(uint32_t p_size);
 
 	/// This function is slow, but allow to take the node data even if the
@@ -303,6 +346,8 @@ private:
 
 	/// Set the node data net id.
 	void set_node_data_id(NetUtility::NodeData *p_node_data, NetNodeId p_id);
+
+	NetworkedController *fetch_controller_by_peer(int peer);
 
 public:
 	/// Returns true when the vectors are the same. Uses comparison_float_tolerance member.
@@ -345,18 +390,32 @@ public:
 	virtual void on_variable_added(NetUtility::NodeData *p_node_data, const StringName &p_var_name) {}
 	virtual void on_variable_changed(NetUtility::NodeData *p_node_data, NetVarId p_var_id, const Variant &p_old_value, int p_flag) {}
 	virtual void on_controller_reset(NetUtility::NodeData *p_node_data) {}
+	virtual void on_action_triggered(
+			NetUtility::NodeData *p_node_data,
+			NetActionId p_id,
+			const Array &p_arguments,
+			const Vector<int> &p_recipients) {}
+	virtual void on_actions_received(
+			int sender_peer,
+			const LocalVector<SenderNetAction> &p_actions) {}
 };
 
 class NoNetSynchronizer : public Synchronizer {
 	friend class SceneSynchronizer;
 
 	bool enabled = true;
+	LocalVector<NetActionProcessor> pending_actions;
 
 public:
 	NoNetSynchronizer(SceneSynchronizer *p_node);
 
 	virtual void clear() override;
 	virtual void process() override;
+	virtual void on_action_triggered(
+			NetUtility::NodeData *p_node_data,
+			NetActionId p_id,
+			const Array &p_arguments,
+			const Vector<int> &p_recipients) override;
 
 	void set_enabled(bool p_enabled);
 	bool is_enabled() const;
@@ -373,8 +432,25 @@ class ServerSynchronizer : public Synchronizer {
 		Set<StringName> vars;
 	};
 
+	enum SnapshotGenerationMode {
+		/// The shanpshot will include The NodeId or NodePath and allthe changed variables.
+		SNAPSHOT_GENERATION_MODE_NORMAL,
+		/// The snapshot will include The NodePath only in case it was unknown before.
+		SNAPSHOT_GENERATION_MODE_NODE_PATH_ONLY,
+		/// The snapshot will include The NodePath only.
+		SNAPSHOT_GENERATION_MODE_FORCE_NODE_PATH_ONLY,
+		/// The snapshot will contains everything no matter what.
+		SNAPSHOT_GENERATION_MODE_FORCE_FULL,
+	};
+
 	/// The changes; the order matters because the index is the NetNodeId.
 	LocalVector<Change> changes;
+
+	OAHashMap<int, NetActionSenderInfo> senders_info;
+	OAHashMap<int, uint32_t> peers_next_action_trigger_input_id;
+
+	uint32_t server_actions_count = 0;
+	LocalVector<SenderNetAction> server_actions;
 
 public:
 	ServerSynchronizer(SceneSynchronizer *p_node);
@@ -382,13 +458,28 @@ public:
 	virtual void clear() override;
 	virtual void process() override;
 	virtual void on_node_added(NetUtility::NodeData *p_node_data) override;
+	virtual void on_node_removed(NetUtility::NodeData *p_node_data) override;
 	virtual void on_variable_added(NetUtility::NodeData *p_node_data, const StringName &p_var_name) override;
 	virtual void on_variable_changed(NetUtility::NodeData *p_node_data, NetVarId p_var_id, const Variant &p_old_value, int p_flag) override;
+	virtual void on_action_triggered(
+			NetUtility::NodeData *p_node_data,
+			NetActionId p_id,
+			const Array &p_arguments,
+			const Vector<int> &p_recipients) override;
+	virtual void on_actions_received(
+			int sender_peer,
+			const LocalVector<SenderNetAction> &p_actions) override;
 
 	void process_snapshot_notificator(real_t p_delta);
 	Vector<Variant> global_nodes_generate_snapshot(bool p_force_full_snapshot) const;
 	void controller_generate_snapshot(const NetUtility::NodeData *p_node_data, bool p_force_full_snapshot, Vector<Variant> &r_snapshot_result) const;
-	void generate_snapshot_node_data(const NetUtility::NodeData *p_node_data, bool p_force_full_snapshot, Vector<Variant> &r_result) const;
+	void generate_snapshot_node_data(const NetUtility::NodeData *p_node_data, SnapshotGenerationMode p_mode, bool p_include_controller_input_id, Vector<Variant> &r_result) const;
+
+	void execute_actions();
+	void send_actions_to_clients();
+
+	void clean_pending_actions();
+	void check_missing_actions();
 };
 
 class ClientSynchronizer : public Synchronizer {
@@ -422,6 +513,11 @@ class ClientSynchronizer : public Synchronizer {
 
 	Set<EndSyncEvent> sync_end_events;
 
+	uint32_t locally_triggered_actions_count = 0;
+	uint32_t actions_input_id = 0;
+	LocalVector<SenderNetAction> pending_actions;
+	NetActionSenderInfo server_sender_info;
+
 public:
 	ClientSynchronizer(SceneSynchronizer *p_node);
 
@@ -432,6 +528,14 @@ public:
 	virtual void on_node_removed(NetUtility::NodeData *p_node_data) override;
 	virtual void on_variable_changed(NetUtility::NodeData *p_node_data, NetVarId p_var_id, const Variant &p_old_value, int p_flag) override;
 	virtual void on_controller_reset(NetUtility::NodeData *p_node_data) override;
+	virtual void on_action_triggered(
+			NetUtility::NodeData *p_node_data,
+			NetActionId p_id,
+			const Array &p_arguments,
+			const Vector<int> &p_recipients) override;
+	virtual void on_actions_received(
+			int sender_peer,
+			const LocalVector<SenderNetAction> &p_actions) override;
 
 	void receive_snapshot(Variant p_snapshot);
 	bool parse_sync_data(
@@ -461,6 +565,10 @@ private:
 			Vector<NetUtility::Var> &r_postponed_recover);
 
 	void notify_server_full_snapshot_is_needed();
+
+	void send_actions_to_server();
+	void clean_pending_actions();
+	void check_missing_actions();
 };
 
 VARIANT_ENUM_CAST(NetEventFlag)
