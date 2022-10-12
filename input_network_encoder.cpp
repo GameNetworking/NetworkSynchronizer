@@ -3,7 +3,7 @@
 #include "scene_synchronizer.h"
 
 void InputNetworkEncoder::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("register_input", "name", "default_value", "type", "compression_level"), &InputNetworkEncoder::register_input);
+	ClassDB::bind_method(D_METHOD("register_input", "name", "default_value", "type", "compression_level", "comparison_floating_point_precision"), &InputNetworkEncoder::register_input, DEFVAL(CMP_EPSILON));
 	ClassDB::bind_method(D_METHOD("find_input_id", "name"), &InputNetworkEncoder::find_input_id);
 	ClassDB::bind_method(D_METHOD("encode", "inputs", "buffer"), &InputNetworkEncoder::script_encode);
 	ClassDB::bind_method(D_METHOD("decode", "buffer"), &InputNetworkEncoder::script_decode);
@@ -24,6 +24,9 @@ uint32_t InputNetworkEncoder::register_input(
 			break;
 		case DataBuffer::DATA_TYPE_INT:
 			ERR_FAIL_COND_V_MSG(p_default_value.get_type() != Variant::INT, UINT32_MAX, "The moveset initialization failed for" + p_name + " the specified data type is `INT` but the default parameter is " + itos(p_default_value.get_type()));
+			break;
+		case DataBuffer::DATA_TYPE_UINT:
+			ERR_FAIL_COND_V_MSG(p_default_value.get_type() != Variant::INT, UINT32_MAX, "The moveset initialization failed for" + p_name + " the specified data type is `UINT` but the default parameter is " + itos(p_default_value.get_type()));
 			break;
 		case DataBuffer::DATA_TYPE_REAL:
 			ERR_FAIL_COND_V_MSG(p_default_value.get_type() != Variant::FLOAT, UINT32_MAX, "The moveset initialization failed for" + p_name + " the specified data type is `REAL` but the default parameter is " + itos(p_default_value.get_type()));
@@ -80,6 +83,12 @@ void InputNetworkEncoder::encode(const LocalVector<Variant> &p_input, DataBuffer
 	for (uint32_t i = 0; i < input_info.size(); i += 1) {
 		const NetworkedInputInfo &info = input_info[i];
 
+#ifdef DEBUG_ENABLED
+		if (i < p_input.size() && info.default_value.get_type() != p_input[i].get_type() && p_input[i].get_type() != Variant::NIL) {
+			NET_DEBUG_ERR("During the input encoding the passed value `" + p_input[i].stringify() + "` has a different type to the expected one. Using the default value `" + info.default_value.stringify() + "`.");
+		}
+#endif
+
 		const bool is_default =
 				// If the input exist into the array.
 				i >= p_input.size() ||
@@ -96,6 +105,9 @@ void InputNetworkEncoder::encode(const LocalVector<Variant> &p_input, DataBuffer
 				switch (info.data_type) {
 					case DataBuffer::DATA_TYPE_BOOL:
 						CRASH_NOW_MSG("Boolean are handled differently. Thanks to the above IF this condition never occurs.");
+						break;
+					case DataBuffer::DATA_TYPE_UINT:
+						r_buffer.add_uint(pending_input.operator uint(), info.compression_level);
 						break;
 					case DataBuffer::DATA_TYPE_INT:
 						r_buffer.add_int(pending_input.operator int(), info.compression_level);
@@ -159,6 +171,9 @@ void InputNetworkEncoder::decode(DataBuffer &p_buffer, LocalVector<Variant> &r_i
 				case DataBuffer::DATA_TYPE_BOOL:
 					r_inputs[i] = p_buffer.read_bool();
 					break;
+				case DataBuffer::DATA_TYPE_UINT:
+					r_inputs[i] = p_buffer.read_uint(info.compression_level);
+					break;
 				case DataBuffer::DATA_TYPE_INT:
 					r_inputs[i] = p_buffer.read_int(info.compression_level);
 					break;
@@ -220,6 +235,9 @@ bool InputNetworkEncoder::are_different(DataBuffer &p_buffer_A, DataBuffer &p_bu
 				case DataBuffer::DATA_TYPE_BOOL:
 					are_equals = p_buffer_A.read_bool() == p_buffer_B.read_bool();
 					break;
+				case DataBuffer::DATA_TYPE_UINT:
+					are_equals = Math::is_equal_approx(p_buffer_A.read_uint(info.compression_level), p_buffer_B.read_uint(info.compression_level), info.comparison_floating_point_precision);
+					break;
 				case DataBuffer::DATA_TYPE_INT:
 					are_equals = Math::is_equal_approx(p_buffer_A.read_int(info.compression_level), p_buffer_B.read_int(info.compression_level), info.comparison_floating_point_precision);
 					break;
@@ -272,6 +290,9 @@ uint32_t InputNetworkEncoder::count_size(DataBuffer &p_buffer) const {
 		switch (info.data_type) {
 			case DataBuffer::DATA_TYPE_BOOL:
 				size += p_buffer.read_bool_size();
+				break;
+			case DataBuffer::DATA_TYPE_UINT:
+				size += p_buffer.read_uint_size(info.compression_level);
 				break;
 			case DataBuffer::DATA_TYPE_INT:
 				size += p_buffer.read_int_size(info.compression_level);
