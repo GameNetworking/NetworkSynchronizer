@@ -1453,6 +1453,11 @@ DollController::DollController(NetworkedController *p_node) :
 void DollController::ready() {}
 
 void DollController::process(real_t p_delta) {
+	if (future_epoch_buffer.size() <= DOLL_EPOCH_METADATA_SIZE) {
+		// The interpolation epoch is not yet received, nothing to interpolate.
+		return;
+	}
+
 	if (interpolation_time_window <= CMP_EPSILON) {
 		interpolation_alpha = 1.0;
 	} else {
