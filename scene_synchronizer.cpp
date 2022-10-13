@@ -1479,8 +1479,8 @@ void SceneSynchronizer::set_node_data_id(NetUtility::NodeData *p_node_data, NetN
 }
 
 NetworkedController *SceneSynchronizer::fetch_controller_by_peer(int peer) {
-	NetUtility::PeerData *data = peer_data.lookup_ptr(peer);
-	if (data) {
+	const NetUtility::PeerData *data = peer_data.lookup_ptr(peer);
+	if (data && data->controller_id != UINT32_MAX) {
 		NetUtility::NodeData *nd = get_node_data(data->controller_id);
 		if (nd) {
 			if (nd->is_controller) {
