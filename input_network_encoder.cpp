@@ -107,7 +107,7 @@ void InputNetworkEncoder::encode(const LocalVector<Variant> &p_input, DataBuffer
 						CRASH_NOW_MSG("Boolean are handled differently. Thanks to the above IF this condition never occurs.");
 						break;
 					case DataBuffer::DATA_TYPE_UINT:
-						r_buffer.add_uint(pending_input.operator uint(), info.compression_level);
+						r_buffer.add_uint(pending_input.operator unsigned int(), info.compression_level);
 						break;
 					case DataBuffer::DATA_TYPE_INT:
 						r_buffer.add_int(pending_input.operator int(), info.compression_level);
