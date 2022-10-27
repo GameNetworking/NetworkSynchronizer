@@ -63,6 +63,28 @@
 typedef uint32_t NetNodeId;
 typedef uint32_t NetVarId;
 
+#ifdef TRACY_ENABLE
+
+#include "godot_tracy/profiler.h"
+
+#define PROFILE \
+	ZoneScoped;
+
+#define PROFILE_NODE                                        \
+	ZoneScoped;                                             \
+	CharString c = String(get_path()).utf8();               \
+	if (c.size() >= std::numeric_limits<uint16_t>::max()) { \
+		c.resize(std::numeric_limits<uint16_t>::max() - 1); \
+	}                                                       \
+	ZoneText(c.ptr(), c.size());
+
+#else
+
+#define PROFILE
+#define PROFILE_NODE
+
+#endif
+
 /// Flags used to control when an event is executed.
 enum NetEventFlag {
 

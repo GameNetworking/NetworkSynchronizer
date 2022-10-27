@@ -424,6 +424,8 @@ void NetworkedController::validate_script_implementation() {
 }
 
 void NetworkedController::native_collect_inputs(real_t p_delta, DataBuffer &r_buffer) {
+	PROFILE_NODE
+
 	call(
 			SNAME("_collect_inputs"),
 			p_delta,
@@ -431,6 +433,8 @@ void NetworkedController::native_collect_inputs(real_t p_delta, DataBuffer &r_bu
 }
 
 void NetworkedController::native_controller_process(real_t p_delta, DataBuffer &p_buffer) {
+	PROFILE_NODE
+
 	call(
 			SNAME("_controller_process"),
 			p_delta,
@@ -438,18 +442,26 @@ void NetworkedController::native_controller_process(real_t p_delta, DataBuffer &
 }
 
 bool NetworkedController::native_are_inputs_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B) {
+	PROFILE_NODE
+
 	return call(SNAME("_are_inputs_different"), &p_buffer_A, &p_buffer_B);
 }
 
 uint32_t NetworkedController::native_count_input_size(DataBuffer &p_buffer) {
+	PROFILE_NODE
+
 	return call(SNAME("_count_input_size"), &p_buffer);
 }
 
 void NetworkedController::native_collect_epoch_data(DataBuffer &r_buffer) {
+	PROFILE_NODE
+
 	call(SNAME("_collect_epoch_data"), &r_buffer);
 }
 
 void NetworkedController::native_apply_epoch(real_t p_delta, real_t p_interpolation_alpha, DataBuffer &p_past_buffer, DataBuffer &p_future_buffer) {
+	PROFILE_NODE
+
 	call(
 			SNAME("_apply_epoch"),
 			p_delta,
