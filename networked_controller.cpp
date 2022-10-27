@@ -430,6 +430,8 @@ void NetworkedController::validate_script_implementation() {
 }
 
 void NetworkedController::native_collect_inputs(real_t p_delta, DataBuffer &r_buffer) {
+	PROFILE_NODE
+
 	const bool executed = GDVIRTUAL_CALL(_collect_inputs, p_delta, &r_buffer);
 	if (executed == false) {
 		NET_DEBUG_ERR("The function _collect_inputs was not executed!");
@@ -437,6 +439,8 @@ void NetworkedController::native_collect_inputs(real_t p_delta, DataBuffer &r_bu
 }
 
 void NetworkedController::native_controller_process(real_t p_delta, DataBuffer &p_buffer) {
+	PROFILE_NODE
+
 	const bool executed = GDVIRTUAL_CALL(
 			_controller_process,
 			p_delta,
@@ -448,6 +452,8 @@ void NetworkedController::native_controller_process(real_t p_delta, DataBuffer &
 }
 
 bool NetworkedController::native_are_inputs_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B) {
+	PROFILE_NODE
+
 	bool are_different = true;
 	const bool executed = GDVIRTUAL_CALL(
 			_are_inputs_different,
@@ -464,6 +470,8 @@ bool NetworkedController::native_are_inputs_different(DataBuffer &p_buffer_A, Da
 }
 
 uint32_t NetworkedController::native_count_input_size(DataBuffer &p_buffer) {
+	PROFILE_NODE
+
 	int input_size = 0;
 	const bool executed = GDVIRTUAL_CALL(_count_input_size, &p_buffer, input_size);
 	if (executed == false) {
@@ -473,6 +481,8 @@ uint32_t NetworkedController::native_count_input_size(DataBuffer &p_buffer) {
 }
 
 void NetworkedController::native_collect_epoch_data(DataBuffer &r_buffer) {
+	PROFILE_NODE
+
 	const bool executed = GDVIRTUAL_CALL(_collect_epoch_data, &r_buffer);
 	if (executed == false) {
 		NET_DEBUG_ERR("The function _collect_epoch_data was not executed!");
@@ -480,6 +490,8 @@ void NetworkedController::native_collect_epoch_data(DataBuffer &r_buffer) {
 }
 
 void NetworkedController::native_apply_epoch(real_t p_delta, real_t p_interpolation_alpha, DataBuffer &p_past_buffer, DataBuffer &p_future_buffer) {
+	PROFILE_NODE
+
 	const bool executed = GDVIRTUAL_CALL(
 			_apply_epoch,
 			p_delta,

@@ -1816,6 +1816,8 @@ void SceneSynchronizer::reset_controller(NetUtility::NodeData *p_controller_nd) 
 }
 
 void SceneSynchronizer::process() {
+	PROFILE_NODE
+
 #ifdef DEBUG_ENABLED
 	validate_nodes();
 	// Never triggered because this function is called by `PHYSICS_PROCESS`,
