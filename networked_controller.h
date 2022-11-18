@@ -122,11 +122,11 @@ private:
 	/// Amount of time an inputs is re-sent to each peer.
 	/// Resenging inputs is necessary because the packets may be lost since as
 	/// they are sent in an unreliable way.
-	int max_redundant_inputs = 5;
+	int max_redundant_inputs = 6;
 
 	/// Time in seconds between each `tick_speedup` that the server sends to the
-	/// client.
-	real_t tick_speedup_notification_delay = 0.33;
+	/// client. In ms.
+	int tick_speedup_notification_delay = 600;
 
 	/// The connection quality is established by watching the time passed
 	/// between each input is received.
@@ -138,22 +138,6 @@ private:
 	/// - Small values make the mechanism too sensible.
 	int network_traced_frames = 120;
 
-	/// Sensitivity to network oscillations. The value is in seconds and can be
-	/// used to establish the connection quality.
-	///
-	/// For each input, the time needed for its arrival is traced; the standard
-	/// deviation of these is divided by `net_sensitivity`: the result is
-	/// the connection quality.
-	///
-	/// The more the time needed for each batch to arrive is different the
-	/// bigger this value is: when this value approaches to
-	/// `net_sensitivity` (or even surpasses it) the bad the connection is.
-	///
-	/// The result is the `connection_poorness` that goes from 0 to 1 and is
-	/// used to decide the `optimal_frame_delay` that is interpolated between
-	/// `min_frames_delay` and `max_frames_delay`.
-	real_t net_sensitivity = 0.1;
-
 	/// The `ServerController` will try to keep a margin of error, so that
 	/// network oscillations doesn't leave the `ServerController` without
 	/// inputs.
@@ -161,12 +145,11 @@ private:
 	/// This margin of error is called `optimal_frame_delay` and it changes
 	/// depending on the connection health:
 	/// it can go from `min_frames_delay` to `max_frames_delay`.
-	int min_frames_delay = 2;
-	int max_frames_delay = 6;
+	int min_frames_delay = 0;
+	int max_frames_delay = 7;
 
-	/// Rate at which the tick speed changes, so the `optimal_frame_delay` is
-	/// matched.
-	real_t tick_acceleration = 2.0;
+	/// Amount of additional frames produced per second.
+	double tick_acceleration = 5.0;
 
 	/// The doll epoch send rate: in Hz (frames per seconds).
 	uint32_t doll_sync_rate = 30;
@@ -231,8 +214,8 @@ public:
 	void set_max_redundant_inputs(int p_max);
 	int get_max_redundant_inputs() const;
 
-	void set_tick_speedup_notification_delay(real_t p_delay);
-	real_t get_tick_speedup_notification_delay() const;
+	void set_tick_speedup_notification_delay(int p_delay_in_ms);
+	int get_tick_speedup_notification_delay() const;
 
 	void set_network_traced_frames(int p_size);
 	int get_network_traced_frames() const;
@@ -243,11 +226,8 @@ public:
 	void set_max_frames_delay(int p_val);
 	int get_max_frames_delay() const;
 
-	void set_net_sensitivity(real_t p_val);
-	real_t get_net_sensitivity() const;
-
-	void set_tick_acceleration(real_t p_acceleration);
-	real_t get_tick_acceleration() const;
+	void set_tick_acceleration(double p_acceleration);
+	double get_tick_acceleration() const;
 
 	void set_doll_epoch_collect_rate(int p_rate);
 	int get_doll_epoch_collect_rate() const;
@@ -284,7 +264,7 @@ public:
 	}
 
 	/// Returns the pretended delta used by the player.
-	real_t player_get_pretended_delta(uint32_t p_iterations_per_seconds) const;
+	real_t player_get_pretended_delta() const;
 
 	void mark_epoch_as_important();
 
@@ -293,12 +273,12 @@ public:
 	void pause_notify_dolls();
 
 	virtual void validate_script_implementation();
-	virtual void native_collect_inputs(real_t p_delta, DataBuffer &r_buffer);
-	virtual void native_controller_process(real_t p_delta, DataBuffer &p_buffer);
+	virtual void native_collect_inputs(double p_delta, DataBuffer &r_buffer);
+	virtual void native_controller_process(double p_delta, DataBuffer &p_buffer);
 	virtual bool native_are_inputs_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B);
 	virtual uint32_t native_count_input_size(DataBuffer &p_buffer);
 	virtual void native_collect_epoch_data(DataBuffer &r_buffer);
-	virtual void native_apply_epoch(real_t p_delta, real_t p_interpolation_alpha, DataBuffer &p_past_buffer, DataBuffer &p_future_buffer);
+	virtual void native_apply_epoch(double p_delta, real_t p_interpolation_alpha, DataBuffer &p_past_buffer, DataBuffer &p_future_buffer);
 
 	bool process_instant(int p_i, real_t p_delta);
 
@@ -333,13 +313,13 @@ public:
 
 	/* On client rpc functions. */
 	void _rpc_set_server_controlled(bool p_server_controlled);
-	void _rpc_send_tick_additional_speed(const Vector<uint8_t> &p_data);
+	void _rpc_notify_fps_acceleration(const Vector<uint8_t> &p_data);
 
 	/* On puppet rpc functions. */
 	void _rpc_doll_notify_sync_pause(uint32_t p_epoch);
 	void _rpc_doll_send_epoch_batch(const Vector<uint8_t> &p_data);
 
-	void process(real_t p_delta);
+	void process(double p_delta);
 
 	void player_set_has_new_input(bool p_has);
 	bool player_has_new_input() const;
@@ -356,6 +336,8 @@ struct FrameSnapshot {
 	BitArray inputs_buffer;
 	uint32_t buffer_size_bit;
 	uint32_t similarity;
+	/// Local timestamp.
+	uint32_t received_timestamp;
 
 	bool operator==(const FrameSnapshot &p_other) const {
 		return p_other.id == id;
@@ -394,14 +376,14 @@ struct ServerController : public Controller {
 	uint32_t current_input_buffer_id = UINT32_MAX;
 	uint32_t ghost_input_count = 0;
 	uint32_t last_sent_state_input_id = 0;
-	real_t client_tick_additional_speed = 0.0;
-	real_t additional_speed_notif_timer = 0.0;
+	uint32_t additional_fps_notif_timer = 0;
 	std::deque<FrameSnapshot> snapshots;
 	bool streaming_paused = false;
 	bool enabled = true;
 
-	uint32_t input_arrival_time = UINT32_MAX;
+	uint32_t previous_frame_received_timestamp = UINT32_MAX;
 	NetUtility::StatisticalRingBuffer<uint32_t> network_watcher;
+	NetUtility::StatisticalRingBuffer<int> consecutive_input_watcher;
 
 	/// Used to sync the dolls.
 	LocalVector<Peer> peers;
@@ -413,7 +395,7 @@ struct ServerController : public Controller {
 			NetworkedController *p_node,
 			int p_traced_frames);
 
-	void process(real_t p_delta);
+	void process(double p_delta);
 	uint32_t last_known_input() const;
 	virtual uint32_t get_current_input_id() const override;
 
@@ -429,11 +411,13 @@ struct ServerController : public Controller {
 	/// Fetch the next inputs, returns true if the input is new.
 	virtual bool fetch_next_input(real_t p_delta);
 
+	void set_frame_input(const FrameSnapshot &p_frame_snapshot);
+
 	void notify_send_state();
 
 	void doll_sync(real_t p_delta);
 
-	/// This function updates the `tick_additional_speed` so that the `frames_inputs`
+	/// This function updates the `tick_additional_fps` so that the `frames_inputs`
 	/// size is enough to reduce the missing packets to 0.
 	///
 	/// When the internet connection is bad, the packets need more time to arrive.
@@ -444,8 +428,7 @@ struct ServerController : public Controller {
 	/// the server is artificial and no more dependent on the internet. For this
 	/// reason the server tells the client to slowdown so to keep the `frames_inputs`
 	/// size moderate to the needs.
-	virtual void calculates_player_tick_rate(real_t p_delta);
-	virtual void adjust_player_tick_rate(real_t p_delta);
+	virtual void adjust_player_tick_rate(double p_delta);
 
 	uint32_t find_peer(int p_peer) const;
 };
@@ -457,31 +440,32 @@ struct AutonomousServerController : public ServerController {
 	virtual void receive_inputs(const Vector<uint8_t> &p_data) override;
 	virtual int get_inputs_count() const override;
 	virtual bool fetch_next_input(real_t p_delta) override;
-	virtual void calculates_player_tick_rate(real_t p_delta) override;
-	virtual void adjust_player_tick_rate(real_t p_delta) override;
+	virtual void adjust_player_tick_rate(double p_delta) override;
 };
 
 struct PlayerController : public Controller {
 	uint32_t current_input_id;
 	uint32_t input_buffers_counter;
-	real_t time_bank;
-	real_t tick_additional_speed;
+	double time_bank;
+	double acceleration_fps_speed = 0.0;
+	double acceleration_fps_timer = 1.0;
 	bool streaming_paused = false;
+	double pretended_delta = 1.0;
 
 	std::deque<FrameSnapshot> frames_snapshot;
 	LocalVector<uint8_t> cached_packet_data;
 
 	PlayerController(NetworkedController *p_node);
 
-	void process(real_t p_delta);
-	int calculates_sub_ticks(real_t p_delta, real_t p_iteration_per_seconds);
+	void process(double p_delta);
+	/// Returns the amount of frames to process for this frame.
+	int calculates_sub_ticks(const double p_delta, const double p_iteration_per_seconds);
 	int notify_input_checked(uint32_t p_input_id);
 	uint32_t last_known_input() const;
 	uint32_t get_stored_input_id(int p_i) const;
 	virtual uint32_t get_current_input_id() const override;
 
 	bool process_instant(int p_i, real_t p_delta);
-	real_t get_pretended_delta(real_t p_iteration_per_second) const;
 
 	void store_input_buffer(uint32_t p_id);
 
@@ -526,7 +510,7 @@ struct DollController : public Controller {
 	DollController(NetworkedController *p_node);
 
 	virtual void ready() override;
-	void process(real_t p_delta);
+	void process(double p_delta);
 	// TODO consider make this non virtual
 	virtual uint32_t get_current_input_id() const override;
 
@@ -543,7 +527,7 @@ struct NoNetController : public Controller {
 
 	NoNetController(NetworkedController *p_node);
 
-	void process(real_t p_delta);
+	void process(double p_delta);
 	virtual uint32_t get_current_input_id() const override;
 };
 

@@ -60,7 +60,7 @@ bool NetUtility::VarData::operator<(const VarData &p_other) const {
 	return id < p_other.id;
 }
 
-void NetUtility::NodeData::process(const real_t p_delta) const {
+void NetUtility::NodeData::process(const double p_delta) const {
 	const Variant var_delta = p_delta;
 	const Variant *fake_array_vars = &var_delta;
 
