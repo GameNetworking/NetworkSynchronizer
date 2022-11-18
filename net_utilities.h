@@ -138,10 +138,11 @@ public:
 	T max() const;
 
 	/// Minumum value.
-	T min(uint32_t p_consider_last) const;
+	T min(uint32_t p_consider_last = UINT32_MAX) const;
 
 	/// Median value.
 	T average() const;
+	T average_rounded() const;
 
 	T get_deviation(T p_mean) const;
 
@@ -235,6 +236,29 @@ T StatisticalRingBuffer<T>::average() const {
 	// I'm leaving it as is because solve it mean do more operations. All this
 	// just to get the right value for the first few frames.
 	return avg_sum / T(data.size());
+#endif
+}
+
+template <class T>
+T StatisticalRingBuffer<T>::average_rounded() const {
+	CRASH_COND(data.size() == 0);
+
+#ifdef DEBUG_ENABLED
+	T a = data[0];
+	for (uint32_t i = 1; i < data.size(); i += 1) {
+		a += data[i];
+	}
+	a = Math::round(double(a) / double(data.size()));
+	T b = Math::round(double(avg_sum) / double(data.size()));
+	const T difference = a > b ? a - b : b - a;
+	ERR_FAIL_COND_V_MSG(difference > (CMP_EPSILON * 4.0), b, "The `avg_sum` accumulated a sensible precision loss: " + rtos(difference));
+	return b;
+#else
+	// Divide it by the buffer size is wrong when the buffer is not yet fully
+	// initialized. However, this is wrong just for the first run.
+	// I'm leaving it as is because solve it mean do more operations. All this
+	// just to get the right value for the first few frames.
+	return Math::round(double(avg_sum) / double(data.size()));
 #endif
 }
 
@@ -341,7 +365,7 @@ struct NodeData {
 
 	NodeData() = default;
 
-	void process(const real_t p_delta) const;
+	void process(const double p_delta) const;
 };
 
 struct PeerData {
