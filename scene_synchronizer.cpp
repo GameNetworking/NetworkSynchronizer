@@ -1868,7 +1868,8 @@ void NoNetSynchronizer::process() {
 		return;
 	}
 
-	const real_t delta = scene_synchronizer->get_physics_process_delta_time();
+	const double physics_ticks_per_second = Engine::get_singleton()->get_physics_ticks_per_second();
+	const double delta = 1.0 / physics_ticks_per_second;
 
 	// Process the scene
 	for (uint32_t i = 0; i < scene_synchronizer->node_data.size(); i += 1) {
@@ -1942,7 +1943,8 @@ void ServerSynchronizer::clear() {
 void ServerSynchronizer::process() {
 	scene_synchronizer->update_peers();
 
-	const real_t delta = scene_synchronizer->get_physics_process_delta_time();
+	const double physics_ticks_per_second = Engine::get_singleton()->get_physics_ticks_per_second();
+	const double delta = 1.0 / physics_ticks_per_second;
 
 	// Process the scene
 	for (uint32_t i = 0; i < scene_synchronizer->node_data.size(); i += 1) {
@@ -2557,8 +2559,8 @@ void ClientSynchronizer::process() {
 		return;
 	}
 
-	const real_t delta = scene_synchronizer->get_physics_process_delta_time();
-	const real_t physics_ticks_per_second = Engine::get_singleton()->get_physics_ticks_per_second();
+	const double physics_ticks_per_second = Engine::get_singleton()->get_physics_ticks_per_second();
+	const double delta = 1.0 / physics_ticks_per_second;
 
 #ifdef DEBUG_ENABLED
 	if (unlikely(Engine::get_singleton()->get_frames_per_second() < physics_ticks_per_second)) {
