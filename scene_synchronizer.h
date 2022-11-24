@@ -187,6 +187,8 @@ public:
 	void set_actions_resend_time(real_t p_time);
 	real_t get_actions_resend_time() const;
 
+	bool is_variable_registered(Node *p_node, const StringName &p_variable) const;
+
 	/// Register a new node and returns its `NodeData`.
 	NetUtility::NodeData *register_node(Node *p_node);
 	uint32_t register_node_gdscript(Node *p_node);
@@ -404,6 +406,7 @@ class NoNetSynchronizer : public Synchronizer {
 	friend class SceneSynchronizer;
 
 	bool enabled = true;
+	uint32_t frame_count = 0;
 	LocalVector<NetActionProcessor> pending_actions;
 
 public:

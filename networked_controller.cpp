@@ -38,6 +38,7 @@
 #include "core/io/marshalls.h"
 #include "core/os/os.h"
 #include "scene_synchronizer.h"
+#include "scene_synchronizer_debugger.h"
 #include <algorithm>
 
 #include "godot_backward_utility_cpp.h"
@@ -181,11 +182,11 @@ void NetworkedController::set_server_controlled(bool p_server_controlled) {
 						SNAME("_rpc_set_server_controlled"),
 						server_controlled);
 			} else {
-				NET_DEBUG_WARN("The node is owned by the server, there is no client that can control it; please assign the proper authority.");
+				SceneSynchronizerDebugger::singleton()->debug_warning(this, "The node is owned by the server, there is no client that can control it; please assign the proper authority.");
 			}
 
 		} else if (is_player_controller() || is_doll_controller()) {
-			NET_DEBUG_WARN("You should never call the function `set_server_controlled` on the client, this has an effect only if called on the server.");
+			SceneSynchronizerDebugger::singleton()->debug_warning(this, "You should never call the function `set_server_controlled` on the client, this has an effect only if called on the server.");
 
 		} else if (is_nonet_controller()) {
 			// There is no networking, the same instance is both the client and the
@@ -676,9 +677,11 @@ void ServerController::process(double p_delta) {
 
 	node->get_inputs_buffer_mut().begin_read();
 	node->get_inputs_buffer_mut().seek(METADATA_SIZE);
+	SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(node, SceneSynchronizerDebugger::READ);
 	node->native_controller_process(
 			p_delta,
 			node->get_inputs_buffer_mut());
+	SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
 
 	doll_sync(p_delta);
 
@@ -902,7 +905,7 @@ bool ServerController::fetch_next_input(real_t p_delta) {
 			// The input buffer is empty; a packet is missing.
 			is_new_input = false;
 			ghost_input_count += 1;
-			NET_DEBUG_PRINT("Input buffer is void, i'm using the previous one!");
+			SceneSynchronizerDebugger::singleton()->debug_print(node, "Missing input: " + itos(next_input_id) + " Input buffer is void, i'm using the previous one!");
 
 		} else {
 			// The input buffer is not empty, search the new input.
@@ -990,10 +993,10 @@ bool ServerController::fetch_next_input(real_t p_delta) {
 				if (recovered) {
 					set_frame_input(pi);
 					ghost_input_count = 0;
-					NET_DEBUG_PRINT("Packet recovered");
+					SceneSynchronizerDebugger::singleton()->debug_print(node, "Packet recovered");
 				} else {
 					is_new_input = false;
-					NET_DEBUG_PRINT("Packet still missing");
+					SceneSynchronizerDebugger::singleton()->debug_print(node, "Packet still missing");
 				}
 			}
 		}
@@ -1175,7 +1178,7 @@ AutonomousServerController::AutonomousServerController(
 }
 
 void AutonomousServerController::receive_inputs(const Vector<uint8_t> &p_data) {
-	NET_DEBUG_WARN("`receive_input` called on the `AutonomousServerController` - If this is called just after `set_server_controlled(true)` is called, you can ignore this warning, as the client is not aware about the switch for a really small window after this function call.");
+	SceneSynchronizerDebugger::singleton()->debug_warning(node, "`receive_input` called on the `AutonomousServerController` - If this is called just after `set_server_controlled(true)` is called, you can ignore this warning, as the client is not aware about the switch for a really small window after this function call.");
 }
 
 int AutonomousServerController::get_inputs_count() const {
@@ -1186,7 +1189,9 @@ int AutonomousServerController::get_inputs_count() const {
 bool AutonomousServerController::fetch_next_input(real_t p_delta) {
 	node->get_inputs_buffer_mut().begin_write(METADATA_SIZE);
 	node->get_inputs_buffer_mut().seek(METADATA_SIZE);
+	SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(node, SceneSynchronizerDebugger::WRITE);
 	node->native_collect_inputs(p_delta, node->get_inputs_buffer_mut());
+	SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
 	node->get_inputs_buffer_mut().dry();
 
 	if (unlikely(current_input_buffer_id == UINT32_MAX)) {
@@ -1226,7 +1231,10 @@ void PlayerController::process(double p_delta) {
 		node->get_inputs_buffer_mut().begin_write(METADATA_SIZE);
 
 		node->get_inputs_buffer_mut().seek(METADATA_SIZE);
+
+		SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(node, SceneSynchronizerDebugger::WRITE);
 		node->native_collect_inputs(p_delta, node->get_inputs_buffer_mut());
+		SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
 
 		// Set metadata data.
 		node->get_inputs_buffer_mut().seek(0);
@@ -1237,16 +1245,18 @@ void PlayerController::process(double p_delta) {
 			node->get_inputs_buffer_mut().add_bool(false);
 		}
 	} else {
-		NET_DEBUG_WARN("It's not possible to accept new inputs. Is this lagging?");
+		SceneSynchronizerDebugger::singleton()->debug_warning(node, "It's not possible to accept new inputs. Is this lagging?");
 	}
 
 	node->get_inputs_buffer_mut().dry();
 	node->get_inputs_buffer_mut().begin_read();
 	node->get_inputs_buffer_mut().seek(METADATA_SIZE); // Skip meta.
 
+	SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(node, SceneSynchronizerDebugger::READ);
 	// The physics process is always emitted, because we still need to simulate
 	// the character motion even if we don't store the player inputs.
 	node->native_controller_process(p_delta, node->get_inputs_buffer_mut());
+	SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
 
 	node->player_set_has_new_input(false);
 	if (accept_new_inputs) {
@@ -1292,7 +1302,7 @@ int PlayerController::calculates_sub_ticks(const double p_delta, const double p_
 int PlayerController::notify_input_checked(uint32_t p_input_id) {
 	if (frames_snapshot.empty() || p_input_id < frames_snapshot.front().id || p_input_id > frames_snapshot.back().id) {
 		// The received p_input_id is not known, so nothing to do.
-		NET_DEBUG_ERR("The received snapshot, with input id: " + itos(p_input_id) + " is not known. This is a bug or someone is trying to hack.");
+		SceneSynchronizerDebugger::singleton()->debug_error(node, "The received snapshot, with input id: " + itos(p_input_id) + " is not known. This is a bug or someone is trying to hack.");
 		return frames_snapshot.size();
 	}
 
@@ -1443,15 +1453,25 @@ void PlayerController::send_frame_input_buffer_to_server() {
 			}
 		}
 
+		if (current_input_id == previous_input_id) {
+			SceneSynchronizerDebugger::singleton()->notify_are_inputs_different_result(node, frames_snapshot[i].id, is_similar);
+		} else if (current_input_id == frames_snapshot[i].id) {
+			SceneSynchronizerDebugger::singleton()->notify_are_inputs_different_result(node, previous_input_id, is_similar);
+		}
+
 		if (is_similar) {
 			// This input is similar to the previous one, so just duplicate it.
 			duplication_count += 1;
 			// In this way, we don't need to compare these frames again.
 			frames_snapshot[i].similarity = previous_input_id;
 
+			SceneSynchronizerDebugger::singleton()->notify_input_sent_to_server(node, frames_snapshot[i].id, previous_input_id);
+
 		} else {
 			// This input is different from the previous one, so let's
 			// finalize the previous and start another one.
+
+			SceneSynchronizerDebugger::singleton()->notify_input_sent_to_server(node, frames_snapshot[i].id, frames_snapshot[i].id);
 
 			if (previous_input_id != UINT32_MAX) {
 				// We can finally finalize the previous input
@@ -1670,10 +1690,14 @@ NoNetController::NoNetController(NetworkedController *p_node) :
 
 void NoNetController::process(double p_delta) {
 	node->get_inputs_buffer_mut().begin_write(0); // No need of meta in this case.
+	SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(node, SceneSynchronizerDebugger::WRITE);
 	node->native_collect_inputs(p_delta, node->get_inputs_buffer_mut());
+	SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
 	node->get_inputs_buffer_mut().dry();
 	node->get_inputs_buffer_mut().begin_read();
+	SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(node, SceneSynchronizerDebugger::READ);
 	node->native_controller_process(p_delta, node->get_inputs_buffer_mut());
+	SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
 	frame_id += 1;
 }
 
