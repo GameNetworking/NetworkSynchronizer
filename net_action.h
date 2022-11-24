@@ -86,7 +86,7 @@ struct NetActionSenderInfo {
 	LocalVector<ActionAndTimestamp> missing_actions;
 
 	bool process_received_action(uint32_t p_action_id);
-	void check_missing_actions_and_clean_up();
+	void check_missing_actions_and_clean_up(Node *p_owner);
 };
 
 #endif

@@ -35,10 +35,12 @@
 #include "register_types.h"
 
 #include "core/config/project_settings.h"
+#include "core/config/engine.h"
 #include "data_buffer.h"
 #include "networked_controller.h"
 #include "scene_diff.h"
 #include "scene_synchronizer.h"
+#include "scene_synchronizer_debugger.h"
 
 void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SERVERS) {
@@ -50,10 +52,18 @@ void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
 	GDREGISTER_CLASS(NetworkedController);
 	GDREGISTER_CLASS(SceneSynchronizer);
 
+	memnew(SceneSynchronizerDebugger);
+	Engine::get_singleton()->add_singleton(Engine::Singleton("SceneSynchronizerDebugger", SceneSynchronizerDebugger::singleton()));
+
 	GLOBAL_DEF("NetworkSynchronizer/debug_server_speedup", false);
 	GLOBAL_DEF("NetworkSynchronizer/debug_doll_speedup", false);
 	GLOBAL_DEF("NetworkSynchronizer/log_debug_warnings_and_messages", true);
+	GLOBAL_DEF("NetworkSynchronizer/log_debug_fps_warnings", false);
+	GLOBAL_DEF("NetworkSynchronizer/display_server_ghost", false);
+	GLOBAL_DEF("NetworkSynchronizer/debugger/dump_enabled", false);
+	GLOBAL_DEF("NetworkSynchronizer/debugger/dump_classes", Array());
 }
 
 void uninitialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
+	memdelete(SceneSynchronizerDebugger::singleton());
 }
