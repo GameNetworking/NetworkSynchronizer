@@ -4,7 +4,7 @@
 #include "core/ustring.h"
 
 namespace NetUtility {
-class NodeData;
+struct NodeData;
 };
 
 typedef uint32_t NetActionId;
