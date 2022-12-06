@@ -5,6 +5,7 @@
 #include "scene/main/multiplayer_api.h"
 #include "scene/main/node.h"
 #include "scene_synchronizer.h"
+#include "scene_synchronizer_debugger.h"
 
 void SenderNetAction::prepare_processor(
 		NetUtility::NodeData *p_nd,
@@ -136,7 +137,7 @@ void net_action::decode_net_action(
 			const uint32_t node_data_id = p_data_buffer.read_uint(DataBuffer::COMPRESSION_LEVEL_2);
 			node_data = synchronizer->get_node_data(node_data_id);
 			if (node_data == nullptr) {
-				NET_DEBUG_ERR("The received action data contains a node which is not registered on this peer. NodeDataId: `" + itos(node_data_id) + "`");
+				SceneSynchronizerDebugger::singleton()->debug_error(synchronizer, "The received action data contains a node which is not registered on this peer. NodeDataId: `" + itos(node_data_id) + "`");
 				continue;
 			}
 		} else {
@@ -145,12 +146,12 @@ void net_action::decode_net_action(
 
 			Node *node = synchronizer->get_node(node_path);
 			if (node == nullptr) {
-				NET_DEBUG_ERR("The received action data contains a node path which is unknown: `" + node_path.stringify() + "`");
+				SceneSynchronizerDebugger::singleton()->debug_error(synchronizer, String("The received action data contains a node path which is unknown: `") + node_path.stringify() + "`");
 				continue;
 			}
 			node_data = synchronizer->find_node_data(node);
 			if (node_data == nullptr) {
-				NET_DEBUG_ERR("The received action data contains a node which is not registered on this peer. NodePath: `" + node_path.stringify() + "`");
+				SceneSynchronizerDebugger::singleton()->debug_error(synchronizer, String("The received action data contains a node which is not registered on this peer. NodePath: `") + node_path.stringify() + "`");
 				continue;
 			}
 		}
@@ -158,7 +159,7 @@ void net_action::decode_net_action(
 		// ------------------------------------------------------------------------- Fetch the action_id
 		const NetActionId action_id = p_data_buffer.read_uint(DataBuffer::COMPRESSION_LEVEL_2);
 		if (node_data->net_actions.size() <= action_id) {
-			NET_DEBUG_ERR("The received action data is malformed. This peer doesn't have the action_id (`" + itos(action_id) + "`) for the node `" + node_data->node->get_path() + "`");
+			SceneSynchronizerDebugger::singleton()->debug_error(synchronizer, "The received action data is malformed. This peer doesn't have the action_id (`" + itos(action_id) + "`) for the node `" + node_data->node->get_path() + "`");
 			continue;
 		}
 
@@ -241,14 +242,14 @@ bool NetActionSenderInfo::process_received_action(uint32_t p_action_index) {
 	return already_received;
 }
 
-void NetActionSenderInfo::check_missing_actions_and_clean_up() {
+void NetActionSenderInfo::check_missing_actions_and_clean_up(Node *p_owner) {
 	const uint64_t now = OS::get_singleton()->get_ticks_msec();
 	const uint64_t one_second = 1000;
 
 	for (int64_t i = int64_t(missing_actions.size()) - 1; i >= 0; i -= 1) {
 		if ((missing_actions[i].timestamp + one_second) <= now) {
 			// After more than 1 second the action is still missing.
-			NET_DEBUG_WARN("The action with ID: `" + itos(missing_actions[i].id) + "` was never received.");
+			SceneSynchronizerDebugger::singleton()->debug_warning(p_owner, "The action with ID: `" + itos(missing_actions[i].id) + "` was never received.");
 			// Remove it from missing actions, this will:
 			// 1. From now on this action will be discarded if received.
 			// 2. Reduce the `missing_actions` array size.
