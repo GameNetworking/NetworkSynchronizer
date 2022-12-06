@@ -54,8 +54,6 @@ void register_network_synchronizer_types() {
 	GLOBAL_DEF("NetworkSynchronizer/debug_server_speedup", false);
 	GLOBAL_DEF("NetworkSynchronizer/debug_doll_speedup", false);
 	GLOBAL_DEF("NetworkSynchronizer/log_debug_warnings_and_messages", true);
-	GLOBAL_DEF("NetworkSynchronizer/log_debug_fps_warnings", false);
-	GLOBAL_DEF("NetworkSynchronizer/display_server_ghost", false);
 	GLOBAL_DEF("NetworkSynchronizer/debugger/dump_enabled", false);
 	GLOBAL_DEF("NetworkSynchronizer/debugger/dump_classes", Array());
 	GLOBAL_DEF("NetworkSynchronizer/debugger/log_debug_fps_warnings", false);
