@@ -2612,7 +2612,8 @@ void ClientSynchronizer::process() {
 
 #ifdef DEBUG_ENABLED
 	if (unlikely(Engine::get_singleton()->get_frames_per_second() < physics_ticks_per_second)) {
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Current FPS is " + itos(Engine::get_singleton()->get_frames_per_second()) + ", but the minimum required FPS is " + itos(physics_ticks_per_second) + ", the client is unable to generate enough inputs for the server.");
+		const bool silent = !ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/debugger/log_debug_fps_warnings");
+		SceneSynchronizerDebugger::singleton()->debug_warning(scene_synchronizer, "Current FPS is " + itos(Engine::get_singleton()->get_frames_per_second()) + ", but the minimum required FPS is " + itos(physics_ticks_per_second) + ", the client is unable to generate enough inputs for the server.", silent);
 	}
 #endif
 
@@ -3119,7 +3120,7 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 					rec.vars);
 
 			if (different) {
-				SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Rewind on input " + itos(checkable_input_id) + " is needed because the node on client is different: " + rew_node_data->node->get_path());
+				SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Rewind on frame " + itos(checkable_input_id) + " is needed because the node on client is different: " + rew_node_data->node->get_path());
 				recover_this_node = true;
 			} else if (rec.vars.size() > 0) {
 				rec.node_data = rew_node_data;
