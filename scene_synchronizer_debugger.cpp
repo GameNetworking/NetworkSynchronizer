@@ -32,6 +32,7 @@
 
 #ifdef DEBUG_ENABLED
 
+#include "__generated__debugger_ui.h"
 #include "core/io/json.h"
 #include "core/os/dir_access.h"
 #include "core/os/file_access.h"
@@ -40,7 +41,6 @@
 #include "net_utilities.h"
 #include "scene/main/viewport.h"
 #include "scene_synchronizer.h"
-#include "__generated__debugger_ui.h"
 
 #endif
 
@@ -67,6 +67,9 @@ SceneSynchronizerDebugger::SceneSynchronizerDebugger() :
 	if (the_singleton == nullptr) {
 		the_singleton = this;
 	}
+#ifdef DEBUG_ENABLED
+// Code here
+#endif
 }
 
 SceneSynchronizerDebugger::~SceneSynchronizerDebugger() {
@@ -74,6 +77,7 @@ SceneSynchronizerDebugger::~SceneSynchronizerDebugger() {
 		the_singleton = nullptr;
 	}
 
+#ifdef DEBUG_ENABLED
 	tracked_nodes.reset();
 	classes_property_lists.clear();
 	frame_dump__begin_state.clear();
@@ -82,6 +86,7 @@ SceneSynchronizerDebugger::~SceneSynchronizerDebugger() {
 	frame_dump__data_buffer_writes.clear();
 	frame_dump__data_buffer_reads.clear();
 	frame_dump__are_inputs_different_results.clear();
+#endif
 }
 
 void SceneSynchronizerDebugger::set_dump_enabled(bool p_dump_enabled) {
@@ -253,7 +258,7 @@ void SceneSynchronizerDebugger::setup_debugger_python_ui() {
 	FileAccess *f = FileAccess::open(path, FileAccess::WRITE);
 	ERR_FAIL_COND_MSG(!f, "Can't create the `" + path + "` file.");
 
-	f->store_buffer((uint8_t*)__debugger_ui_code, __debugger_ui_code_size);
+	f->store_buffer((uint8_t *)__debugger_ui_code, __debugger_ui_code_size);
 
 	f->close();
 	memdelete(f);
