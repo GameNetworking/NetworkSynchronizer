@@ -3,7 +3,7 @@ from os.path import isfile, join, isdir, exists
 
 def create_debugger_header():
     
-    f = open("__generated__debugger_ui.h", "w")
+    f = open("__generated__debugger_ui.h", "w", encoding="utf-8")
     f.write("#pragma once\n")
     f.write("\n")
     f.write("/// This is a generated file by `cpplize_debugger.py`, executed by `SCsub`.\n")
@@ -19,7 +19,7 @@ def create_debugger_header():
     f.write("static const char __debugger_ui_code[] = R\"TheCodeRKS(")
 
     size = 0
-    with open('./debugger_ui/debugger.py') as deb_f:
+    with open('./debugger_ui/debugger.py', encoding="utf-8") as deb_f:
         for l in deb_f.readlines():
             l_utf8 = l.encode('utf-8')
             size += len(l_utf8)
