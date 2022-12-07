@@ -56,7 +56,7 @@ void register_network_synchronizer_types() {
 	GLOBAL_DEF("NetworkSynchronizer/log_debug_warnings_and_messages", true);
 	GLOBAL_DEF("NetworkSynchronizer/debugger/dump_enabled", false);
 	GLOBAL_DEF("NetworkSynchronizer/debugger/dump_classes", Array());
-	GLOBAL_DEF("NetworkSynchronizer/debugger/log_debug_fps_warnings", false);
+	GLOBAL_DEF("NetworkSynchronizer/debugger/log_debug_fps_warnings", true);
 }
 
 void unregister_network_synchronizer_types() {
