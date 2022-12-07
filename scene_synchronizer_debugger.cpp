@@ -353,6 +353,7 @@ void SceneSynchronizerDebugger::start_new_frame() {
 	frame_dump__data_buffer_writes.clear();
 	frame_dump__data_buffer_reads.clear();
 	frame_dump__are_inputs_different_results.clear();
+	log_counter = 0;
 #endif
 }
 
@@ -602,7 +603,11 @@ void SceneSynchronizerDebugger::notify_are_inputs_different_result(
 
 void SceneSynchronizerDebugger::add_node_message(Node *p_node, const String &p_message) {
 #ifdef DEBUG_ENABLED
-	add_node_message_by_path(p_node->get_path(), p_message);
+	if (p_node) {
+		add_node_message_by_path(p_node->get_path(), p_message);
+	} else {
+		add_node_message_by_path("GLOBAL", p_message);
+	}
 #endif
 }
 
@@ -619,7 +624,11 @@ void SceneSynchronizerDebugger::add_node_message_by_path(const String &p_node_pa
 	Variant *v = frame_dump__node_log.getptr(p_node_path);
 	Array a = *v;
 
-	a.append(p_message);
+	Dictionary m;
+	m["i"] = log_counter;
+	m["m"] = p_message;
+	a.append(m);
+	log_counter += 1;
 #endif
 }
 
