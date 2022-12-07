@@ -80,6 +80,7 @@ private:
 	LocalVector<StringName> dump_classes;
 	bool setup_done = false;
 
+	uint32_t log_counter = 0;
 	SceneTree *scene_tree = nullptr;
 	String main_dump_directory_path;
 	String dump_name;

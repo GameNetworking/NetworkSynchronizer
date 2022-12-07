@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import PySimpleGUI as sg
 import json
 from os import listdir
@@ -156,9 +158,6 @@ while True:
 							# Add this node to the nodelist
 							nodes_list.append(node_path)
 
-				else:
-					frame_data[dir] = {}
-
 			# Update the node list.
 			window["NODE_LIST"].update(nodes_list)
 
@@ -198,17 +197,18 @@ while True:
 				# First collects the var names
 				vars_names = ["***"]
 				for dir in directories:
-					if "begin_state" in frame_data[dir]:
-						if node_path in frame_data[dir]["begin_state"]:
-							for var_name in frame_data[dir]["begin_state"][node_path]:
-								if var_name not in vars_names:
-									vars_names.append(var_name)
+					if dir in frame_data:
+						if "begin_state" in frame_data[dir]:
+							if node_path in frame_data[dir]["begin_state"]:
+								for var_name in frame_data[dir]["begin_state"][node_path]:
+									if var_name not in vars_names:
+										vars_names.append(var_name)
 
-					if "end_state" in frame_data[dir]:
-						if node_path in frame_data[dir]["end_state"]:
-							for var_name in frame_data[dir]["end_state"][node_path]:
-								if var_name not in vars_names:
-									vars_names.append(var_name)
+						if "end_state" in frame_data[dir]:
+							if node_path in frame_data[dir]["end_state"]:
+								for var_name in frame_data[dir]["end_state"][node_path]:
+									if var_name not in vars_names:
+										vars_names.append(var_name)
 
 				vars_names.append("---")
 
@@ -235,17 +235,18 @@ while True:
 
 					# Set the row data.
 					for dir_i, dir_name in enumerate(directories):
-						if "begin_state" in frame_data[dir_name]:
-							if node_path in frame_data[dir_name]["begin_state"]:
-								if var_name in frame_data[dir_name]["begin_state"][node_path]:
-									#print(1, " + (", instances_count, " * 0) + ", dir_i)
-									row[1 + (instances_count * 0) + dir_i] = str(frame_data[dir_name]["begin_state"][node_path][var_name])
+						if dir_name in frame_data:
+							if "begin_state" in frame_data[dir_name]:
+								if node_path in frame_data[dir_name]["begin_state"]:
+									if var_name in frame_data[dir_name]["begin_state"][node_path]:
+										#print(1, " + (", instances_count, " * 0) + ", dir_i)
+										row[1 + (instances_count * 0) + dir_i] = str(frame_data[dir_name]["begin_state"][node_path][var_name])
 
-						if "end_state" in frame_data[dir_name]:
-							if node_path in frame_data[dir_name]["end_state"]:
-								if var_name in frame_data[dir_name]["end_state"][node_path]:
-									#print(1, " + (", instances_count, " * 1) + ", dir_i)
-									row[1 + (instances_count * 1) + dir_i] = str(frame_data[dir_name]["end_state"][node_path][var_name])
+							if "end_state" in frame_data[dir_name]:
+								if node_path in frame_data[dir_name]["end_state"]:
+									if var_name in frame_data[dir_name]["end_state"][node_path]:
+										#print(1, " + (", instances_count, " * 1) + ", dir_i)
+										row[1 + (instances_count * 1) + dir_i] = str(frame_data[dir_name]["end_state"][node_path][var_name])
 
 					# Check if different, so mark a worning.
 					for state_index in range(2):
@@ -260,35 +261,36 @@ while True:
 
 				# Compose the log
 				for dir_name in directories:
-					if "node_log" in frame_data[dir_name]:
-						if node_path in frame_data[dir_name]["node_log"]:
+					if dir_name in frame_data:
+						if "node_log" in frame_data[dir_name]:
+							if node_path in frame_data[dir_name]["node_log"]:
 
-							table_logs[dir_name] = table_logs.get(dir_name, [])
-							log_row_colors[dir_name] = log_row_colors.get(dir_name, [])
+								table_logs[dir_name] = table_logs.get(dir_name, [])
+								log_row_colors[dir_name] = log_row_colors.get(dir_name, [])
 
-							table_logs[dir_name] += [["", node_path]]
-							log_row_colors[dir_name] += [(len(table_logs[dir_name]) - 1, "black")]
+								table_logs[dir_name] += [["", node_path]]
+								log_row_colors[dir_name] += [(len(table_logs[dir_name]) - 1, "black")]
 
-							for log_index, val in enumerate(frame_data[dir_name]["node_log"][node_path]):
+								for val in frame_data[dir_name]["node_log"][node_path]:
 
-								# Append the log
-								table_logs[dir_name] += [[log_index, val]]
-								row_index = len(table_logs[dir_name]) - 1
+									# Append the log
+									table_logs[dir_name] += [["{:4d}".format(val["i"]), val["m"]]]
+									row_index = len(table_logs[dir_name]) - 1
 
-								# Check if this line should be colored
-								if val.find("[WARNING]") == 0:
-									log_row_colors[dir_name] += [(row_index, "dark salmon")]
+									# Check if this line should be colored
+									if val["m"].find("[WARNING]") == 0:
+										log_row_colors[dir_name] += [(row_index, "dark salmon")]
 
-								elif val.find("[ERROR]") == 0:
-									log_row_colors[dir_name] += [(row_index, "red")]
+									elif val["m"].find("[ERROR]") == 0:
+										log_row_colors[dir_name] += [(row_index, "red")]
 
-								elif val.find("[WRITE]") == 0:
-									log_row_colors[dir_name] += [(row_index, "cadet blue")]
+									elif val["m"].find("[WRITE]") == 0:
+										log_row_colors[dir_name] += [(row_index, "cadet blue")]
 
-								elif val.find("[READ]") == 0:
-									log_row_colors[dir_name] += [(row_index, "medium aquamarine")]
+									elif val["m"].find("[READ]") == 0:
+										log_row_colors[dir_name] += [(row_index, "medium aquamarine")]
 
-							table_logs[dir_name] += [["", ""]]
+								table_logs[dir_name] += [["", ""]]
 
 			window["FRAME_FRAME_DETAIL"].update("Frame " + str(selected_frame_index) + " details")
 			window["TABLE_STATUS"].update(states_table_values, row_colors=states_row_colors)

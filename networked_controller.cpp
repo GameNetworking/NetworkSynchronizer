@@ -675,6 +675,8 @@ void ServerController::process(double p_delta) {
 		return;
 	}
 
+	SceneSynchronizerDebugger::singleton()->debug_print(node, "Server process index: " + itos(current_input_buffer_id), true);
+
 	node->get_inputs_buffer_mut().begin_read();
 	node->get_inputs_buffer_mut().seek(METADATA_SIZE);
 	SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(node, SceneSynchronizerDebugger::READ);
@@ -1187,6 +1189,8 @@ int AutonomousServerController::get_inputs_count() const {
 }
 
 bool AutonomousServerController::fetch_next_input(real_t p_delta) {
+	SceneSynchronizerDebugger::singleton()->debug_print(node, "Autonomous server fetch input.", true);
+
 	node->get_inputs_buffer_mut().begin_write(METADATA_SIZE);
 	node->get_inputs_buffer_mut().seek(METADATA_SIZE);
 	SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(node, SceneSynchronizerDebugger::WRITE);
@@ -1227,6 +1231,8 @@ void PlayerController::process(double p_delta) {
 
 	if (accept_new_inputs) {
 		current_input_id = input_buffers_counter;
+
+		SceneSynchronizerDebugger::singleton()->debug_print(node, "Player process index: " + itos(current_input_id), true);
 
 		node->get_inputs_buffer_mut().begin_write(METADATA_SIZE);
 
@@ -1690,6 +1696,7 @@ NoNetController::NoNetController(NetworkedController *p_node) :
 
 void NoNetController::process(double p_delta) {
 	node->get_inputs_buffer_mut().begin_write(0); // No need of meta in this case.
+	SceneSynchronizerDebugger::singleton()->debug_print(node, "Nonet process index: " + itos(frame_id), true);
 	SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(node, SceneSynchronizerDebugger::WRITE);
 	node->native_collect_inputs(p_delta, node->get_inputs_buffer_mut());
 	SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
