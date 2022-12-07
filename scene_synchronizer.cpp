@@ -1874,6 +1874,8 @@ void NoNetSynchronizer::process() {
 		return;
 	}
 
+	SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "NoNetSynchronizer::process", true);
+
 	const uint32_t frame_index = frame_count;
 	frame_count += 1;
 
@@ -1958,6 +1960,8 @@ void ServerSynchronizer::clear() {
 }
 
 void ServerSynchronizer::process() {
+	SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "ServerSynchronizer::process", true);
+
 	scene_synchronizer->update_peers();
 
 	const double physics_ticks_per_second = Engine::get_singleton()->get_iterations_per_second();
@@ -2595,6 +2599,8 @@ void ClientSynchronizer::clear() {
 }
 
 void ClientSynchronizer::process() {
+	SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "ServerSynchronizer::process", true);
+
 	if (unlikely(player_controller_node_data == nullptr || enabled == false)) {
 		// No player controller or disabled so nothing to do.
 		return;
@@ -2629,7 +2635,12 @@ void ClientSynchronizer::process() {
 	// and get back in time with the server.
 	int sub_ticks = player_controller->calculates_sub_ticks(delta, physics_ticks_per_second);
 
+	if (sub_ticks == 0) {
+		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "No sub ticks: this is not bu a bug; it's the lag compensation algorithm.", true);
+	}
+
 	while (sub_ticks > 0) {
+		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "ClientSynchronizer::process::sub_process " + itos(sub_ticks), true);
 		SceneSynchronizerDebugger::singleton()->scene_sync_process_start(scene_synchronizer);
 
 		// Process the scene.
