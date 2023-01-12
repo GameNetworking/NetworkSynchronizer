@@ -282,46 +282,54 @@ uint32_t InputNetworkEncoder::count_size(DataBuffer &p_buffer) const {
 		const NetworkedInputInfo &info = input_info[i];
 
 		const bool is_bool = info.default_value.get_type() == Variant::BOOL;
-
-		if (is_bool == false) {
+		if (is_bool) {
+			// The bool data.
 			size += p_buffer.read_bool_size();
-		}
+		} else {
+			// The default marker
+			const bool is_default = p_buffer.read_bool();
+			size += p_buffer.get_bool_size();
 
-		switch (info.data_type) {
-			case DataBuffer::DATA_TYPE_BOOL:
-				size += p_buffer.read_bool_size();
-				break;
-			case DataBuffer::DATA_TYPE_UINT:
-				size += p_buffer.read_uint_size(info.compression_level);
-				break;
-			case DataBuffer::DATA_TYPE_INT:
-				size += p_buffer.read_int_size(info.compression_level);
-				break;
-			case DataBuffer::DATA_TYPE_REAL:
-				size += p_buffer.read_real_size(info.compression_level);
-				break;
-			case DataBuffer::DATA_TYPE_POSITIVE_UNIT_REAL:
-				size += p_buffer.read_positive_unit_real_size(info.compression_level);
-				break;
-			case DataBuffer::DATA_TYPE_UNIT_REAL:
-				size += p_buffer.read_unit_real_size(info.compression_level);
-				break;
-			case DataBuffer::DATA_TYPE_VECTOR2:
-				size += p_buffer.read_vector2_size(info.compression_level);
-				break;
-			case DataBuffer::DATA_TYPE_NORMALIZED_VECTOR2:
-				size += p_buffer.read_normalized_vector2_size(info.compression_level);
-				break;
-			case DataBuffer::DATA_TYPE_VECTOR3:
-				size += p_buffer.read_vector3_size(info.compression_level);
-				break;
-			case DataBuffer::DATA_TYPE_NORMALIZED_VECTOR3:
-				size += p_buffer.read_normalized_vector3_size(info.compression_level);
-				break;
-			case DataBuffer::DATA_TYPE_VARIANT:
-				size += p_buffer.read_variant_size();
-				break;
-		};
+			if (is_default == false) {
+				// Non default data set the actual data, so we need to count
+				// the size.
+				switch (info.data_type) {
+					case DataBuffer::DATA_TYPE_BOOL:
+						CRASH_NOW_MSG("This can't ever happen, as the bool is already handled.");
+						break;
+					case DataBuffer::DATA_TYPE_UINT:
+						size += p_buffer.read_uint_size(info.compression_level);
+						break;
+					case DataBuffer::DATA_TYPE_INT:
+						size += p_buffer.read_int_size(info.compression_level);
+						break;
+					case DataBuffer::DATA_TYPE_REAL:
+						size += p_buffer.read_real_size(info.compression_level);
+						break;
+					case DataBuffer::DATA_TYPE_POSITIVE_UNIT_REAL:
+						size += p_buffer.read_positive_unit_real_size(info.compression_level);
+						break;
+					case DataBuffer::DATA_TYPE_UNIT_REAL:
+						size += p_buffer.read_unit_real_size(info.compression_level);
+						break;
+					case DataBuffer::DATA_TYPE_VECTOR2:
+						size += p_buffer.read_vector2_size(info.compression_level);
+						break;
+					case DataBuffer::DATA_TYPE_NORMALIZED_VECTOR2:
+						size += p_buffer.read_normalized_vector2_size(info.compression_level);
+						break;
+					case DataBuffer::DATA_TYPE_VECTOR3:
+						size += p_buffer.read_vector3_size(info.compression_level);
+						break;
+					case DataBuffer::DATA_TYPE_NORMALIZED_VECTOR3:
+						size += p_buffer.read_normalized_vector3_size(info.compression_level);
+						break;
+					case DataBuffer::DATA_TYPE_VARIANT:
+						size += p_buffer.read_variant_size();
+						break;
+				};
+			}
+		}
 	}
 
 	return size;
