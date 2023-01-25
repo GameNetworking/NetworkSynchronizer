@@ -41,6 +41,7 @@
 #include "scene_diff.h"
 #include "scene_synchronizer.h"
 #include "scene_synchronizer_debugger.h"
+#include "input_network_encoder.h"
 
 void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SERVERS) {
@@ -51,6 +52,7 @@ void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
 	GDREGISTER_CLASS(SceneDiff);
 	GDREGISTER_CLASS(NetworkedController);
 	GDREGISTER_CLASS(SceneSynchronizer);
+	GDREGISTER_CLASS(InputNetworkEncoder);
 
 	memnew(SceneSynchronizerDebugger);
 	Engine::get_singleton()->add_singleton(Engine::Singleton("SceneSynchronizerDebugger", SceneSynchronizerDebugger::singleton()));
