@@ -40,6 +40,7 @@
 #include "scene_diff.h"
 #include "scene_synchronizer.h"
 #include "scene_synchronizer_debugger.h"
+#include "input_network_encoder.h"
 
 void register_network_synchronizer_types() {
 	ClassDB::register_class<DataBuffer>();
@@ -47,6 +48,7 @@ void register_network_synchronizer_types() {
 	ClassDB::register_class<NetworkedController>();
 	ClassDB::register_class<SceneSynchronizer>();
 	ClassDB::register_class<SceneSynchronizerDebugger>();
+	ClassDB::register_class<InputNetworkEncoder>();
 
 	memnew(SceneSynchronizerDebugger);
 	Engine::get_singleton()->add_singleton(Engine::Singleton("SceneSynchronizerDebugger", SceneSynchronizerDebugger::singleton()));
