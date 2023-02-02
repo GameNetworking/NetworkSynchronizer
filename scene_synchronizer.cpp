@@ -2606,7 +2606,7 @@ void ClientSynchronizer::clear() {
 }
 
 void ClientSynchronizer::process() {
-	SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "ServerSynchronizer::process", true);
+	SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "ClientSynchronizer::process", true);
 
 	if (unlikely(player_controller_node_data == nullptr || enabled == false)) {
 		// No player controller or disabled so nothing to do.
