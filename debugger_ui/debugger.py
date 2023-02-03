@@ -28,6 +28,13 @@ def compare_arrays(arr_a, arr_b):
 	return True
 
 
+def repeat_characters(char, n):
+	s = ""
+	for i in range(0, n):
+		s += char
+	return s
+
+
 # Fetches the directories containing the frame info.
 directories = [f for f in listdir("./") if (isdir(join("./", f)) and len(listdir(join("./", f))) > 0)]
 
@@ -35,7 +42,8 @@ directories = [f for f in listdir("./") if (isdir(join("./", f)) and len(listdir
 def create_layout():
 
 	# Fetch the frame count from the dirs.
-	frame_count = 0
+	frame_count = -1 
+	frames_iterations = {}
 	frames_description = {}
 	for dir in directories:
 		dir_path = join("./", dir)
@@ -45,7 +53,12 @@ def create_layout():
 			if file_extension_index == 0:
 				# This file contains information about the frame.
 				# Extract the frame index
-				frame_index = int(file_name[3:file_name.index(".json")])
+				frame_iteration = file_name.count("@")
+				if frame_iteration > 0:
+					frame_index = int(file_name[3:file_name.index("@")])
+				else:
+					frame_index = int(file_name[3:file_name.index(".json")])
+				frames_iterations[frame_index] = frame_iteration
 				frame_count = max(frame_count, frame_index)
 
 				file_path = join(dir_path, file_name)
@@ -58,12 +71,17 @@ def create_layout():
 				else:
 					frames_description[frame_index] = ""
 
+	frame_count += 1
+
 
 	# --- UI - Compose timeline ---
 	frame_list_values = []
 	for frame_index in range(frame_count):
 		frame_description = frames_description[frame_index]
+		frame_iterations = frames_iterations[frame_index]
 		frame_list_values.append("# " + str(frame_index) + " - " + frame_description)
+		for i in range(0, frame_iterations):
+			frame_list_values.append("# " + str(frame_index) + " @" + str(i + 1) + " - " + frame_description)
 
 	# Release this array, we don't need anylonger.
 	frames_description.clear()
@@ -137,13 +155,24 @@ while True:
 
 		if event_values["FRAMES_LIST"] != []:
 			frame_description = event_values["FRAMES_LIST"][0]
-			selected_frame_index = int(frame_description[2:frame_description.index(" - ")])
-			print("Show frame: ", selected_frame_index)
+			if "@" in frame_description:
+				frame_iteration = int(frame_description[frame_description.index(" @") + 2:frame_description.index(" - ")])
+				selected_frame_index = int(frame_description[2:frame_description.index(" @")])
+			else:
+				frame_iteration = 0
+				selected_frame_index = int(frame_description[2:frame_description.index(" - ")])
+			print("Show frame: ", selected_frame_index, " Iteration: ", frame_iteration)
 
 			frame_data = {}
 			nodes_list = []
 			for dir in directories:
-				frame_file_path = join("./", dir, "fd-" + str(selected_frame_index) + ".json")
+				frame_file_path = join("./", dir, "fd-" + str(selected_frame_index) + repeat_characters("@", frame_iteration) + ".json")
+
+				if not exists(frame_file_path):
+					print("The path: ", frame_file_path, " was not found. Falling back to no iteration path.")
+					frame_file_path = join("./", dir, "fd-" + str(selected_frame_index) + ".json")
+				print("Path: ", frame_file_path)
+
 				if exists(frame_file_path):
 					frame_data_json = load_json(frame_file_path)
 					frame_data[dir] = frame_data_json
@@ -154,6 +183,11 @@ while True:
 							nodes_list.append(node_path)
 
 					for node_path in frame_data_json["end_state"]:
+						if node_path not in nodes_list:
+							# Add this node to the nodelist
+							nodes_list.append(node_path)
+
+					for node_path in frame_data_json["node_log"]:
 						if node_path not in nodes_list:
 							# Add this node to the nodelist
 							nodes_list.append(node_path)

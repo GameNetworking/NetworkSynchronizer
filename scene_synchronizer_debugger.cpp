@@ -57,9 +57,9 @@ void SceneSynchronizerDebugger::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("add_node_message", "node", "message"), &SceneSynchronizerDebugger::add_node_message);
 	ClassDB::bind_method(D_METHOD("add_node_message_by_path", "node_path", "message"), &SceneSynchronizerDebugger::add_node_message_by_path);
 
-	ClassDB::bind_method(D_METHOD("debug_print", "node", "message"), &SceneSynchronizerDebugger::debug_print);
-	ClassDB::bind_method(D_METHOD("debug_warning", "node", "message"), &SceneSynchronizerDebugger::debug_warning);
-	ClassDB::bind_method(D_METHOD("debug_error", "node", "message"), &SceneSynchronizerDebugger::debug_error);
+	ClassDB::bind_method(D_METHOD("debug_print", "node", "message", "silent"), &SceneSynchronizerDebugger::debug_print);
+	ClassDB::bind_method(D_METHOD("debug_warning", "node", "message", "silent"), &SceneSynchronizerDebugger::debug_warning);
+	ClassDB::bind_method(D_METHOD("debug_error", "node", "message", "silent"), &SceneSynchronizerDebugger::debug_error);
 }
 
 SceneSynchronizerDebugger::SceneSynchronizerDebugger() :
@@ -324,10 +324,22 @@ void SceneSynchronizerDebugger::write_dump(int p_peer, uint32_t p_frame_index) {
 		return;
 	}
 
-	Error e;
-	FileAccess *file = FileAccess::open(main_dump_directory_path + "/" + dump_name + "/fd-" /*+ itos(p_peer) + "-"*/ + itos(p_frame_index) + ".json", FileAccess::WRITE, &e);
+	FileAccess *file = nullptr;
+	{
+		String file_path = "";
 
-	ERR_FAIL_COND(e != OK);
+		int iteration = 0;
+		String iteration_mark = "";
+		do {
+			file_path = main_dump_directory_path + "/" + dump_name + "/fd-" /*+ itos(p_peer) + "-"*/ + itos(p_frame_index) + iteration_mark + ".json";
+			iteration_mark += "@";
+			iteration += 1;
+		} while (FileAccess::exists(file_path) && iteration < 50);
+
+		Error e;
+		file = FileAccess::open(file_path, FileAccess::WRITE, &e);
+		ERR_FAIL_COND(e != OK);
+	}
 
 	String frame_summary;
 
