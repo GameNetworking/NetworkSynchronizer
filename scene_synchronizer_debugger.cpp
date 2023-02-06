@@ -334,7 +334,7 @@ void SceneSynchronizerDebugger::write_dump(int p_peer, uint32_t p_frame_index) {
 			file_path = main_dump_directory_path + "/" + dump_name + "/fd-" /*+ itos(p_peer) + "-"*/ + itos(p_frame_index) + iteration_mark + ".json";
 			iteration_mark += "@";
 			iteration += 1;
-		} while (FileAccess::exists(file_path) && iteration < 50);
+		} while (FileAccess::exists(file_path) && iteration < 100);
 
 		Error e;
 		file = FileAccess::open(file_path, FileAccess::WRITE, &e);
