@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+# PySimpleGUI call reference manual: https://www.pysimplegui.org/en/latest/call%20reference/
+
 import PySimpleGUI as sg
 import json
 from os import listdir
@@ -53,12 +55,17 @@ def create_layout():
 			if file_extension_index == 0:
 				# This file contains information about the frame.
 				# Extract the frame index
-				frame_iteration = file_name.count("@")
-				if frame_iteration > 0:
+				frame_iteration = file_name.count("@") + 1
+				if frame_iteration > 1:
 					frame_index = int(file_name[3:file_name.index("@")])
 				else:
 					frame_index = int(file_name[3:file_name.index(".json")])
-				frames_iterations[frame_index] = frame_iteration
+
+				if frame_index in frames_iterations:
+					frames_iterations[frame_index] = max(frame_iteration, frames_iterations[frame_index])
+				else:
+					frames_iterations[frame_index] = frame_iteration
+
 				frame_count = max(frame_count, frame_index)
 
 				file_path = join(dir_path, file_name)
@@ -79,9 +86,11 @@ def create_layout():
 	for frame_index in range(frame_count):
 		frame_description = frames_description[frame_index]
 		frame_iterations = frames_iterations[frame_index]
-		frame_list_values.append("# " + str(frame_index) + " - " + frame_description)
 		for i in range(0, frame_iterations):
-			frame_list_values.append("# " + str(frame_index) + " @" + str(i + 1) + " - " + frame_description)
+			if i == 0:
+				frame_list_values.append("# " + str(frame_index) + " - " + frame_description)
+			else:
+				frame_list_values.append("# " + str(frame_index) + " @" + str(i + 1) + " - " + frame_description)
 
 	# Release this array, we don't need anylonger.
 	frames_description.clear()
@@ -114,7 +123,7 @@ def create_layout():
 	# Messages table
 	tables_logs = []
 	for dir in directories:
-		tables_logs.append(sg.Frame("Log: " + dir, layout=[[sg.Table([], [" #", "Log"], key=dir+"_TABLE_LOG", justification='left', auto_size_columns=False, col_widths=[4, 70], vertical_scroll_only=False, num_rows=25)]], vertical_alignment="top"))
+		tables_logs.append(sg.Frame("Log: " + dir + " Iteration: ", key=dir+"_FRAME_TABLE_LOG", layout=[[sg.Table([], [" #", "Log"], key=dir+"_TABLE_LOG", justification='left', auto_size_columns=False, col_widths=[4, 70], vertical_scroll_only=False, num_rows=25)]], vertical_alignment="top"))
 
 	logs = sg.Frame("Messages", layout=[tables_logs], vertical_alignment="top")
 
@@ -140,6 +149,7 @@ window = sg.Window(title="Network Synchronizer Debugger.", layout=create_layout(
 frame_data = {}
 nodes_list = []
 selected_nodes = []
+used_frame_iteration = {}
 
 while True:
 	event, event_values = window.read()
@@ -159,17 +169,21 @@ while True:
 				frame_iteration = int(frame_description[frame_description.index(" @") + 2:frame_description.index(" - ")])
 				selected_frame_index = int(frame_description[2:frame_description.index(" @")])
 			else:
-				frame_iteration = 0
+				frame_iteration = 1
 				selected_frame_index = int(frame_description[2:frame_description.index(" - ")])
+
 			print("Show frame: ", selected_frame_index, " Iteration: ", frame_iteration)
 
 			frame_data = {}
 			nodes_list = []
+			used_frame_iteration = {}
 			for dir in directories:
-				frame_file_path = join("./", dir, "fd-" + str(selected_frame_index) + repeat_characters("@", frame_iteration) + ".json")
+				used_frame_iteration[dir] = frame_iteration
+				frame_file_path = join("./", dir, "fd-" + str(selected_frame_index) + repeat_characters("@", frame_iteration - 1) + ".json")
 
 				if not exists(frame_file_path):
 					print("The path: ", frame_file_path, " was not found. Falling back to no iteration path.")
+					used_frame_iteration[dir] = 1
 					frame_file_path = join("./", dir, "fd-" + str(selected_frame_index) + ".json")
 				print("Path: ", frame_file_path)
 
@@ -192,6 +206,7 @@ while True:
 							# Add this node to the nodelist
 							nodes_list.append(node_path)
 
+
 			# Update the node list.
 			window["NODE_LIST"].update(nodes_list)
 
@@ -212,6 +227,7 @@ while True:
 		window["TABLE_STATUS"].update([])
 
 		for dir_name in directories:
+			window[dir_name + "_FRAME_TABLE_LOG"].update("Log: " + dir_name + "Frame: " + str(selected_frame_index) + " Iteration: " + str(used_frame_iteration[dir_name]))
 			window[dir_name + "_TABLE_LOG"].update([["", "[Nothing for this node]"]])
 
 		if event_values["NODE_LIST"] != []:
