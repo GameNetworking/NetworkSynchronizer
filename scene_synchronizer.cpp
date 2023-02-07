@@ -1064,7 +1064,7 @@ void SceneSynchronizer::reset_synchronizer_mode() {
 
 	peer_ptr = get_multiplayer() == nullptr ? nullptr : get_multiplayer()->get_multiplayer_peer().ptr();
 
-	if (get_tree() == nullptr || get_tree()->get_multiplayer()->get_multiplayer_peer().is_null()) {
+	if (get_tree() == nullptr || get_tree()->get_multiplayer()->get_multiplayer_peer()->get_class_name() == "OfflineMultiplayerPeer") {
 		synchronizer_type = SYNCHRONIZER_TYPE_NONETWORK;
 		synchronizer = memnew(NoNetSynchronizer(this));
 		generate_id = true;
@@ -1797,7 +1797,7 @@ void SceneSynchronizer::reset_controller(NetUtility::NodeData *p_controller_nd) 
 		return;
 	}
 
-	if (get_tree()->get_multiplayer()->get_multiplayer_peer().is_null()) {
+	if (get_tree()->get_multiplayer()->get_multiplayer_peer()->get_class_name() == "OfflineMultiplayerPeer") {
 		controller->controller_type = NetworkedController::CONTROLLER_TYPE_NONETWORK;
 		controller->controller = memnew(NoNetController(controller));
 	} else if (get_tree()->get_multiplayer()->is_server()) {
