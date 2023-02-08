@@ -672,6 +672,7 @@ void ServerController::process(double p_delta) {
 
 	if (unlikely(current_input_buffer_id == UINT32_MAX)) {
 		// Skip this until the first input arrive.
+		SceneSynchronizerDebugger::singleton()->debug_print(node, "Server skips this frame as the current_input_buffer_id == UINT32_MAX", true);
 		return;
 	}
 
@@ -878,13 +879,17 @@ bool ServerController::fetch_next_input(real_t p_delta) {
 			network_watcher.reset(0);
 			consecutive_input_watcher.reset(0.0);
 			previous_frame_received_timestamp = UINT32_MAX;
+			SceneSynchronizerDebugger::singleton()->debug_print(node, "[ServerController::fetch_next_input] Input `" + itos(current_input_buffer_id) + "` selected as first input.", true);
 		} else {
 			is_new_input = false;
+			SceneSynchronizerDebugger::singleton()->debug_print(node, "[ServerController::fetch_next_input] Still no inputs.", true);
 		}
 	} else {
 		const uint32_t next_input_id = current_input_buffer_id + 1;
+		SceneSynchronizerDebugger::singleton()->debug_print(node, "[ServerController::fetch_next_input] The server is looking for: " + itos(next_input_id), true);
 
 		if (unlikely(streaming_paused)) {
+			SceneSynchronizerDebugger::singleton()->debug_print(node, "[ServerController::fetch_next_input] The streaming is paused.", true);
 			// Stream is paused.
 			if (snapshots.empty() == false &&
 					snapshots.front().id >= next_input_id) {
@@ -905,13 +910,18 @@ bool ServerController::fetch_next_input(real_t p_delta) {
 			}
 		} else if (unlikely(snapshots.empty() == true)) {
 			// The input buffer is empty; a packet is missing.
+			SceneSynchronizerDebugger::singleton()->debug_print(node, "[ServerController::fetch_next_input] Missing input: " + itos(next_input_id) + " Input buffer is void, i'm using the previous one!");
+
 			is_new_input = false;
 			ghost_input_count += 1;
-			SceneSynchronizerDebugger::singleton()->debug_print(node, "Missing input: " + itos(next_input_id) + " Input buffer is void, i'm using the previous one!");
 
 		} else {
+			SceneSynchronizerDebugger::singleton()->debug_print(node, "[ServerController::fetch_next_input] The input buffer is not empty, so looking for the next input. Hopefully `" + itos(next_input_id) + "`", true);
+
 			// The input buffer is not empty, search the new input.
 			if (next_input_id == snapshots.front().id) {
+				SceneSynchronizerDebugger::singleton()->debug_print(node, "[ServerController::fetch_next_input] The input `" + itos(next_input_id) + "` was found.", true);
+
 				// Wow, the next input is perfect!
 				set_frame_input(snapshots.front());
 				snapshots.pop_front();
@@ -953,7 +963,8 @@ bool ServerController::fetch_next_input(real_t p_delta) {
 				// For this reason we keep track the amount of missing packets
 				// using `ghost_input_count`.
 
-				ghost_input_count += 1;
+				SceneSynchronizerDebugger::singleton()->debug_print(node, "[ServerController::fetch_next_input] The input `" + itos(next_input_id) + "` was NOT found. Recovering process started.", true);
+				SceneSynchronizerDebugger::singleton()->debug_print(node, "[ServerController::fetch_next_input] ghost_input_count: `" + itos(ghost_input_count) + "`", true);
 
 				const int size = MIN(ghost_input_count, snapshots.size());
 				const uint32_t ghost_packet_id = next_input_id + ghost_input_count;
@@ -964,9 +975,15 @@ bool ServerController::fetch_next_input(real_t p_delta) {
 				DataBuffer pir_A = node->get_inputs_buffer();
 
 				for (int i = 0; i < size; i += 1) {
+					SceneSynchronizerDebugger::singleton()->debug_print(node, "[ServerController::fetch_next_input] checking if `" + itos(snapshots.front().id) + "` can be used to recover `" + itos(next_input_id) + "`.", true);
+
 					if (ghost_packet_id < snapshots.front().id) {
+						SceneSynchronizerDebugger::singleton()->debug_print(node, "[ServerController::fetch_next_input] The input `" + itos(snapshots.front().id) + "` can't be used as the ghost_packet_id (`" + itos(ghost_packet_id) + "`) is more than the input.", true);
 						break;
 					} else {
+						const uint32_t input_id = snapshots.front().id;
+						SceneSynchronizerDebugger::singleton()->debug_print(node, "[ServerController::fetch_next_input] The input `" + itos(input_id) + "` is eligible as next frame.", true);
+
 						pi = snapshots.front();
 						snapshots.pop_front();
 						recovered = true;
@@ -987,6 +1004,7 @@ bool ServerController::fetch_next_input(real_t p_delta) {
 
 						const bool is_meaningful = node->native_are_inputs_different(pir_A, pir_B);
 						if (is_meaningful) {
+							SceneSynchronizerDebugger::singleton()->debug_print(node, "[ServerController::fetch_next_input] The input `" + itos(input_id) + "` is different from the one executed so far, so better to execute it.", true);
 							break;
 						}
 					}
@@ -995,10 +1013,11 @@ bool ServerController::fetch_next_input(real_t p_delta) {
 				if (recovered) {
 					set_frame_input(pi);
 					ghost_input_count = 0;
-					SceneSynchronizerDebugger::singleton()->debug_print(node, "Packet recovered");
+					SceneSynchronizerDebugger::singleton()->debug_print(node, "Packet recovered. The new InputID is: `" + itos(current_input_buffer_id) + "`");
 				} else {
+					ghost_input_count += 1;
 					is_new_input = false;
-					SceneSynchronizerDebugger::singleton()->debug_print(node, "Packet still missing");
+					SceneSynchronizerDebugger::singleton()->debug_print(node, "Packet still missing, the server is still using the old input.");
 				}
 			}
 		}

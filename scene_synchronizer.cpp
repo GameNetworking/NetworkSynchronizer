@@ -2747,6 +2747,8 @@ void ClientSynchronizer::receive_snapshot(Variant p_snapshot) {
 	// incremental update so the last received data is always needed to fully
 	// reconstruct it.
 
+	SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "The Client received the server snapshot.");
+
 	// Parse server snapshot.
 	const bool success = parse_snapshot(p_snapshot);
 
@@ -2999,6 +3001,8 @@ void ClientSynchronizer::store_controllers_snapshot(
 		return;
 	}
 
+	SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "The Client received the server snapshot: " + itos(p_snapshot.input_id));
+
 	if (r_snapshot_storage.empty() == false) {
 		// Make sure the snapshots are stored in order.
 		const uint32_t last_stored_input_id = r_snapshot_storage.back().input_id;
@@ -3007,7 +3011,12 @@ void ClientSynchronizer::store_controllers_snapshot(
 			r_snapshot_storage.back() = p_snapshot;
 			return;
 		} else {
-			ERR_FAIL_COND_MSG(p_snapshot.input_id < last_stored_input_id, "This snapshot (with ID: " + itos(p_snapshot.input_id) + ") is not expected because the last stored id is: " + itos(last_stored_input_id));
+			if (p_snapshot.input_id < last_stored_input_id) {
+				SceneSynchronizerDebugger::singleton()->debug_error(
+						scene_synchronizer,
+						"This snapshot (with ID: " + itos(p_snapshot.input_id) + ") is dropped because the last stored id is: " + itos(last_stored_input_id),
+						false);
+			}
 		}
 	}
 
