@@ -476,7 +476,7 @@ public:
 	void process_snapshot_notificator(real_t p_delta);
 	Vector<Variant> global_nodes_generate_snapshot(bool p_force_full_snapshot) const;
 	void controller_generate_snapshot(const NetUtility::NodeData *p_node_data, bool p_force_full_snapshot, Vector<Variant> &r_snapshot_result) const;
-	void generate_snapshot_node_data(const NetUtility::NodeData *p_node_data, SnapshotGenerationMode p_mode, bool p_include_controller_input_id, Vector<Variant> &r_result) const;
+	void generate_snapshot_node_data(const NetUtility::NodeData *p_node_data, SnapshotGenerationMode p_mode, Vector<Variant> &r_result) const;
 
 	void execute_actions();
 	void send_actions_to_clients();
@@ -545,7 +545,8 @@ public:
 			Variant p_snapshot,
 			void *p_user_pointer,
 			void (*p_node_parse)(void *p_user_pointer, NetUtility::NodeData *p_node_data),
-			void (*p_controller_parse)(void *p_user_pointer, NetUtility::NodeData *p_node_data, uint32_t p_input_id),
+			void (*p_input_id_parse)(void *p_user_pointer, uint32_t p_input_id),
+			void (*p_controller_parse)(void *p_user_pointer, NetUtility::NodeData *p_node_data),
 			void (*p_variable_parse)(void *p_user_pointer, NetUtility::NodeData *p_node_data, NetVarId p_var_id, const Variant &p_value));
 
 	void set_enabled(bool p_enabled);
@@ -559,6 +560,7 @@ private:
 			std::deque<NetUtility::Snapshot> &r_snapshot_storage);
 
 	void process_controllers_recovery(real_t p_delta);
+	void apply_last_received_server_snapshot();
 	void process_paused_controller_recovery(real_t p_delta);
 	bool parse_snapshot(Variant p_snapshot);
 	bool compare_vars(

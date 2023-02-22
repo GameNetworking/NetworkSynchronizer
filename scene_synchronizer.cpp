@@ -893,8 +893,11 @@ void SceneSynchronizer::apply_scene_changes(const Variant &p_sync_data) {
 			// Parse the Node:
 			[](void *p_user_pointer, NetUtility::NodeData *p_node_data) {},
 
+			// Parse InputID:
+			[](void *p_user_pointer, uint32_t p_input_id) {},
+
 			// Parse controller:
-			[](void *p_user_pointer, NetUtility::NodeData *p_node_data, uint32_t p_input_id) {},
+			[](void *p_user_pointer, NetUtility::NodeData *p_node_data) {},
 
 			// Parse variable:
 			[](void *p_user_pointer, NetUtility::NodeData *p_node_data, uint32_t p_var_id, const Variant &p_value) {
@@ -2214,10 +2217,6 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 			OAHashMap<int, NetUtility::PeerData>::Iterator peer_it = scene_synchronizer->peer_data.iter();
 			peer_it.valid;
 			peer_it = scene_synchronizer->peer_data.next_iter(peer_it)) {
-		if (unlikely(peer_it.value->controller_id == UINT32_MAX)) {
-			// This peer still does not have a `NetworkedController`.
-			continue;
-		}
 		if (unlikely(peer_it.value->enabled == false)) {
 			// This peer is disabled.
 			continue;
@@ -2229,34 +2228,41 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 
 		peer_it.value->force_notify_snapshot = false;
 
-		NetUtility::NodeData *nd = scene_synchronizer->get_node_data(peer_it.value->controller_id);
-		// TODO well that's not really true. I may have peers that doesn't have controllers_node_data in a
-		// certain moment. Please improve this mechanism trying to just use the
-		// node->get_network_master() to get the peer.
-		ERR_CONTINUE_MSG(nd == nullptr, "This should never happen. Likely there is a bug, NedNodeId: " + itos(peer_it.value->controller_id));
-		ERR_CONTINUE_MSG(nd->is_controller == false, "[BUG] A controller il expected, The node " + nd->node->get_path() + " is submitted instead.");
-
-		NetworkedController *controller = static_cast<NetworkedController *>(nd->node);
-
 		Vector<Variant> snap;
+
+		NetUtility::NodeData *nd = peer_it.value->controller_id == UINT32_MAX ? nullptr : scene_synchronizer->get_node_data(peer_it.value->controller_id);
+		if (nd) {
+			// Add the controller input id at the beginning of the frame.
+			snap.push_back(true);
+			NetworkedController *controller = static_cast<NetworkedController *>(nd->node);
+			snap.push_back(controller->get_current_input_id());
+
+			ERR_CONTINUE_MSG(nd->is_controller == false, "[BUG] The NodeData fetched is not a controller: `" + nd->node->get_path() + "`.");
+			controller_generate_snapshot(nd, peer_it.value->need_full_snapshot, snap);
+		} else {
+			snap.push_back(false);
+		}
+
 		if (peer_it.value->need_full_snapshot) {
 			peer_it.value->need_full_snapshot = false;
 			if (full_global_nodes_snapshot.size() == 0) {
 				full_global_nodes_snapshot = global_nodes_generate_snapshot(true);
 			}
-			snap = full_global_nodes_snapshot;
-			controller_generate_snapshot(nd, true, snap);
+			snap.append_array(full_global_nodes_snapshot);
 
 		} else {
 			if (delta_global_nodes_snapshot.size() == 0) {
 				delta_global_nodes_snapshot = global_nodes_generate_snapshot(false);
 			}
-			snap = delta_global_nodes_snapshot;
-			controller_generate_snapshot(nd, false, snap);
+			snap.append_array(delta_global_nodes_snapshot);
 		}
 
-		controller->get_server_controller()->notify_send_state();
 		scene_synchronizer->rpc_id(*peer_it.key, SNAME("_rpc_send_state"), snap);
+
+		if (nd) {
+			NetworkedController *controller = static_cast<NetworkedController *>(nd->node);
+			controller->get_server_controller()->notify_send_state();
+		}
 	}
 
 	if (notify_state) {
@@ -2283,7 +2289,6 @@ Vector<Variant> ServerSynchronizer::global_nodes_generate_snapshot(bool p_force_
 			generate_snapshot_node_data(
 					node_data,
 					p_force_full_snapshot ? SNAPSHOT_GENERATION_MODE_FORCE_FULL : SNAPSHOT_GENERATION_MODE_NORMAL,
-					false,
 					snapshot_data);
 		}
 	}
@@ -2318,21 +2323,18 @@ void ServerSynchronizer::controller_generate_snapshot(
 		generate_snapshot_node_data(
 				node_data,
 				p_force_full_snapshot ? SNAPSHOT_GENERATION_MODE_FORCE_NODE_PATH_ONLY : SNAPSHOT_GENERATION_MODE_NODE_PATH_ONLY,
-				false,
 				r_snapshot_result);
 	}
 
 	generate_snapshot_node_data(
 			p_node_data,
 			p_force_full_snapshot ? SNAPSHOT_GENERATION_MODE_FORCE_FULL : SNAPSHOT_GENERATION_MODE_NORMAL,
-			true,
 			r_snapshot_result);
 
 	for (uint32_t i = 0; i < p_node_data->controlled_nodes.size(); i += 1) {
 		generate_snapshot_node_data(
 				p_node_data->controlled_nodes[i],
 				p_force_full_snapshot ? SNAPSHOT_GENERATION_MODE_FORCE_FULL : SNAPSHOT_GENERATION_MODE_NORMAL,
-				false,
 				r_snapshot_result);
 	}
 }
@@ -2340,7 +2342,6 @@ void ServerSynchronizer::controller_generate_snapshot(
 void ServerSynchronizer::generate_snapshot_node_data(
 		const NetUtility::NodeData *p_node_data,
 		SnapshotGenerationMode p_mode,
-		bool p_include_controller_input_id,
 		Vector<Variant> &r_snapshot_data) const {
 	// The packet data is an array that contains the informations to update the
 	// client snapshot.
@@ -2367,7 +2368,6 @@ void ServerSynchronizer::generate_snapshot_node_data(
 	const bool force_snapshot_variables = p_mode == SNAPSHOT_GENERATION_MODE_FORCE_FULL;
 	const bool skip_snapshot_variables = p_mode == SNAPSHOT_GENERATION_MODE_FORCE_NODE_PATH_ONLY || p_mode == SNAPSHOT_GENERATION_MODE_NODE_PATH_ONLY;
 	const bool force_using_variable_name = p_mode == SNAPSHOT_GENERATION_MODE_FORCE_FULL;
-	const bool include_input_id = p_node_data->is_controller && p_include_controller_input_id;
 
 	const Change *change = p_node_data->id >= changes.size() ? nullptr : changes.ptr() + p_node_data->id;
 
@@ -2387,18 +2387,11 @@ void ServerSynchronizer::generate_snapshot_node_data(
 		snap_node_data = p_node_data->id;
 	}
 
-	if ((node_has_changes && skip_snapshot_variables == false) || force_snapshot_node_path || include_input_id || unknown) {
+	if ((node_has_changes && skip_snapshot_variables == false) || force_snapshot_node_path || unknown) {
 		r_snapshot_data.push_back(snap_node_data);
 	} else {
 		// It has no changes, skip this node.
 		return;
-	}
-
-	if (include_input_id) {
-		NetworkedController *controller = static_cast<NetworkedController *>(p_node_data->node);
-
-		// This is a controller, always sync it.
-		r_snapshot_data.push_back(controller->get_current_input_id());
 	}
 
 	if (force_snapshot_variables || (node_has_changes && skip_snapshot_variables == false)) {
@@ -2769,6 +2762,7 @@ void ClientSynchronizer::on_node_added(NetUtility::NodeData *p_node_data) {
 void ClientSynchronizer::on_node_removed(NetUtility::NodeData *p_node_data) {
 	if (player_controller_node_data == p_node_data) {
 		player_controller_node_data = nullptr;
+		server_snapshots.clear();
 		client_snapshots.clear();
 	}
 
@@ -2776,14 +2770,6 @@ void ClientSynchronizer::on_node_removed(NetUtility::NodeData *p_node_data) {
 	for (int64_t i = int64_t(pending_actions.size()) - 1; i >= 0; i -= 1) {
 		if (pending_actions[i].action_processor.nd == p_node_data) {
 			pending_actions.remove_unordered(i);
-		}
-	}
-
-	for (uint32_t i = 0; i < client_snapshots.size(); i += 1) {
-		for (int64_t x = int64_t(client_snapshots[i].actions.size()) - 1; x >= 0; x -= 1) {
-			if (client_snapshots[i].actions[x].processor.nd == p_node_data) {
-				client_snapshots[i].actions.remove(x);
-			}
 		}
 	}
 }
@@ -2806,6 +2792,7 @@ void ClientSynchronizer::on_controller_reset(NetUtility::NodeData *p_node_data) 
 	if (player_controller_node_data == p_node_data) {
 		// Reset the node_data.
 		player_controller_node_data = nullptr;
+		server_snapshots.clear();
 		client_snapshots.clear();
 	}
 
@@ -2815,6 +2802,7 @@ void ClientSynchronizer::on_controller_reset(NetUtility::NodeData *p_node_data) 
 		} else {
 			// Set this player controller as active.
 			player_controller_node_data = p_node_data;
+			server_snapshots.clear();
 			client_snapshots.clear();
 		}
 	}
@@ -2996,31 +2984,56 @@ void ClientSynchronizer::store_controllers_snapshot(
 		std::deque<NetUtility::Snapshot> &r_snapshot_storage) {
 	// Put the parsed snapshot into the queue.
 
-	if (p_snapshot.input_id == UINT32_MAX) {
+	if (p_snapshot.input_id == UINT32_MAX && player_controller_node_data != nullptr) {
 		// The snapshot doesn't have any info for this controller; Skip it.
 		return;
 	}
 
-	SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "The Client received the server snapshot: " + itos(p_snapshot.input_id));
+	if (p_snapshot.input_id == UINT32_MAX) {
+		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "The Client received the server snapshot WITHOUT `input_id`.");
+		// The controller node is not registered so just assume this snapshot is the most up-to-date.
+		r_snapshot_storage.clear();
+		r_snapshot_storage.push_back(p_snapshot);
 
-	if (r_snapshot_storage.empty() == false) {
-		// Make sure the snapshots are stored in order.
-		const uint32_t last_stored_input_id = r_snapshot_storage.back().input_id;
-		if (p_snapshot.input_id == last_stored_input_id) {
-			// Update the snapshot.
-			r_snapshot_storage.back() = p_snapshot;
-			return;
-		} else {
-			if (p_snapshot.input_id < last_stored_input_id) {
-				SceneSynchronizerDebugger::singleton()->debug_error(
-						scene_synchronizer,
-						"This snapshot (with ID: " + itos(p_snapshot.input_id) + ") is dropped because the last stored id is: " + itos(last_stored_input_id),
-						false);
+	} else {
+		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "The Client received the server snapshot: " + itos(p_snapshot.input_id));
+
+		// Store the snapshot sorted by controller input ID.
+		if (r_snapshot_storage.empty() == false) {
+			// Make sure the snapshots are stored in order.
+			const uint32_t last_stored_input_id = r_snapshot_storage.back().input_id;
+			if (p_snapshot.input_id == last_stored_input_id) {
+				// Update the snapshot.
+				r_snapshot_storage.back() = p_snapshot;
+				return;
+			} else {
+				ERR_FAIL_COND_MSG(p_snapshot.input_id < last_stored_input_id, "This snapshot (with ID: " + itos(p_snapshot.input_id) + ") is not expected because the last stored id is: " + itos(last_stored_input_id));
+			}
+		}
+
+		r_snapshot_storage.push_back(p_snapshot);
+	}
+}
+
+void ClientSynchronizer::apply_last_received_server_snapshot() {
+	const Vector<NetUtility::Var> *vars = server_snapshots.back().node_vars.ptr();
+
+	scene_synchronizer->change_events_begin(NetEventFlag::SYNC_RECOVER);
+	for (int i = 0; i < server_snapshots.back().node_vars.size(); i += 1) {
+		NetNodeId id = i;
+		NetUtility::NodeData *nd = scene_synchronizer->get_node_data(id);
+		for (int v = 0; v < vars[i].size(); v += 1) {
+			const Variant current_val = nd->node->get(vars[i][v].name);
+			if (scene_synchronizer->compare(current_val, vars[i][v].value)) {
+				nd->node->set(vars[i][v].name, vars[i][v].value);
+				scene_synchronizer->change_event_add(
+						nd,
+						v,
+						current_val);
 			}
 		}
 	}
-
-	r_snapshot_storage.push_back(p_snapshot);
+	scene_synchronizer->change_events_flush();
 }
 
 // TODO make this function much simpler.
@@ -3039,6 +3052,17 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 	// --- Phase one: find the snapshot to check. ---
 	if (server_snapshots.empty()) {
 		// No snapshots to recover for this controller. Nothing to do.
+		return;
+	}
+
+	if (server_snapshots.back().input_id == UINT32_MAX) {
+		// The server last received snapshot is a no input snapshot. Just assume it's the most up-to-date.
+		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "The client received a \"no input\" snapshot, so the client is setting it right away assuming is the most updated one.", true);
+
+		apply_last_received_server_snapshot();
+
+		server_snapshots.clear();
+		client_snapshots.clear();
 		return;
 	}
 
@@ -3436,18 +3460,21 @@ bool ClientSynchronizer::parse_sync_data(
 		Variant p_sync_data,
 		void *p_user_pointer,
 		void (*p_node_parse)(void *p_user_pointer, NetUtility::NodeData *p_node_data),
-		void (*p_controller_parse)(void *p_user_pointer, NetUtility::NodeData *p_node_data, uint32_t p_input_id),
+		void (*p_input_id_parse)(void *p_user_pointer, uint32_t p_input_id),
+		void (*p_controller_parse)(void *p_user_pointer, NetUtility::NodeData *p_node_data),
 		void (*p_variable_parse)(void *p_user_pointer, NetUtility::NodeData *p_node_data, uint32_t p_var_id, const Variant &p_value)) {
 	// The sync data is an array that contains the scene informations.
 	// It's used for several things, for this reason this function allows to
 	// customize the parsing.
 	//
 	// The data is composed as follows:
-	//  [NODE, VARIABLE, Value, VARIABLE, Value, VARIABLE, value, NIL,
+	//  [TRUE/FALSE, InputID,
+	//	NODE, VARIABLE, Value, VARIABLE, Value, VARIABLE, value, NIL,
 	//  NODE, INPUT ID, VARIABLE, Value, VARIABLE, Value, NIL,
 	//  NODE, VARIABLE, Value, VARIABLE, Value, NIL]
 	//
 	// Each node ends with a NIL, and the NODE and the VARIABLE are special:
+	// - InputID: The first parameter is a boolean; when is true the following input is the `InputID`.
 	// - NODE, can be an array of two variables [Node ID, NodePath] or directly
 	//         a Node ID. Obviously the array is sent only the first time.
 	// - INPUT ID, this is optional and is used only when the node is a controller.
@@ -3465,10 +3492,27 @@ bool ClientSynchronizer::parse_sync_data(
 	const Vector<Variant> raw_snapshot = p_sync_data;
 	const Variant *raw_snapshot_ptr = raw_snapshot.ptr();
 
+	int snap_data_index = 0;
+
+	// Fetch the `InputID`.
+	ERR_FAIL_COND_V_MSG(raw_snapshot.size() < 1, false, "This snapshot is corrupted as it doesn't even contains the first parameter used to specify the `InputID`.");
+	ERR_FAIL_COND_V_MSG(raw_snapshot[0].get_type() != Variant::BOOL, false, "This snapshot is corrupted as the first parameter is not a boolean.");
+	snap_data_index += 1;
+	if (raw_snapshot[0].operator bool()) {
+		// The InputId is set.
+		ERR_FAIL_COND_V_MSG(raw_snapshot.size() < 2, false, "This snapshot is corrupted as the second parameter containing the `InputID` is not set.");
+		ERR_FAIL_COND_V_MSG(raw_snapshot[1].get_type() != Variant::INT, false, "This snapshot is corrupted as the second parameter containing the `InputID` is not an INTEGER.");
+		const uint32_t input_id = raw_snapshot[1];
+		p_input_id_parse(p_user_pointer, input_id);
+		snap_data_index += 1;
+	} else {
+		p_input_id_parse(p_user_pointer, UINT32_MAX);
+	}
+
 	NetUtility::NodeData *synchronizer_node_data = nullptr;
 	uint32_t var_id = UINT32_MAX;
 
-	for (int snap_data_index = 0; snap_data_index < raw_snapshot.size(); snap_data_index += 1) {
+	for (; snap_data_index < raw_snapshot.size(); snap_data_index += 1) {
 		const Variant v = raw_snapshot_ptr[snap_data_index];
 		if (synchronizer_node_data == nullptr) {
 			// Node is null so we expect `v` has the node info.
@@ -3543,6 +3587,8 @@ bool ClientSynchronizer::parse_sync_data(
 
 		node_lookup_check:
 			if (skip_this_node || synchronizer_node_data == nullptr) {
+				synchronizer_node_data = nullptr;
+
 				// This node does't exist; skip it entirely.
 				for (snap_data_index += 1; snap_data_index < raw_snapshot.size(); snap_data_index += 1) {
 					if (raw_snapshot_ptr[snap_data_index].get_type() == Variant::NIL) {
@@ -3564,16 +3610,11 @@ bool ClientSynchronizer::parse_sync_data(
 
 			if (synchronizer_node_data->is_controller) {
 				if (synchronizer_node_data == player_controller_node_data) {
-					// This is the local controller, so the next data is the input ID.
-					ERR_FAIL_COND_V(snap_data_index + 1 >= raw_snapshot.size(), false);
-					snap_data_index += 1;
-					ERR_FAIL_COND_V_MSG(raw_snapshot_ptr[snap_data_index].get_type() != Variant::INT, false, "The server is always able to send input_id, so this snapshot is corrupted.");
-
-					const uint32_t input_id = raw_snapshot_ptr[snap_data_index];
-					p_controller_parse(p_user_pointer, synchronizer_node_data, input_id);
+					// The current controller.
+					p_controller_parse(p_user_pointer, synchronizer_node_data);
 				} else {
 					// This is just a remoote controller
-					p_controller_parse(p_user_pointer, synchronizer_node_data, UINT32_MAX);
+					p_controller_parse(p_user_pointer, synchronizer_node_data);
 				}
 			}
 
@@ -3706,12 +3747,9 @@ bool ClientSynchronizer::parse_snapshot(Variant p_snapshot) {
 	}
 
 	need_full_snapshot_notified = false;
-	last_received_snapshot.input_id = UINT32_MAX;
 
-	ERR_FAIL_COND_V_MSG(
-			player_controller_node_data == nullptr,
-			false,
-			"Is not possible to receive server snapshots if you are not tracking any NetController.");
+	NetUtility::Snapshot received_snapshot = last_received_snapshot;
+	received_snapshot.input_id = UINT32_MAX;
 
 	struct ParseData {
 		NetUtility::Snapshot &snapshot;
@@ -3719,7 +3757,7 @@ bool ClientSynchronizer::parse_snapshot(Variant p_snapshot) {
 	};
 
 	ParseData parse_data{
-		last_received_snapshot,
+		received_snapshot,
 		player_controller_node_data
 	};
 
@@ -3735,32 +3773,36 @@ bool ClientSynchronizer::parse_snapshot(Variant p_snapshot) {
 				if (uint32_t(pd->snapshot.node_vars.size()) <= p_node_data->id) {
 					pd->snapshot.node_vars.resize(p_node_data->id + 1);
 				}
+
+				if (p_node_data->vars.size() != uint32_t(pd->snapshot.node_vars[p_node_data->id].size())) {
+					// This mean the parser just added a new variable.
+					// Already notified by the parser.
+					pd->snapshot.node_vars.write[p_node_data->id].resize(p_node_data->vars.size());
+				}
 			},
 
-			// Parse controller:
-			[](void *p_user_pointer, NetUtility::NodeData *p_node_data, uint32_t p_input_id) {
+			// Parse InputID:
+			[](void *p_user_pointer, uint32_t p_input_id) {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
-				if (p_node_data == pd->player_controller_node_data && p_input_id != UINT32_MAX) {
-					// This is the main controller, store the input ID.
+				if (pd->player_controller_node_data != nullptr) {
+					// This is the main controller, store the `InputID`.
 					pd->snapshot.input_id = p_input_id;
 				}
 			},
+
+			// Parse controller:
+			[](void *p_user_pointer, NetUtility::NodeData *p_node_data) {},
 
 			// Parse variable:
 			[](void *p_user_pointer, NetUtility::NodeData *p_node_data, uint32_t p_var_id, const Variant &p_value) {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
 
 #ifdef DEBUG_ENABLED
-				// This can't be triggered because th `Parse Node` function
+				// This can't be triggered because the `Parse Node` function
 				// above make sure to create room for this array.
 				CRASH_COND(uint32_t(pd->snapshot.node_vars.size()) <= p_node_data->id);
+				CRASH_COND(uint32_t(pd->snapshot.node_vars[p_node_data->id].size()) != p_node_data->vars.size());
 #endif // ~DEBUG_ENABLED
-
-				if (unlikely(p_node_data->vars.size() != uint32_t(pd->snapshot.node_vars[p_node_data->id].size()))) {
-					// This mean the parser just added a new variable.
-					// Already notified by the parser.
-					pd->snapshot.node_vars.write[p_node_data->id].resize(p_node_data->vars.size());
-				}
 
 				pd->snapshot.node_vars.write[p_node_data->id].write[p_var_id].name = p_node_data->vars[p_var_id].var.name;
 				pd->snapshot.node_vars.write[p_node_data->id].write[p_var_id].value = p_value.duplicate(true);
@@ -3772,17 +3814,17 @@ bool ClientSynchronizer::parse_snapshot(Variant p_snapshot) {
 		return false;
 	}
 
-	// We espect that the player_controller is updated by this new snapshot,
-	// so make sure it's done so.
-	if (unlikely(last_received_snapshot.input_id == UINT32_MAX)) {
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Recovery aborted, the player controller (" + player_controller_node_data->node->get_path() + ") was not part of the received snapshot, probably the server doesn't have important informations for this peer. NetUtility::Snapshot:");
+	if (unlikely(received_snapshot.input_id == UINT32_MAX && player_controller_node_data != nullptr)) {
+		// We espect that the player_controller is updated by this new snapshot,
+		// so make sure it's done so.
+		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Recovery aborted, the player controller (" + player_controller_node_data->node->get_path() + ") was not part of the received snapshot, the controller node on the server is gone? Destroy the client controller first. NetUtility::Snapshot:");
 		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, p_snapshot);
-		return false;
-	} else {
-		// Success.
-
-		return true;
 	}
+
+	last_received_snapshot = received_snapshot;
+
+	// Success.
+	return true;
 }
 
 bool ClientSynchronizer::compare_vars(
