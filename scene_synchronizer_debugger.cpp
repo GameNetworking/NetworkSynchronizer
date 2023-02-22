@@ -309,7 +309,7 @@ void SceneSynchronizerDebugger::write_dump(int p_peer, uint32_t p_frame_index) {
 		return;
 	}
 
-	FileAccess *file = nullptr;
+	Ref<FileAccess> file = nullptr;
 	{
 		String file_path = "";
 
