@@ -3824,7 +3824,7 @@ bool ClientSynchronizer::parse_snapshot(Variant p_snapshot) {
 	if (unlikely(received_snapshot.input_id == UINT32_MAX && player_controller_node_data != nullptr)) {
 		// We espect that the player_controller is updated by this new snapshot,
 		// so make sure it's done so.
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "[INFO] the player controller (" + player_controller_node_data->node->get_path() + ") was not part of the received snapshot, this happens when the server destroy the peer controller. NetUtility::Snapshot:");
+		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "[INFO] the player controller (" + player_controller_node_data->node->get_path() + ") was not part of the received snapshot, this happens when the server destroys the peer controller. NetUtility::Snapshot:");
 		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, p_snapshot);
 	}
 
