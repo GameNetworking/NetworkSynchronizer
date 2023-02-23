@@ -2740,7 +2740,7 @@ void ClientSynchronizer::receive_snapshot(Variant p_snapshot) {
 	// incremental update so the last received data is always needed to fully
 	// reconstruct it.
 
-	SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "The Client received the server snapshot.");
+	SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "The Client received the server snapshot.", true);
 
 	// Parse server snapshot.
 	const bool success = parse_snapshot(p_snapshot);
@@ -2771,6 +2771,10 @@ void ClientSynchronizer::on_node_removed(NetUtility::NodeData *p_node_data) {
 		if (pending_actions[i].action_processor.nd == p_node_data) {
 			pending_actions.remove_unordered(i);
 		}
+	}
+
+	if (p_node_data->id < uint32_t(last_received_snapshot.node_vars.size())) {
+		last_received_snapshot.node_vars.ptrw()[p_node_data->id].clear();
 	}
 }
 
@@ -2990,13 +2994,13 @@ void ClientSynchronizer::store_controllers_snapshot(
 	}
 
 	if (p_snapshot.input_id == UINT32_MAX) {
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "The Client received the server snapshot WITHOUT `input_id`.");
+		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "The Client received the server snapshot WITHOUT `input_id`.", true);
 		// The controller node is not registered so just assume this snapshot is the most up-to-date.
 		r_snapshot_storage.clear();
 		r_snapshot_storage.push_back(p_snapshot);
 
 	} else {
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "The Client received the server snapshot: " + itos(p_snapshot.input_id));
+		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "The Client received the server snapshot: " + itos(p_snapshot.input_id), true);
 
 		// Store the snapshot sorted by controller input ID.
 		if (r_snapshot_storage.empty() == false) {
@@ -3564,11 +3568,10 @@ bool ClientSynchronizer::parse_sync_data(
 					}
 				}
 
-				node = scene_synchronizer->get_tree()->get_root()->get_node(node_path);
-
+				node = scene_synchronizer->get_tree()->get_root()->get_node_or_null(node_path);
 				if (node == nullptr) {
 					// The node doesn't exists.
-					SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "The node " + node_path + " still doesn't exist.");
+					SceneSynchronizerDebugger::singleton()->debug_warning(scene_synchronizer, "The node " + node_path + " still doesn't exist.");
 					skip_this_node = true;
 					goto node_lookup_check;
 				}
@@ -3595,7 +3598,11 @@ bool ClientSynchronizer::parse_sync_data(
 						break;
 					}
 				}
-				ERR_CONTINUE_MSG(true, "This NetNodeId " + itos(net_node_id) + " doesn't exist on this client.");
+
+				if (!skip_this_node) {
+					SceneSynchronizerDebugger::singleton()->debug_warning(scene_synchronizer, "This NetNodeId " + itos(net_node_id) + " doesn't exist on this client.");
+				}
+				continue;
 			}
 
 		node_lookup_out:
@@ -3817,7 +3824,7 @@ bool ClientSynchronizer::parse_snapshot(Variant p_snapshot) {
 	if (unlikely(received_snapshot.input_id == UINT32_MAX && player_controller_node_data != nullptr)) {
 		// We espect that the player_controller is updated by this new snapshot,
 		// so make sure it's done so.
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Recovery aborted, the player controller (" + player_controller_node_data->node->get_path() + ") was not part of the received snapshot, the controller node on the server is gone? Destroy the client controller first. NetUtility::Snapshot:");
+		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "[INFO] the player controller (" + player_controller_node_data->node->get_path() + ") was not part of the received snapshot, this happens when the server destroy the peer controller. NetUtility::Snapshot:");
 		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, p_snapshot);
 	}
 
