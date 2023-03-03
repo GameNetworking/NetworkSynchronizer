@@ -2442,35 +2442,53 @@ void ServerSynchronizer::execute_actions() {
 			// Already executed.
 			continue;
 		}
-		NetworkedController *controller = nullptr;
 
 		// Take the controller associated to the sender_peer, to extract the current `input_id`.
-		const int sender_peer = server_actions[i].sender_peer;
+		int sender_peer = server_actions[i].sender_peer;
 		uint32_t executed_input_id = UINT32_MAX;
 		if (sender_peer == 1) {
-			// Triggered by the server so any `controller` will work just fine: Takes the first one.
-			ERR_CONTINUE_MSG(scene_synchronizer->peer_data.iter().valid == false, "[FATAL] It's not supposed to have no peers.");
-			const int peer = *scene_synchronizer->peer_data.iter().key;
-			controller = scene_synchronizer->fetch_controller_by_peer(peer);
+			if (unlikely(scene_synchronizer->peer_data.iter().valid == false)) {
+				// No peers to take as reference to execute this Action, so just execute it right away.
+				server_actions[i].locally_executed = true;
+				server_actions[i].action_processor.execute();
+				continue;
+			}
 
-			ERR_CONTINUE_MSG(controller == nullptr, "[FATAL] The peer `" + itos(peer) + "` doesn't have any controller associated, but the Action (`" + server_actions[i].action_processor + "`) was generated. This is likely a bug. Report it please.");
-			executed_input_id = server_actions[i].peer_get_executed_input_id(peer);
-		} else {
-			controller = scene_synchronizer->fetch_controller_by_peer(sender_peer);
-
-			ERR_CONTINUE_MSG(controller == nullptr, "[FATAL] The peer `" + itos(server_actions[i].sender_peer) + "` doesn't have any controller associated, but the Action (`" + server_actions[i].action_processor + "`) was generated. This is likely a bug. Report it please.");
-			executed_input_id = server_actions[i].peer_get_executed_input_id(sender_peer);
+			// Since this action was triggered by the server, and the server specify as
+			// execution_input_id the same delta for all the peers: in order to execute this action
+			// on the server we can just use any peer as reference to know when it's the right time
+			// to execute the Action.
+			// So it uses the first available peer.
+			sender_peer = *scene_synchronizer->peer_data.iter().key;
 		}
 
-		ERR_CONTINUE_MSG(executed_input_id == UINT32_MAX || controller->get_current_input_id() > executed_input_id, "[FATAL] Something is not right, a not executed Action has a passed `input_id`. This should never happen because the `input_id` is re-adjusted on arrival when it was received too late.");
+		NetworkedController *controller = scene_synchronizer->fetch_controller_by_peer(sender_peer);
 
-		if (controller->get_current_input_id() != executed_input_id) {
-			// Not yet.
+		if (unlikely(controller == nullptr)) {
+			SceneSynchronizerDebugger::singleton()->debug_warning(scene_synchronizer, "ServerSnchronizer::execute_actions. The peer `" + itos(sender_peer) + "` doesn't have any controller associated, but the Action (`" + server_actions[i].action_processor + "`) was generated. Maybe the character disconnected?");
+			server_actions[i].locally_executed = true;
+			server_actions[i].action_processor.execute();
 			continue;
 		}
 
-		server_actions[i].locally_executed = true;
-		server_actions[i].action_processor.execute();
+		executed_input_id = server_actions[i].peer_get_executed_input_id(sender_peer);
+		if (unlikely(executed_input_id == UINT32_MAX)) {
+			SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "[FATAL] The `executed_input_id` is `UINT32_MAX` which means it was unable to fetch the `controller_input_id` from the peer `" + itos(executed_input_id) + "`. Action: `" + server_actions[i].action_processor + "`");
+			// This is likely a bug, so do not even bother executing it.
+			// Marking as executed so this action is dropped.
+			server_actions[i].locally_executed = true;
+			continue;
+		}
+
+		if (controller->get_current_input_id() >= executed_input_id) {
+			if (unlikely(controller->get_current_input_id() > executed_input_id)) {
+				SceneSynchronizerDebugger::singleton()->debug_warning(scene_synchronizer, "ServerSnchronizer::execute_actions. The action `" + server_actions[i].action_processor + "` was planned to be executed on the frame `" + itos(executed_input_id) + "` while the current controller (`" + controller->get_path() + "`) frame is `" + itos(controller->get_current_input_id()) + "`. Since the execution_frame is adjusted when the action is received on the server, this case is triggered when the client stop communicating for some time and some inputs are skipped.");
+			}
+
+			// It's time to execute the Action, Yey!
+			server_actions[i].locally_executed = true;
+			server_actions[i].action_processor.execute();
+		}
 	}
 
 	// Advance the action `input_id` for each peer, so we know when the next action will be triggered.
@@ -2481,7 +2499,7 @@ void ServerSynchronizer::execute_actions() {
 		const int peer_id = *it.key;
 
 		NetworkedController *controller = scene_synchronizer->fetch_controller_by_peer(peer_id);
-		if (controller) {
+		if (controller && controller->get_current_input_id() != UINT32_MAX) {
 			peers_next_action_trigger_input_id.set(peer_id, controller->get_current_input_id() + 1);
 		}
 	}
@@ -2562,8 +2580,9 @@ void ServerSynchronizer::clean_pending_actions() {
 	// The packet will contains the most recent actions.
 	for (int64_t i = int64_t(server_actions.size()) - 1; i >= 0; i -= 1) {
 		if (
-				server_actions[i].locally_executed == false || int(server_actions[i].send_count) < scene_synchronizer->get_actions_redundancy()) {
-			// Still somethin to do.
+			server_actions[i].locally_executed == false ||
+			int(server_actions[i].send_count) < scene_synchronizer->get_actions_redundancy()) {
+			// Still something to do.
 			continue;
 		}
 
