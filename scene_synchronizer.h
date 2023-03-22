@@ -47,6 +47,7 @@
 
 class Synchronizer;
 class NetworkedController;
+class PlayerController;
 
 /// # SceneSynchronizer
 ///
@@ -560,6 +561,28 @@ private:
 			std::deque<NetUtility::Snapshot> &r_snapshot_storage);
 
 	void process_controllers_recovery(real_t p_delta);
+
+	void __pcr__fetch_recovery_info(
+			const uint32_t p_input_id,
+			bool &r_need_recover,
+			bool &r_recover_controller,
+			LocalVector<NetUtility::NodeData *> &r_nodes_to_recover,
+			LocalVector<NetUtility::PostponedRecover> &r_postponed_recover);
+
+	void __pcr__sync_pre_rewind(
+			const LocalVector<NetUtility::NodeData *> &p_nodes_to_recover);
+
+	void __pcr__rewind(
+			real_t p_delta,
+			const uint32_t p_checkable_input_id,
+			NetworkedController *p_controller,
+			PlayerController *p_player_controller,
+			const bool p_recover_controller,
+			const LocalVector<NetUtility::NodeData *> &p_nodes_to_recover);
+
+	void __pcr__sync_no_rewind(
+			const LocalVector<NetUtility::PostponedRecover> &p_postponed_recover);
+
 	void apply_last_received_server_snapshot();
 	void process_paused_controller_recovery(real_t p_delta);
 	bool parse_snapshot(Variant p_snapshot);
