@@ -136,6 +136,8 @@ void NetworkedController::_bind_methods() {
 	ADD_SIGNAL(MethodInfo("doll_sync_started"));
 	ADD_SIGNAL(MethodInfo("doll_sync_paused"));
 	ADD_SIGNAL(MethodInfo("controller_reset"));
+	ADD_SIGNAL(MethodInfo("input_missed", PropertyInfo(Variant::INT, "missing_input_id")));
+	ADD_SIGNAL(MethodInfo("client_speedup_adjusted", PropertyInfo(Variant::INT, "input_worst_receival_time_ms"), PropertyInfo(Variant::INT, "optimal_frame_delay"), PropertyInfo(Variant::INT, "current_frame_delay"), PropertyInfo(Variant::INT, "distance_to_optimal")));
 }
 
 NetworkedController::NetworkedController() {
@@ -701,13 +703,19 @@ void ServerController::process(double p_delta) {
 		return;
 	}
 
-	fetch_next_input(p_delta);
+	const bool is_new_input = fetch_next_input(p_delta);
 
 	if (unlikely(current_input_buffer_id == UINT32_MAX)) {
 		// Skip this until the first input arrive.
 		SceneSynchronizerDebugger::singleton()->debug_print(node, "Server skips this frame as the current_input_buffer_id == UINT32_MAX", true);
 		return;
 	}
+	
+#ifdef DEBUG_ENABLED
+	if (!is_new_input) {
+		node->emit_signal("input_missed", current_input_buffer_id + 1);
+	}
+#endif
 
 	SceneSynchronizerDebugger::singleton()->debug_print(node, "Server process index: " + itos(current_input_buffer_id), true);
 
@@ -1198,14 +1206,16 @@ void ServerController::adjust_player_tick_rate(double p_delta) {
 
 #ifdef DEBUG_ENABLED
 		const bool debug = ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/debug_server_speedup");
+		const int current_frame_delay = consecutive_inputs;
 		if (debug) {
 			print_line(
-					"Worst receival time (ms): `" + rtos(worst_receival_time_ms) +
+					"Worst receival time (ms): `" + itos(worst_receival_time_ms) +
 					"` Optimal frame delay: `" + itos(optimal_frame_delay) +
-					"` Current frame delay: `" + itos(consecutive_inputs) +
+					"` Current frame delay: `" + itos(current_frame_delay) +
 					"` Distance to optimal: `" + itos(distance_to_optimal) +
 					"`");
 		}
+		node->emit_signal("client_speedup_adjusted", worst_receival_time_ms, optimal_frame_delay, current_frame_delay, distance_to_optimal);
 #endif
 
 		Vector<uint8_t> packet_data;
