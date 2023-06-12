@@ -34,14 +34,14 @@
 
 #include "register_types.h"
 
-#include "core/config/project_settings.h"
 #include "core/config/engine.h"
+#include "core/config/project_settings.h"
 #include "data_buffer.h"
+#include "input_network_encoder.h"
 #include "networked_controller.h"
 #include "scene_diff.h"
 #include "scene_synchronizer.h"
 #include "scene_synchronizer_debugger.h"
-#include "input_network_encoder.h"
 
 void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SERVERS) {
@@ -66,5 +66,11 @@ void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
 }
 
 void uninitialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
-	memdelete(SceneSynchronizerDebugger::singleton());
+	if (p_level != MODULE_INITIALIZATION_LEVEL_SERVERS) {
+		return;
+	}
+
+	if (SceneSynchronizerDebugger::singleton()) {
+		memdelete(SceneSynchronizerDebugger::singleton());
+	}
 }
