@@ -52,6 +52,12 @@ void SceneSynchronizer::_bind_methods() {
 	BIND_ENUM_CONSTANT(SYNC)
 	BIND_ENUM_CONSTANT(ALWAYS)
 
+	BIND_ENUM_CONSTANT(PROCESSPHASE_EARLY)
+	BIND_ENUM_CONSTANT(PROCESSPHASE_PRE)
+	BIND_ENUM_CONSTANT(PROCESSPHASE_PROCESS)
+	BIND_ENUM_CONSTANT(PROCESSPHASE_POST)
+	BIND_ENUM_CONSTANT(PROCESSPHASE_LATE)
+
 	ClassDB::bind_method(D_METHOD("reset_synchronizer_mode"), &SceneSynchronizer::reset_synchronizer_mode);
 	ClassDB::bind_method(D_METHOD("clear"), &SceneSynchronizer::clear);
 
@@ -97,8 +103,8 @@ void SceneSynchronizer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("controller_get_dependency_count", "controller"), &SceneSynchronizer::controller_get_dependency_count);
 	ClassDB::bind_method(D_METHOD("controller_get_dependency", "controller", "index"), &SceneSynchronizer::controller_get_dependency);
 
-	ClassDB::bind_method(D_METHOD("register_process", "node", "function"), &SceneSynchronizer::register_process);
-	ClassDB::bind_method(D_METHOD("unregister_process", "node", "function"), &SceneSynchronizer::unregister_process);
+	ClassDB::bind_method(D_METHOD("register_process", "node", "phase", "function"), &SceneSynchronizer::register_process);
+	ClassDB::bind_method(D_METHOD("unregister_process", "node", "phase", "function"), &SceneSynchronizer::unregister_process);
 
 	ClassDB::bind_method(D_METHOD("start_tracking_scene_changes", "diff_handle"), &SceneSynchronizer::start_tracking_scene_changes);
 	ClassDB::bind_method(D_METHOD("stop_tracking_scene_changes", "diff_handle"), &SceneSynchronizer::stop_tracking_scene_changes);
@@ -296,13 +302,16 @@ NetUtility::NodeData *SceneSynchronizer::register_node(Node *p_node) {
 			}
 
 			nd->is_controller = true;
-			controller->set_scene_synchronizer(this);
 			dirty_peers();
 		}
 
 		add_node_data(nd);
 
 		SceneSynchronizerDebugger::singleton()->debug_print(this, "New node registered" + (generate_id ? String(" #ID: ") + itos(nd->id) : "") + " : " + p_node->get_path());
+
+		if (controller) {
+			controller->notify_registered_with_synchronizer(this);
+		}
 	}
 
 	SceneSynchronizerDebugger::singleton()->register_class_for_node_to_dump(p_node);
@@ -804,23 +813,23 @@ Node *SceneSynchronizer::controller_get_dependency(Node *p_controller, int p_ind
 	return controller_nd->dependency_nodes[p_index]->node;
 }
 
-void SceneSynchronizer::register_process(Node *p_node, const StringName &p_function) {
+void SceneSynchronizer::register_process(Node *p_node, ProcessPhase p_phase, Callable p_func) {
 	ERR_FAIL_COND(p_node == nullptr);
-	ERR_FAIL_COND(p_function == StringName());
+	ERR_FAIL_COND(!p_func.is_valid());
 	NetUtility::NodeData *node_data = register_node(p_node);
 	ERR_FAIL_COND(node_data == nullptr);
 
-	if (node_data->functions.find(p_function) == -1) {
-		node_data->functions.push_back(p_function);
+	if (node_data->functions[p_phase].find(p_func) == -1) {
+		node_data->functions[p_phase].push_back(p_func);
 	}
 }
 
-void SceneSynchronizer::unregister_process(Node *p_node, const StringName &p_function) {
+void SceneSynchronizer::unregister_process(Node *p_node, ProcessPhase p_phase, const Callable &p_func) {
 	ERR_FAIL_COND(p_node == nullptr);
-	ERR_FAIL_COND(p_function == StringName());
+	ERR_FAIL_COND(!p_func.is_valid());
 	NetUtility::NodeData *node_data = register_node(p_node);
 	ERR_FAIL_COND(node_data == nullptr);
-	node_data->functions.erase(p_function);
+	node_data->functions[p_phase].erase(p_func);
 }
 
 void SceneSynchronizer::start_tracking_scene_changes(Object *p_diff_handle) const {
@@ -1437,7 +1446,7 @@ void SceneSynchronizer::drop_node_data(NetUtility::NodeData *p_node_data) {
 
 	if (p_node_data->is_controller) {
 		// This is a controller, make sure to reset the peers.
-		static_cast<NetworkedController *>(p_node_data->node)->set_scene_synchronizer(nullptr);
+		static_cast<NetworkedController *>(p_node_data->node)->notify_registered_with_synchronizer(nullptr);
 		dirty_peers();
 		node_data_controllers.erase(p_node_data);
 	}
@@ -1897,16 +1906,12 @@ void NoNetSynchronizer::process() {
 	const double physics_ticks_per_second = Engine::get_singleton()->get_physics_ticks_per_second();
 	const double delta = 1.0 / physics_ticks_per_second;
 
-	// Process the scene
-	for (uint32_t i = 0; i < scene_synchronizer->node_data.size(); i += 1) {
-		NetUtility::NodeData *nd = scene_synchronizer->node_data[i];
-		nd->process(delta);
-	}
-
-	// Process the controllers_node_data
-	for (uint32_t i = 0; i < scene_synchronizer->node_data_controllers.size(); i += 1) {
-		NetUtility::NodeData *nd = scene_synchronizer->node_data_controllers[i];
-		static_cast<NetworkedController *>(nd->node)->get_nonet_controller()->process(delta);
+	// Process the scene, by following the Phases: but stop before the `LATE` phase.
+	for (int process_phase = PROCESSPHASE_EARLY; process_phase < PROCESSPHASE_LATE; ++process_phase) {
+		for (uint32_t i = 0; i < scene_synchronizer->node_data.size(); i += 1) {
+			NetUtility::NodeData *nd = scene_synchronizer->node_data[i];
+			nd->process(delta, ProcessPhase(process_phase));
+		}
 	}
 
 	// Execute the actions.
@@ -1915,6 +1920,12 @@ void NoNetSynchronizer::process() {
 	}
 	// No need to do anything else, just claen the acts.
 	pending_actions.clear();
+
+	// Now process the late phase.
+	for (uint32_t i = 0; i < scene_synchronizer->node_data.size(); i += 1) {
+		NetUtility::NodeData *nd = scene_synchronizer->node_data[i];
+		nd->process(delta, PROCESSPHASE_LATE);
+	}
 
 	// Pull the changes.
 	scene_synchronizer->change_events_begin(NetEventFlag::CHANGE);
@@ -1983,19 +1994,20 @@ void ServerSynchronizer::process() {
 	SceneSynchronizerDebugger::singleton()->scene_sync_process_start(scene_synchronizer);
 
 	// Process the scene
-	for (uint32_t i = 0; i < scene_synchronizer->node_data.size(); i += 1) {
-		NetUtility::NodeData *nd = scene_synchronizer->node_data[i];
-		nd->process(delta);
-	}
-
-	// Process the controllers_node_data
-	for (uint32_t i = 0; i < scene_synchronizer->node_data_controllers.size(); i += 1) {
-		NetUtility::NodeData *nd = scene_synchronizer->node_data_controllers[i];
-		static_cast<NetworkedController *>(nd->node)->get_server_controller()->process(delta);
+	for (int process_phase = PROCESSPHASE_EARLY; process_phase < PROCESSPHASE_LATE; ++process_phase) {
+		for (uint32_t i = 0; i < scene_synchronizer->node_data.size(); i += 1) {
+			NetUtility::NodeData *nd = scene_synchronizer->node_data[i];
+			nd->process(delta, ProcessPhase(process_phase));
+		}
 	}
 
 	// Process the actions
 	execute_actions();
+
+	for (uint32_t i = 0; i < scene_synchronizer->node_data.size(); i += 1) {
+		NetUtility::NodeData *nd = scene_synchronizer->node_data[i];
+		nd->process(delta, PROCESSPHASE_LATE);
+	}
 
 	// Pull the changes.
 	scene_synchronizer->change_events_begin(NetEventFlag::CHANGE);
@@ -2666,13 +2678,12 @@ void ClientSynchronizer::process() {
 		SceneSynchronizerDebugger::singleton()->scene_sync_process_start(scene_synchronizer);
 
 		// Process the scene.
-		for (uint32_t i = 0; i < scene_synchronizer->node_data.size(); i += 1) {
-			NetUtility::NodeData *nd = scene_synchronizer->node_data[i];
-			nd->process(delta);
+		for (int process_phase = PROCESSPHASE_EARLY; process_phase < PROCESSPHASE_LATE; ++process_phase) {
+			for (uint32_t i = 0; i < scene_synchronizer->node_data.size(); i += 1) {
+				NetUtility::NodeData *nd = scene_synchronizer->node_data[i];
+				nd->process(delta, ProcessPhase(process_phase));
+			}
 		}
-
-		// Process the player controllers_node_data.
-		player_controller->process(delta);
 
 		// Process the actions
 		for (uint32_t i = 0; i < pending_actions.size(); i += 1) {
@@ -2699,6 +2710,11 @@ void ClientSynchronizer::process() {
 		}
 
 		actions_input_id = player_controller->get_current_input_id() + 1;
+
+		for (uint32_t i = 0; i < scene_synchronizer->node_data.size(); i += 1) {
+			NetUtility::NodeData *nd = scene_synchronizer->node_data[i];
+			nd->process(delta, PROCESSPHASE_LATE);
+		}
 
 		// Pull the changes.
 		scene_synchronizer->change_events_begin(NetEventFlag::CHANGE);
@@ -3408,27 +3424,29 @@ void ClientSynchronizer::__pcr__rewind(
 	for (int i = 0; i < remaining_inputs; i += 1) {
 		scene_synchronizer->change_events_begin(NetEventFlag::SYNC_RECOVER | NetEventFlag::SYNC_REWIND);
 
-		// Step 1 -- Process the scene nodes.
-		for (uint32_t r = 0; r < p_nodes_to_recover.size(); r += 1) {
-			if (p_nodes_to_recover[r]->sync_enabled == false) {
-				// This node is not sync.
-				continue;
-			}
-			p_nodes_to_recover[r]->process(p_delta);
-#ifdef DEBUG_ENABLED
-			if (p_nodes_to_recover[r]->functions.size()) {
-				SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Rewind, processed node: " + p_nodes_to_recover[r]->node->get_path());
-			}
-#endif
-		}
-
-		// Step 2 -- Process the controller.
+		// Step 1 -- Notify the controller about the instant to process.
 		if (p_recover_controller && player_controller_node_data->sync_enabled) {
 #ifdef DEBUG_ENABLED
 			has_next =
 #endif
-					p_controller->process_instant(i, p_delta);
+					p_controller->queue_instant_process(i);
 			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Rewind, processed controller: " + p_controller->get_path());
+		}
+
+		// Step 2 -- Process the scene.
+		for (int process_phase = PROCESSPHASE_EARLY; process_phase < PROCESSPHASE_LATE; ++process_phase) {
+			for (uint32_t r = 0; r < p_nodes_to_recover.size(); r += 1) {
+				if (p_nodes_to_recover[r]->sync_enabled == false) {
+					// This node is not sync.
+					continue;
+				}
+				p_nodes_to_recover[r]->process(p_delta, ProcessPhase(process_phase));
+#ifdef DEBUG_ENABLED
+				if (p_nodes_to_recover[r]->functions[process_phase].size()) {
+					SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Rewind, processed node: " + p_nodes_to_recover[r]->node->get_path() + " Phase: " + itos(process_phase));
+				}
+#endif
+			}
 		}
 
 		// Step 3 -- Process the Actions.
@@ -3442,7 +3460,21 @@ void ClientSynchronizer::__pcr__rewind(
 			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Rewind, processed Action: " + String(client_snapshots[i].actions[a_i].processor));
 		}
 
-		// Step 4 -- Pull node changes and Update snapshots.
+		// Step 4 -- Process the scene late process phase.
+		for (uint32_t r = 0; r < p_nodes_to_recover.size(); r += 1) {
+			if (p_nodes_to_recover[r]->sync_enabled == false) {
+				// This node is not sync.
+				continue;
+			}
+			p_nodes_to_recover[r]->process(p_delta, PROCESSPHASE_LATE);
+#ifdef DEBUG_ENABLED
+			if (p_nodes_to_recover[r]->functions[PROCESSPHASE_LATE].size()) {
+				SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Rewind, processed node: " + p_nodes_to_recover[r]->node->get_path() + " Phase: " + itos(PROCESSPHASE_LATE));
+			}
+#endif
+		}
+
+		// Step 5 -- Pull node changes and Update snapshots.
 		for (uint32_t r = 0; r < p_nodes_to_recover.size(); r += 1) {
 			if (p_nodes_to_recover[r]->sync_enabled == false) {
 				// This node is not sync.

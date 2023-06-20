@@ -117,6 +117,15 @@ enum NetEventFlag {
 	ALWAYS = CHANGE | SYNC_RECOVER | SYNC_RESET | SYNC_REWIND | END_SYNC
 };
 
+enum ProcessPhase {
+	PROCESSPHASE_EARLY = 0,
+	PROCESSPHASE_PRE,
+	PROCESSPHASE_PROCESS,
+	PROCESSPHASE_POST,
+	PROCESSPHASE_LATE,
+	PROCESSPHASE_COUNT
+};
+
 namespace NetUtility {
 
 template <class T>
@@ -355,7 +364,7 @@ struct NodeData {
 	/// The sync variables of this node. The order of this vector matters
 	/// because the index is the `NetVarId`.
 	LocalVector<VarData> vars;
-	LocalVector<StringName> functions;
+	LocalVector<Callable> functions[PROCESSPHASE_COUNT];
 
 	LocalVector<NetActionInfo> net_actions;
 
@@ -364,7 +373,7 @@ struct NodeData {
 
 	NodeData() = default;
 
-	void process(const double p_delta) const;
+	void process(const double p_delta, ProcessPhase p_phase) const;
 };
 
 struct PeerData {

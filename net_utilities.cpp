@@ -60,13 +60,14 @@ bool NetUtility::VarData::operator<(const VarData &p_other) const {
 	return id < p_other.id;
 }
 
-void NetUtility::NodeData::process(const double p_delta) const {
+void NetUtility::NodeData::process(const double p_delta, ProcessPhase p_phase) const {
 	const Variant var_delta = p_delta;
 	const Variant *fake_array_vars = &var_delta;
 
 	Callable::CallError e;
-	for (uint32_t i = 0; i < functions.size(); i += 1) {
-		node->callp(functions[i], &fake_array_vars, 1, e);
+	for (uint32_t i = 0; i < functions[p_phase].size(); i += 1) {
+		Variant r;
+		functions[p_phase][i].callp(&fake_array_vars, 1, r, e);
 	}
 }
 

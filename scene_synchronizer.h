@@ -28,10 +28,6 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-/**
-	@author AndreaCatania
-*/
-
 #include "scene/main/node.h"
 
 #include "core/templates/local_vector.h"
@@ -262,8 +258,9 @@ public:
 	int controller_get_dependency_count(Node *p_controller) const;
 	Node *controller_get_dependency(Node *p_controller, int p_index);
 
-	void register_process(Node *p_node, const StringName &p_function);
-	void unregister_process(Node *p_node, const StringName &p_function);
+	/// You can use the macro `callable_mp()` to register custom C++ function.
+	void register_process(Node *p_node, ProcessPhase p_phase, Callable p_callable);
+	void unregister_process(Node *p_node, ProcessPhase p_phase, const Callable &p_callable);
 
 	void start_tracking_scene_changes(Object *p_diff_handle) const;
 	void stop_tracking_scene_changes(Object *p_diff_handle) const;
@@ -598,5 +595,6 @@ private:
 };
 
 VARIANT_ENUM_CAST(NetEventFlag)
+VARIANT_ENUM_CAST(ProcessPhase)
 
 #endif
