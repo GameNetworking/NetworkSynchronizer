@@ -46,13 +46,6 @@
 			<description>
 			</description>
 		</method>
-		<method name="find_action_id" qualifiers="const">
-			<return type="int" />
-			<argument index="0" name="node" type="Node" />
-			<argument index="1" name="event_name" type="String" />
-			<description>
-			</description>
-		</method>
 		<method name="force_state_notify">
 			<return type="void" />
 			<description>
@@ -128,24 +121,6 @@
 			<return type="Variant" />
 			<argument index="0" name="diff_handle" type="Object" />
 			<description>
-			</description>
-		</method>
-		<method name="register_action">
-			<return type="int" />
-			<argument index="0" name="node" type="Node" />
-			<argument index="1" name="action_func" type="String" />
-			<argument index="2" name="action_encoding_func" type="String" />
-			<argument index="3" name="can_client_trigger" type="bool" default="false" />
-			<argument index="4" name="wait_server_validation" type="bool" default="false" />
-			<argument index="5" name="server_action_validation_func" type="String" default="&quot;&quot;" />
-			<description>
-				Register an new action.
-				`node` The node that owns the event
-				`action_func` The function that is triggered when the event is executed.
-				`action_encoding_func` The function called to definte the validation encoding.
-				`can_client_trigger` If true this `Action` can be triggered on client.
-				`wait_server_validation` If true the event will be emitted locally only if the server validates it.
-				`server_action_validation_func` The validation function, must return a boolean.
 			</description>
 		</method>
 		<method name="register_node">
@@ -237,30 +212,6 @@
 			<description>
 			</description>
 		</method>
-		<method name="trigger_action">
-			<return type="void" />
-			<argument index="0" name="node" type="Node" />
-			<argument index="1" name="action_id" type="int" />
-			<argument index="2" name="arguments" type="Array" default="[  ]" />
-			<argument index="3" name="recipients_peers" type="PoolIntArray" default="PoolIntArray(  )" />
-			<description>
-				Trigger an action.
-				This action can be triggered by the client, only if it was registered with `can_client_trigger = true`.
-				Note: If you pass a recipient the action is notified only to that peer; if you leave it unset the action will be propagated to all the peers. Generally you never specify the `recipients`. In any case, only the server can use this feature.
-			</description>
-		</method>
-		<method name="trigger_action_by_name">
-			<return type="void" />
-			<argument index="0" name="node" type="Node" />
-			<argument index="1" name="event_name" type="String" />
-			<argument index="2" name="arguments" type="Array" default="[  ]" />
-			<argument index="3" name="recipients_peers" type="PoolIntArray" default="PoolIntArray(  )" />
-			<description>
-				Trigger an action.
-				This action can be triggered by the client, only if it was registered with `can_client_trigger = true`.
-				Note: If you pass a recipient the action is notified only to that peer; if you leave it unset the action will be propagated to all the peers. Generally you never specify the `recipients`. In any case, only the server can use this feature.
-			</description>
-		</method>
 		<method name="unregister_node">
 			<return type="void" />
 			<argument index="0" name="node" type="Node" />
@@ -292,10 +243,6 @@
 		</method>
 	</methods>
 	<members>
-		<member name="actions_redundancy" type="int" setter="set_actions_redundancy" getter="get_actions_redundancy" default="3">
-		</member>
-		<member name="actions_resend_time" type="float" setter="set_actions_resend_time" getter="get_actions_resend_time" default="0.0333333">
-		</member>
 		<member name="comparison_float_tolerance" type="float" setter="set_comparison_float_tolerance" getter="get_comparison_float_tolerance" default="0.001">
 		</member>
 		<member name="server_notify_state_interval" type="float" setter="set_server_notify_state_interval" getter="get_server_notify_state_interval" default="1.0">

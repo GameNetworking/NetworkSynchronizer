@@ -35,6 +35,7 @@
 #include "net_utilities.h"
 
 #include "scene/main/node.h"
+#include "scene_synchronizer_debugger.h"
 
 bool NetUtility::ChangeListener::operator==(const ChangeListener &p_other) const {
 	return object_id == p_other.object_id && method == p_other.method;
@@ -60,15 +61,13 @@ bool NetUtility::VarData::operator<(const VarData &p_other) const {
 	return id < p_other.id;
 }
 
-void NetUtility::NodeData::process(const double p_delta, ProcessPhase p_phase) const {
-	const Variant var_delta = p_delta;
-	const Variant *fake_array_vars = &var_delta;
-
-	Callable::CallError e;
-	for (uint32_t i = 0; i < functions[p_phase].size(); i += 1) {
-		Variant r;
-		functions[p_phase][i].callp(&fake_array_vars, 1, r, e);
+bool NetUtility::NodeData::has_registered_process_functions() const {
+	for (int process_phase = PROCESSPHASE_EARLY; process_phase < PROCESSPHASE_COUNT; ++process_phase) {
+		if (functions[process_phase].size() > 0) {
+			return true;
+		}
 	}
+	return false;
 }
 
 NetUtility::Snapshot::operator String() const {

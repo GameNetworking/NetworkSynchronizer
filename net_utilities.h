@@ -39,8 +39,6 @@
 #include "core/math/math_funcs.h"
 #include "core/templates/local_vector.h"
 #include "core/variant/variant.h"
-#include "net_action_info.h"
-#include "net_action_processor.h"
 
 class Node;
 
@@ -126,8 +124,15 @@ enum ProcessPhase {
 	PROCESSPHASE_COUNT
 };
 
-namespace NetUtility {
+static const String ProcessPhaseName[PROCESSPHASE_COUNT] = {
+	String("EARLY PROCESS"),
+	String("PRE PROCESS"),
+	String("PROCESS"),
+	String("POST PROCESS"),
+	String("LATE PROCESS")
+};
 
+namespace NetUtility {
 template <class T>
 class StatisticalRingBuffer {
 	LocalVector<T> data;
@@ -366,14 +371,12 @@ struct NodeData {
 	LocalVector<VarData> vars;
 	LocalVector<Callable> functions[PROCESSPHASE_COUNT];
 
-	LocalVector<NetActionInfo> net_actions;
-
 	// This is valid to use only inside the process function.
 	Node *node = nullptr;
 
 	NodeData() = default;
 
-	void process(const double p_delta, ProcessPhase p_phase) const;
+	bool has_registered_process_functions() const;
 };
 
 struct PeerData {
@@ -392,8 +395,6 @@ struct Snapshot {
 	/// matters because the index is the `NetNodeId`.
 	/// The variable array order also matter.
 	Vector<Vector<Var>> node_vars;
-
-	Vector<TokenizedNetActionProcessor> actions;
 
 	operator String() const;
 };
