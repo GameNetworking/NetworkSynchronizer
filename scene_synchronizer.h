@@ -252,8 +252,8 @@ public:
 	void reset_synchronizer_mode();
 	void clear();
 
-	void process_functions_clear();
-	void process_functions_do(const double p_delta);
+	void process_functions__clear();
+	void process_functions__execute(const double p_delta);
 
 	void notify_controller_control_mode_changed(NetworkedController *controller);
 

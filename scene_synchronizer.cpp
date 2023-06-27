@@ -666,7 +666,7 @@ void SceneSynchronizer::register_process(Node *p_node, ProcessPhase p_phase, Cal
 		node_data->functions[p_phase].push_back(p_func);
 	}
 
-	process_functions_clear();
+	process_functions__clear();
 }
 
 void SceneSynchronizer::unregister_process(Node *p_node, ProcessPhase p_phase, const Callable &p_func) {
@@ -675,7 +675,7 @@ void SceneSynchronizer::unregister_process(Node *p_node, ProcessPhase p_phase, c
 	NetUtility::NodeData *node_data = register_node(p_node);
 	ERR_FAIL_COND(node_data == nullptr);
 	node_data->functions[p_phase].erase(p_func);
-	process_functions_clear();
+	process_functions__clear();
 }
 
 void SceneSynchronizer::start_tracking_scene_changes(Object *p_diff_handle) const {
@@ -980,6 +980,8 @@ void SceneSynchronizer::reset_synchronizer_mode() {
 
 	// Reset the controllers.
 	reset_controllers();
+
+	process_functions__clear();
 }
 
 void SceneSynchronizer::clear() {
@@ -1002,14 +1004,14 @@ void SceneSynchronizer::clear() {
 		synchronizer->clear();
 	}
 
-	process_functions_clear();
+	process_functions__clear();
 }
 
-void SceneSynchronizer::process_functions_clear() {
+void SceneSynchronizer::process_functions__clear() {
 	cached_process_functions_valid = false;
 }
 
-void SceneSynchronizer::process_functions_do(const double p_delta) {
+void SceneSynchronizer::process_functions__execute(const double p_delta) {
 	if (cached_process_functions_valid == false) {
 		// Clear the process_functions.
 		for (int process_phase = PROCESSPHASE_EARLY; process_phase < PROCESSPHASE_COUNT; ++process_phase) {
@@ -1017,7 +1019,7 @@ void SceneSynchronizer::process_functions_do(const double p_delta) {
 		}
 
 		// Build the cached_process_functions, making sure the node data order is kept.
-		for (uint32_t i = 0; i < organized_node_data.size(); i += 1) {
+		for (uint32_t i = 0; i < organized_node_data.size(); ++i) {
 			NetUtility::NodeData *nd = organized_node_data[i];
 			if (nd) {
 				// For each valid NodeData.
@@ -1042,25 +1044,21 @@ void SceneSynchronizer::process_functions_do(const double p_delta) {
 	Callable::CallError e;
 
 	for (int process_phase = PROCESSPHASE_EARLY; process_phase < PROCESSPHASE_COUNT; ++process_phase) {
-		SceneSynchronizerDebugger::singleton()->debug_print(this, "|  `" + String(ProcessPhaseName[process_phase]) + "`", true);
-
 		for (uint32_t i = 0; i < cached_process_functions[process_phase].size(); ++i) {
 #ifdef DEBUG_ENABLED
 			const Object *object = cached_process_functions[process_phase][i].get_object();
 			const Node *n = Object::cast_to<const Node>(object);
-			const String name = n ? "UNKNOWN" : n->get_name();
-			SceneSynchronizerDebugger::singleton()->debug_print(this, "|- `" + cached_process_functions[process_phase][i].get_method() + "` NODE: `" + name + "`", true);
+			const String name = n ? String(n->get_path()) : "UNKNOWN";
+			SceneSynchronizerDebugger::singleton()->debug_print(this, "|- `" + String(ProcessPhaseName[process_phase]) + "` Func: `" + cached_process_functions[process_phase][i].get_method() + "` NODE: `" + name + "`", true);
 #endif
 
 			cached_process_functions[process_phase][i].callp(&fake_array_vars, 1, r, e);
 
 			if (e.error != Callable::CallError::CALL_OK) {
-				SceneSynchronizerDebugger::singleton()->debug_error(this, "|    \\ERROR, functions not executed: `" + itos(e.error) + "`", true);
+				SceneSynchronizerDebugger::singleton()->debug_error(this, "|    \\ERROR, function not executed: `" + itos(e.error) + "`", true);
 			}
 		}
 	}
-
-	SceneSynchronizerDebugger::singleton()->debug_print(this, "Process functions END", true);
 }
 
 void SceneSynchronizer::notify_controller_control_mode_changed(NetworkedController *controller) {
@@ -1310,6 +1308,10 @@ void SceneSynchronizer::add_node_data(NetUtility::NodeData *p_node_data) {
 		reset_controller(p_node_data);
 	}
 
+	if (p_node_data->has_registered_process_functions()) {
+		process_functions__clear();
+	}
+
 	if (synchronizer) {
 		synchronizer->on_node_added(p_node_data);
 	}
@@ -1377,7 +1379,7 @@ void SceneSynchronizer::drop_node_data(NetUtility::NodeData *p_node_data) {
 	}
 
 	if (p_node_data->has_registered_process_functions()) {
-		process_functions_clear();
+		process_functions__clear();
 	}
 
 	memdelete(p_node_data);
@@ -1392,6 +1394,9 @@ void SceneSynchronizer::set_node_data_id(NetUtility::NodeData *p_node_data, NetN
 	}
 	p_node_data->id = p_id;
 	organized_node_data[p_id] = p_node_data;
+	if (p_node_data->has_registered_process_functions()) {
+		process_functions__clear();
+	}
 	SceneSynchronizerDebugger::singleton()->debug_print(this, "NetNodeId: " + itos(p_id) + " just assigned to: " + p_node_data->node->get_path());
 }
 
@@ -1799,7 +1804,7 @@ void NoNetSynchronizer::process() {
 	const double delta = 1.0 / physics_ticks_per_second;
 
 	// Process the scene.
-	scene_synchronizer->process_functions_do(delta);
+	scene_synchronizer->process_functions__execute(delta);
 
 	// Pull the changes.
 	scene_synchronizer->change_events_begin(NetEventFlag::CHANGE);
@@ -1855,7 +1860,7 @@ void ServerSynchronizer::process() {
 	SceneSynchronizerDebugger::singleton()->scene_sync_process_start(scene_synchronizer);
 
 	// Process the scene
-	scene_synchronizer->process_functions_do(delta);
+	scene_synchronizer->process_functions__execute(delta);
 
 	// Pull the changes.
 	scene_synchronizer->change_events_begin(NetEventFlag::CHANGE);
@@ -2232,7 +2237,7 @@ void ClientSynchronizer::process() {
 		SceneSynchronizerDebugger::singleton()->scene_sync_process_start(scene_synchronizer);
 
 		// Process the scene.
-		scene_synchronizer->process_functions_do(delta);
+		scene_synchronizer->process_functions__execute(delta);
 
 		// Pull the changes.
 		scene_synchronizer->change_events_begin(NetEventFlag::CHANGE);
@@ -2816,14 +2821,15 @@ void ClientSynchronizer::__pcr__rewind(
 		//           on the next process.
 		if (p_recover_controller && player_controller_node_data->sync_enabled) {
 #ifdef DEBUG_ENABLED
-			has_next = has_next ||
-#endif
-					p_local_controller->queue_instant_process(i);
+			has_next = p_local_controller->queue_instant_process(i);
 			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Rewind, processed controller: " + p_local_controller->get_path());
+#else
+			p_local_controller->queue_instant_process(i);
+#endif
 		}
 
 		// Step 2 -- Process the scene.
-		scene_synchronizer->process_functions_do(p_delta);
+		scene_synchronizer->process_functions__execute(p_delta);
 
 		// Step 3 -- Pull node changes and Update snapshots.
 		for (uint32_t r = 0; r < p_nodes_to_recover.size(); r += 1) {
@@ -2851,7 +2857,8 @@ void ClientSynchronizer::__pcr__rewind(
 	}
 
 #ifdef DEBUG_ENABLED
-	// Unreachable because the above loop consume all instants.
+	// Unreachable because the above loop consume all instants, so the last
+	// process will set this to false.
 	CRASH_COND(has_next);
 #endif
 }
