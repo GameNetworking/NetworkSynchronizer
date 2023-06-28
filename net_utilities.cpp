@@ -35,7 +35,6 @@
 #include "net_utilities.h"
 
 #include "scene/main/node.h"
-#include "scene_synchronizer_debugger.h"
 
 bool NetUtility::ChangeListener::operator==(const ChangeListener &p_other) const {
 	return object_id == p_other.object_id && method == p_other.method;
