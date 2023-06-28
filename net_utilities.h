@@ -356,8 +356,18 @@ struct NodeData {
 	uint32_t id = 0;
 	ObjectID instance_id = ObjectID();
 
-	/// When `false`, this node is not sync. It's usefult to locally pause sync
-	/// of specific nodes.
+	// TODO remove this
+	// TODO remove this
+	// TODO remove this
+	// TODO remove this
+	// TODO remove this
+	// TODO remove this
+	// TODO remove this
+	// TODO remove this
+	// TODO remove this
+	// TODO remove this
+	// TODO remove this
+	// TODO remove this
 	bool sync_enabled = true;
 
 	bool is_controller = false;
@@ -367,12 +377,16 @@ struct NodeData {
 	LocalVector<VarData> vars;
 	LocalVector<Callable> functions[PROCESSPHASE_COUNT];
 
+	Callable collect_epoch_func;
+	Callable apply_epoch_func;
+
 	// This is valid to use only inside the process function.
 	Node *node = nullptr;
 
 	NodeData() = default;
 
 	bool has_registered_process_functions() const;
+	bool can_deferred_sync() const;
 };
 
 struct PeerData {

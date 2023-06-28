@@ -76,10 +76,6 @@ void SceneSynchronizer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("unregister_variable", "node", "variable"), &SceneSynchronizer::unregister_variable);
 	ClassDB::bind_method(D_METHOD("get_variable_id", "node", "variable"), &SceneSynchronizer::get_variable_id);
 
-	ClassDB::bind_method(D_METHOD("start_node_sync", "node"), &SceneSynchronizer::start_node_sync);
-	ClassDB::bind_method(D_METHOD("stop_node_sync", "node"), &SceneSynchronizer::stop_node_sync);
-	ClassDB::bind_method(D_METHOD("is_node_sync", "node"), &SceneSynchronizer::is_node_sync);
-
 	ClassDB::bind_method(D_METHOD("set_skip_rewinding", "node", "variable", "skip_rewinding"), &SceneSynchronizer::set_skip_rewinding);
 
 	ClassDB::bind_method(D_METHOD("track_variable_changes", "node", "variable", "object", "method", "flags"), &SceneSynchronizer::track_variable_changes, DEFVAL(NetEventFlag::DEFAULT));
@@ -87,6 +83,8 @@ void SceneSynchronizer::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("register_process", "node", "phase", "function"), &SceneSynchronizer::register_process);
 	ClassDB::bind_method(D_METHOD("unregister_process", "node", "phase", "function"), &SceneSynchronizer::unregister_process);
+
+	ClassDB::bind_method(D_METHOD("setup_deferred_sync", "node", "collect_epoch_func", "apply_epoch_func"), &SceneSynchronizer::setup_deferred_sync);
 
 	ClassDB::bind_method(D_METHOD("start_tracking_scene_changes", "diff_handle"), &SceneSynchronizer::start_tracking_scene_changes);
 	ClassDB::bind_method(D_METHOD("stop_tracking_scene_changes", "diff_handle"), &SceneSynchronizer::stop_tracking_scene_changes);
@@ -117,6 +115,8 @@ void SceneSynchronizer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_rpc_notify_need_full_snapshot"), &SceneSynchronizer::_rpc_notify_need_full_snapshot);
 	ClassDB::bind_method(D_METHOD("_rpc_set_network_enabled", "enabled"), &SceneSynchronizer::_rpc_set_network_enabled);
 	ClassDB::bind_method(D_METHOD("_rpc_notify_peer_status", "enabled"), &SceneSynchronizer::_rpc_notify_peer_status);
+
+	GDVIRTUAL_BIND(_update_nodes_relevancy);
 
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "server_notify_state_interval", PROPERTY_HINT_RANGE, "0.001,10.0,0.0001"), "set_server_notify_state_interval", "get_server_notify_state_interval");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "comparison_float_tolerance", PROPERTY_HINT_RANGE, "0.000001,0.01,0.000001"), "set_comparison_float_tolerance", "get_comparison_float_tolerance");
@@ -386,35 +386,6 @@ void SceneSynchronizer::unregister_variable(Node *p_node, const StringName &p_va
 	nd->vars[index].change_listeners.clear();
 }
 
-void SceneSynchronizer::start_node_sync(const Node *p_node) {
-	ERR_FAIL_COND(p_node == nullptr);
-
-	NetUtility::NodeData *nd = find_node_data(p_node);
-	ERR_FAIL_COND(nd == nullptr);
-
-	nd->sync_enabled = true;
-}
-
-void SceneSynchronizer::stop_node_sync(const Node *p_node) {
-	ERR_FAIL_COND(p_node == nullptr);
-
-	NetUtility::NodeData *nd = find_node_data(p_node);
-	ERR_FAIL_COND(nd == nullptr);
-
-	nd->sync_enabled = false;
-}
-
-bool SceneSynchronizer::is_node_sync(const Node *p_node) const {
-	ERR_FAIL_COND_V(p_node == nullptr, false);
-
-	const NetUtility::NodeData *nd = find_node_data(p_node);
-	if (nd == nullptr) {
-		return false;
-	}
-
-	return nd->sync_enabled;
-}
-
 uint32_t SceneSynchronizer::get_variable_id(Node *p_node, const StringName &p_variable) {
 	ERR_FAIL_COND_V(p_node == nullptr, UINT32_MAX);
 	ERR_FAIL_COND_V(p_variable == StringName(), UINT32_MAX);
@@ -532,7 +503,7 @@ void SceneSynchronizer::untrack_variable_changes(Node *p_node, const StringName 
 	// Don't remove the listener to preserve the order.
 }
 
-void SceneSynchronizer::register_process(Node *p_node, ProcessPhase p_phase, Callable p_func) {
+void SceneSynchronizer::register_process(Node *p_node, ProcessPhase p_phase, const Callable &p_func) {
 	ERR_FAIL_COND(p_node == nullptr);
 	ERR_FAIL_COND(!p_func.is_valid());
 	NetUtility::NodeData *node_data = register_node(p_node);
@@ -552,6 +523,21 @@ void SceneSynchronizer::unregister_process(Node *p_node, ProcessPhase p_phase, c
 	ERR_FAIL_COND(node_data == nullptr);
 	node_data->functions[p_phase].erase(p_func);
 	process_functions__clear();
+}
+
+void SceneSynchronizer::setup_deferred_sync(Node *p_node, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func) {
+	ERR_FAIL_COND(p_node == nullptr);
+	ERR_FAIL_COND(!p_collect_epoch_func.is_valid());
+	ERR_FAIL_COND(!p_apply_epoch_func.is_valid());
+	NetUtility::NodeData *node_data = register_node(p_node);
+	node_data->collect_epoch_func = p_collect_epoch_func;
+	node_data->apply_epoch_func = p_apply_epoch_func;
+}
+
+void SceneSynchronizer::set_node_sync_realtime(uint32_t p_id, bool p_realtime) {
+	NetUtility::NodeData *nd = get_node_data(p_id);
+	ERR_FAIL_COND(nd == nullptr);
+	//nd->
 }
 
 void SceneSynchronizer::start_tracking_scene_changes(Object *p_diff_handle) const {
@@ -881,60 +867,6 @@ void SceneSynchronizer::clear() {
 	}
 
 	process_functions__clear();
-}
-
-void SceneSynchronizer::process_functions__clear() {
-	cached_process_functions_valid = false;
-}
-
-void SceneSynchronizer::process_functions__execute(const double p_delta) {
-	if (cached_process_functions_valid == false) {
-		// Clear the process_functions.
-		for (int process_phase = PROCESSPHASE_EARLY; process_phase < PROCESSPHASE_COUNT; ++process_phase) {
-			cached_process_functions[process_phase].clear();
-		}
-
-		// Build the cached_process_functions, making sure the node data order is kept.
-		for (uint32_t i = 0; i < organized_node_data.size(); ++i) {
-			NetUtility::NodeData *nd = organized_node_data[i];
-			if (nd) {
-				// For each valid NodeData.
-				for (int process_phase = PROCESSPHASE_EARLY; process_phase < PROCESSPHASE_COUNT; ++process_phase) {
-					// and each process phase.
-					for (uint32_t u = 0; u < nd->functions[process_phase].size(); u++) {
-						// and for each function contained into the phase of this NodeData.
-						cached_process_functions[process_phase].push_back(nd->functions[process_phase][u]);
-					}
-				}
-			}
-		}
-
-		cached_process_functions_valid = true;
-	}
-
-	SceneSynchronizerDebugger::singleton()->debug_print(this, "Process functions START", true);
-
-	const Variant var_delta = p_delta;
-	const Variant *fake_array_vars = &var_delta;
-	Variant r;
-	Callable::CallError e;
-
-	for (int process_phase = PROCESSPHASE_EARLY; process_phase < PROCESSPHASE_COUNT; ++process_phase) {
-		for (uint32_t i = 0; i < cached_process_functions[process_phase].size(); ++i) {
-#ifdef DEBUG_ENABLED
-			const Object *object = cached_process_functions[process_phase][i].get_object();
-			const Node *n = Object::cast_to<const Node>(object);
-			const String name = n ? String(n->get_path()) : "UNKNOWN";
-			SceneSynchronizerDebugger::singleton()->debug_print(this, "|- `" + String(ProcessPhaseName[process_phase]) + "` Func: `" + cached_process_functions[process_phase][i].get_method() + "` NODE: `" + name + "`", true);
-#endif
-
-			cached_process_functions[process_phase][i].callp(&fake_array_vars, 1, r, e);
-
-			if (e.error != Callable::CallError::CALL_OK) {
-				SceneSynchronizerDebugger::singleton()->debug_error(this, "|    \\ERROR, function not executed: `" + itos(e.error) + "`", true);
-			}
-		}
-	}
 }
 
 void SceneSynchronizer::notify_controller_control_mode_changed(NetworkedController *controller) {
@@ -1463,6 +1395,67 @@ void SceneSynchronizer::validate_nodes() {
 	}
 }
 #endif
+
+void SceneSynchronizer::update_nodes_relevancy() {
+	const bool executed = GDVIRTUAL_CALL(_update_nodes_relevancy);
+	if (executed == false) {
+		NET_DEBUG_ERR("The function _update_nodes_relevancy failed!");
+	}
+}
+
+void SceneSynchronizer::process_functions__clear() {
+	cached_process_functions_valid = false;
+}
+
+void SceneSynchronizer::process_functions__execute(const double p_delta) {
+	if (cached_process_functions_valid == false) {
+		// Clear the process_functions.
+		for (int process_phase = PROCESSPHASE_EARLY; process_phase < PROCESSPHASE_COUNT; ++process_phase) {
+			cached_process_functions[process_phase].clear();
+		}
+
+		// Build the cached_process_functions, making sure the node data order is kept.
+		for (uint32_t i = 0; i < organized_node_data.size(); ++i) {
+			NetUtility::NodeData *nd = organized_node_data[i];
+			if (nd) {
+				// For each valid NodeData.
+				for (int process_phase = PROCESSPHASE_EARLY; process_phase < PROCESSPHASE_COUNT; ++process_phase) {
+					// and each process phase.
+					for (uint32_t u = 0; u < nd->functions[process_phase].size(); u++) {
+						// and for each function contained into the phase of this NodeData.
+						cached_process_functions[process_phase].push_back(nd->functions[process_phase][u]);
+					}
+				}
+			}
+		}
+
+		cached_process_functions_valid = true;
+	}
+
+	SceneSynchronizerDebugger::singleton()->debug_print(this, "Process functions START", true);
+
+	const Variant var_delta = p_delta;
+	const Variant *fake_array_vars = &var_delta;
+	Variant r;
+	Callable::CallError e;
+
+	for (int process_phase = PROCESSPHASE_EARLY; process_phase < PROCESSPHASE_COUNT; ++process_phase) {
+		for (uint32_t i = 0; i < cached_process_functions[process_phase].size(); ++i) {
+#ifdef DEBUG_ENABLED
+			const Object *object = cached_process_functions[process_phase][i].get_object();
+			const Node *n = Object::cast_to<const Node>(object);
+			const String name = n ? String(n->get_path()) : "UNKNOWN";
+			SceneSynchronizerDebugger::singleton()->debug_print(this, "|- `" + String(ProcessPhaseName[process_phase]) + "` Func: `" + cached_process_functions[process_phase][i].get_method() + "` NODE: `" + name + "`", true);
+#endif
+
+			cached_process_functions[process_phase][i].callp(&fake_array_vars, 1, r, e);
+
+			if (e.error != Callable::CallError::CALL_OK) {
+				SceneSynchronizerDebugger::singleton()->debug_error(this, "|    \\ERROR, function not executed: `" + itos(e.error) + "`", true);
+			}
+		}
+	}
+}
 
 void SceneSynchronizer::expand_organized_node_data_vector(uint32_t p_size) {
 	const uint32_t from = organized_node_data.size();

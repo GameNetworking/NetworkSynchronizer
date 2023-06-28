@@ -120,6 +120,8 @@ public:
 		SYNCHRONIZER_TYPE_SERVER
 	};
 
+	GDVIRTUAL0(_update_nodes_relevancy);
+
 private:
 	real_t server_notify_state_interval = 1.0;
 	real_t comparison_float_tolerance = 0.001;
@@ -190,12 +192,6 @@ public:
 	void register_variable(Node *p_node, const StringName &p_variable, const StringName &p_on_change_notify_to = StringName(), NetEventFlag p_flags = NetEventFlag::DEFAULT);
 	void unregister_variable(Node *p_node, const StringName &p_variable);
 
-	/// Start local node sync.
-	void start_node_sync(const Node *p_node);
-	/// Stop local node sync.
-	void stop_node_sync(const Node *p_node);
-	bool is_node_sync(const Node *p_node) const;
-
 	/// Returns the variable ID relative to the `Node`.
 	/// This may return `UINT32_MAX` in various cases:
 	/// - The node is not registered.
@@ -209,8 +205,12 @@ public:
 	void untrack_variable_changes(Node *p_node, const StringName &p_variable, Object *p_object, const StringName &p_method);
 
 	/// You can use the macro `callable_mp()` to register custom C++ function.
-	void register_process(Node *p_node, ProcessPhase p_phase, Callable p_callable);
+	void register_process(Node *p_node, ProcessPhase p_phase, const Callable &p_callable);
 	void unregister_process(Node *p_node, ProcessPhase p_phase, const Callable &p_callable);
+
+	void setup_deferred_sync(Node *p_node, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func);
+
+	void set_node_sync_realtime(uint32_t p_id, bool p_realtime);
 
 	void start_tracking_scene_changes(Object *p_diff_handle) const;
 	void stop_tracking_scene_changes(Object *p_diff_handle) const;
@@ -241,9 +241,6 @@ public:
 	void reset_synchronizer_mode();
 	void clear();
 
-	void process_functions__clear();
-	void process_functions__execute(const double p_delta);
-
 	void notify_controller_control_mode_changed(NetworkedController *controller);
 
 	void _rpc_send_state(const Variant &p_snapshot);
@@ -259,6 +256,13 @@ public:
 	void change_events_flush();
 
 public: // ------------------------------------------------------------ INTERNAL
+	/// This function is always executed on the server before anything else
+	/// and it's here that you want to update the node relevancy.
+	virtual void update_nodes_relevancy();
+
+	void process_functions__clear();
+	void process_functions__execute(const double p_delta);
+
 	void expand_organized_node_data_vector(uint32_t p_size);
 
 	/// This function is slow, but allow to take the node data even if the

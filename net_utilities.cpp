@@ -69,6 +69,10 @@ bool NetUtility::NodeData::has_registered_process_functions() const {
 	return false;
 }
 
+bool NetUtility::NodeData::can_deferred_sync() const {
+	return collect_epoch_func.is_valid() && apply_epoch_func.is_valid();
+}
+
 NetUtility::Snapshot::operator String() const {
 	String s;
 	s += "Snapshot input ID: " + itos(input_id);
