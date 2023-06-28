@@ -1380,11 +1380,11 @@ uint32_t PlayerController::get_stored_input_id(int p_i) const {
 }
 
 bool PlayerController::queue_instant_process(int p_i) {
-	const size_t i = p_i;
-	if (i >= 0 && i < frames_snapshot.size()) {
+	if (p_i >= 0 && p_i < int(frames_snapshot.size())) {
 		queued_instant_to_process = p_i;
-		return (i + 1) < frames_snapshot.size();
+		return (p_i + 1) < int(frames_snapshot.size());
 	} else {
+		queued_instant_to_process = -1;
 		return false;
 	}
 }
