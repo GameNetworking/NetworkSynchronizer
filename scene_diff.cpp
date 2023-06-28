@@ -51,11 +51,7 @@ void SceneDiff::start_tracking_scene_changes(
 	tracking.resize(p_nodes.size());
 
 	for (uint32_t i = 0; i < p_nodes.size(); i += 1) {
-		if (
-				p_nodes[i] == nullptr ||
-				// Check if this is a controller.
-				p_nodes[i]->is_controller ||
-				p_nodes[i]->controlled_by != nullptr) {
+		if (p_nodes[i] == nullptr) {
 			tracking[i].clear();
 			continue;
 		}

@@ -208,17 +208,6 @@ public:
 	void track_variable_changes(Node *p_node, const StringName &p_variable, Object *p_object, const StringName &p_method, NetEventFlag p_flags = NetEventFlag::DEFAULT);
 	void untrack_variable_changes(Node *p_node, const StringName &p_variable, Object *p_object, const StringName &p_method);
 
-	void set_node_as_controlled_by(Node *p_node, Node *p_controller);
-
-	/// Add a dependency to a controller, so that the rewinding mechanism can
-	/// make sure to rewind that node when the controller is rewinded.
-	/// You can remove and add dependency at any time. This operation
-	/// don't need to be perfomed on server.
-	void controller_add_dependency(Node *p_controller, Node *p_node);
-	void controller_remove_dependency(Node *p_controller, Node *p_node);
-	int controller_get_dependency_count(Node *p_controller) const;
-	Node *controller_get_dependency(Node *p_controller, int p_index);
-
 	/// You can use the macro `callable_mp()` to register custom C++ function.
 	void register_process(Node *p_node, ProcessPhase p_phase, Callable p_callable);
 	void unregister_process(Node *p_node, ProcessPhase p_phase, const Callable &p_callable);
@@ -293,7 +282,6 @@ public: // ------------------------------------------------------------ INTERNAL
 #ifdef DEBUG_ENABLED
 	void validate_nodes();
 #endif
-	void purge_node_dependencies();
 
 	real_t get_pretended_delta() const;
 
@@ -405,8 +393,7 @@ public:
 	virtual void on_variable_changed(NetUtility::NodeData *p_node_data, NetVarId p_var_id, const Variant &p_old_value, int p_flag) override;
 
 	void process_snapshot_notificator(real_t p_delta);
-	Vector<Variant> global_nodes_generate_snapshot(bool p_force_full_snapshot) const;
-	void controller_generate_snapshot(const NetUtility::NodeData *p_node_data, bool p_force_full_snapshot, Vector<Variant> &r_snapshot_result) const;
+	Vector<Variant> generate_snapshot(bool p_force_full_snapshot) const;
 	void generate_snapshot_node_data(const NetUtility::NodeData *p_node_data, SnapshotGenerationMode p_mode, Vector<Variant> &r_result) const;
 };
 
@@ -473,26 +460,24 @@ private:
 
 	void process_controllers_recovery(real_t p_delta);
 
-	void __pcr__fetch_recovery_info(
+	bool __pcr__fetch_recovery_info(
 			const uint32_t p_input_id,
-			bool &r_need_recover,
-			bool &r_recover_controller,
-			LocalVector<NetUtility::NodeData *> &r_nodes_to_recover,
-			LocalVector<NetUtility::PostponedRecover> &r_postponed_recover);
+			LocalVector<NetUtility::NoRewindRecover> &r_no_rewind_recover);
 
-	void __pcr__sync_pre_rewind(
-			const LocalVector<NetUtility::NodeData *> &p_nodes_to_recover);
+	void __pcr__sync__rewind();
 
 	void __pcr__rewind(
 			real_t p_delta,
 			const uint32_t p_checkable_input_id,
 			NetworkedController *p_controller,
-			PlayerController *p_player_controller,
-			const bool p_recover_controller,
-			const LocalVector<NetUtility::NodeData *> &p_nodes_to_recover);
+			PlayerController *p_player_controller);
 
-	void __pcr__sync_no_rewind(
-			const LocalVector<NetUtility::PostponedRecover> &p_postponed_recover);
+	void __pcr__sync__no_rewind(
+			const LocalVector<NetUtility::NoRewindRecover> &p_postponed_recover);
+
+	void __pcr__no_rewind(
+			const uint32_t p_checkable_input_id,
+			PlayerController *p_player_controller);
 
 	void apply_last_received_server_snapshot();
 	void process_paused_controller_recovery(real_t p_delta);

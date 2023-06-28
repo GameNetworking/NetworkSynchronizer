@@ -355,16 +355,12 @@ struct NodeData {
 	// ID used to reference this Node in the networked calls.
 	uint32_t id = 0;
 	ObjectID instance_id = ObjectID();
-	NodeData *controlled_by = nullptr;
 
 	/// When `false`, this node is not sync. It's usefult to locally pause sync
 	/// of specific nodes.
 	bool sync_enabled = true;
 
 	bool is_controller = false;
-	LocalVector<NodeData *> controlled_nodes;
-	LocalVector<NodeData *> dependency_nodes;
-	LocalVector<uint32_t> dependency_nodes_end;
 
 	/// The sync variables of this node. The order of this vector matters
 	/// because the index is the `NetVarId`.
@@ -399,7 +395,7 @@ struct Snapshot {
 	operator String() const;
 };
 
-struct PostponedRecover {
+struct NoRewindRecover {
 	NodeData *node_data = nullptr;
 	Vector<Var> vars;
 };
