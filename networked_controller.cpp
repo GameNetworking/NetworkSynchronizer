@@ -490,9 +490,15 @@ void NetworkedController::native_apply_epoch(double p_delta, real_t p_interpolat
 	}
 }
 
-bool NetworkedController::process_instant(int p_i, real_t p_delta) {
+bool NetworkedController::queue_instant_process(int p_i) {
 	ERR_FAIL_COND_V_MSG(is_player_controller() == false, false, "Can be executed only on player controllers.");
-	return static_cast<PlayerController *>(controller)->process_instant(p_i, p_delta);
+	return static_cast<PlayerController *>(controller)->queue_instant_process(p_i);
+}
+
+void NetworkedController::process(double p_delta) {
+	// This function is called by the `SceneSync` because it's registered as
+	// processing function.
+	controller->process(p_delta);
 }
 
 ServerController *NetworkedController::get_server_controller() {
@@ -560,15 +566,17 @@ void NetworkedController::set_inputs_buffer(const BitArray &p_new_buffer, uint32
 	inputs_buffer.shrink_to(p_metadata_size_in_bit, p_size_in_bit);
 }
 
-void NetworkedController::set_scene_synchronizer(SceneSynchronizer *p_synchronizer) {
+void NetworkedController::notify_registered_with_synchronizer(SceneSynchronizer *p_synchronizer) {
 	if (scene_synchronizer) {
 		scene_synchronizer->disconnect(SNAME("sync_paused"), Callable(this, SNAME("__on_sync_paused")));
+		scene_synchronizer->unregister_process(this, PROCESSPHASE_PROCESS, callable_mp(this, &NetworkedController::process));
 	}
 
 	scene_synchronizer = p_synchronizer;
 
 	if (scene_synchronizer) {
 		scene_synchronizer->connect(SNAME("sync_paused"), Callable(this, SNAME("__on_sync_paused")));
+		scene_synchronizer->register_process(this, PROCESSPHASE_PROCESS, callable_mp(this, &NetworkedController::process));
 	}
 }
 
@@ -710,7 +718,7 @@ void ServerController::process(double p_delta) {
 		SceneSynchronizerDebugger::singleton()->debug_print(node, "Server skips this frame as the current_input_buffer_id == UINT32_MAX", true);
 		return;
 	}
-	
+
 #ifdef DEBUG_ENABLED
 	if (!is_new_input) {
 		node->emit_signal("input_missed", current_input_buffer_id + 1);
@@ -1285,59 +1293,6 @@ PlayerController::PlayerController(NetworkedController *p_node) :
 		acceleration_fps_timer(0.0) {
 }
 
-void PlayerController::process(double p_delta) {
-	// We need to know if we can accept a new input because in case of bad
-	// internet connection we can't keep accumulating inputs forever
-	// otherwise the server will differ too much from the client and we
-	// introduce virtual lag.
-	const bool accept_new_inputs = can_accept_new_inputs();
-
-	if (accept_new_inputs) {
-		current_input_id = input_buffers_counter;
-
-		SceneSynchronizerDebugger::singleton()->debug_print(node, "Player process index: " + itos(current_input_id), true);
-
-		node->get_inputs_buffer_mut().begin_write(METADATA_SIZE);
-
-		node->get_inputs_buffer_mut().seek(METADATA_SIZE);
-
-		SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(node, SceneSynchronizerDebugger::WRITE);
-		node->native_collect_inputs(p_delta, node->get_inputs_buffer_mut());
-		SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
-
-		// Set metadata data.
-		node->get_inputs_buffer_mut().seek(0);
-		if (node->get_inputs_buffer().size() > 0) {
-			node->get_inputs_buffer_mut().add_bool(true);
-			streaming_paused = false;
-		} else {
-			node->get_inputs_buffer_mut().add_bool(false);
-		}
-	} else {
-		SceneSynchronizerDebugger::singleton()->debug_warning(node, "It's not possible to accept new inputs. Is this lagging?");
-	}
-
-	node->get_inputs_buffer_mut().dry();
-	node->get_inputs_buffer_mut().begin_read();
-	node->get_inputs_buffer_mut().seek(METADATA_SIZE); // Skip meta.
-
-	SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(node, SceneSynchronizerDebugger::READ);
-	// The physics process is always emitted, because we still need to simulate
-	// the character motion even if we don't store the player inputs.
-	node->native_controller_process(p_delta, node->get_inputs_buffer_mut());
-	SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
-
-	node->player_set_has_new_input(false);
-	if (accept_new_inputs) {
-		if (streaming_paused == false) {
-			input_buffers_counter += 1;
-			store_input_buffer(current_input_id);
-			send_frame_input_buffer_to_server();
-			node->player_set_has_new_input(true);
-		}
-	}
-}
-
 int PlayerController::calculates_sub_ticks(const double p_delta, const double p_iteration_per_seconds) {
 	// Extract the frame acceleration:
 	// 1. convert the Accelerated Tick Hz to second.
@@ -1424,18 +1379,80 @@ uint32_t PlayerController::get_stored_input_id(int p_i) const {
 	}
 }
 
-bool PlayerController::process_instant(int p_i, real_t p_delta) {
-	const size_t i = p_i;
-	if (i < frames_snapshot.size()) {
-		DataBuffer ib(frames_snapshot[i].inputs_buffer);
-		ib.shrink_to(METADATA_SIZE, frames_snapshot[i].buffer_size_bit - METADATA_SIZE);
+bool PlayerController::queue_instant_process(int p_i) {
+	if (p_i >= 0 && p_i < int(frames_snapshot.size())) {
+		queued_instant_to_process = p_i;
+		return (p_i + 1) < int(frames_snapshot.size());
+	} else {
+		queued_instant_to_process = -1;
+		return false;
+	}
+}
+
+void PlayerController::process(double p_delta) {
+	if (unlikely(queued_instant_to_process >= 0)) {
+		// There is a queued instant. It means the SceneSync is rewinding:
+		// instead to fetch a new input, read it from the stored snapshots.
+		DataBuffer ib(frames_snapshot[queued_instant_to_process].inputs_buffer);
+		ib.shrink_to(METADATA_SIZE, frames_snapshot[queued_instant_to_process].buffer_size_bit - METADATA_SIZE);
 		ib.begin_read();
 		ib.seek(METADATA_SIZE);
 		node->native_controller_process(p_delta, ib);
-
-		return (i + 1) < frames_snapshot.size();
+		queued_instant_to_process = -1;
 	} else {
-		return false;
+		// Process a new frame.
+		// This handles: 1. Read input 2. Process 3. Store the input
+
+		// We need to know if we can accept a new input because in case of bad
+		// internet connection we can't keep accumulating inputs forever
+		// otherwise the server will differ too much from the client and we
+		// introduce virtual lag.
+		const bool accept_new_inputs = can_accept_new_inputs();
+
+		if (accept_new_inputs) {
+			current_input_id = input_buffers_counter;
+
+			SceneSynchronizerDebugger::singleton()->debug_print(node, "Player process index: " + itos(current_input_id), true);
+
+			node->get_inputs_buffer_mut().begin_write(METADATA_SIZE);
+
+			node->get_inputs_buffer_mut().seek(METADATA_SIZE);
+
+			SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(node, SceneSynchronizerDebugger::WRITE);
+			node->native_collect_inputs(p_delta, node->get_inputs_buffer_mut());
+			SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
+
+			// Set metadata data.
+			node->get_inputs_buffer_mut().seek(0);
+			if (node->get_inputs_buffer().size() > 0) {
+				node->get_inputs_buffer_mut().add_bool(true);
+				streaming_paused = false;
+			} else {
+				node->get_inputs_buffer_mut().add_bool(false);
+			}
+		} else {
+			SceneSynchronizerDebugger::singleton()->debug_warning(node, "It's not possible to accept new inputs. Is this lagging?");
+		}
+
+		node->get_inputs_buffer_mut().dry();
+		node->get_inputs_buffer_mut().begin_read();
+		node->get_inputs_buffer_mut().seek(METADATA_SIZE); // Skip meta.
+
+		SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(node, SceneSynchronizerDebugger::READ);
+		// The physics process is always emitted, because we still need to simulate
+		// the character motion even if we don't store the player inputs.
+		node->native_controller_process(p_delta, node->get_inputs_buffer_mut());
+		SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
+
+		node->player_set_has_new_input(false);
+		if (accept_new_inputs) {
+			if (streaming_paused == false) {
+				input_buffers_counter += 1;
+				store_input_buffer(current_input_id);
+				send_frame_input_buffer_to_server();
+				node->player_set_has_new_input(true);
+			}
+		}
 	}
 }
 

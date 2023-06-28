@@ -52,6 +52,12 @@ void SceneSynchronizer::_bind_methods() {
 	BIND_ENUM_CONSTANT(SYNC)
 	BIND_ENUM_CONSTANT(ALWAYS)
 
+	BIND_ENUM_CONSTANT(PROCESSPHASE_EARLY)
+	BIND_ENUM_CONSTANT(PROCESSPHASE_PRE)
+	BIND_ENUM_CONSTANT(PROCESSPHASE_PROCESS)
+	BIND_ENUM_CONSTANT(PROCESSPHASE_POST)
+	BIND_ENUM_CONSTANT(PROCESSPHASE_LATE)
+
 	ClassDB::bind_method(D_METHOD("reset_synchronizer_mode"), &SceneSynchronizer::reset_synchronizer_mode);
 	ClassDB::bind_method(D_METHOD("clear"), &SceneSynchronizer::clear);
 
@@ -60,12 +66,6 @@ void SceneSynchronizer::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_comparison_float_tolerance", "tolerance"), &SceneSynchronizer::set_comparison_float_tolerance);
 	ClassDB::bind_method(D_METHOD("get_comparison_float_tolerance"), &SceneSynchronizer::get_comparison_float_tolerance);
-
-	ClassDB::bind_method(D_METHOD("set_actions_redundancy", "redundancy"), &SceneSynchronizer::set_actions_redundancy);
-	ClassDB::bind_method(D_METHOD("get_actions_redundancy"), &SceneSynchronizer::get_actions_redundancy);
-
-	ClassDB::bind_method(D_METHOD("set_actions_resend_time", "time"), &SceneSynchronizer::set_actions_resend_time);
-	ClassDB::bind_method(D_METHOD("get_actions_resend_time"), &SceneSynchronizer::get_actions_resend_time);
 
 	ClassDB::bind_method(D_METHOD("register_node", "node"), &SceneSynchronizer::register_node_gdscript);
 	ClassDB::bind_method(D_METHOD("unregister_node", "node"), &SceneSynchronizer::unregister_node);
@@ -80,25 +80,13 @@ void SceneSynchronizer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("stop_node_sync", "node"), &SceneSynchronizer::stop_node_sync);
 	ClassDB::bind_method(D_METHOD("is_node_sync", "node"), &SceneSynchronizer::is_node_sync);
 
-	ClassDB::bind_method(D_METHOD("register_action", "node", "action_func", "action_encoding_func", "can_client_trigger", "wait_server_validation", "server_action_validation_func"), &SceneSynchronizer::register_action, DEFVAL(false), DEFVAL(false), DEFVAL(StringName()));
-	ClassDB::bind_method(D_METHOD("find_action_id", "node", "event_name"), &SceneSynchronizer::find_action_id);
-	ClassDB::bind_method(D_METHOD("trigger_action_by_name", "node", "event_name", "arguments", "recipients_peers"), &SceneSynchronizer::trigger_action_by_name, DEFVAL(Array()), DEFVAL(Vector<int>()));
-	ClassDB::bind_method(D_METHOD("trigger_action", "node", "action_id", "arguments", "recipients_peers"), &SceneSynchronizer::trigger_action, DEFVAL(Array()), DEFVAL(Vector<int>()));
-
 	ClassDB::bind_method(D_METHOD("set_skip_rewinding", "node", "variable", "skip_rewinding"), &SceneSynchronizer::set_skip_rewinding);
 
 	ClassDB::bind_method(D_METHOD("track_variable_changes", "node", "variable", "object", "method", "flags"), &SceneSynchronizer::track_variable_changes, DEFVAL(NetEventFlag::DEFAULT));
 	ClassDB::bind_method(D_METHOD("untrack_variable_changes", "node", "variable", "object", "method"), &SceneSynchronizer::untrack_variable_changes);
 
-	ClassDB::bind_method(D_METHOD("set_node_as_controlled_by", "node", "controller"), &SceneSynchronizer::set_node_as_controlled_by);
-
-	ClassDB::bind_method(D_METHOD("controller_add_dependency", "controller", "node"), &SceneSynchronizer::controller_add_dependency);
-	ClassDB::bind_method(D_METHOD("controller_remove_dependency", "controller", "node"), &SceneSynchronizer::controller_remove_dependency);
-	ClassDB::bind_method(D_METHOD("controller_get_dependency_count", "controller"), &SceneSynchronizer::controller_get_dependency_count);
-	ClassDB::bind_method(D_METHOD("controller_get_dependency", "controller", "index"), &SceneSynchronizer::controller_get_dependency);
-
-	ClassDB::bind_method(D_METHOD("register_process", "node", "function"), &SceneSynchronizer::register_process);
-	ClassDB::bind_method(D_METHOD("unregister_process", "node", "function"), &SceneSynchronizer::unregister_process);
+	ClassDB::bind_method(D_METHOD("register_process", "node", "phase", "function"), &SceneSynchronizer::register_process);
+	ClassDB::bind_method(D_METHOD("unregister_process", "node", "phase", "function"), &SceneSynchronizer::unregister_process);
 
 	ClassDB::bind_method(D_METHOD("start_tracking_scene_changes", "diff_handle"), &SceneSynchronizer::start_tracking_scene_changes);
 	ClassDB::bind_method(D_METHOD("stop_tracking_scene_changes", "diff_handle"), &SceneSynchronizer::stop_tracking_scene_changes);
@@ -129,12 +117,9 @@ void SceneSynchronizer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_rpc_notify_need_full_snapshot"), &SceneSynchronizer::_rpc_notify_need_full_snapshot);
 	ClassDB::bind_method(D_METHOD("_rpc_set_network_enabled", "enabled"), &SceneSynchronizer::_rpc_set_network_enabled);
 	ClassDB::bind_method(D_METHOD("_rpc_notify_peer_status", "enabled"), &SceneSynchronizer::_rpc_notify_peer_status);
-	ClassDB::bind_method(D_METHOD("_rpc_send_actions", "enabled"), &SceneSynchronizer::_rpc_send_actions);
 
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "server_notify_state_interval", PROPERTY_HINT_RANGE, "0.001,10.0,0.0001"), "set_server_notify_state_interval", "get_server_notify_state_interval");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "comparison_float_tolerance", PROPERTY_HINT_RANGE, "0.000001,0.01,0.000001"), "set_comparison_float_tolerance", "get_comparison_float_tolerance");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "actions_redundancy", PROPERTY_HINT_RANGE, "1,10,1"), "set_actions_redundancy", "get_actions_redundancy");
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "actions_resend_time", PROPERTY_HINT_RANGE, "0.000001,0.5,0.000001"), "set_actions_resend_time", "get_actions_resend_time");
 
 	ADD_SIGNAL(MethodInfo("sync_started"));
 	ADD_SIGNAL(MethodInfo("sync_paused"));
@@ -224,7 +209,6 @@ SceneSynchronizer::SceneSynchronizer() {
 	rpc_config(SNAME("_rpc_notify_need_full_snapshot"), rpc_config_reliable);
 	rpc_config(SNAME("_rpc_set_network_enabled"), rpc_config_reliable);
 	rpc_config(SNAME("_rpc_notify_peer_status"), rpc_config_reliable);
-	rpc_config(SNAME("_rpc_send_actions"), rpc_config_unreliable);
 
 	// Avoid too much useless re-allocations.
 	event_listener.reserve(100);
@@ -255,22 +239,6 @@ real_t SceneSynchronizer::get_comparison_float_tolerance() const {
 	return comparison_float_tolerance;
 }
 
-void SceneSynchronizer::set_actions_redundancy(int p_redundancy) {
-	actions_redundancy = p_redundancy;
-}
-
-int SceneSynchronizer::get_actions_redundancy() const {
-	return actions_redundancy;
-}
-
-void SceneSynchronizer::set_actions_resend_time(real_t p_time) {
-	actions_resend_time = p_time;
-}
-
-real_t SceneSynchronizer::get_actions_resend_time() const {
-	return actions_resend_time;
-}
-
 bool SceneSynchronizer::is_variable_registered(Node *p_node, const StringName &p_variable) const {
 	const NetUtility::NodeData *nd = find_node_data(p_node);
 	if (nd != nullptr) {
@@ -296,13 +264,16 @@ NetUtility::NodeData *SceneSynchronizer::register_node(Node *p_node) {
 			}
 
 			nd->is_controller = true;
-			controller->set_scene_synchronizer(this);
 			dirty_peers();
 		}
 
 		add_node_data(nd);
 
 		SceneSynchronizerDebugger::singleton()->debug_print(this, "New node registered" + (generate_id ? String(" #ID: ") + itos(nd->id) : "") + " : " + p_node->get_path());
+
+		if (controller) {
+			controller->notify_registered_with_synchronizer(this);
+		}
 	}
 
 	SceneSynchronizerDebugger::singleton()->register_class_for_node_to_dump(p_node);
@@ -444,132 +415,6 @@ bool SceneSynchronizer::is_node_sync(const Node *p_node) const {
 	return nd->sync_enabled;
 }
 
-NetActionId SceneSynchronizer::register_action(
-		Node *p_node,
-		const StringName &p_action_func,
-		const StringName &p_action_encoding_func,
-		bool p_can_client_trigger,
-		bool p_wait_server_validation,
-		const StringName &p_server_action_validation_func) {
-	ERR_FAIL_COND_V(p_node == nullptr, UINT32_MAX);
-
-	// Validate the functions.
-	List<MethodInfo> methods;
-	p_node->get_method_list(&methods);
-
-	MethodInfo *act_func_info = nullptr;
-	MethodInfo *act_encoding_func_info = nullptr;
-	MethodInfo *server_event_validation_info = nullptr;
-
-	for (List<MethodInfo>::Element *e = methods.front(); e; e = e->next()) {
-		if (e->get().name == p_action_func) {
-			act_func_info = &e->get();
-		} else if (e->get().name == p_action_encoding_func) {
-			act_encoding_func_info = &e->get();
-		} else if (p_server_action_validation_func != StringName() && e->get().name == p_server_action_validation_func) {
-			server_event_validation_info = &e->get();
-		}
-	}
-
-	ERR_FAIL_COND_V_MSG(act_func_info == nullptr, UINT32_MAX, "The passed `" + p_node->get_path() + "` doesn't have the event function `" + p_action_func + "`");
-	ERR_FAIL_COND_V_MSG(act_encoding_func_info == nullptr, UINT32_MAX, "The passed `" + p_node->get_path() + "` doesn't have the event_encoding function `" + p_action_encoding_func + "`");
-
-	ERR_FAIL_COND_V_MSG(act_encoding_func_info->arguments.size() != 1, UINT32_MAX, "`" + p_node->get_path() + "` - The passed event_encoding function `" + p_action_encoding_func + "` should have 1 argument with type `InputNetworkEncoder`.");
-	if (act_encoding_func_info->arguments[0].type != Variant::NIL) {
-		// If the paramter is typed, make sure it's the correct type.
-		ERR_FAIL_COND_V_MSG(act_encoding_func_info->arguments[0].type != Variant::OBJECT, UINT32_MAX, "`" + p_node->get_path() + "` - The passed event_encoding function `" + p_action_encoding_func + "` should have 1 argument with type `InputNetworkEncoder`.");
-		ERR_FAIL_COND_V_MSG(act_encoding_func_info->arguments[0].hint != PropertyHint::PROPERTY_HINT_RESOURCE_TYPE, UINT32_MAX, "`" + p_node->get_path() + "` - The passed event_encoding function `" + p_action_encoding_func + "` should have 1 argument with type `InputNetworkEncoder`.");
-		ERR_FAIL_COND_V_MSG(act_encoding_func_info->arguments[0].hint_string != "InputNetworkEncoder", UINT32_MAX, "`" + p_node->get_path() + "` - The passed event_encoding function `" + p_action_encoding_func + "` should have 1 argument with type `InputNetworkEncoder`.");
-	}
-
-	if (server_event_validation_info) {
-		if (server_event_validation_info->return_val.type != Variant::NIL) {
-			ERR_FAIL_COND_V_MSG(server_event_validation_info->return_val.type != Variant::BOOL, UINT32_MAX, "`" + p_node->get_path() + "` - The passed server_action_validation_func `" + p_server_action_validation_func + "` should return a boolean.");
-		}
-
-		// Validate the arguments count.
-		ERR_FAIL_COND_V_MSG(server_event_validation_info->arguments.size() != act_func_info->arguments.size(), UINT32_MAX, "`" + p_node->get_path() + "` - The function `" + p_server_action_validation_func + "` and `" + p_action_func + "` should have the same arguments.");
-
-		// Validate the argument types.
-		List<PropertyInfo>::Element *e_e = act_func_info->arguments.front();
-		List<PropertyInfo>::Element *sevi_e = server_event_validation_info->arguments.front();
-		for (; e_e; e_e = e_e->next(), sevi_e = sevi_e->next()) {
-			ERR_FAIL_COND_V_MSG(sevi_e->get().type != e_e->get().type, UINT32_MAX, "`" + p_node->get_path() + "` - The function `" + p_server_action_validation_func + "` and `" + p_action_func + "` should have the same arguments.");
-		}
-	}
-
-	// Fetch the function encoder and verify it can property encode the act_func arguments.
-	Ref<InputNetworkEncoder> network_encoder;
-	network_encoder.instantiate();
-	p_node->call(p_action_encoding_func, network_encoder);
-	const LocalVector<NetworkedInputInfo> &encoding_info = network_encoder->get_input_info();
-
-	ERR_FAIL_COND_V_MSG(encoding_info.size() != (uint32_t)act_func_info->arguments.size(), UINT32_MAX, "`" + p_node->get_path() + "` - The encoding function should provide an encoding for each argument of `" + p_action_func + "` function (Note the order matters).");
-	int i = 0;
-	for (List<PropertyInfo>::Element *e = act_func_info->arguments.front(); e; e = e->next()) {
-		if (e->get().type != Variant::NIL) {
-			ERR_FAIL_COND_V_MSG(encoding_info[i].default_value.get_type() != e->get().type, UINT32_MAX, "`" + p_node->get_path() + "` - The encoding function " + itos(i) + " parameter is providing a wrong encoding for `" + e->get().name + "`.");
-		}
-		i++;
-	}
-
-	// At this point the validation passed. Just register the event.
-	NetUtility::NodeData *node_data = register_node(p_node);
-	ERR_FAIL_COND_V(node_data == nullptr, UINT32_MAX);
-
-	NetActionId action_id = find_action_id(p_node, p_action_func);
-	ERR_FAIL_COND_V_MSG(action_id != UINT32_MAX, UINT32_MAX, "`" + p_node->get_path() + "` The event `" + p_action_func + "` is already registered, this should never happen.");
-
-	action_id = node_data->net_actions.size();
-	node_data->net_actions.resize(action_id + 1);
-	node_data->net_actions[action_id].id = action_id;
-	node_data->net_actions[action_id].act_func = p_action_func;
-	node_data->net_actions[action_id].act_encoding_func = p_action_encoding_func;
-	node_data->net_actions[action_id].can_client_trigger = p_can_client_trigger;
-	node_data->net_actions[action_id].wait_server_validation = p_wait_server_validation;
-	node_data->net_actions[action_id].server_action_validation_func = p_server_action_validation_func;
-	node_data->net_actions[action_id].network_encoder = network_encoder;
-
-	SceneSynchronizerDebugger::singleton()->debug_print(this, "The event `" + p_action_func + "` on the node `" + p_node->get_path() + "` registered (act_encoding_func: `" + p_action_encoding_func + "`, wait_server_validation: `" + (p_server_action_validation_func ? "true" : "false") + "`, server_action_validation_func: `" + p_server_action_validation_func + "`).");
-	return action_id;
-}
-
-NetActionId SceneSynchronizer::find_action_id(Node *p_node, const StringName &p_action_func) const {
-	const NetUtility::NodeData *nd = find_node_data(p_node);
-	if (nd) {
-		NetActionInfo e;
-		e.act_func = p_action_func;
-		const int64_t i = nd->net_actions.find(e);
-		return i == -1 ? UINT32_MAX : NetActionId(i);
-	}
-	return UINT32_MAX;
-}
-
-void SceneSynchronizer::trigger_action_by_name(
-		Node *p_node,
-		const StringName &p_action_func,
-		const Array &p_arguments,
-		const Vector<int> &p_recipients) {
-	const NetActionId id = find_action_id(p_node, p_action_func);
-	trigger_action(p_node, id, p_arguments, p_recipients);
-}
-
-void SceneSynchronizer::trigger_action(
-		Node *p_node,
-		NetActionId p_action_id,
-		const Array &p_arguments,
-		const Vector<int> &p_recipients) {
-	ERR_FAIL_COND(p_node == nullptr);
-
-	NetUtility::NodeData *nd = find_node_data(p_node);
-	ERR_FAIL_COND_MSG(nd == nullptr, "The event was not found.");
-	ERR_FAIL_COND_MSG(p_action_id >= nd->net_actions.size(), "The event was not found.");
-	ERR_FAIL_COND_MSG(nd->net_actions[p_action_id].network_encoder->get_input_info().size() != uint32_t(p_arguments.size()), "The event `" + p_node->get_path() + "::" + nd->net_actions[p_action_id].act_func + "` was called with the wrong amount of arguments.");
-	ERR_FAIL_COND_MSG(nd->net_actions[p_action_id].can_client_trigger == false && is_client(), "The client is not allowed to trigger this action `" + nd->net_actions[p_action_id].act_func + "`.");
-
-	synchronizer->on_action_triggered(nd, p_action_id, p_arguments, p_recipients);
-}
-
 uint32_t SceneSynchronizer::get_variable_id(Node *p_node, const StringName &p_variable) {
 	ERR_FAIL_COND_V(p_node == nullptr, UINT32_MAX);
 	ERR_FAIL_COND_V(p_variable == StringName(), UINT32_MAX);
@@ -687,140 +532,26 @@ void SceneSynchronizer::untrack_variable_changes(Node *p_node, const StringName 
 	// Don't remove the listener to preserve the order.
 }
 
-void SceneSynchronizer::set_node_as_controlled_by(Node *p_node, Node *p_controller) {
-	NetUtility::NodeData *nd = register_node(p_node);
-	ERR_FAIL_COND(nd == nullptr);
-	ERR_FAIL_COND_MSG(nd->is_controller, "A controller can't be controlled by another controller.");
-
-	if (nd->controlled_by) {
-		// Put the node back into global.
-		nd->controlled_by->controlled_nodes.erase(nd);
-		nd->controlled_by = nullptr;
-	}
-
-	if (p_controller) {
-		NetworkedController *c = Object::cast_to<NetworkedController>(p_controller);
-		ERR_FAIL_COND_MSG(c == nullptr, "The controller must be a node of type: NetworkedController.");
-
-		NetUtility::NodeData *controller_node_data = register_node(p_controller);
-		ERR_FAIL_COND(controller_node_data == nullptr);
-		ERR_FAIL_COND_MSG(controller_node_data->is_controller == false, "The node can be only controlled by a controller.");
-
-#ifdef DEBUG_ENABLED
-		CRASH_COND_MSG(controller_node_data->controlled_nodes.find(nd) != -1, "There is a bug the same node is added twice into the controlled_nodes.");
-#endif
-		controller_node_data->controlled_nodes.push_back(nd);
-		nd->controlled_by = controller_node_data;
-	}
-
-#ifdef DEBUG_ENABLED
-	// Make sure that all controlled nodes are into the proper controller.
-	for (uint32_t i = 0; i < node_data_controllers.size(); i += 1) {
-		for (uint32_t y = 0; y < node_data_controllers[i]->controlled_nodes.size(); y += 1) {
-			CRASH_COND(node_data_controllers[i]->controlled_nodes[y]->controlled_by != node_data_controllers[i]);
-		}
-	}
-#endif
-}
-
-void SceneSynchronizer::controller_add_dependency(Node *p_controller, Node *p_node) {
-	if (is_client() == false) {
-		// Nothing to do.
-		return;
-	}
-
-	NetUtility::NodeData *controller_nd = find_node_data(p_controller);
-	ERR_FAIL_COND_MSG(controller_nd == nullptr, "The passed controller (" + p_controller->get_path() + ") is not registered.");
-	ERR_FAIL_COND_MSG(controller_nd->is_controller == false, "The node passed as controller (" + p_controller->get_path() + ") is not a controller.");
-
-	NetUtility::NodeData *node_nd = find_node_data(p_node);
-	ERR_FAIL_COND_MSG(node_nd == nullptr, "The passed node (" + p_node->get_path() + ") is not registered.");
-	ERR_FAIL_COND_MSG(node_nd->is_controller, "The node (" + p_node->get_path() + ") set as dependency is supposed to be just a node.");
-	ERR_FAIL_COND_MSG(node_nd->controlled_by != nullptr, "The node (" + p_node->get_path() + ") set as dependency is supposed to be just a node.");
-
-	const int64_t index = controller_nd->dependency_nodes.find(node_nd);
-	if (index == -1) {
-		controller_nd->dependency_nodes.push_back(node_nd);
-		controller_nd->dependency_nodes_end.push_back(UINT32_MAX);
-	} else {
-		// We already have this dependency, just make sure we don't delete it.
-		controller_nd->dependency_nodes_end[index] = UINT32_MAX;
-	}
-}
-
-void SceneSynchronizer::controller_remove_dependency(Node *p_controller, Node *p_node) {
-	if (is_client() == false) {
-		// Nothing to do.
-		return;
-	}
-
-	NetUtility::NodeData *controller_nd = find_node_data(p_controller);
-	ERR_FAIL_COND_MSG(controller_nd == nullptr, "The passed controller (" + p_controller->get_path() + ") is not registered.");
-	ERR_FAIL_COND_MSG(controller_nd->is_controller == false, "The node passed as controller (" + p_controller->get_path() + ") is not a controller.");
-
-	NetUtility::NodeData *node_nd = find_node_data(p_node);
-	ERR_FAIL_COND_MSG(node_nd == nullptr, "The passed node (" + p_node->get_path() + ") is not registered.");
-	ERR_FAIL_COND_MSG(node_nd->is_controller, "The node (" + p_node->get_path() + ") set as dependency is supposed to be just a node.");
-	ERR_FAIL_COND_MSG(node_nd->controlled_by != nullptr, "The node (" + p_node->get_path() + ") set as dependency is supposed to be just a node.");
-
-	const int64_t index = controller_nd->dependency_nodes.find(node_nd);
-	if (index == -1) {
-		// Nothing to do, this node is not a dependency.
-		return;
-	}
-
-	// Instead to remove the dependency immeditaly we have to postpone it till
-	// the server confirms the valitity via state.
-	// This operation is required otherwise the dependency is remvoved too early,
-	// and an eventual rewind may miss it.
-	// The actual removal is performed at the end of the sync.
-	controller_nd->dependency_nodes_end[index] =
-			static_cast<NetworkedController *>(controller_nd->node)->get_current_input_id();
-}
-
-int SceneSynchronizer::controller_get_dependency_count(Node *p_controller) const {
-	if (is_client() == false) {
-		// Nothing to do.
-		return 0;
-	}
-
-	const NetUtility::NodeData *controller_nd = find_node_data(p_controller);
-	ERR_FAIL_COND_V_MSG(controller_nd == nullptr, 0, "The passed controller (" + p_controller->get_path() + ") is not registered.");
-	ERR_FAIL_COND_V_MSG(controller_nd->is_controller == false, 0, "The node passed as controller (" + p_controller->get_path() + ") is not a controller.");
-	return controller_nd->dependency_nodes.size();
-}
-
-Node *SceneSynchronizer::controller_get_dependency(Node *p_controller, int p_index) {
-	if (is_client() == false) {
-		// Nothing to do.
-		return nullptr;
-	}
-
-	NetUtility::NodeData *controller_nd = find_node_data(p_controller);
-	ERR_FAIL_COND_V_MSG(controller_nd == nullptr, nullptr, "The passed controller (" + p_controller->get_path() + ") is not registered.");
-	ERR_FAIL_COND_V_MSG(controller_nd->is_controller == false, nullptr, "The node passed as controller (" + p_controller->get_path() + ") is not a controller.");
-	ERR_FAIL_INDEX_V(p_index, int(controller_nd->dependency_nodes.size()), nullptr);
-
-	return controller_nd->dependency_nodes[p_index]->node;
-}
-
-void SceneSynchronizer::register_process(Node *p_node, const StringName &p_function) {
+void SceneSynchronizer::register_process(Node *p_node, ProcessPhase p_phase, Callable p_func) {
 	ERR_FAIL_COND(p_node == nullptr);
-	ERR_FAIL_COND(p_function == StringName());
+	ERR_FAIL_COND(!p_func.is_valid());
 	NetUtility::NodeData *node_data = register_node(p_node);
 	ERR_FAIL_COND(node_data == nullptr);
 
-	if (node_data->functions.find(p_function) == -1) {
-		node_data->functions.push_back(p_function);
+	if (node_data->functions[p_phase].find(p_func) == -1) {
+		node_data->functions[p_phase].push_back(p_func);
 	}
+
+	process_functions__clear();
 }
 
-void SceneSynchronizer::unregister_process(Node *p_node, const StringName &p_function) {
+void SceneSynchronizer::unregister_process(Node *p_node, ProcessPhase p_phase, const Callable &p_func) {
 	ERR_FAIL_COND(p_node == nullptr);
-	ERR_FAIL_COND(p_function == StringName());
+	ERR_FAIL_COND(!p_func.is_valid());
 	NetUtility::NodeData *node_data = register_node(p_node);
 	ERR_FAIL_COND(node_data == nullptr);
-	node_data->functions.erase(p_function);
+	node_data->functions[p_phase].erase(p_func);
+	process_functions__clear();
 }
 
 void SceneSynchronizer::start_tracking_scene_changes(Object *p_diff_handle) const {
@@ -1125,6 +856,8 @@ void SceneSynchronizer::reset_synchronizer_mode() {
 
 	// Reset the controllers.
 	reset_controllers();
+
+	process_functions__clear();
 }
 
 void SceneSynchronizer::clear() {
@@ -1145,6 +878,62 @@ void SceneSynchronizer::clear() {
 
 	if (synchronizer) {
 		synchronizer->clear();
+	}
+
+	process_functions__clear();
+}
+
+void SceneSynchronizer::process_functions__clear() {
+	cached_process_functions_valid = false;
+}
+
+void SceneSynchronizer::process_functions__execute(const double p_delta) {
+	if (cached_process_functions_valid == false) {
+		// Clear the process_functions.
+		for (int process_phase = PROCESSPHASE_EARLY; process_phase < PROCESSPHASE_COUNT; ++process_phase) {
+			cached_process_functions[process_phase].clear();
+		}
+
+		// Build the cached_process_functions, making sure the node data order is kept.
+		for (uint32_t i = 0; i < organized_node_data.size(); ++i) {
+			NetUtility::NodeData *nd = organized_node_data[i];
+			if (nd) {
+				// For each valid NodeData.
+				for (int process_phase = PROCESSPHASE_EARLY; process_phase < PROCESSPHASE_COUNT; ++process_phase) {
+					// and each process phase.
+					for (uint32_t u = 0; u < nd->functions[process_phase].size(); u++) {
+						// and for each function contained into the phase of this NodeData.
+						cached_process_functions[process_phase].push_back(nd->functions[process_phase][u]);
+					}
+				}
+			}
+		}
+
+		cached_process_functions_valid = true;
+	}
+
+	SceneSynchronizerDebugger::singleton()->debug_print(this, "Process functions START", true);
+
+	const Variant var_delta = p_delta;
+	const Variant *fake_array_vars = &var_delta;
+	Variant r;
+	Callable::CallError e;
+
+	for (int process_phase = PROCESSPHASE_EARLY; process_phase < PROCESSPHASE_COUNT; ++process_phase) {
+		for (uint32_t i = 0; i < cached_process_functions[process_phase].size(); ++i) {
+#ifdef DEBUG_ENABLED
+			const Object *object = cached_process_functions[process_phase][i].get_object();
+			const Node *n = Object::cast_to<const Node>(object);
+			const String name = n ? String(n->get_path()) : "UNKNOWN";
+			SceneSynchronizerDebugger::singleton()->debug_print(this, "|- `" + String(ProcessPhaseName[process_phase]) + "` Func: `" + cached_process_functions[process_phase][i].get_method() + "` NODE: `" + name + "`", true);
+#endif
+
+			cached_process_functions[process_phase][i].callp(&fake_array_vars, 1, r, e);
+
+			if (e.error != Callable::CallError::CALL_OK) {
+				SceneSynchronizerDebugger::singleton()->debug_error(this, "|    \\ERROR, function not executed: `" + itos(e.error) + "`", true);
+			}
+		}
 	}
 }
 
@@ -1176,24 +965,6 @@ void SceneSynchronizer::_rpc_set_network_enabled(bool p_enabled) {
 void SceneSynchronizer::_rpc_notify_peer_status(bool p_enabled) {
 	ERR_FAIL_COND_MSG(is_client() == false, "The peer status is supposed to be received by the client.");
 	static_cast<ClientSynchronizer *>(synchronizer)->set_enabled(p_enabled);
-}
-
-void SceneSynchronizer::_rpc_send_actions(const Vector<uint8_t> &p_data) {
-	// Anyone can receive acts.
-	DataBuffer db(p_data);
-	db.begin_read();
-
-	LocalVector<SenderNetAction> received_actions;
-
-	const int sender_peer = get_tree()->get_multiplayer()->get_remote_sender_id();
-
-	net_action::decode_net_action(
-			this,
-			db,
-			sender_peer,
-			received_actions);
-
-	synchronizer->on_actions_received(sender_peer, received_actions);
 }
 
 void SceneSynchronizer::update_peers() {
@@ -1413,6 +1184,10 @@ void SceneSynchronizer::add_node_data(NetUtility::NodeData *p_node_data) {
 		reset_controller(p_node_data);
 	}
 
+	if (p_node_data->has_registered_process_functions()) {
+		process_functions__clear();
+	}
+
 	if (synchronizer) {
 		synchronizer->on_node_added(p_node_data);
 	}
@@ -1423,21 +1198,9 @@ void SceneSynchronizer::drop_node_data(NetUtility::NodeData *p_node_data) {
 		synchronizer->on_node_removed(p_node_data);
 	}
 
-	if (p_node_data->controlled_by) {
-		// This node is controlled by another one, remove from that node.
-		p_node_data->controlled_by->controlled_nodes.erase(p_node_data);
-		p_node_data->controlled_by = nullptr;
-	}
-
-	// Set all controlled nodes as not controlled by this.
-	for (uint32_t i = 0; i < p_node_data->controlled_nodes.size(); i += 1) {
-		p_node_data->controlled_nodes[i]->controlled_by = nullptr;
-	}
-	p_node_data->controlled_nodes.clear();
-
 	if (p_node_data->is_controller) {
 		// This is a controller, make sure to reset the peers.
-		static_cast<NetworkedController *>(p_node_data->node)->set_scene_synchronizer(nullptr);
+		static_cast<NetworkedController *>(p_node_data->node)->notify_registered_with_synchronizer(nullptr);
 		dirty_peers();
 		node_data_controllers.erase(p_node_data);
 	}
@@ -1447,14 +1210,6 @@ void SceneSynchronizer::drop_node_data(NetUtility::NodeData *p_node_data) {
 	if (p_node_data->id < organized_node_data.size()) {
 		// Never resize this vector to keep it sort.
 		organized_node_data[p_node_data->id] = nullptr;
-	}
-
-	for (uint32_t i = 0; i < node_data_controllers.size(); i += 1) {
-		const int64_t index = node_data_controllers[i]->dependency_nodes.find(p_node_data);
-		if (index != -1) {
-			node_data_controllers[i]->dependency_nodes.remove_at_unordered(index);
-			node_data_controllers[i]->dependency_nodes_end.remove_at_unordered(index);
-		}
 	}
 
 	// Remove this `NodeData` from any event listener.
@@ -1479,6 +1234,10 @@ void SceneSynchronizer::drop_node_data(NetUtility::NodeData *p_node_data) {
 		}
 	}
 
+	if (p_node_data->has_registered_process_functions()) {
+		process_functions__clear();
+	}
+
 	memdelete(p_node_data);
 }
 
@@ -1491,6 +1250,9 @@ void SceneSynchronizer::set_node_data_id(NetUtility::NodeData *p_node_data, NetN
 	}
 	p_node_data->id = p_id;
 	organized_node_data[p_id] = p_node_data;
+	if (p_node_data->has_registered_process_functions()) {
+		process_functions__clear();
+	}
 	SceneSynchronizerDebugger::singleton()->debug_print(this, "NetNodeId: " + itos(p_id) + " just assigned to: " + p_node_data->node->get_path());
 }
 
@@ -1702,30 +1464,6 @@ void SceneSynchronizer::validate_nodes() {
 }
 #endif
 
-void SceneSynchronizer::purge_node_dependencies() {
-	if (is_client() == false) {
-		return;
-	}
-
-	// Clear the controller dependencies.
-	ClientSynchronizer *client_sync = static_cast<ClientSynchronizer *>(synchronizer);
-
-	for (uint32_t i = 0; i < node_data_controllers.size(); i += 1) {
-		for (
-				int d = 0;
-				d < int(node_data_controllers[i]->dependency_nodes_end.size());
-				d += 1) {
-			if (node_data_controllers[i]->dependency_nodes_end[d] < client_sync->last_checked_input) {
-				// This controller dependency can be cleared because the server
-				// snapshot check has
-				node_data_controllers[i]->dependency_nodes.remove_at_unordered(d);
-				node_data_controllers[i]->dependency_nodes_end.remove_at_unordered(d);
-				d -= 1;
-			}
-		}
-	}
-}
-
 void SceneSynchronizer::expand_organized_node_data_vector(uint32_t p_size) {
 	const uint32_t from = organized_node_data.size();
 	organized_node_data.resize(from + p_size);
@@ -1844,7 +1582,6 @@ void SceneSynchronizer::process() {
 #endif
 
 	synchronizer->process();
-	purge_node_dependencies();
 }
 
 void SceneSynchronizer::pull_node_changes(NetUtility::NodeData *p_node_data) {
@@ -1897,24 +1634,8 @@ void NoNetSynchronizer::process() {
 	const double physics_ticks_per_second = Engine::get_singleton()->get_physics_ticks_per_second();
 	const double delta = 1.0 / physics_ticks_per_second;
 
-	// Process the scene
-	for (uint32_t i = 0; i < scene_synchronizer->node_data.size(); i += 1) {
-		NetUtility::NodeData *nd = scene_synchronizer->node_data[i];
-		nd->process(delta);
-	}
-
-	// Process the controllers_node_data
-	for (uint32_t i = 0; i < scene_synchronizer->node_data_controllers.size(); i += 1) {
-		NetUtility::NodeData *nd = scene_synchronizer->node_data_controllers[i];
-		static_cast<NetworkedController *>(nd->node)->get_nonet_controller()->process(delta);
-	}
-
-	// Execute the actions.
-	for (uint32_t i = 0; i < pending_actions.size(); i += 1) {
-		pending_actions[i].execute();
-	}
-	// No need to do anything else, just claen the acts.
-	pending_actions.clear();
+	// Process the scene.
+	scene_synchronizer->process_functions__execute(delta);
 
 	// Pull the changes.
 	scene_synchronizer->change_events_begin(NetEventFlag::CHANGE);
@@ -1927,19 +1648,6 @@ void NoNetSynchronizer::process() {
 	SceneSynchronizerDebugger::singleton()->scene_sync_process_end(scene_synchronizer);
 	SceneSynchronizerDebugger::singleton()->write_dump(0, frame_index);
 	SceneSynchronizerDebugger::singleton()->start_new_frame();
-}
-
-void NoNetSynchronizer::on_action_triggered(
-		NetUtility::NodeData *p_node_data,
-		NetActionId p_id,
-		const Array &p_arguments,
-		const Vector<int> &p_recipients) {
-	NetActionProcessor action_processor = NetActionProcessor(p_node_data, p_id, p_arguments);
-	if (action_processor.server_validate()) {
-		pending_actions.push_back(action_processor);
-	} else {
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "The `" + action_processor + "` action validation returned `false`. The action is discarded.");
-	}
 }
 
 void NoNetSynchronizer::set_enabled(bool p_enabled) {
@@ -1983,19 +1691,7 @@ void ServerSynchronizer::process() {
 	SceneSynchronizerDebugger::singleton()->scene_sync_process_start(scene_synchronizer);
 
 	// Process the scene
-	for (uint32_t i = 0; i < scene_synchronizer->node_data.size(); i += 1) {
-		NetUtility::NodeData *nd = scene_synchronizer->node_data[i];
-		nd->process(delta);
-	}
-
-	// Process the controllers_node_data
-	for (uint32_t i = 0; i < scene_synchronizer->node_data_controllers.size(); i += 1) {
-		NetUtility::NodeData *nd = scene_synchronizer->node_data_controllers[i];
-		static_cast<NetworkedController *>(nd->node)->get_server_controller()->process(delta);
-	}
-
-	// Process the actions
-	execute_actions();
+	scene_synchronizer->process_functions__execute(delta);
 
 	// Pull the changes.
 	scene_synchronizer->change_events_begin(NetEventFlag::CHANGE);
@@ -2008,9 +1704,6 @@ void ServerSynchronizer::process() {
 	process_snapshot_notificator(delta);
 
 	SceneSynchronizerDebugger::singleton()->scene_sync_process_end(scene_synchronizer);
-
-	clean_pending_actions();
-	check_missing_actions();
 
 #if DEBUG_ENABLED
 	// Write the debug dump for each peer.
@@ -2046,12 +1739,6 @@ void ServerSynchronizer::on_node_added(NetUtility::NodeData *p_node_data) {
 }
 
 void ServerSynchronizer::on_node_removed(NetUtility::NodeData *p_node_data) {
-	// Remove the actions as the `NodeData` is gone.
-	for (int64_t i = int64_t(server_actions.size()) - 1; i >= 0; i -= 1) {
-		if (server_actions[i].action_processor.nd == p_node_data) {
-			server_actions.remove_at_unordered(i);
-		}
-	}
 }
 
 void ServerSynchronizer::on_variable_added(NetUtility::NodeData *p_node_data, const StringName &p_var_name) {
@@ -2083,128 +1770,6 @@ void ServerSynchronizer::on_variable_changed(NetUtility::NodeData *p_node_data, 
 	}
 
 	changes[p_node_data->id].vars.insert(p_node_data->vars[p_var_id].var.name);
-}
-
-void ServerSynchronizer::on_action_triggered(
-		NetUtility::NodeData *p_node_data,
-		NetActionId p_id,
-		const Array &p_arguments,
-		const Vector<int> &p_recipients) {
-	// The server can just trigger the action.
-
-	// Definte the action index.
-	const uint32_t server_action_token = server_actions_count;
-	server_actions_count += 1;
-
-	const uint32_t index = server_actions.size();
-	server_actions.resize(index + 1);
-
-	server_actions[index].prepare_processor(p_node_data, p_id, p_arguments);
-	server_actions[index].sender_peer = 1;
-	server_actions[index].triggerer_action_token = server_action_token;
-	server_actions[index].action_token = server_action_token;
-
-	// Trigger this action on the next tick.
-	for (
-			OAHashMap<int, uint32_t>::Iterator it = peers_next_action_trigger_input_id.iter();
-			it.valid;
-			it = peers_next_action_trigger_input_id.next_iter(it)) {
-		server_actions[index].peers_executed_input_id[*it.key] = *it.value;
-	}
-	server_actions[index].recipients = p_recipients;
-
-	// Now the server can propagate the actions to the clients.
-	send_actions_to_clients();
-}
-
-void ServerSynchronizer::on_actions_received(
-		int p_sender_peer,
-		const LocalVector<SenderNetAction> &p_actions) {
-	NetActionSenderInfo *sender = senders_info.lookup_ptr(p_sender_peer);
-	if (sender == nullptr) {
-		senders_info.set(p_sender_peer, NetActionSenderInfo());
-		sender = senders_info.lookup_ptr(p_sender_peer);
-	}
-
-	NetworkedController *controller = scene_synchronizer->fetch_controller_by_peer(p_sender_peer);
-	ERR_FAIL_COND_MSG(controller == nullptr, "[FATAL] The peer `" + itos(p_sender_peer) + "` is not associated to any controller, though an Action was generated by the client.");
-
-	for (uint32_t g = 0; g < p_actions.size(); g += 1) {
-		const SenderNetAction &action = p_actions[g];
-
-		ERR_CONTINUE_MSG(action.get_action_info().can_client_trigger, "[CHEATER WARNING] This action `" + action.get_action_info().act_func + "` is not supposed to be triggered by the client. Is the client cheating? (Normally the NetSync aborts this kind of request on client side).");
-
-		const bool already_received = sender->process_received_action(action.action_token);
-		if (already_received) {
-			// Already received: nothing to do.
-			continue;
-		}
-
-		// Validate the action.
-		if (!action.action_processor.server_validate()) {
-			// The action is not valid just discard it.
-			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "The `" + action.action_processor + "` action validation returned `false`. The action is discarded. SenderPeer: `" + itos(p_sender_peer) + "`.");
-			continue;
-		}
-
-		// The server assigns a new action index, so we can globally reference the actions using a
-		// single number.
-		const uint32_t server_action_token = server_actions_count;
-		server_actions_count += 1;
-
-		const uint32_t index = server_actions.size();
-		server_actions.push_back(action);
-		server_actions[index].triggerer_action_token = server_actions[index].action_token;
-		server_actions[index].action_token = server_action_token;
-
-		// Set the action execution so for all peer based on when it was executed on the client.
-		const uint32_t action_executed_input_id = action.peer_get_executed_input_id(p_sender_peer);
-		if (action.get_action_info().wait_server_validation ||
-				controller->get_current_input_id() >= action_executed_input_id) {
-			// The action will be executed by the sxerver ASAP:
-			// - This can happen if `wait_server_validation` is used
-			// - The action was received too late. It's necessary to re-schedule the action and notify the
-			//   client.
-
-			for (
-					OAHashMap<int, uint32_t>::Iterator it = peers_next_action_trigger_input_id.iter();
-					it.valid;
-					it = peers_next_action_trigger_input_id.next_iter(it)) {
-				// This code set the `executed_input_id` to the next frame: similarly as done when the
-				// `Action is triggered on the server (check `ServerSynchronizer::on_action_triggered`).
-				server_actions[index].peers_executed_input_id[*it.key] = *it.value;
-			}
-
-			// Notify the sender client to adjust its snapshots.
-			server_actions[index].sender_executed_time_changed = true;
-
-		} else {
-			ERR_CONTINUE_MSG(action_executed_input_id == UINT32_MAX, "[FATAL] The `executed_input_id` is missing on the received action: The action is not `wait_server_validation` so the `input_id` should be available.");
-
-			// All is looking good. Set the action input_id to other peers relative to the sender_peer:
-			// so to execute the Action in Sync.
-			const uint32_t delta_actions = action_executed_input_id - controller->get_current_input_id();
-
-			for (
-					OAHashMap<int, uint32_t>::Iterator it = peers_next_action_trigger_input_id.iter();
-					it.valid;
-					it = peers_next_action_trigger_input_id.next_iter(it)) {
-				if ((*it.key) == p_sender_peer) {
-					// Already set.
-					continue;
-				} else {
-					// Each controller has its own `input_id`: This code calculates and set the `input_id`
-					// relative to the specific peer, so that all will execute the action at the right time.
-					NetworkedController *peer_controller = scene_synchronizer->fetch_controller_by_peer(*it.key);
-					ERR_CONTINUE(peer_controller == nullptr);
-					server_actions[index].peers_executed_input_id[*it.key] = peer_controller->get_current_input_id() + delta_actions;
-				}
-			}
-		}
-	}
-
-	// Now the server can propagate the actions to the clients.
-	send_actions_to_clients();
 }
 
 void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
@@ -2242,27 +1807,27 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 
 		NetUtility::NodeData *nd = peer_it.value->controller_id == UINT32_MAX ? nullptr : scene_synchronizer->get_node_data(peer_it.value->controller_id);
 		if (nd) {
+			CRASH_COND_MSG(nd->is_controller == false, "The NodeData fetched is not a controller: `" + nd->node->get_path() + "`, this is not supposed to happen.");
+
 			// Add the controller input id at the beginning of the frame.
 			snap.push_back(true);
 			NetworkedController *controller = static_cast<NetworkedController *>(nd->node);
 			snap.push_back(controller->get_current_input_id());
-
-			ERR_CONTINUE_MSG(nd->is_controller == false, "[BUG] The NodeData fetched is not a controller: `" + nd->node->get_path() + "`.");
-			controller_generate_snapshot(nd, peer_it.value->need_full_snapshot, snap);
 		} else {
+			// No `input_id` nothing to do.
 			snap.push_back(false);
 		}
 
 		if (peer_it.value->need_full_snapshot) {
 			peer_it.value->need_full_snapshot = false;
 			if (full_global_nodes_snapshot.size() == 0) {
-				full_global_nodes_snapshot = global_nodes_generate_snapshot(true);
+				full_global_nodes_snapshot = generate_snapshot(true);
 			}
 			snap.append_array(full_global_nodes_snapshot);
 
 		} else {
 			if (delta_global_nodes_snapshot.size() == 0) {
-				delta_global_nodes_snapshot = global_nodes_generate_snapshot(false);
+				delta_global_nodes_snapshot = generate_snapshot(false);
 			}
 			snap.append_array(delta_global_nodes_snapshot);
 		}
@@ -2282,71 +1847,23 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 	}
 }
 
-Vector<Variant> ServerSynchronizer::global_nodes_generate_snapshot(bool p_force_full_snapshot) const {
+Vector<Variant> ServerSynchronizer::generate_snapshot(bool p_force_full_snapshot) const {
 	Vector<Variant> snapshot_data;
+
+	const SnapshotGenerationMode mode = p_force_full_snapshot ? SNAPSHOT_GENERATION_MODE_FORCE_FULL : SNAPSHOT_GENERATION_MODE_NORMAL;
 
 	for (uint32_t i = 0; i < scene_synchronizer->node_data.size(); i += 1) {
 		const NetUtility::NodeData *node_data = scene_synchronizer->node_data[i];
 
-		if (node_data == nullptr) {
-			continue;
-
-		} else if (node_data->is_controller || node_data->controlled_by != nullptr) {
-			// Stkip any controller.
-			continue;
-
-		} else {
+		if (node_data != nullptr) {
 			generate_snapshot_node_data(
 					node_data,
-					p_force_full_snapshot ? SNAPSHOT_GENERATION_MODE_FORCE_FULL : SNAPSHOT_GENERATION_MODE_NORMAL,
+					mode,
 					snapshot_data);
 		}
 	}
 
 	return snapshot_data;
-}
-
-void ServerSynchronizer::controller_generate_snapshot(
-		const NetUtility::NodeData *p_node_data,
-		bool p_force_full_snapshot,
-		Vector<Variant> &r_snapshot_result) const {
-	CRASH_COND(p_node_data->is_controller == false);
-
-	// Add the Controller and Controlled node `NodePath`: if unknown.
-	for (uint32_t i = 0; i < scene_synchronizer->node_data.size(); i += 1) {
-		const NetUtility::NodeData *node_data = scene_synchronizer->node_data[i];
-
-		if (node_data == nullptr) {
-			continue;
-
-		} else if (node_data->is_controller == false && node_data->controlled_by == nullptr) {
-			// This is not a controller, skip.
-			continue;
-
-		} else if (node_data == p_node_data || node_data->controlled_by == p_node_data) {
-			// Skip this node because we will collect those info just after this loop.
-			// Here we want to collect only the other controllers.
-			continue;
-		}
-
-		// This is a controller, network only the `NodePath` if it`s unkwnown.
-		generate_snapshot_node_data(
-				node_data,
-				p_force_full_snapshot ? SNAPSHOT_GENERATION_MODE_FORCE_NODE_PATH_ONLY : SNAPSHOT_GENERATION_MODE_NODE_PATH_ONLY,
-				r_snapshot_result);
-	}
-
-	generate_snapshot_node_data(
-			p_node_data,
-			p_force_full_snapshot ? SNAPSHOT_GENERATION_MODE_FORCE_FULL : SNAPSHOT_GENERATION_MODE_NORMAL,
-			r_snapshot_result);
-
-	for (uint32_t i = 0; i < p_node_data->controlled_nodes.size(); i += 1) {
-		generate_snapshot_node_data(
-				p_node_data->controlled_nodes[i],
-				p_force_full_snapshot ? SNAPSHOT_GENERATION_MODE_FORCE_FULL : SNAPSHOT_GENERATION_MODE_NORMAL,
-				r_snapshot_result);
-	}
 }
 
 void ServerSynchronizer::generate_snapshot_node_data(
@@ -2438,169 +1955,6 @@ void ServerSynchronizer::generate_snapshot_node_data(
 	r_snapshot_data.push_back(Variant());
 }
 
-void ServerSynchronizer::execute_actions() {
-	for (uint32_t i = 0; i < server_actions.size(); i += 1) {
-		if (server_actions[i].locally_executed) {
-			// Already executed.
-			continue;
-		}
-
-		// Take the controller associated to the sender_peer, to extract the current `input_id`.
-		int sender_peer = server_actions[i].sender_peer;
-		uint32_t executed_input_id = UINT32_MAX;
-		if (sender_peer == 1) {
-			if (unlikely(scene_synchronizer->peer_data.iter().valid == false)) {
-				// No peers to take as reference to execute this Action, so just execute it right away.
-				server_actions[i].locally_executed = true;
-				server_actions[i].action_processor.execute();
-				continue;
-			}
-
-			// Since this action was triggered by the server, and the server specify as
-			// execution_input_id the same delta for all the peers: in order to execute this action
-			// on the server we can just use any peer as reference to know when it's the right time
-			// to execute the Action.
-			// So it uses the first available peer.
-			sender_peer = *scene_synchronizer->peer_data.iter().key;
-		}
-
-		NetworkedController *controller = scene_synchronizer->fetch_controller_by_peer(sender_peer);
-
-		if (unlikely(controller == nullptr)) {
-			SceneSynchronizerDebugger::singleton()->debug_warning(scene_synchronizer, "ServerSnchronizer::execute_actions. The peer `" + itos(sender_peer) + "` doesn't have any controller associated, but the Action (`" + server_actions[i].action_processor + "`) was generated. Maybe the character disconnected?");
-			server_actions[i].locally_executed = true;
-			server_actions[i].action_processor.execute();
-			continue;
-		}
-
-		executed_input_id = server_actions[i].peer_get_executed_input_id(sender_peer);
-		if (unlikely(executed_input_id == UINT32_MAX)) {
-			SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "[FATAL] The `executed_input_id` is `UINT32_MAX` which means it was unable to fetch the `controller_input_id` from the peer `" + itos(executed_input_id) + "`. Action: `" + server_actions[i].action_processor + "`");
-			// This is likely a bug, so do not even bother executing it.
-			// Marking as executed so this action is dropped.
-			server_actions[i].locally_executed = true;
-			continue;
-		}
-
-		if (controller->get_current_input_id() >= executed_input_id) {
-			if (unlikely(controller->get_current_input_id() > executed_input_id)) {
-				SceneSynchronizerDebugger::singleton()->debug_warning(scene_synchronizer, "ServerSnchronizer::execute_actions. The action `" + server_actions[i].action_processor + "` was planned to be executed on the frame `" + itos(executed_input_id) + "` while the current controller (`" + controller->get_path() + "`) frame is `" + itos(controller->get_current_input_id()) + "`. Since the execution_frame is adjusted when the action is received on the server, this case is triggered when the client stop communicating for some time and some inputs are skipped.");
-			}
-
-			// It's time to execute the Action, Yey!
-			server_actions[i].locally_executed = true;
-			server_actions[i].action_processor.execute();
-		}
-	}
-
-	// Advance the action `input_id` for each peer, so we know when the next action will be triggered.
-	for (OAHashMap<int, NetUtility::PeerData>::Iterator it = scene_synchronizer->peer_data.iter();
-			it.valid;
-			it = scene_synchronizer->peer_data.next_iter(it)) {
-		// The peer
-		const int peer_id = *it.key;
-
-		NetworkedController *controller = scene_synchronizer->fetch_controller_by_peer(peer_id);
-		if (controller && controller->get_current_input_id() != UINT32_MAX) {
-			peers_next_action_trigger_input_id.set(peer_id, controller->get_current_input_id() + 1);
-		}
-	}
-}
-
-void ServerSynchronizer::send_actions_to_clients() {
-	const uint64_t now = OS::get_singleton()->get_ticks_msec();
-
-	LocalVector<SenderNetAction *> packet_actions;
-
-	// First take the significant actions to network.
-	for (uint32_t i = 0; i < server_actions.size(); i += 1) {
-		if (int(server_actions[i].send_count) >= scene_synchronizer->get_actions_redundancy()) {
-			// Nothing to do.
-			continue;
-		}
-
-		if ((server_actions[i].send_timestamp + 2 /*ms - give some room*/) > now) {
-			// Nothing to do.
-			continue;
-		}
-
-		server_actions[i].send_timestamp = now;
-		server_actions[i].send_count += 1;
-		packet_actions.push_back(&server_actions[i]);
-	}
-
-	if (packet_actions.size() == 0) {
-		// Nothing to send.
-		return;
-	}
-
-	// For each peer
-	for (OAHashMap<int, NetUtility::PeerData>::Iterator it = scene_synchronizer->peer_data.iter();
-			it.valid;
-			it = scene_synchronizer->peer_data.next_iter(it)) {
-		// Send to peers.
-		const int peer_id = *it.key;
-
-		// Collects the actions importants for this peer.
-		LocalVector<SenderNetAction *> peer_packet_actions;
-		for (uint32_t i = 0; i < packet_actions.size(); i += 1) {
-			if (
-					(
-							packet_actions[i]->sender_peer == peer_id &&
-							packet_actions[i]->get_action_info().wait_server_validation == false &&
-							packet_actions[i]->sender_executed_time_changed == false) ||
-					(packet_actions[i]->recipients.size() > 0 &&
-							packet_actions[i]->recipients.find(peer_id) == -1)) {
-				// This peer must not receive the action.
-				continue;
-			} else {
-				// This peer has to receive and execute this action.
-				peer_packet_actions.push_back(packet_actions[i]);
-			}
-		}
-
-		if (peer_packet_actions.size() == 0) {
-			// Nothing to network for this peer.
-			continue;
-		}
-
-		// Encode the actions.
-		DataBuffer db;
-		db.begin_write(0);
-		net_action::encode_net_action(packet_actions, peer_id, db);
-		db.dry();
-
-		// Send the action to the peer.
-		scene_synchronizer->rpc_id(
-				peer_id,
-				"_rpc_send_actions",
-				db.get_buffer().get_bytes());
-	}
-}
-
-void ServerSynchronizer::clean_pending_actions() {
-	// The packet will contains the most recent actions.
-	for (int64_t i = int64_t(server_actions.size()) - 1; i >= 0; i -= 1) {
-		if (
-				server_actions[i].locally_executed == false ||
-				int(server_actions[i].send_count) < scene_synchronizer->get_actions_redundancy()) {
-			// Still something to do.
-			continue;
-		}
-
-		server_actions.remove_at_unordered(i);
-	}
-}
-
-void ServerSynchronizer::check_missing_actions() {
-	for (
-			OAHashMap<int, NetActionSenderInfo>::Iterator it = senders_info.iter();
-			it.valid;
-			it = senders_info.next_iter(it)) {
-		it.value->check_missing_actions_and_clean_up(scene_synchronizer);
-	}
-}
-
 ClientSynchronizer::ClientSynchronizer(SceneSynchronizer *p_node) :
 		Synchronizer(p_node) {
 	clear();
@@ -2666,39 +2020,7 @@ void ClientSynchronizer::process() {
 		SceneSynchronizerDebugger::singleton()->scene_sync_process_start(scene_synchronizer);
 
 		// Process the scene.
-		for (uint32_t i = 0; i < scene_synchronizer->node_data.size(); i += 1) {
-			NetUtility::NodeData *nd = scene_synchronizer->node_data[i];
-			nd->process(delta);
-		}
-
-		// Process the player controllers_node_data.
-		player_controller->process(delta);
-
-		// Process the actions
-		for (uint32_t i = 0; i < pending_actions.size(); i += 1) {
-			if (pending_actions[i].locally_executed) {
-				// Already executed.
-				continue;
-			}
-
-			if (pending_actions[i].client_get_executed_input_id() > player_controller->get_current_input_id()) {
-				// Not time yet.
-				continue;
-			}
-
-#ifdef DEBUG_ENABLED
-			if (pending_actions[i].sent_by_the_server == false) {
-				// The executed_frame is set using `actions_input_id` which is correctly advanced: so itsn't
-				// expected that this is different. Please make sure this never happens.
-				CRASH_COND_MSG(pending_actions[i].client_get_executed_input_id() != player_controller->get_current_input_id(), "Action executed_input_id: `" + itos(pending_actions[i].client_get_executed_input_id()) + "` is different from current action `" + itos(player_controller->get_current_input_id()) + "`");
-			}
-#endif
-
-			pending_actions[i].locally_executed = true;
-			pending_actions[i].action_processor.execute();
-		}
-
-		actions_input_id = player_controller->get_current_input_id() + 1;
+		scene_synchronizer->process_functions__execute(delta);
 
 		// Pull the changes.
 		scene_synchronizer->change_events_begin(NetEventFlag::CHANGE);
@@ -2749,10 +2071,6 @@ void ClientSynchronizer::process() {
 
 	scene_synchronizer->change_events_flush();
 
-	send_actions_to_server();
-	clean_pending_actions();
-	check_missing_actions();
-
 #if DEBUG_ENABLED
 	const int client_peer = scene_synchronizer->get_multiplayer()->get_unique_id();
 	SceneSynchronizerDebugger::singleton()->write_dump(client_peer, player_controller->get_current_input_id());
@@ -2795,13 +2113,6 @@ void ClientSynchronizer::on_node_removed(NetUtility::NodeData *p_node_data) {
 		client_snapshots.clear();
 	}
 
-	// Remove the actions as the `NodeData` is gone.
-	for (int64_t i = int64_t(pending_actions.size()) - 1; i >= 0; i -= 1) {
-		if (pending_actions[i].action_processor.nd == p_node_data) {
-			pending_actions.remove_at_unordered(i);
-		}
-	}
-
 	if (p_node_data->id < uint32_t(last_received_snapshot.node_vars.size())) {
 		last_received_snapshot.node_vars.ptrw()[p_node_data->id].clear();
 	}
@@ -2841,112 +2152,6 @@ void ClientSynchronizer::on_controller_reset(NetUtility::NodeData *p_node_data) 
 	}
 }
 
-void ClientSynchronizer::on_action_triggered(
-		NetUtility::NodeData *p_node_data,
-		NetActionId p_id,
-		const Array &p_arguments,
-		const Vector<int> &p_recipients) {
-	ERR_FAIL_COND_MSG(p_recipients.size() > 0, "The client can't specify any peer, this feature is restricted to the server.");
-
-	const uint32_t index = pending_actions.size();
-	pending_actions.resize(index + 1);
-
-	pending_actions[index].action_token = locally_triggered_actions_count;
-	pending_actions[index].triggerer_action_token = locally_triggered_actions_count;
-	locally_triggered_actions_count++;
-
-	pending_actions[index].prepare_processor(p_node_data, p_id, p_arguments);
-
-	if (!pending_actions[index].get_action_info().wait_server_validation) {
-		// Will be immeditaly executed locally, set the execution frame now so we can network the
-		// action right away before it's even executed locally: It's necessary to make this fast!
-		pending_actions[index].client_set_executed_input_id(actions_input_id);
-		pending_actions[index].locally_executed = false;
-	} else {
-		// Do not execute locally, the server will send it back once it's time.
-		pending_actions[index].locally_executed = true;
-	}
-
-	pending_actions[index].sent_by_the_server = false;
-
-	// Network the action.
-	send_actions_to_server();
-}
-
-void ClientSynchronizer::on_actions_received(
-		int sender_peer,
-		const LocalVector<SenderNetAction> &p_actions) {
-	ERR_FAIL_COND_MSG(sender_peer != 1, "[FATAL] Actions dropped becouse was not sent by the server!");
-
-	for (uint32_t g = 0; g < p_actions.size(); g += 1) {
-		const SenderNetAction &action = p_actions[g];
-
-		const bool already_received = server_sender_info.process_received_action(action.action_token);
-		if (already_received) {
-			// Already known nothing to do.
-			continue;
-		}
-
-		// Search the snapshot and add the Action to it.
-		// NOTE: This is needed in case of rewind to take the action into account.
-		NetworkedController *controller = static_cast<NetworkedController *>(player_controller_node_data->node);
-		const uint32_t current_input_id = controller->get_current_input_id();
-
-		if (action.client_get_executed_input_id() <= current_input_id) {
-			// On the server this action was executed on an already passed frame, insert it inside the snapshot.
-			// First search the snapshot:
-			bool add_to_snapshots = false;
-			for (uint32_t x = 0; x < client_snapshots.size(); x += 1) {
-				if (client_snapshots[x].input_id == action.client_get_executed_input_id()) {
-					// Insert the action inside the snapshot, so we can execute to reconcile the client and
-					// the server: I'm using `UINT32_MAX` because we track only locally executed actions.
-					client_snapshots[x].actions.push_back(TokenizedNetActionProcessor(UINT32_MAX, action.action_processor));
-					add_to_snapshots = true;
-					break;
-				}
-			}
-
-			if (!add_to_snapshots) {
-				SceneSynchronizerDebugger::singleton()->debug_warning(scene_synchronizer, "The Action `" + action.get_action_info().act_func + "` was not add to any snapshot as the snapshot was not found. The executed_input_id sent by the server is `" + itos(action.client_get_executed_input_id()) + "`. The actions is dropped.");
-				continue;
-			}
-		}
-
-		// Add the action to the pending actions so it's executed ASAP.
-		const uint32_t index = pending_actions.size();
-		pending_actions.push_back(action);
-		// Never networkd this back to server: afterall the server just sent it!
-		pending_actions[index].sent_by_the_server = true;
-
-		if (action.sender_executed_time_changed) {
-			// This action was generated by this peer, but it arrived too late to the server that
-			// rescheduled it:
-			// Remove the original Action from any stored snapshot to avoid executing it at the wrong time.
-			ERR_CONTINUE_MSG(action.triggerer_action_token == UINT32_MAX, "[FATAL] The server sent an action marked with `sender_executed_time_changed` but the `truggerer_action_token` is not set, this is a bug. Report that.");
-
-			for (uint32_t x = 0; x < client_snapshots.size(); x += 1) {
-				const int64_t action_i = client_snapshots[x].actions.find(TokenizedNetActionProcessor(action.triggerer_action_token, NetActionProcessor()));
-				if (action_i >= 0) {
-					client_snapshots[x].actions.remove_at(action_i);
-					break;
-				}
-			}
-
-			if (pending_actions[index].get_action_info().wait_server_validation == false) {
-				// Since it was already executed, no need to execute again, it's enough just put the Action
-				// to the proper snapshot.
-				pending_actions[index].locally_executed = true;
-			} else {
-				// Execute this locally.
-				pending_actions[index].locally_executed = false;
-			}
-		} else {
-			// Execute this locally.
-			pending_actions[index].locally_executed = false;
-		}
-	}
-}
-
 void ClientSynchronizer::store_snapshot() {
 	NetworkedController *controller = static_cast<NetworkedController *>(player_controller_node_data->node);
 
@@ -2973,12 +2178,6 @@ void ClientSynchronizer::store_snapshot() {
 			continue;
 		}
 
-		if ((node_data->is_controller || node_data->controlled_by != nullptr) &&
-				(node_data != player_controller_node_data && node_data->controlled_by != player_controller_node_data)) {
-			// Ignore this controller.
-			continue;
-		}
-
 		if (node_data->id >= uint32_t(snap.node_vars.size())) {
 			// Make sure this ID is valid.
 			ERR_FAIL_COND_MSG(node_data->id != UINT32_MAX, "[BUG] It's not expected that the client has a node with the NetNodeId (" + itos(node_data->id) + ") bigger than the registered node count: " + itos(snap.node_vars.size()));
@@ -2995,19 +2194,6 @@ void ClientSynchronizer::store_snapshot() {
 			} else {
 				vars[v].name = StringName();
 			}
-		}
-	}
-
-	// Store the actions
-	for (uint32_t i = 0; i < pending_actions.size(); i += 1) {
-		if (pending_actions[i].client_get_executed_input_id() != snap.input_id) {
-			continue;
-		}
-
-		if (pending_actions[i].sent_by_the_server) {
-			// Nothing to do because it was add on arrival into the correct snapshot.
-		} else {
-			snap.actions.push_back(TokenizedNetActionProcessor(pending_actions[i].action_token, pending_actions[i].action_processor));
 		}
 	}
 }
@@ -3163,75 +2349,40 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 #endif
 
 	// --- Phase two: compare the server snapshot with the client snapshot. ---
-	bool need_recover = false;
-	bool recover_controller = false;
-	LocalVector<NetUtility::NodeData *> nodes_to_recover;
-	LocalVector<NetUtility::PostponedRecover> postponed_recover;
+	LocalVector<NetUtility::NoRewindRecover> no_rewind_recover;
 
-	__pcr__fetch_recovery_info(
+	const bool need_rewind = __pcr__fetch_recovery_info(
 			checkable_input_id,
-			need_recover,
-			recover_controller,
-			nodes_to_recover,
-			postponed_recover);
+			no_rewind_recover);
 
 	// Popout the client snapshot.
 	client_snapshots.pop_front();
 
-	// --- Phase three: recover and reply. ---
+	// --- Phase three: recover and rewind. ---
 
-	if (need_recover) {
-		SceneSynchronizerDebugger::singleton()->notify_event(recover_controller ? SceneSynchronizerDebugger::FrameEvent::CLIENT_DESYNC_DETECTED : SceneSynchronizerDebugger::FrameEvent::CLIENT_DESYNC_DETECTED_SOFT);
+	if (need_rewind) {
+		SceneSynchronizerDebugger::singleton()->notify_event(SceneSynchronizerDebugger::FrameEvent::CLIENT_DESYNC_DETECTED);
 		SceneSynchronizerDebugger::singleton()->add_node_message(scene_synchronizer, "Recover input: " + itos(checkable_input_id) + " - Last input: " + itos(player_controller->get_stored_input_id(-1)));
 
-		// Add the postponed recover.
-		for (uint32_t y = 0; y < postponed_recover.size(); ++y) {
-			nodes_to_recover.push_back(postponed_recover[y].node_data);
-		}
+		// Sync.
+		__pcr__sync__rewind();
 
-		if (recover_controller) {
-			// Put the controlled and the controllers_node_data into the nodes to
-			// rewind.
-			// Note, the controller stuffs are added here to ensure that if the
-			// controller need a recover, all its nodes are added; no matter
-			// at which point the difference is found.
-			nodes_to_recover.reserve(
-					nodes_to_recover.size() +
-					player_controller_node_data->controlled_nodes.size() +
-					player_controller_node_data->dependency_nodes.size() +
-					1);
-
-			nodes_to_recover.push_back(player_controller_node_data);
-
-			for (
-					uint32_t y = 0;
-					y < player_controller_node_data->controlled_nodes.size();
-					y += 1) {
-				nodes_to_recover.push_back(player_controller_node_data->controlled_nodes[y]);
-			}
-
-			for (
-					uint32_t y = 0;
-					y < player_controller_node_data->dependency_nodes.size();
-					y += 1) {
-				nodes_to_recover.push_back(player_controller_node_data->dependency_nodes[y]);
-			}
-		}
-
-		__pcr__sync_pre_rewind(
-				nodes_to_recover);
-
-		// Rewind phase.
+		// Rewind.
 		__pcr__rewind(
 				p_delta,
 				checkable_input_id,
 				controller,
-				player_controller,
-				recover_controller,
-				nodes_to_recover);
+				player_controller);
 	} else {
-		__pcr__sync_no_rewind(postponed_recover);
-		player_controller->notify_input_checked(checkable_input_id);
+		if (no_rewind_recover.size() > 0) {
+			SceneSynchronizerDebugger::singleton()->notify_event(SceneSynchronizerDebugger::FrameEvent::CLIENT_DESYNC_DETECTED_SOFT);
+		}
+
+		// Sync.
+		__pcr__sync__no_rewind(no_rewind_recover);
+
+		// No rewind.
+		__pcr__no_rewind(checkable_input_id, player_controller);
 	}
 
 	// Popout the server snapshot.
@@ -3240,34 +2391,34 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 	last_checked_input = checkable_input_id;
 }
 
-void ClientSynchronizer::__pcr__fetch_recovery_info(
+bool ClientSynchronizer::__pcr__fetch_recovery_info(
 		const uint32_t p_input_id,
-		bool &r_need_recover,
-		bool &r_recover_controller,
-		LocalVector<NetUtility::NodeData *> &r_nodes_to_recover,
-		LocalVector<NetUtility::PostponedRecover> &r_postponed_recover) {
-	r_need_recover = false;
-	r_recover_controller = false;
+		LocalVector<NetUtility::NoRewindRecover> &r_no_rewind_recover) {
+#ifdef DEBUG_ENABLED
+	bool need_rewind = false;
+#endif
 
 	Vector<StringName> variable_names;
 	Vector<Variant> server_values;
 	Vector<Variant> client_values;
 
-	r_nodes_to_recover.reserve(server_snapshots.front().node_vars.size());
 	for (uint32_t net_node_id = 0; net_node_id < uint32_t(server_snapshots.front().node_vars.size()); net_node_id += 1) {
 		NetUtility::NodeData *rew_node_data = scene_synchronizer->get_node_data(net_node_id);
 		if (rew_node_data == nullptr || rew_node_data->sync_enabled == false) {
 			continue;
 		}
 
-		bool recover_this_node = false;
 		bool different = false;
 		if (net_node_id >= uint32_t(client_snapshots.front().node_vars.size())) {
 			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Rewind is needed because the client snapshot doesn't contain this node: " + rew_node_data->node->get_path());
-			recover_this_node = true;
+#ifdef DEBUG_ENABLED
+			need_rewind = true;
+#else
+			return true;
+#endif
 			different = true;
 		} else {
-			NetUtility::PostponedRecover rec;
+			NetUtility::NoRewindRecover rec;
 
 			different = compare_vars(
 					rew_node_data,
@@ -3277,22 +2428,14 @@ void ClientSynchronizer::__pcr__fetch_recovery_info(
 
 			if (different) {
 				SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Rewind on frame " + itos(p_input_id) + " is needed because the node on client is different: " + rew_node_data->node->get_path());
-				recover_this_node = true;
+#ifdef DEBUG_ENABLED
+				need_rewind = true;
+#else
+				return true;
+#endif
 			} else if (rec.vars.size() > 0) {
 				rec.node_data = rew_node_data;
-				r_postponed_recover.push_back(rec);
-			}
-		}
-
-		if (recover_this_node) {
-			r_need_recover = true;
-			if (rew_node_data->controlled_by != nullptr ||
-					rew_node_data->is_controller ||
-					player_controller_node_data->dependency_nodes.find(rew_node_data) != -1) {
-				// Controller node.
-				r_recover_controller = true;
-			} else {
-				r_nodes_to_recover.push_back(rew_node_data);
+				r_no_rewind_recover.push_back(rec);
 			}
 		}
 
@@ -3334,34 +2477,37 @@ void ClientSynchronizer::__pcr__fetch_recovery_info(
 		}
 #endif
 	}
+
+#ifdef DEBUG_ENABLED
+	return need_rewind;
+#else
+	return false;
+#endif
 }
 
-void ClientSynchronizer::__pcr__sync_pre_rewind(
-		const LocalVector<NetUtility::NodeData *> &p_nodes_to_recover) {
+void ClientSynchronizer::__pcr__sync__rewind() {
 	// Apply the server snapshot so to go back in time till that moment,
 	// so to be able to correctly reply the movements.
 	scene_synchronizer->change_events_begin(NetEventFlag::SYNC_RECOVER | NetEventFlag::SYNC_RESET);
-	for (uint32_t i = 0; i < p_nodes_to_recover.size(); i += 1) {
-		if (p_nodes_to_recover[i]->id >= uint32_t(server_snapshots.front().node_vars.size())) {
-			SceneSynchronizerDebugger::singleton()->debug_warning(scene_synchronizer, "The node: " + p_nodes_to_recover[i]->node->get_path() + " was not found on the server snapshot, this is not supposed to happen a lot.");
+	for (uint32_t net_node_id = 0; net_node_id < uint32_t(server_snapshots.front().node_vars.size()); net_node_id += 1) {
+		NetUtility::NodeData *nd = scene_synchronizer->get_node_data(net_node_id);
+		if (nd->id >= uint32_t(server_snapshots.front().node_vars.size())) {
+			SceneSynchronizerDebugger::singleton()->debug_warning(scene_synchronizer, "The node: " + nd->node->get_path() + " was not found on the server snapshot, this is not supposed to happen a lot.");
 			continue;
 		}
-		if (p_nodes_to_recover[i]->sync_enabled == false) {
+		if (nd->sync_enabled == false) {
 			// Don't sync this node.
-			// This check is also here, because the `recover_controller`
-			// mechanism, may have insert a no sync node.
-			// The check is here because I feel it more clear, here.
 			continue;
 		}
 
 #ifdef DEBUG_ENABLED
 		// The parser make sure to properly initialize the snapshot variable
 		// array size. So the following condition is always `false`.
-		CRASH_COND(uint32_t(server_snapshots.front().node_vars[p_nodes_to_recover[i]->id].size()) != p_nodes_to_recover[i]->vars.size());
+		CRASH_COND(uint32_t(server_snapshots.front().node_vars[nd->id].size()) != nd->vars.size());
 #endif
 
-		Node *node = p_nodes_to_recover[i]->node;
-		const Vector<NetUtility::Var> s_vars = server_snapshots.front().node_vars[p_nodes_to_recover[i]->id];
+		Node *node = nd->node;
+		const Vector<NetUtility::Var> s_vars = server_snapshots.front().node_vars[nd->id];
 		const NetUtility::Var *s_vars_ptr = s_vars.ptr();
 
 		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Full reset node: " + node->get_path());
@@ -3372,13 +2518,13 @@ void ClientSynchronizer::__pcr__sync_pre_rewind(
 				continue;
 			}
 
-			const Variant current_val = p_nodes_to_recover[i]->vars[v].var.value;
-			p_nodes_to_recover[i]->vars[v].var.value = s_vars_ptr[v].value.duplicate(true);
+			const Variant current_val = nd->vars[v].var.value;
+			nd->vars[v].var.value = s_vars_ptr[v].value.duplicate(true);
 			node->set(s_vars_ptr[v].name, s_vars_ptr[v].value);
 
 			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, " |- Variable: " + s_vars_ptr[v].name + " New value: " + s_vars_ptr[v].value.stringify());
 			scene_synchronizer->change_event_add(
-					p_nodes_to_recover[i],
+					nd,
 					v,
 					current_val);
 		}
@@ -3389,11 +2535,9 @@ void ClientSynchronizer::__pcr__sync_pre_rewind(
 void ClientSynchronizer::__pcr__rewind(
 		real_t p_delta,
 		const uint32_t p_checkable_input_id,
-		NetworkedController *p_controller,
-		PlayerController *p_player_controller,
-		const bool p_recover_controller,
-		const LocalVector<NetUtility::NodeData *> &p_nodes_to_recover) {
-	const int remaining_inputs = p_player_controller->notify_input_checked(p_checkable_input_id);
+		NetworkedController *p_local_controller,
+		PlayerController *p_local_player_controller) {
+	const int remaining_inputs = p_local_player_controller->notify_input_checked(p_checkable_input_id);
 
 #ifdef DEBUG_ENABLED
 	// Unreachable because the SceneSynchronizer and the PlayerController
@@ -3408,88 +2552,68 @@ void ClientSynchronizer::__pcr__rewind(
 	for (int i = 0; i < remaining_inputs; i += 1) {
 		scene_synchronizer->change_events_begin(NetEventFlag::SYNC_RECOVER | NetEventFlag::SYNC_REWIND);
 
-		// Step 1 -- Process the scene nodes.
-		for (uint32_t r = 0; r < p_nodes_to_recover.size(); r += 1) {
-			if (p_nodes_to_recover[r]->sync_enabled == false) {
-				// This node is not sync.
-				continue;
-			}
-			p_nodes_to_recover[r]->process(p_delta);
+		// Step 1 -- Notify the local controller about the instant to process
+		//           on the next process.
 #ifdef DEBUG_ENABLED
-			if (p_nodes_to_recover[r]->functions.size()) {
-				SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Rewind, processed node: " + p_nodes_to_recover[r]->node->get_path());
-			}
+		has_next = p_local_controller->queue_instant_process(i);
+		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Rewind, processed controller: " + p_local_controller->get_path());
+#else
+		p_local_controller->queue_instant_process(i);
 #endif
-		}
 
-		// Step 2 -- Process the controller.
-		if (p_recover_controller && player_controller_node_data->sync_enabled) {
-#ifdef DEBUG_ENABLED
-			has_next =
-#endif
-					p_controller->process_instant(i, p_delta);
-			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Rewind, processed controller: " + p_controller->get_path());
-		}
+		// Step 2 -- Process the scene.
+		scene_synchronizer->process_functions__execute(p_delta);
 
-		// Step 3 -- Process the Actions.
-#ifdef DEBUG_ENABLED
-		// This can't happen because the client stores a snapshot for each frame.
-		CRASH_COND(client_snapshots[i].input_id == p_checkable_input_id + i);
-#endif
-		for (int a_i = 0; a_i < client_snapshots[i].actions.size(); a_i += 1) {
-			// Leave me alone, I don't want to make `execute()` const. 😫
-			NetActionProcessor(client_snapshots[i].actions[a_i].processor).execute();
-			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Rewind, processed Action: " + String(client_snapshots[i].actions[a_i].processor));
-		}
-
-		// Step 4 -- Pull node changes and Update snapshots.
-		for (uint32_t r = 0; r < p_nodes_to_recover.size(); r += 1) {
-			if (p_nodes_to_recover[r]->sync_enabled == false) {
+		// Step 3 -- Pull node changes and Update snapshots.
+		for (uint32_t r = 0; r < scene_synchronizer->node_data.size(); r += 1) {
+			NetUtility::NodeData *nd = scene_synchronizer->node_data[r];
+			if (nd->sync_enabled == false) {
 				// This node is not sync.
 				continue;
 			}
 			// Pull changes
-			scene_synchronizer->pull_node_changes(p_nodes_to_recover[r]);
+			scene_synchronizer->pull_node_changes(nd);
 
 			// Update client snapshot.
-			if (uint32_t(client_snapshots[i].node_vars.size()) <= p_nodes_to_recover[r]->id) {
-				client_snapshots[i].node_vars.resize(p_nodes_to_recover[r]->id + 1);
+			if (uint32_t(client_snapshots[i].node_vars.size()) <= nd->id) {
+				client_snapshots[i].node_vars.resize(nd->id + 1);
 			}
 
-			Vector<NetUtility::Var> *snap_node_vars = client_snapshots[i].node_vars.ptrw() + p_nodes_to_recover[r]->id;
-			snap_node_vars->resize(p_nodes_to_recover[r]->vars.size());
+			Vector<NetUtility::Var> *snap_node_vars = client_snapshots[i].node_vars.ptrw() + nd->id;
+			snap_node_vars->resize(nd->vars.size());
 
 			NetUtility::Var *vars = snap_node_vars->ptrw();
-			for (uint32_t v = 0; v < p_nodes_to_recover[r]->vars.size(); v += 1) {
-				vars[v] = p_nodes_to_recover[r]->vars[v].var;
+			for (uint32_t v = 0; v < nd->vars.size(); v += 1) {
+				vars[v] = nd->vars[v].var;
 			}
 		}
 		scene_synchronizer->change_events_flush();
 	}
 
 #ifdef DEBUG_ENABLED
-	// Unreachable because the above loop consume all instants.
+	// Unreachable because the above loop consume all instants, so the last
+	// process will set this to false.
 	CRASH_COND(has_next);
 #endif
 }
 
-void ClientSynchronizer::__pcr__sync_no_rewind(const LocalVector<NetUtility::PostponedRecover> &p_postponed_recover) {
+void ClientSynchronizer::__pcr__sync__no_rewind(const LocalVector<NetUtility::NoRewindRecover> &p_no_rewind_recover) {
 	// Apply found differences without rewind.
 	scene_synchronizer->change_events_begin(NetEventFlag::SYNC_RECOVER);
-	for (uint32_t i = 0; i < p_postponed_recover.size(); i += 1) {
-		NetUtility::NodeData *rew_node_data = p_postponed_recover[i].node_data;
+	for (uint32_t i = 0; i < p_no_rewind_recover.size(); i += 1) {
+		NetUtility::NodeData *rew_node_data = p_no_rewind_recover[i].node_data;
 		if (rew_node_data->sync_enabled == false) {
 			// This node sync is disabled.
 			continue;
 		}
 
 		Node *node = rew_node_data->node;
-		const NetUtility::Var *vars_ptr = p_postponed_recover[i].vars.ptr();
+		const NetUtility::Var *vars_ptr = p_no_rewind_recover[i].vars.ptr();
 
 		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "[Snapshot partial reset] Node: " + node->get_path());
 
 		// Set the value on the synchronizer too.
-		for (int v = 0; v < p_postponed_recover[i].vars.size(); v += 1) {
+		for (int v = 0; v < p_no_rewind_recover[i].vars.size(); v += 1) {
 			// We need to search it because the postponed recovered is not
 			// aligned.
 			// TODO This array is generated few lines above.
@@ -3528,6 +2652,12 @@ void ClientSynchronizer::__pcr__sync_no_rewind(const LocalVector<NetUtility::Pos
 		}
 	}
 	scene_synchronizer->change_events_flush();
+}
+
+void ClientSynchronizer::__pcr__no_rewind(
+		const uint32_t p_checkable_input_id,
+		PlayerController *p_player_controller) {
+	p_player_controller->notify_input_checked(p_checkable_input_id);
 }
 
 void ClientSynchronizer::process_paused_controller_recovery(real_t p_delta) {
@@ -3956,7 +3086,7 @@ bool ClientSynchronizer::compare_vars(
 		const NetUtility::NodeData *p_synchronizer_node_data,
 		const Vector<NetUtility::Var> &p_server_vars,
 		const Vector<NetUtility::Var> &p_client_vars,
-		Vector<NetUtility::Var> &r_postponed_recover) {
+		Vector<NetUtility::Var> &r_no_rewind_recover) {
 	const NetUtility::Var *s_vars = p_server_vars.ptr();
 	const NetUtility::Var *c_vars = p_client_vars.ptr();
 
@@ -3986,9 +3116,14 @@ bool ClientSynchronizer::compare_vars(
 
 		if (different) {
 			if (p_synchronizer_node_data->vars[var_index].skip_rewinding) {
-				// The vars are different, but this variable don't what to
-				// trigger a rewind.
-				r_postponed_recover.push_back(s_vars[var_index]);
+				// The vars are different, but we don't need to trigger a rewind.
+				r_no_rewind_recover.push_back(s_vars[var_index]);
+				SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer,
+						"[NO REWIND] Difference found on var #" + itos(var_index) + " " + p_synchronizer_node_data->vars[var_index].var.name + " " +
+								"Server value: `" + s_vars[var_index].value.stringify() + "` " +
+								"Client value: `" + c_vars[var_index].value.stringify() + "`.    " +
+								"[Server name: `" + s_vars[var_index].name + "` " +
+								"Client name: `" + c_vars[var_index].name + "`].");
 			} else {
 				// The vars are different.
 				SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer,
@@ -4009,8 +3144,6 @@ bool ClientSynchronizer::compare_vars(
 #ifdef DEBUG_ENABLED
 	return diff;
 #else
-
-	// The vars are not different.
 	return false;
 #endif
 }
@@ -4023,68 +3156,4 @@ void ClientSynchronizer::notify_server_full_snapshot_is_needed() {
 	// Notify the server that a full snapshot is needed.
 	need_full_snapshot_notified = true;
 	scene_synchronizer->rpc_id(1, SNAME("_rpc_notify_need_full_snapshot"));
-}
-
-void ClientSynchronizer::send_actions_to_server() {
-	const uint64_t now = OS::get_singleton()->get_ticks_msec();
-
-	LocalVector<SenderNetAction *> packet_actions;
-
-	// The packet will contains the most recent actions.
-	for (uint32_t i = 0; i < pending_actions.size(); i += 1) {
-		if (pending_actions[i].sent_by_the_server) {
-			// This is a remote Action. Do not network it.
-			continue;
-		}
-
-		if (int(pending_actions[i].send_count) >= scene_synchronizer->get_actions_redundancy()) {
-			// Nothing to do.
-			continue;
-		}
-
-		if ((pending_actions[i].send_timestamp + 2 /*ms - give some room*/) > now) {
-			// Nothing to do.
-			continue;
-		}
-
-		pending_actions[i].send_timestamp = now;
-		pending_actions[i].send_count += 1;
-		packet_actions.push_back(&pending_actions[i]);
-	}
-
-	if (packet_actions.size() <= 0) {
-		// Nothing to send.
-		return;
-	}
-
-	// Encode the actions.
-	DataBuffer db;
-	db.begin_write(0);
-	net_action::encode_net_action(packet_actions, 1, db);
-	db.dry();
-
-	// Send to the server.
-	const int server_peer_id = 1;
-	scene_synchronizer->rpc_id(
-			server_peer_id,
-			"_rpc_send_actions",
-			db.get_buffer().get_bytes());
-}
-
-void ClientSynchronizer::clean_pending_actions() {
-	// The packet will contains the most recent actions.
-	for (int64_t i = int64_t(pending_actions.size()) - 1; i >= 0; i -= 1) {
-		if (
-				pending_actions[i].locally_executed == false ||
-				(pending_actions[i].sent_by_the_server == false && int(pending_actions[i].send_count) < scene_synchronizer->get_actions_redundancy())) {
-			// Still somethin to do.
-			continue;
-		}
-
-		pending_actions.remove_at_unordered(i);
-	}
-}
-
-void ClientSynchronizer::check_missing_actions() {
-	server_sender_info.check_missing_actions_and_clean_up(scene_synchronizer);
 }

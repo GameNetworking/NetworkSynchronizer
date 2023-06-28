@@ -280,7 +280,8 @@ public:
 	virtual void native_collect_epoch_data(DataBuffer &r_buffer);
 	virtual void native_apply_epoch(double p_delta, real_t p_interpolation_alpha, DataBuffer &p_past_buffer, DataBuffer &p_future_buffer);
 
-	bool process_instant(int p_i, real_t p_delta);
+	bool queue_instant_process(int p_i);
+	void process(double p_delta);
 
 	/// Returns the server controller or nullptr if this is not a server.
 	ServerController *get_server_controller();
@@ -304,7 +305,7 @@ public:
 public:
 	void set_inputs_buffer(const BitArray &p_new_buffer, uint32_t p_metadata_size_in_bit, uint32_t p_size_in_bit);
 
-	void set_scene_synchronizer(SceneSynchronizer *p_synchronizer);
+	void notify_registered_with_synchronizer(SceneSynchronizer *p_synchronizer);
 	SceneSynchronizer *get_scene_synchronizer() const;
 	bool has_scene_synchronizer() const;
 
@@ -318,8 +319,6 @@ public:
 	/* On puppet rpc functions. */
 	void _rpc_doll_notify_sync_pause(uint32_t p_epoch);
 	void _rpc_doll_send_epoch_batch(const Vector<uint8_t> &p_data);
-
-	void process(double p_delta);
 
 	void player_set_has_new_input(bool p_has);
 	bool player_has_new_input() const;
@@ -354,6 +353,7 @@ struct Controller {
 
 	virtual void ready() {}
 	virtual uint32_t get_current_input_id() const = 0;
+	virtual void process(double p_delta) = 0;
 
 	virtual void clear_peers() {}
 	virtual void activate_peer(int p_peer) {}
@@ -395,7 +395,7 @@ struct ServerController : public Controller {
 			NetworkedController *p_node,
 			int p_traced_frames);
 
-	void process(double p_delta);
+	virtual void process(double p_delta) override;
 	uint32_t last_known_input() const;
 	virtual uint32_t get_current_input_id() const override;
 
@@ -454,10 +454,10 @@ struct PlayerController : public Controller {
 
 	std::deque<FrameSnapshot> frames_snapshot;
 	LocalVector<uint8_t> cached_packet_data;
+	int queued_instant_to_process = -1;
 
 	PlayerController(NetworkedController *p_node);
 
-	void process(double p_delta);
 	/// Returns the amount of frames to process for this frame.
 	int calculates_sub_ticks(const double p_delta, const double p_iteration_per_seconds);
 	int notify_input_checked(uint32_t p_input_id);
@@ -465,7 +465,8 @@ struct PlayerController : public Controller {
 	uint32_t get_stored_input_id(int p_i) const;
 	virtual uint32_t get_current_input_id() const override;
 
-	bool process_instant(int p_i, real_t p_delta);
+	bool queue_instant_process(int p_i);
+	virtual void process(double p_delta) override;
 
 	void store_input_buffer(uint32_t p_id);
 
@@ -510,7 +511,7 @@ struct DollController : public Controller {
 	DollController(NetworkedController *p_node);
 
 	virtual void ready() override;
-	void process(double p_delta);
+	virtual void process(double p_delta) override;
 	// TODO consider make this non virtual
 	virtual uint32_t get_current_input_id() const override;
 
@@ -527,7 +528,7 @@ struct NoNetController : public Controller {
 
 	NoNetController(NetworkedController *p_node);
 
-	void process(double p_delta);
+	virtual void process(double p_delta) override;
 	virtual uint32_t get_current_input_id() const override;
 };
 

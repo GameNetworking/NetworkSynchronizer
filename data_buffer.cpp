@@ -229,8 +229,6 @@ void DataBuffer::begin_read() {
 bool DataBuffer::add_bool(bool p_input) {
 	ERR_FAIL_COND_V(is_reading == true, p_input);
 
-	DEB_WRITE(DATA_TYPE_BOOL, COMPRESSION_LEVEL_0, p_input);
-
 	const int bits = get_bit_taken(DATA_TYPE_BOOL, COMPRESSION_LEVEL_0);
 
 	make_room_in_bits(bits);
@@ -241,6 +239,8 @@ bool DataBuffer::add_bool(bool p_input) {
 	// Can't never happen because the buffer size is correctly handled.
 	CRASH_COND((metadata_size + bit_size) > buffer.size_in_bits() && bit_offset > buffer.size_in_bits());
 #endif
+
+	DEB_WRITE(DATA_TYPE_BOOL, COMPRESSION_LEVEL_0, p_input);
 
 	return p_input;
 }
@@ -259,8 +259,6 @@ bool DataBuffer::read_bool() {
 
 int64_t DataBuffer::add_int(int64_t p_input, CompressionLevel p_compression_level) {
 	ERR_FAIL_COND_V(is_reading == true, p_input);
-
-	DEB_WRITE(DATA_TYPE_INT, p_compression_level, p_input);
 
 	const int bits = get_bit_taken(DATA_TYPE_INT, p_compression_level);
 
@@ -290,6 +288,8 @@ int64_t DataBuffer::add_int(int64_t p_input, CompressionLevel p_compression_leve
 	// Can't never happen because the buffer size is correctly handled.
 	CRASH_COND((metadata_size + bit_size) > buffer.size_in_bits() && bit_offset > buffer.size_in_bits());
 #endif
+
+	DEB_WRITE(DATA_TYPE_INT, p_compression_level, value);
 
 	return value;
 }
@@ -326,8 +326,6 @@ int64_t DataBuffer::read_int(CompressionLevel p_compression_level) {
 uint64_t DataBuffer::add_uint(uint64_t p_input, CompressionLevel p_compression_level) {
 	ERR_FAIL_COND_V(is_reading == true, p_input);
 
-	DEB_WRITE(DATA_TYPE_UINT, p_compression_level, p_input);
-
 	const int bits = get_bit_taken(DATA_TYPE_UINT, p_compression_level);
 
 	uint64_t value = p_input;
@@ -353,6 +351,8 @@ uint64_t DataBuffer::add_uint(uint64_t p_input, CompressionLevel p_compression_l
 	CRASH_COND((metadata_size + bit_size) > buffer.size_in_bits() && bit_offset > buffer.size_in_bits());
 #endif
 
+	DEB_WRITE(DATA_TYPE_UINT, p_compression_level, value);
+
 	return value;
 }
 
@@ -371,8 +371,6 @@ uint64_t DataBuffer::read_uint(CompressionLevel p_compression_level) {
 
 double DataBuffer::add_real(double p_input, CompressionLevel p_compression_level) {
 	ERR_FAIL_COND_V(is_reading == true, p_input);
-
-	DEB_WRITE(DATA_TYPE_REAL, p_compression_level, p_input);
 
 	// Clamp the input value according to the compression level
 	// Minifloat (compression level 0) have a special bias
@@ -421,7 +419,9 @@ double DataBuffer::add_real(double p_input, CompressionLevel p_compression_level
 	buffer.store_bits(bit_offset, exponent + bias, exponent_bits);
 	bit_offset += exponent_bits;
 
-	return ldexp(sign ? -mantissa : mantissa, exponent);
+	const double value = ldexp(sign ? -mantissa : mantissa, exponent);
+	DEB_WRITE(DATA_TYPE_REAL, p_compression_level, value);
+	return value;
 }
 
 double DataBuffer::read_real(CompressionLevel p_compression_level) {
@@ -457,8 +457,6 @@ real_t DataBuffer::add_positive_unit_real(real_t p_input, CompressionLevel p_com
 #endif
 	ERR_FAIL_COND_V(is_reading == true, p_input);
 
-	DEB_WRITE(DATA_TYPE_POSITIVE_UNIT_REAL, p_compression_level, p_input);
-
 	const int bits = get_bit_taken(DATA_TYPE_POSITIVE_UNIT_REAL, p_compression_level);
 
 	const double max_value = static_cast<double>(~(UINT64_MAX << bits));
@@ -474,7 +472,9 @@ real_t DataBuffer::add_positive_unit_real(real_t p_input, CompressionLevel p_com
 	CRASH_COND((metadata_size + bit_size) > buffer.size_in_bits() && bit_offset > buffer.size_in_bits());
 #endif
 
-	return decompress_unit_float(compressed_val, max_value);
+	const real_t value = decompress_unit_float(compressed_val, max_value);
+	DEB_WRITE(DATA_TYPE_POSITIVE_UNIT_REAL, p_compression_level, value);
+	return value;
 }
 
 real_t DataBuffer::read_positive_unit_real(CompressionLevel p_compression_level) {
@@ -497,8 +497,6 @@ real_t DataBuffer::read_positive_unit_real(CompressionLevel p_compression_level)
 real_t DataBuffer::add_unit_real(real_t p_input, CompressionLevel p_compression_level) {
 	ERR_FAIL_COND_V(is_reading == true, p_input);
 
-	DEB_WRITE(DATA_TYPE_UNIT_REAL, p_compression_level, p_input);
-
 	const real_t added_real = add_positive_unit_real(ABS(p_input), p_compression_level);
 
 	const int bits_for_sign = 1;
@@ -512,7 +510,10 @@ real_t DataBuffer::add_unit_real(real_t p_input, CompressionLevel p_compression_
 	CRASH_COND((metadata_size + bit_size) > buffer.size_in_bits() && bit_offset > buffer.size_in_bits());
 #endif
 
-	return is_negative ? -added_real : added_real;
+	const real_t value = is_negative ? -added_real : added_real;
+	DEB_WRITE(DATA_TYPE_UNIT_REAL, p_compression_level, value);
+
+	return value;
 }
 
 real_t DataBuffer::read_unit_real(CompressionLevel p_compression_level) {
@@ -542,8 +543,6 @@ Vector2 DataBuffer::add_vector2(Vector2 p_input, CompressionLevel p_compression_
 	}
 #endif
 
-	DEB_WRITE(DATA_TYPE_VECTOR2, p_compression_level, p_input);
-
 	DEB_DISABLE
 
 	Vector2 r;
@@ -551,6 +550,8 @@ Vector2 DataBuffer::add_vector2(Vector2 p_input, CompressionLevel p_compression_
 	r[1] = add_real(p_input[1], p_compression_level);
 
 	DEB_ENABLE
+
+	DEB_WRITE(DATA_TYPE_VECTOR2, p_compression_level, r);
 
 	return r;
 }
@@ -588,8 +589,6 @@ Vector2 DataBuffer::add_normalized_vector2(Vector2 p_input, CompressionLevel p_c
 
 	ERR_FAIL_COND_V(is_reading == true, p_input);
 
-	DEB_WRITE(DATA_TYPE_NORMALIZED_VECTOR2, p_compression_level, p_input);
-
 	const int bits = get_bit_taken(DATA_TYPE_NORMALIZED_VECTOR2, p_compression_level);
 	const int bits_for_the_angle = bits - 1;
 	const int bits_for_zero = 1;
@@ -614,7 +613,9 @@ Vector2 DataBuffer::add_normalized_vector2(Vector2 p_input, CompressionLevel p_c
 	CRASH_COND((metadata_size + bit_size) > buffer.size_in_bits() && bit_offset > buffer.size_in_bits());
 #endif
 
-	return Vector2(x, y) * is_not_zero;
+	const Vector2 value = Vector2(x, y) * is_not_zero;
+	DEB_WRITE(DATA_TYPE_NORMALIZED_VECTOR2, p_compression_level, value);
+	return value;
 }
 
 Vector2 DataBuffer::read_normalized_vector2(CompressionLevel p_compression_level) {
@@ -651,8 +652,6 @@ Vector3 DataBuffer::add_vector3(Vector3 p_input, CompressionLevel p_compression_
 	}
 #endif
 
-	DEB_WRITE(DATA_TYPE_VECTOR3, p_compression_level, p_input);
-
 	DEB_DISABLE
 
 	Vector3 r;
@@ -662,6 +661,7 @@ Vector3 DataBuffer::add_vector3(Vector3 p_input, CompressionLevel p_compression_
 
 	DEB_ENABLE
 
+	DEB_WRITE(DATA_TYPE_VECTOR3, p_compression_level, r);
 	return r;
 }
 
@@ -697,8 +697,6 @@ Vector3 DataBuffer::add_normalized_vector3(Vector3 p_input, CompressionLevel p_c
 #endif
 	ERR_FAIL_COND_V(is_reading == true, p_input);
 
-	DEB_WRITE(DATA_TYPE_NORMALIZED_VECTOR3, p_compression_level, p_input);
-
 	DEB_DISABLE
 
 	const real_t x_axis = add_unit_real(p_input.x, p_compression_level);
@@ -707,7 +705,9 @@ Vector3 DataBuffer::add_normalized_vector3(Vector3 p_input, CompressionLevel p_c
 
 	DEB_ENABLE
 
-	return Vector3(x_axis, y_axis, z_axis);
+	const Vector3 value = Vector3(x_axis, y_axis, z_axis);
+	DEB_WRITE(DATA_TYPE_NORMALIZED_VECTOR3, p_compression_level, value);
+	return value;
 }
 
 Vector3 DataBuffer::read_normalized_vector3(CompressionLevel p_compression_level) {
@@ -734,8 +734,6 @@ Variant DataBuffer::add_variant(const Variant &p_input) {
 
 	// Get the variant size.
 	int len = 0;
-
-	DEB_WRITE(DATA_TYPE_VARIANT, COMPRESSION_LEVEL_0, p_input);
 
 	const Error len_err = encode_variant(
 			p_input,
@@ -772,6 +770,7 @@ Variant DataBuffer::add_variant(const Variant &p_input) {
 
 	bit_offset += len * 8;
 
+	DEB_WRITE(DATA_TYPE_VARIANT, COMPRESSION_LEVEL_0, p_input);
 	return p_input;
 }
 

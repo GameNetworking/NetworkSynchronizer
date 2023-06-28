@@ -39,8 +39,6 @@
 #include "core/math/math_funcs.h"
 #include "core/templates/local_vector.h"
 #include "core/variant/variant.h"
-#include "net_action_info.h"
-#include "net_action_processor.h"
 
 class Node;
 
@@ -117,8 +115,24 @@ enum NetEventFlag {
 	ALWAYS = CHANGE | SYNC_RECOVER | SYNC_RESET | SYNC_REWIND | END_SYNC
 };
 
-namespace NetUtility {
+enum ProcessPhase {
+	PROCESSPHASE_EARLY = 0,
+	PROCESSPHASE_PRE,
+	PROCESSPHASE_PROCESS,
+	PROCESSPHASE_POST,
+	PROCESSPHASE_LATE,
+	PROCESSPHASE_COUNT
+};
 
+static const String ProcessPhaseName[PROCESSPHASE_COUNT] = {
+	String("EARLY PROCESS"),
+	String("PRE PROCESS"),
+	String("PROCESS"),
+	String("POST PROCESS"),
+	String("LATE PROCESS")
+};
+
+namespace NetUtility {
 template <class T>
 class StatisticalRingBuffer {
 	LocalVector<T> data;
@@ -341,30 +355,24 @@ struct NodeData {
 	// ID used to reference this Node in the networked calls.
 	uint32_t id = 0;
 	ObjectID instance_id = ObjectID();
-	NodeData *controlled_by = nullptr;
 
 	/// When `false`, this node is not sync. It's usefult to locally pause sync
 	/// of specific nodes.
 	bool sync_enabled = true;
 
 	bool is_controller = false;
-	LocalVector<NodeData *> controlled_nodes;
-	LocalVector<NodeData *> dependency_nodes;
-	LocalVector<uint32_t> dependency_nodes_end;
 
 	/// The sync variables of this node. The order of this vector matters
 	/// because the index is the `NetVarId`.
 	LocalVector<VarData> vars;
-	LocalVector<StringName> functions;
-
-	LocalVector<NetActionInfo> net_actions;
+	LocalVector<Callable> functions[PROCESSPHASE_COUNT];
 
 	// This is valid to use only inside the process function.
 	Node *node = nullptr;
 
 	NodeData() = default;
 
-	void process(const double p_delta) const;
+	bool has_registered_process_functions() const;
 };
 
 struct PeerData {
@@ -384,12 +392,10 @@ struct Snapshot {
 	/// The variable array order also matter.
 	Vector<Vector<Var>> node_vars;
 
-	Vector<TokenizedNetActionProcessor> actions;
-
 	operator String() const;
 };
 
-struct PostponedRecover {
+struct NoRewindRecover {
 	NodeData *node_data = nullptr;
 	Vector<Var> vars;
 };
