@@ -19,33 +19,6 @@
 			<description>
 			</description>
 		</method>
-		<method name="controller_add_dependency">
-			<return type="void" />
-			<argument index="0" name="controller" type="Node" />
-			<argument index="1" name="node" type="Node" />
-			<description>
-			</description>
-		</method>
-		<method name="controller_get_dependency">
-			<return type="Node" />
-			<argument index="0" name="controller" type="Node" />
-			<argument index="1" name="index" type="int" />
-			<description>
-			</description>
-		</method>
-		<method name="controller_get_dependency_count" qualifiers="const">
-			<return type="int" />
-			<argument index="0" name="controller" type="Node" />
-			<description>
-			</description>
-		</method>
-		<method name="controller_remove_dependency">
-			<return type="void" />
-			<argument index="0" name="controller" type="Node" />
-			<argument index="1" name="node" type="Node" />
-			<description>
-			</description>
-		</method>
 		<method name="force_state_notify">
 			<return type="void" />
 			<description>
@@ -153,13 +126,6 @@
 		<method name="set_enabled">
 			<return type="void" />
 			<argument index="0" name="enabled" type="bool" />
-			<description>
-			</description>
-		</method>
-		<method name="set_node_as_controlled_by">
-			<return type="void" />
-			<argument index="0" name="node" type="Node" />
-			<argument index="1" name="controller" type="Node" />
 			<description>
 			</description>
 		</method>
