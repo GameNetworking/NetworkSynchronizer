@@ -57,8 +57,10 @@ class Node;
 #define NET_DEBUG_ERR(msg)
 #endif
 
+extern const uint32_t NetID_NONE;
 typedef uint32_t NetNodeId;
 typedef uint32_t NetVarId;
+typedef uint32_t RealtimeSyncGroupId;
 
 #ifdef TRACY_ENABLE
 
@@ -412,6 +414,11 @@ struct Snapshot {
 struct NoRewindRecover {
 	NodeData *node_data = nullptr;
 	Vector<Var> vars;
+};
+
+struct RealtimeSyncGroup {
+	LocalVector<NetUtility::NodeData *> nodes;
+	LocalVector<int> peers;
 };
 
 } // namespace NetUtility

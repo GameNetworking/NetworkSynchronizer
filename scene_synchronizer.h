@@ -122,6 +122,9 @@ public:
 
 	GDVIRTUAL0(_update_nodes_relevancy);
 
+	/// This SyncGroup contains ALL the registered NodeData.
+	static const RealtimeSyncGroupId REALTIME_GLOBAL_SYNC_GROUP_ID;
+
 private:
 	real_t server_notify_state_interval = 1.0;
 	real_t comparison_float_tolerance = 0.001;
@@ -147,6 +150,10 @@ private:
 
 	// Controller nodes.
 	LocalVector<NetUtility::NodeData *> node_data_controllers;
+
+	/// This array contains a map between the peers and the relevant nodes
+	/// for which the peer is simulating.
+	LocalVector<NetUtility::RealtimeSyncGroup> realtime_sync_groups;
 
 	// Just used to detect when the peer change. TODO Remove this and use a singnal instead.
 	void *peer_ptr = nullptr;
@@ -210,7 +217,12 @@ public:
 
 	void setup_deferred_sync(Node *p_node, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func);
 
-	void set_node_sync_realtime(uint32_t p_id, bool p_realtime);
+	RealtimeSyncGroupId create_realtime_sync_group();
+	void add_node_to_realtime_sync_group_by_id(NetNodeId p_node_id, RealtimeSyncGroupId p_group_id);
+	void add_node_to_realtime_sync_group(NetUtility::NodeData *p_node_data, RealtimeSyncGroupId p_group_id);
+	void remove_node_from_realtime_sync_group_by_id(NetNodeId p_node_id, RealtimeSyncGroupId p_group_id);
+	void remove_node_to_realtime_sync_group(NetUtility::NodeData *p_node_data, RealtimeSyncGroupId p_group_id);
+	void move_peer_to_realtime_sync_group(int p_peer_id, RealtimeSyncGroupId p_group_id);
 
 	void start_tracking_scene_changes(Object *p_diff_handle) const;
 	void stop_tracking_scene_changes(Object *p_diff_handle) const;
@@ -294,8 +306,8 @@ public: // ------------------------------------------------------------ INTERNAL
 	void pull_node_changes(NetUtility::NodeData *p_node_data);
 
 	/// Add node data and generates the `NetNodeId` if allowed.
-	void add_node_data(NetUtility::NodeData *p_node_data);
-	void drop_node_data(NetUtility::NodeData *p_node_data);
+	virtual void add_node_data(NetUtility::NodeData *p_node_data);
+	virtual void drop_node_data(NetUtility::NodeData *p_node_data);
 
 	/// Set the node data net id.
 	void set_node_data_id(NetUtility::NodeData *p_node_data, NetNodeId p_id);

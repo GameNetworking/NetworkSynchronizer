@@ -36,6 +36,8 @@
 
 #include "scene/main/node.h"
 
+const uint32_t NetID_NONE = UINT32_MAX;
+
 bool NetUtility::ChangeListener::operator==(const ChangeListener &p_other) const {
 	return object_id == p_other.object_id && method == p_other.method;
 }
