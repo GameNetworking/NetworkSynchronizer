@@ -151,10 +151,6 @@ private:
 	// Controller nodes.
 	LocalVector<NetUtility::NodeData *> node_data_controllers;
 
-	/// This array contains a map between the peers and the relevant nodes
-	/// for which the peer is simulating.
-	LocalVector<NetUtility::RealtimeSyncGroup> realtime_sync_groups;
-
 	// Just used to detect when the peer change. TODO Remove this and use a singnal instead.
 	void *peer_ptr = nullptr;
 
@@ -221,7 +217,7 @@ public:
 	void add_node_to_realtime_sync_group_by_id(NetNodeId p_node_id, RealtimeSyncGroupId p_group_id);
 	void add_node_to_realtime_sync_group(NetUtility::NodeData *p_node_data, RealtimeSyncGroupId p_group_id);
 	void remove_node_from_realtime_sync_group_by_id(NetNodeId p_node_id, RealtimeSyncGroupId p_group_id);
-	void remove_node_to_realtime_sync_group(NetUtility::NodeData *p_node_data, RealtimeSyncGroupId p_group_id);
+	void remove_node_from_realtime_sync_group(NetUtility::NodeData *p_node_data, RealtimeSyncGroupId p_group_id);
 	void move_peer_to_realtime_sync_group(int p_peer_id, RealtimeSyncGroupId p_group_id);
 
 	void start_tracking_scene_changes(Object *p_diff_handle) const;
@@ -235,7 +231,8 @@ public:
 	bool is_end_sync() const;
 
 	/// This function works only on server.
-	void force_state_notify();
+	void force_state_notify(RealtimeSyncGroupId p_sync_group_id);
+	void force_state_notify_all();
 	/// Make peers as dirty, so they will be reloaded next frame.
 	void dirty_peers();
 
@@ -250,7 +247,9 @@ public:
 
 	void _on_node_removed(Node *p_node);
 
-	void reset_synchronizer_mode();
+	virtual void init_synchronizer(bool p_was_generating_ids);
+	virtual void uninit_synchronizer();
+	virtual void reset_synchronizer_mode();
 	void clear();
 
 	void notify_controller_control_mode_changed(NetworkedController *controller);
@@ -350,6 +349,8 @@ public:
 	virtual void clear() = 0;
 
 	virtual void process() = 0;
+	virtual void on_peer_connected(int p_peer_id) {}
+	virtual void on_peer_disconnected(int p_peer_id) {}
 	virtual void on_node_added(NetUtility::NodeData *p_node_data) {}
 	virtual void on_node_removed(NetUtility::NodeData *p_node_data) {}
 	virtual void on_variable_added(NetUtility::NodeData *p_node_data, const StringName &p_var_name) {}
@@ -376,13 +377,9 @@ public:
 class ServerSynchronizer : public Synchronizer {
 	friend class SceneSynchronizer;
 
-	real_t state_notifier_timer = 0.0;
-
-	struct Change {
-		bool not_known_before = false;
-		RBSet<StringName> uknown_vars;
-		RBSet<StringName> vars;
-	};
+	/// This array contains a map between the peers and the relevant nodes
+	/// for which the peer is simulating.
+	LocalVector<NetUtility::RealtimeSyncGroup> realtime_sync_groups;
 
 	enum SnapshotGenerationMode {
 		/// The shanpshot will include The NodeId or NodePath and allthe changed variables.
@@ -395,22 +392,33 @@ class ServerSynchronizer : public Synchronizer {
 		SNAPSHOT_GENERATION_MODE_FORCE_FULL,
 	};
 
-	/// The changes; the order matters because the index is the NetNodeId.
-	LocalVector<Change> changes;
-
 public:
 	ServerSynchronizer(SceneSynchronizer *p_node);
 
 	virtual void clear() override;
 	virtual void process() override;
+	virtual void on_peer_connected(int p_peer_id) override;
+	virtual void on_peer_disconnected(int p_peer_id) override;
 	virtual void on_node_added(NetUtility::NodeData *p_node_data) override;
 	virtual void on_node_removed(NetUtility::NodeData *p_node_data) override;
 	virtual void on_variable_added(NetUtility::NodeData *p_node_data, const StringName &p_var_name) override;
 	virtual void on_variable_changed(NetUtility::NodeData *p_node_data, NetVarId p_var_id, const Variant &p_old_value, int p_flag) override;
 
+	RealtimeSyncGroupId create_realtime_sync_group();
+	void add_node_to_realtime_sync_group(NetUtility::NodeData *p_node_data, RealtimeSyncGroupId p_group_id);
+	void remove_node_from_realtime_sync_group(NetUtility::NodeData *p_node_data, RealtimeSyncGroupId p_group_id);
+	void move_peer_to_realtime_sync_group(int p_peer_id, RealtimeSyncGroupId p_group_id);
+
 	void process_snapshot_notificator(real_t p_delta);
-	Vector<Variant> generate_snapshot(bool p_force_full_snapshot) const;
-	void generate_snapshot_node_data(const NetUtility::NodeData *p_node_data, SnapshotGenerationMode p_mode, Vector<Variant> &r_result) const;
+	Vector<Variant> generate_snapshot(
+			bool p_force_full_snapshot,
+			const LocalVector<NetUtility::NodeData *> &p_relevant_node_data,
+			const LocalVector<NetUtility::RealtimeSyncGroup::Change> &p_changes) const;
+	void generate_snapshot_node_data(
+			const NetUtility::NodeData *p_node_data,
+			SnapshotGenerationMode p_mode,
+			const LocalVector<NetUtility::RealtimeSyncGroup::Change> &p_changes,
+			Vector<Variant> &r_result) const;
 };
 
 class ClientSynchronizer : public Synchronizer {

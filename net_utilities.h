@@ -417,8 +417,22 @@ struct NoRewindRecover {
 };
 
 struct RealtimeSyncGroup {
+public:
+	struct Change {
+		bool not_known_before = false;
+		RBSet<StringName> uknown_vars;
+		RBSet<StringName> vars;
+	};
+
+public:
 	LocalVector<NetUtility::NodeData *> nodes;
 	LocalVector<int> peers;
+
+	/// The delta changes detected. Used to generate incremental snapshots.
+	/// NOTE: the order matters because the index is the NetNodeId.
+	LocalVector<Change> changes;
+
+	real_t state_notifier_timer = 0.0;
 };
 
 } // namespace NetUtility
