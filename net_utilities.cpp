@@ -95,6 +95,23 @@ bool NetUtility::NodeChangeListener::operator==(const NodeChangeListener &p_othe
 	return node_data == p_other.node_data && var_id == p_other.var_id;
 }
 
+bool NetUtility::RealtimeSyncGroup::is_node_list_changed() const {
+	return nodes_list_changed;
+}
+
+const LocalVector<NetUtility::NodeData *> &NetUtility::RealtimeSyncGroup::get_nodes() const {
+	return nodes;
+}
+
+const LocalVector<NetUtility::RealtimeSyncGroup::Change> &NetUtility::RealtimeSyncGroup::get_changes() const {
+	return changes;
+}
+
+void NetUtility::RealtimeSyncGroup::mark_changes_as_notified() {
+	changes.clear();
+	nodes_list_changed = false;
+}
+
 void NetUtility::RealtimeSyncGroup::add_new_node(NodeData *p_node_data) {
 	if (nodes.find(p_node_data) == -1) {
 		if (changes.size() <= p_node_data->id) {
@@ -104,6 +121,7 @@ void NetUtility::RealtimeSyncGroup::add_new_node(NodeData *p_node_data) {
 		changes[p_node_data->id].not_known_before = true;
 
 		nodes.push_back(p_node_data);
+		nodes_list_changed = true;
 
 		for (int i = 0; i < int(p_node_data->vars.size()); ++i) {
 			notify_new_variable(p_node_data, p_node_data->vars[i].var.name);
@@ -113,6 +131,7 @@ void NetUtility::RealtimeSyncGroup::add_new_node(NodeData *p_node_data) {
 
 void NetUtility::RealtimeSyncGroup::remove_node(NodeData *p_node_data) {
 	nodes.erase(p_node_data);
+	nodes_list_changed = true;
 }
 
 void NetUtility::RealtimeSyncGroup::notify_new_variable(NodeData *p_node_data, const StringName &p_var_name) {
