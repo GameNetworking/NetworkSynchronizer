@@ -45,18 +45,18 @@ BitArray::BitArray(const Vector<uint8_t> &p_bytes) :
 		bytes(p_bytes) {
 }
 
-void BitArray::resize_in_bytes(int p_bytes) {
-	ERR_FAIL_COND_MSG(p_bytes < 0, "Bytes count can't be negative");
-	bytes.resize(p_bytes);
+void BitArray::resize_in_bytes(int p_bytes_count) {
+	ERR_FAIL_COND_MSG(p_bytes_count < 0, "Bytes count can't be negative");
+	bytes.resize(p_bytes_count);
 }
 
 int BitArray::size_in_bytes() const {
 	return bytes.size();
 }
 
-void BitArray::resize_in_bits(int p_bits) {
-	ERR_FAIL_COND_MSG(p_bits < 0, "Bits count can't be negative");
-	const int min_size = Math::ceil((static_cast<float>(p_bits)) / 8);
+void BitArray::resize_in_bits(int p_bits_count) {
+	ERR_FAIL_COND_MSG(p_bits_count < 0, "Bits count can't be negative");
+	const int min_size = Math::ceil((static_cast<float>(p_bits_count)) / 8);
 	bytes.resize(min_size);
 }
 

@@ -358,19 +358,7 @@ struct NodeData {
 	uint32_t id = 0;
 	ObjectID instance_id = ObjectID();
 
-	// TODO remove this
-	// TODO remove this
-	// TODO remove this
-	// TODO remove this
-	// TODO remove this
-	// TODO remove this
-	// TODO remove this
-	// TODO remove this
-	// TODO remove this
-	// TODO remove this
-	// TODO remove this
-	// TODO remove this
-	bool sync_enabled = true;
+	bool realtime_sync_enabled_on_client = false;
 
 	bool is_controller = false;
 
@@ -424,15 +412,26 @@ public:
 		RBSet<StringName> vars;
 	};
 
-public:
+private:
+	bool nodes_list_changed = false;
 	LocalVector<NetUtility::NodeData *> nodes;
-	LocalVector<int> peers;
 
 	/// The delta changes detected. Used to generate incremental snapshots.
 	/// NOTE: the order matters because the index is the NetNodeId.
 	LocalVector<Change> changes;
 
+public:
+	LocalVector<int> peers;
+
 	real_t state_notifier_timer = 0.0;
+
+public:
+	bool is_node_list_changed() const;
+
+	const LocalVector<NetUtility::NodeData *> &get_nodes() const;
+
+	const LocalVector<Change> &get_changes() const;
+	void mark_changes_as_notified();
 
 	void add_new_node(NodeData *p_node_data);
 	void remove_node(NodeData *p_node_data);

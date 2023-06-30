@@ -671,6 +671,10 @@ void SceneSynchronizer::apply_scene_changes(const Variant &p_sync_data) {
 							p_var_id,
 							current_val);
 				}
+			},
+
+			// Parse node activation:
+			[](void *p_user_pointer, NetUtility::NodeData *p_node_data, bool p_is_active) {
 			});
 
 	if (success == false) {
@@ -1486,14 +1490,17 @@ void SceneSynchronizer::process_functions__execute(const double p_delta) {
 		// Build the cached_process_functions, making sure the node data order is kept.
 		for (uint32_t i = 0; i < organized_node_data.size(); ++i) {
 			NetUtility::NodeData *nd = organized_node_data[i];
-			if (nd && nd->sync_enabled) {
-				// For each valid NodeData.
-				for (int process_phase = PROCESSPHASE_EARLY; process_phase < PROCESSPHASE_COUNT; ++process_phase) {
-					// and each process phase.
-					for (uint32_t u = 0; u < nd->functions[process_phase].size(); u++) {
-						// and for each function contained into the phase of this NodeData.
-						cached_process_functions[process_phase].push_back(nd->functions[process_phase][u]);
-					}
+			if (nd == nullptr || (is_client() && nd->realtime_sync_enabled_on_client == false)) {
+				// Nothing to process
+				continue;
+			}
+
+			// For each valid NodeData.
+			for (int process_phase = PROCESSPHASE_EARLY; process_phase < PROCESSPHASE_COUNT; ++process_phase) {
+				// and each process phase.
+				for (uint32_t u = 0; u < nd->functions[process_phase].size(); u++) {
+					// and for each function contained into the phase of this NodeData.
+					cached_process_functions[process_phase].push_back(nd->functions[process_phase][u]);
 				}
 			}
 		}
@@ -1563,6 +1570,20 @@ NetUtility::NodeData *SceneSynchronizer::get_node_data(NetNodeId p_id) {
 
 const NetUtility::NodeData *SceneSynchronizer::get_node_data(NetNodeId p_id) const {
 	ERR_FAIL_UNSIGNED_INDEX_V(p_id, organized_node_data.size(), nullptr);
+	return organized_node_data[p_id];
+}
+
+NetUtility::NodeData *SceneSynchronizer::get_node_data_or_null(NetNodeId p_id) {
+	if (p_id >= organized_node_data.size()) {
+		return nullptr;
+	}
+	return organized_node_data[p_id];
+}
+
+const NetUtility::NodeData *SceneSynchronizer::get_node_data_or_null(NetNodeId p_id) const {
+	if (p_id >= organized_node_data.size()) {
+		return nullptr;
+	}
 	return organized_node_data[p_id];
 }
 
@@ -1937,13 +1958,13 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 			if (peer->need_full_snapshot) {
 				peer->need_full_snapshot = false;
 				if (full_global_nodes_snapshot.size() == 0) {
-					full_global_nodes_snapshot = generate_snapshot(true, group.nodes, group.changes);
+					full_global_nodes_snapshot = generate_snapshot(true, group);
 				}
 				snap.append_array(full_global_nodes_snapshot);
 
 			} else {
 				if (delta_global_nodes_snapshot.size() == 0) {
-					delta_global_nodes_snapshot = generate_snapshot(false, group.nodes, group.changes);
+					delta_global_nodes_snapshot = generate_snapshot(false, group);
 				}
 				snap.append_array(delta_global_nodes_snapshot);
 			}
@@ -1959,27 +1980,49 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 		if (notify_state) {
 			// The state got notified, mark this as checkpoint so the next state
 			// will contains only the changed variables.
-			group.changes.clear();
+			group.mark_changes_as_notified();
 		}
 	}
 }
 
 Vector<Variant> ServerSynchronizer::generate_snapshot(
 		bool p_force_full_snapshot,
-		const LocalVector<NetUtility::NodeData *> &p_relevant_node_data,
-		const LocalVector<NetUtility::RealtimeSyncGroup::Change> &p_changes) const {
+		const NetUtility::RealtimeSyncGroup &p_group) const {
+	const LocalVector<NetUtility::NodeData *> &relevant_node_data = p_group.get_nodes();
+	const LocalVector<NetUtility::RealtimeSyncGroup::Change> &changes = p_group.get_changes();
+
 	Vector<Variant> snapshot_data;
+
+	// First insert the list of ALL enabled nodes, if changed.
+	if (p_group.is_node_list_changed() || p_force_full_snapshot) {
+		snapshot_data.push_back(true);
+		// Here we create a bit array: The bit position is significant as it
+		// refers to a specific ID, the bit is set to 1 if the Node is relevant
+		// to this group.
+		BitArray bit_array;
+		bit_array.resize_in_bits(scene_synchronizer->organized_node_data.size());
+		bit_array.zero();
+		for (uint32_t i = 0; i < relevant_node_data.size(); i += 1) {
+			const NetUtility::NodeData *nd = relevant_node_data[i];
+			CRASH_COND(nd->id == NetID_NONE);
+			bit_array.store_bits(nd->id, 1, 1);
+		}
+		snapshot_data.push_back(bit_array.get_bytes());
+	} else {
+		snapshot_data.push_back(false);
+	}
 
 	const SnapshotGenerationMode mode = p_force_full_snapshot ? SNAPSHOT_GENERATION_MODE_FORCE_FULL : SNAPSHOT_GENERATION_MODE_NORMAL;
 
-	for (uint32_t i = 0; i < p_relevant_node_data.size(); i += 1) {
-		const NetUtility::NodeData *node_data = p_relevant_node_data[i];
+	// Then, generate the snapshot for the relevant nodes.
+	for (uint32_t i = 0; i < relevant_node_data.size(); i += 1) {
+		const NetUtility::NodeData *node_data = relevant_node_data[i];
 
 		if (node_data != nullptr) {
 			generate_snapshot_node_data(
 					node_data,
 					mode,
-					p_changes,
+					changes,
 					snapshot_data);
 		}
 	}
@@ -2528,7 +2571,7 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 
 	for (uint32_t net_node_id = 0; net_node_id < uint32_t(server_snapshots.front().node_vars.size()); net_node_id += 1) {
 		NetUtility::NodeData *rew_node_data = scene_synchronizer->get_node_data(net_node_id);
-		if (rew_node_data == nullptr || rew_node_data->sync_enabled == false) {
+		if (rew_node_data == nullptr || rew_node_data->realtime_sync_enabled_on_client == false) {
 			continue;
 		}
 
@@ -2624,7 +2667,7 @@ void ClientSynchronizer::__pcr__sync__rewind() {
 			// not registered node.
 			continue;
 		}
-		if (nd->sync_enabled == false) {
+		if (nd->realtime_sync_enabled_on_client == false) {
 			// Don't sync this node.
 			continue;
 		}
@@ -2696,7 +2739,7 @@ void ClientSynchronizer::__pcr__rewind(
 		// Step 3 -- Pull node changes and Update snapshots.
 		for (uint32_t r = 0; r < scene_synchronizer->organized_node_data.size(); r += 1) {
 			NetUtility::NodeData *nd = scene_synchronizer->organized_node_data[r];
-			if (nd == nullptr || nd->sync_enabled == false) {
+			if (nd == nullptr || nd->realtime_sync_enabled_on_client == false) {
 				// This node is not sync.
 				continue;
 			}
@@ -2734,7 +2777,7 @@ void ClientSynchronizer::__pcr__sync__no_rewind(const LocalVector<NetUtility::No
 	scene_synchronizer->change_events_begin(NetEventFlag::SYNC_RECOVER);
 	for (uint32_t i = 0; i < p_no_rewind_recover.size(); i += 1) {
 		NetUtility::NodeData *rew_node_data = p_no_rewind_recover[i].node_data;
-		if (rew_node_data->sync_enabled == false) {
+		if (rew_node_data->realtime_sync_enabled_on_client == false) {
 			// This node sync is disabled.
 			continue;
 		}
@@ -2809,7 +2852,7 @@ void ClientSynchronizer::process_paused_controller_recovery(real_t p_delta) {
 	scene_synchronizer->change_events_begin(NetEventFlag::SYNC_RECOVER);
 	for (uint32_t net_node_id = 0; net_node_id < uint32_t(server_snapshots.front().node_vars.size()); net_node_id += 1) {
 		NetUtility::NodeData *rew_node_data = scene_synchronizer->get_node_data(net_node_id);
-		if (rew_node_data == nullptr || rew_node_data->sync_enabled == false) {
+		if (rew_node_data == nullptr || rew_node_data->realtime_sync_enabled_on_client == false) {
 			continue;
 		}
 
@@ -2846,7 +2889,8 @@ bool ClientSynchronizer::parse_sync_data(
 		void (*p_node_parse)(void *p_user_pointer, NetUtility::NodeData *p_node_data),
 		void (*p_input_id_parse)(void *p_user_pointer, uint32_t p_input_id),
 		void (*p_controller_parse)(void *p_user_pointer, NetUtility::NodeData *p_node_data),
-		void (*p_variable_parse)(void *p_user_pointer, NetUtility::NodeData *p_node_data, uint32_t p_var_id, const Variant &p_value)) {
+		void (*p_variable_parse)(void *p_user_pointer, NetUtility::NodeData *p_node_data, uint32_t p_var_id, const Variant &p_value),
+		void (*p_node_activation_parse)(void *p_user_pointer, NetUtility::NodeData *p_node_data, bool p_is_active)) {
 	// The sync data is an array that contains the scene informations.
 	// It's used for several things, for this reason this function allows to
 	// customize the parsing.
@@ -2876,21 +2920,37 @@ bool ClientSynchronizer::parse_sync_data(
 	const Vector<Variant> raw_snapshot = p_sync_data;
 	const Variant *raw_snapshot_ptr = raw_snapshot.ptr();
 
+	Vector<uint8_t> active_node_list_byte_array;
+
 	int snap_data_index = 0;
 
 	// Fetch the `InputID`.
-	ERR_FAIL_COND_V_MSG(raw_snapshot.size() < 1, false, "This snapshot is corrupted as it doesn't even contains the first parameter used to specify the `InputID`.");
-	ERR_FAIL_COND_V_MSG(raw_snapshot[0].get_type() != Variant::BOOL, false, "This snapshot is corrupted as the first parameter is not a boolean.");
+	ERR_FAIL_COND_V_MSG(raw_snapshot.size() < snap_data_index + 1, false, "This snapshot is corrupted as it doesn't even contains the first parameter used to specify the `InputID`.");
+	ERR_FAIL_COND_V_MSG(raw_snapshot_ptr[snap_data_index].get_type() != Variant::BOOL, false, "This snapshot is corrupted as the first parameter is not a boolean.");
+	const bool has_input_id = raw_snapshot_ptr[snap_data_index].operator bool();
 	snap_data_index += 1;
-	if (raw_snapshot[0].operator bool()) {
+	if (has_input_id) {
 		// The InputId is set.
-		ERR_FAIL_COND_V_MSG(raw_snapshot.size() < 2, false, "This snapshot is corrupted as the second parameter containing the `InputID` is not set.");
-		ERR_FAIL_COND_V_MSG(raw_snapshot[1].get_type() != Variant::INT, false, "This snapshot is corrupted as the second parameter containing the `InputID` is not an INTEGER.");
-		const uint32_t input_id = raw_snapshot[1];
+		ERR_FAIL_COND_V_MSG(raw_snapshot.size() < snap_data_index + 1, false, "This snapshot is corrupted as the `InputID` expected is not set.");
+		ERR_FAIL_COND_V_MSG(raw_snapshot_ptr[1].get_type() != Variant::INT, false, "This snapshot is corrupted as the `InputID` set is not an INTEGER.");
+		const uint32_t input_id = raw_snapshot_ptr[snap_data_index];
 		p_input_id_parse(p_user_pointer, input_id);
 		snap_data_index += 1;
 	} else {
 		p_input_id_parse(p_user_pointer, UINT32_MAX);
+	}
+
+	// Fetch `active_node_list_byte_array`.
+	ERR_FAIL_COND_V_MSG(raw_snapshot.size() < snap_data_index + 1, false, "This snapshot is corrupted as it doesn't even contains the boolean to specify if the `ActiveNodeList` is set.");
+	ERR_FAIL_COND_V_MSG(raw_snapshot_ptr[snap_data_index].get_type() != Variant::BOOL, false, "This snapshot is corrupted the `ActiveNodeList` parameter is not a boolean.");
+	const bool has_active_list_array = raw_snapshot_ptr[snap_data_index].operator bool();
+	snap_data_index += 1;
+	if (has_active_list_array) {
+		// Fetch the array.
+		ERR_FAIL_COND_V_MSG(raw_snapshot.size() < snap_data_index + 1, false, "This snapshot is corrupted as the parameter `ActiveNodeList` is not set.");
+		ERR_FAIL_COND_V_MSG(raw_snapshot_ptr[snap_data_index].get_type() != Variant::PACKED_BYTE_ARRAY, false, "This snapshot is corrupted as the ActiveNodeList` parameter is not a BYTE array.");
+		active_node_list_byte_array = raw_snapshot_ptr[snap_data_index];
+		snap_data_index += 1;
 	}
 
 	NetUtility::NodeData *synchronizer_node_data = nullptr;
@@ -3102,6 +3162,36 @@ bool ClientSynchronizer::parse_sync_data(
 		}
 	}
 
+	// Fetch the active node list, and execute the callback to notify if the
+	// node is active or not.
+	{
+		const uint8_t *active_node_list_byte_array_ptr = active_node_list_byte_array.ptr();
+		NetNodeId node_id = 0;
+		for (int j = 0; j < active_node_list_byte_array.size(); ++j) {
+			const uint8_t bit = active_node_list_byte_array_ptr[j];
+			for (int offset = 0; offset < 8; ++offset) {
+				if (node_id >= scene_synchronizer->organized_node_data.size()) {
+					// This check is needed because we are iterating the full 8 bits
+					// into the byte: we don't have a count where to stop.
+					break;
+				}
+				const int bit_mask = 1 << offset;
+				const bool is_active = (bit & bit_mask) > 0;
+				NetUtility::NodeData *nd = scene_synchronizer->get_node_data_or_null(node_id);
+				if (nd) {
+					p_node_activation_parse(p_user_pointer, nd, is_active);
+				} else {
+					if (is_active) {
+						// This node data doesn't exist but it should be activated.
+						SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "The node_data `" + itos(node_id) + "` was not found on this client but the server marked this as realtime_sync_active node. This is likely a bug, pleasae report.");
+						notify_server_full_snapshot_is_needed();
+					}
+				}
+				++node_id;
+			}
+		}
+	}
+
 	return true;
 }
 
@@ -3141,11 +3231,13 @@ bool ClientSynchronizer::parse_snapshot(Variant p_snapshot) {
 	struct ParseData {
 		NetUtility::Snapshot &snapshot;
 		NetUtility::NodeData *player_controller_node_data;
+		SceneSynchronizer *scene_synchronizer;
 	};
 
 	ParseData parse_data{
 		received_snapshot,
-		player_controller_node_data
+		player_controller_node_data,
+		scene_synchronizer
 	};
 
 	const bool success = parse_sync_data(
@@ -3193,6 +3285,17 @@ bool ClientSynchronizer::parse_snapshot(Variant p_snapshot) {
 
 				pd->snapshot.node_vars.write[p_node_data->id].write[p_var_id].name = p_node_data->vars[p_var_id].var.name;
 				pd->snapshot.node_vars.write[p_node_data->id].write[p_var_id].value = p_value.duplicate(true);
+			},
+
+			// Parse node activation:
+			[](void *p_user_pointer, NetUtility::NodeData *p_node_data, bool p_is_active) {
+				if (p_node_data->realtime_sync_enabled_on_client != p_is_active) {
+					p_node_data->realtime_sync_enabled_on_client = p_is_active;
+
+					// Make sure the process_function cache is cleared.
+					ParseData *pd = static_cast<ParseData *>(p_user_pointer);
+					pd->scene_synchronizer->process_functions__clear();
+				}
 			});
 
 	if (success == false) {

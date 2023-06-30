@@ -53,10 +53,10 @@ public:
 		return bytes;
 	}
 
-	void resize_in_bytes(int p_bits);
+	void resize_in_bytes(int p_bytes_count);
 	int size_in_bytes() const;
 
-	void resize_in_bits(int p_bits);
+	void resize_in_bits(int p_bits_count);
 	int size_in_bits() const;
 
 	void store_bits(int p_bit_offset, uint64_t p_value, int p_bits);

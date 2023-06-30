@@ -286,6 +286,9 @@ public: // ------------------------------------------------------------ INTERNAL
 	NetUtility::NodeData *get_node_data(NetNodeId p_id);
 	const NetUtility::NodeData *get_node_data(NetNodeId p_id) const;
 
+	NetUtility::NodeData *get_node_data_or_null(NetNodeId p_id);
+	const NetUtility::NodeData *get_node_data_or_null(NetNodeId p_id) const;
+
 	/// Returns the latest generated `NetNodeId`.
 	NetNodeId get_biggest_node_id() const;
 
@@ -410,10 +413,11 @@ public:
 	void move_peer_to_realtime_sync_group(int p_peer_id, RealtimeSyncGroupId p_group_id);
 
 	void process_snapshot_notificator(real_t p_delta);
+
 	Vector<Variant> generate_snapshot(
 			bool p_force_full_snapshot,
-			const LocalVector<NetUtility::NodeData *> &p_relevant_node_data,
-			const LocalVector<NetUtility::RealtimeSyncGroup::Change> &p_changes) const;
+			const NetUtility::RealtimeSyncGroup &p_group) const;
+
 	void generate_snapshot_node_data(
 			const NetUtility::NodeData *p_node_data,
 			SnapshotGenerationMode p_mode,
@@ -470,7 +474,8 @@ public:
 			void (*p_node_parse)(void *p_user_pointer, NetUtility::NodeData *p_node_data),
 			void (*p_input_id_parse)(void *p_user_pointer, uint32_t p_input_id),
 			void (*p_controller_parse)(void *p_user_pointer, NetUtility::NodeData *p_node_data),
-			void (*p_variable_parse)(void *p_user_pointer, NetUtility::NodeData *p_node_data, NetVarId p_var_id, const Variant &p_value));
+			void (*p_variable_parse)(void *p_user_pointer, NetUtility::NodeData *p_node_data, NetVarId p_var_id, const Variant &p_value),
+			void (*p_node_activation_parse)(void *p_user_pointer, NetUtility::NodeData *p_node_data, bool p_is_active));
 
 	void set_enabled(bool p_enabled);
 
