@@ -1486,7 +1486,7 @@ void SceneSynchronizer::process_functions__execute(const double p_delta) {
 		// Build the cached_process_functions, making sure the node data order is kept.
 		for (uint32_t i = 0; i < organized_node_data.size(); ++i) {
 			NetUtility::NodeData *nd = organized_node_data[i];
-			if (nd) {
+			if (nd && nd->sync_enabled) {
 				// For each valid NodeData.
 				for (int process_phase = PROCESSPHASE_EARLY; process_phase < PROCESSPHASE_COUNT; ++process_phase) {
 					// and each process phase.
@@ -1804,22 +1804,13 @@ void ServerSynchronizer::on_node_added(NetUtility::NodeData *p_node_data) {
 	CRASH_COND(p_node_data->id == UINT32_MAX);
 #endif
 
-	for (uint32_t g = 0; g < realtime_sync_groups.size(); ++g) {
-		NetUtility::RealtimeSyncGroup &group = realtime_sync_groups[g];
-		if (group.changes.size() <= p_node_data->id) {
-			group.changes.resize(p_node_data->id + 1);
-		}
-
-		group.changes[p_node_data->id].not_known_before = true;
-	}
-
-	realtime_sync_groups[SceneSynchronizer::REALTIME_GLOBAL_SYNC_GROUP_ID].nodes.push_back(p_node_data);
+	realtime_sync_groups[SceneSynchronizer::REALTIME_GLOBAL_SYNC_GROUP_ID].add_new_node(p_node_data);
 }
 
 void ServerSynchronizer::on_node_removed(NetUtility::NodeData *p_node_data) {
 	// Make sure to remove this `NodeData` from any sync group.
 	for (uint32_t i = 0; i < realtime_sync_groups.size(); ++i) {
-		realtime_sync_groups[i].nodes.erase(p_node_data);
+		realtime_sync_groups[i].remove_node(p_node_data);
 	}
 }
 
@@ -1832,13 +1823,7 @@ void ServerSynchronizer::on_variable_added(NetUtility::NodeData *p_node_data, co
 #endif
 
 	for (uint32_t g = 0; g < realtime_sync_groups.size(); ++g) {
-		NetUtility::RealtimeSyncGroup &group = realtime_sync_groups[g];
-		if (group.changes.size() <= p_node_data->id) {
-			group.changes.resize(p_node_data->id + 1);
-		}
-
-		group.changes[p_node_data->id].vars.insert(p_var_name);
-		group.changes[p_node_data->id].uknown_vars.insert(p_var_name);
+		realtime_sync_groups[g].notify_new_variable(p_node_data, p_var_name);
 	}
 }
 
@@ -1851,12 +1836,7 @@ void ServerSynchronizer::on_variable_changed(NetUtility::NodeData *p_node_data, 
 #endif
 
 	for (uint32_t g = 0; g < realtime_sync_groups.size(); ++g) {
-		NetUtility::RealtimeSyncGroup &group = realtime_sync_groups[g];
-		if (group.changes.size() <= p_node_data->id) {
-			group.changes.resize(p_node_data->id + 1);
-		}
-
-		group.changes[p_node_data->id].vars.insert(p_node_data->vars[p_var_id].var.name);
+		realtime_sync_groups[g].notify_variable_changed(p_node_data, p_node_data->vars[p_var_id].var.name);
 	}
 }
 
@@ -1870,16 +1850,14 @@ void ServerSynchronizer::add_node_to_realtime_sync_group(NetUtility::NodeData *p
 	ERR_FAIL_COND(p_node_data == nullptr);
 	ERR_FAIL_COND_MSG(p_group_id >= realtime_sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
 	ERR_FAIL_COND_MSG(p_group_id == SceneSynchronizer::REALTIME_GLOBAL_SYNC_GROUP_ID, "You can't change this SyncGroup in any way. Create a new one.");
-	if (realtime_sync_groups[p_group_id].nodes.find(p_node_data) == -1) {
-		realtime_sync_groups[p_group_id].nodes.push_back(p_node_data);
-	}
+	realtime_sync_groups[p_group_id].add_new_node(p_node_data);
 }
 
 void ServerSynchronizer::remove_node_from_realtime_sync_group(NetUtility::NodeData *p_node_data, RealtimeSyncGroupId p_group_id) {
 	ERR_FAIL_COND(p_node_data == nullptr);
 	ERR_FAIL_COND_MSG(p_group_id >= realtime_sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
 	ERR_FAIL_COND_MSG(p_group_id == SceneSynchronizer::REALTIME_GLOBAL_SYNC_GROUP_ID, "You can't change this SyncGroup in any way. Create a new one.");
-	realtime_sync_groups[p_group_id].nodes.push_back(p_node_data);
+	realtime_sync_groups[p_group_id].remove_node(p_node_data);
 }
 
 void ServerSynchronizer::move_peer_to_realtime_sync_group(int p_peer_id, RealtimeSyncGroupId p_group_id) {
@@ -1894,6 +1872,10 @@ void ServerSynchronizer::move_peer_to_realtime_sync_group(int p_peer_id, Realtim
 	ERR_FAIL_COND(pd == nullptr);
 	pd->force_notify_snapshot = true;
 	pd->need_full_snapshot = true;
+
+	// Make sure the controller is added into this group.
+	NetUtility::NodeData *nd = scene_synchronizer->get_node_data(pd->controller_id);
+	add_node_to_realtime_sync_group(nd, p_group_id);
 }
 
 void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
@@ -2100,6 +2082,8 @@ ClientSynchronizer::ClientSynchronizer(SceneSynchronizer *p_node) :
 	clear();
 
 	SceneSynchronizerDebugger::singleton()->setup_debugger("client", 0, scene_synchronizer->get_tree());
+
+	notify_server_full_snapshot_is_needed();
 }
 
 void ClientSynchronizer::clear() {
@@ -2629,10 +2613,15 @@ void ClientSynchronizer::__pcr__sync__rewind() {
 	// Apply the server snapshot so to go back in time till that moment,
 	// so to be able to correctly reply the movements.
 	scene_synchronizer->change_events_begin(NetEventFlag::SYNC_RECOVER | NetEventFlag::SYNC_RESET);
-	for (uint32_t net_node_id = 0; net_node_id < uint32_t(server_snapshots.front().node_vars.size()); net_node_id += 1) {
+
+	const NetUtility::Snapshot &server_snapshot = server_snapshots.front();
+
+	for (NetNodeId net_node_id = 0; net_node_id < NetNodeId(server_snapshot.node_vars.size()); net_node_id += 1) {
 		NetUtility::NodeData *nd = scene_synchronizer->get_node_data(net_node_id);
-		if (nd->id >= uint32_t(server_snapshots.front().node_vars.size())) {
-			SceneSynchronizerDebugger::singleton()->debug_warning(scene_synchronizer, "The node: " + nd->node->get_path() + " was not found on the server snapshot, this is not supposed to happen a lot.");
+		if (nd == nullptr) {
+			// This can happen, and it's totally expected, because the server
+			// doesn't always sync ALL the node_data: so that will result in a
+			// not registered node.
 			continue;
 		}
 		if (nd->sync_enabled == false) {
@@ -2643,11 +2632,11 @@ void ClientSynchronizer::__pcr__sync__rewind() {
 #ifdef DEBUG_ENABLED
 		// The parser make sure to properly initialize the snapshot variable
 		// array size. So the following condition is always `false`.
-		CRASH_COND(uint32_t(server_snapshots.front().node_vars[nd->id].size()) != nd->vars.size());
+		CRASH_COND(uint32_t(server_snapshot.node_vars[nd->id].size()) != nd->vars.size());
 #endif
 
 		Node *node = nd->node;
-		const Vector<NetUtility::Var> s_vars = server_snapshots.front().node_vars[nd->id];
+		const Vector<NetUtility::Var> s_vars = server_snapshot.node_vars[nd->id];
 		const NetUtility::Var *s_vars_ptr = s_vars.ptr();
 
 		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Full reset node: " + node->get_path());
@@ -2705,12 +2694,15 @@ void ClientSynchronizer::__pcr__rewind(
 		scene_synchronizer->process_functions__execute(p_delta);
 
 		// Step 3 -- Pull node changes and Update snapshots.
-		for (uint32_t r = 0; r < scene_synchronizer->node_data.size(); r += 1) {
-			NetUtility::NodeData *nd = scene_synchronizer->node_data[r];
-			if (nd->sync_enabled == false) {
+		for (uint32_t r = 0; r < scene_synchronizer->organized_node_data.size(); r += 1) {
+			NetUtility::NodeData *nd = scene_synchronizer->organized_node_data[r];
+			if (nd == nullptr || nd->sync_enabled == false) {
 				// This node is not sync.
 				continue;
 			}
+
+			CRASH_COND_MSG(nd->id == NetID_NONE, "This can't happen because we are looping over the `organized_node_data`.");
+
 			// Pull changes
 			scene_synchronizer->pull_node_changes(nd);
 
