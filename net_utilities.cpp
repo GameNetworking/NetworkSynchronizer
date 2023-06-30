@@ -94,3 +94,40 @@ NetUtility::Snapshot::operator String() const {
 bool NetUtility::NodeChangeListener::operator==(const NodeChangeListener &p_other) const {
 	return node_data == p_other.node_data && var_id == p_other.var_id;
 }
+
+void NetUtility::RealtimeSyncGroup::add_new_node(NodeData *p_node_data) {
+	if (nodes.find(p_node_data) == -1) {
+		if (changes.size() <= p_node_data->id) {
+			changes.resize(p_node_data->id + 1);
+		}
+
+		changes[p_node_data->id].not_known_before = true;
+
+		nodes.push_back(p_node_data);
+
+		for (int i = 0; i < int(p_node_data->vars.size()); ++i) {
+			notify_new_variable(p_node_data, p_node_data->vars[i].var.name);
+		}
+	}
+}
+
+void NetUtility::RealtimeSyncGroup::remove_node(NodeData *p_node_data) {
+	nodes.erase(p_node_data);
+}
+
+void NetUtility::RealtimeSyncGroup::notify_new_variable(NodeData *p_node_data, const StringName &p_var_name) {
+	if (changes.size() <= p_node_data->id) {
+		changes.resize(p_node_data->id + 1);
+	}
+
+	changes[p_node_data->id].vars.insert(p_var_name);
+	changes[p_node_data->id].uknown_vars.insert(p_var_name);
+}
+
+void NetUtility::RealtimeSyncGroup::notify_variable_changed(NodeData *p_node_data, const StringName &p_var_name) {
+	if (changes.size() <= p_node_data->id) {
+		changes.resize(p_node_data->id + 1);
+	}
+
+	changes[p_node_data->id].vars.insert(p_var_name);
+}
