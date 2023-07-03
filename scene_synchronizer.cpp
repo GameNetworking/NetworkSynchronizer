@@ -42,10 +42,10 @@
 #include "scene_diff.h"
 #include "scene_synchronizer_debugger.h"
 
-const RealtimeSyncGroupId SceneSynchronizer::REALTIME_GLOBAL_SYNC_GROUP_ID = 0;
+const SyncGroupId SceneSynchronizer::GLOBAL_SYNC_GROUP_ID = 0;
 
 void SceneSynchronizer::_bind_methods() {
-	BIND_CONSTANT(REALTIME_GLOBAL_SYNC_GROUP_ID)
+	BIND_CONSTANT(GLOBAL_SYNC_GROUP_ID)
 
 	BIND_ENUM_CONSTANT(CHANGE)
 	BIND_ENUM_CONSTANT(SYNC_RECOVER)
@@ -90,10 +90,10 @@ void SceneSynchronizer::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("setup_deferred_sync", "node", "collect_epoch_func", "apply_epoch_func"), &SceneSynchronizer::setup_deferred_sync);
 
-	ClassDB::bind_method(D_METHOD("create_realtime_sync_group"), &SceneSynchronizer::create_realtime_sync_group);
-	ClassDB::bind_method(D_METHOD("add_node_to_realtime_sync_group", "node_id", "group_id"), &SceneSynchronizer::add_node_to_realtime_sync_group_by_id);
-	ClassDB::bind_method(D_METHOD("remove_node_from_realtime_sync_group", "node_id", "group_id"), &SceneSynchronizer::remove_node_from_realtime_sync_group_by_id);
-	ClassDB::bind_method(D_METHOD("move_peer_to_realtime_sync_group", "peer_id", "group_id"), &SceneSynchronizer::move_peer_to_realtime_sync_group);
+	ClassDB::bind_method(D_METHOD("sync_group_create"), &SceneSynchronizer::sync_group_create);
+	ClassDB::bind_method(D_METHOD("sync_group_add_node", "node_id", "group_id", "realtime"), &SceneSynchronizer::sync_group_add_node_by_id);
+	ClassDB::bind_method(D_METHOD("sync_group_remove_node", "node_id", "group_id"), &SceneSynchronizer::sync_group_remove_node_by_id);
+	ClassDB::bind_method(D_METHOD("sync_group_move_peer_to", "peer_id", "group_id"), &SceneSynchronizer::sync_group_move_peer_to);
 
 	ClassDB::bind_method(D_METHOD("start_tracking_scene_changes", "diff_handle"), &SceneSynchronizer::start_tracking_scene_changes);
 	ClassDB::bind_method(D_METHOD("stop_tracking_scene_changes", "diff_handle"), &SceneSynchronizer::stop_tracking_scene_changes);
@@ -535,34 +535,34 @@ void SceneSynchronizer::setup_deferred_sync(Node *p_node, const Callable &p_coll
 	node_data->apply_epoch_func = p_apply_epoch_func;
 }
 
-RealtimeSyncGroupId SceneSynchronizer::create_realtime_sync_group() {
+SyncGroupId SceneSynchronizer::sync_group_create() {
 	ERR_FAIL_COND_V_MSG(!is_server(), NetID_NONE, "This function CAN be used only on the server.");
-	return static_cast<ServerSynchronizer *>(synchronizer)->create_realtime_sync_group();
+	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_create();
 }
 
-void SceneSynchronizer::add_node_to_realtime_sync_group_by_id(NetNodeId p_node_id, RealtimeSyncGroupId p_group_id) {
+void SceneSynchronizer::sync_group_add_node_by_id(NetNodeId p_node_id, SyncGroupId p_group_id, bool p_realtime) {
 	NetUtility::NodeData *nd = get_node_data(p_node_id);
-	add_node_to_realtime_sync_group(nd, p_group_id);
+	sync_group_add_node(nd, p_group_id, p_realtime);
 }
 
-void SceneSynchronizer::add_node_to_realtime_sync_group(NetUtility::NodeData *p_node_data, RealtimeSyncGroupId p_group_id) {
+void SceneSynchronizer::sync_group_add_node(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id, bool p_realtime) {
 	ERR_FAIL_COND_MSG(!is_server(), "This function CAN be used only on the server.");
-	static_cast<ServerSynchronizer *>(synchronizer)->add_node_to_realtime_sync_group(p_node_data, p_group_id);
+	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_add_node(p_node_data, p_group_id, p_realtime);
 }
 
-void SceneSynchronizer::remove_node_from_realtime_sync_group_by_id(NetNodeId p_node_id, RealtimeSyncGroupId p_group_id) {
+void SceneSynchronizer::sync_group_remove_node_by_id(NetNodeId p_node_id, SyncGroupId p_group_id) {
 	NetUtility::NodeData *nd = get_node_data(p_node_id);
-	remove_node_from_realtime_sync_group(nd, p_group_id);
+	sync_group_remove_node(nd, p_group_id);
 }
 
-void SceneSynchronizer::remove_node_from_realtime_sync_group(NetUtility::NodeData *p_node_data, RealtimeSyncGroupId p_group_id) {
+void SceneSynchronizer::sync_group_remove_node(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id) {
 	ERR_FAIL_COND_MSG(!is_server(), "This function CAN be used only on the server.");
-	static_cast<ServerSynchronizer *>(synchronizer)->remove_node_from_realtime_sync_group(p_node_data, p_group_id);
+	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_remove_node(p_node_data, p_group_id);
 }
 
-void SceneSynchronizer::move_peer_to_realtime_sync_group(int p_peer_id, RealtimeSyncGroupId p_group_id) {
+void SceneSynchronizer::sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id) {
 	ERR_FAIL_COND_MSG(!is_server(), "This function CAN be used only on the server.");
-	static_cast<ServerSynchronizer *>(synchronizer)->move_peer_to_realtime_sync_group(p_peer_id, p_group_id);
+	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_move_peer_to(p_peer_id, p_group_id);
 }
 
 void SceneSynchronizer::start_tracking_scene_changes(Object *p_diff_handle) const {
@@ -701,23 +701,23 @@ bool SceneSynchronizer::is_end_sync() const {
 	return end_sync;
 }
 
-void SceneSynchronizer::force_state_notify(RealtimeSyncGroupId p_sync_group_id) {
+void SceneSynchronizer::force_state_notify(SyncGroupId p_sync_group_id) {
 	ERR_FAIL_COND(is_server() == false);
 	ServerSynchronizer *r = static_cast<ServerSynchronizer *>(synchronizer);
 	// + 1.0 is just a ridiculous high number to be sure to avoid float
 	// precision error.
-	ERR_FAIL_COND_MSG(p_sync_group_id >= r->realtime_sync_groups.size(), "The group id `" + itos(p_sync_group_id) + "` doesn't exist.");
-	r->realtime_sync_groups[p_sync_group_id].state_notifier_timer = get_server_notify_state_interval() + 1.0;
+	ERR_FAIL_COND_MSG(p_sync_group_id >= r->sync_groups.size(), "The group id `" + itos(p_sync_group_id) + "` doesn't exist.");
+	r->sync_groups[p_sync_group_id].state_notifier_timer = get_server_notify_state_interval() + 1.0;
 }
 
 void SceneSynchronizer::force_state_notify_all() {
 	ERR_FAIL_COND(is_server() == false);
 	ServerSynchronizer *r = static_cast<ServerSynchronizer *>(synchronizer);
 
-	for (uint32_t i = 0; i < r->realtime_sync_groups.size(); ++i) {
+	for (uint32_t i = 0; i < r->sync_groups.size(); ++i) {
 		// + 1.0 is just a ridiculous high number to be sure to avoid float
 		// precision error.
-		r->realtime_sync_groups[i].state_notifier_timer = get_server_notify_state_interval() + 1.0;
+		r->sync_groups[i].state_notifier_timer = get_server_notify_state_interval() + 1.0;
 	}
 }
 
@@ -1756,12 +1756,12 @@ ServerSynchronizer::ServerSynchronizer(SceneSynchronizer *p_node) :
 		Synchronizer(p_node) {
 	SceneSynchronizerDebugger::singleton()->setup_debugger("server", 0, scene_synchronizer->get_tree());
 
-	CRASH_COND(SceneSynchronizer::REALTIME_GLOBAL_SYNC_GROUP_ID != create_realtime_sync_group());
+	CRASH_COND(SceneSynchronizer::GLOBAL_SYNC_GROUP_ID != sync_group_create());
 }
 
 void ServerSynchronizer::clear() {
 	// Release the internal memory.
-	realtime_sync_groups.clear();
+	sync_groups.clear();
 }
 
 void ServerSynchronizer::process() {
@@ -1808,12 +1808,12 @@ void ServerSynchronizer::process() {
 }
 
 void ServerSynchronizer::on_peer_connected(int p_peer_id) {
-	move_peer_to_realtime_sync_group(p_peer_id, SceneSynchronizer::REALTIME_GLOBAL_SYNC_GROUP_ID);
+	sync_group_move_peer_to(p_peer_id, SceneSynchronizer::GLOBAL_SYNC_GROUP_ID);
 }
 
 void ServerSynchronizer::on_peer_disconnected(int p_peer_id) {
-	for (uint32_t i = 0; i < realtime_sync_groups.size(); ++i) {
-		realtime_sync_groups[i].peers.erase(p_peer_id);
+	for (uint32_t i = 0; i < sync_groups.size(); ++i) {
+		sync_groups[i].peers.erase(p_peer_id);
 	}
 }
 
@@ -1825,13 +1825,13 @@ void ServerSynchronizer::on_node_added(NetUtility::NodeData *p_node_data) {
 	CRASH_COND(p_node_data->id == UINT32_MAX);
 #endif
 
-	realtime_sync_groups[SceneSynchronizer::REALTIME_GLOBAL_SYNC_GROUP_ID].add_new_node(p_node_data);
+	sync_groups[SceneSynchronizer::GLOBAL_SYNC_GROUP_ID].add_new_node(p_node_data, true);
 }
 
 void ServerSynchronizer::on_node_removed(NetUtility::NodeData *p_node_data) {
 	// Make sure to remove this `NodeData` from any sync group.
-	for (uint32_t i = 0; i < realtime_sync_groups.size(); ++i) {
-		realtime_sync_groups[i].remove_node(p_node_data);
+	for (uint32_t i = 0; i < sync_groups.size(); ++i) {
+		sync_groups[i].remove_node(p_node_data);
 	}
 }
 
@@ -1843,8 +1843,8 @@ void ServerSynchronizer::on_variable_added(NetUtility::NodeData *p_node_data, co
 	CRASH_COND(p_node_data->id == UINT32_MAX);
 #endif
 
-	for (uint32_t g = 0; g < realtime_sync_groups.size(); ++g) {
-		realtime_sync_groups[g].notify_new_variable(p_node_data, p_var_name);
+	for (uint32_t g = 0; g < sync_groups.size(); ++g) {
+		sync_groups[g].notify_new_variable(p_node_data, p_var_name);
 	}
 }
 
@@ -1856,37 +1856,37 @@ void ServerSynchronizer::on_variable_changed(NetUtility::NodeData *p_node_data, 
 	CRASH_COND(p_node_data->id == UINT32_MAX);
 #endif
 
-	for (uint32_t g = 0; g < realtime_sync_groups.size(); ++g) {
-		realtime_sync_groups[g].notify_variable_changed(p_node_data, p_node_data->vars[p_var_id].var.name);
+	for (uint32_t g = 0; g < sync_groups.size(); ++g) {
+		sync_groups[g].notify_variable_changed(p_node_data, p_node_data->vars[p_var_id].var.name);
 	}
 }
 
-RealtimeSyncGroupId ServerSynchronizer::create_realtime_sync_group() {
-	const RealtimeSyncGroupId id = realtime_sync_groups.size();
-	realtime_sync_groups.resize(id + 1);
+SyncGroupId ServerSynchronizer::sync_group_create() {
+	const SyncGroupId id = sync_groups.size();
+	sync_groups.resize(id + 1);
 	return id;
 }
 
-void ServerSynchronizer::add_node_to_realtime_sync_group(NetUtility::NodeData *p_node_data, RealtimeSyncGroupId p_group_id) {
+void ServerSynchronizer::sync_group_add_node(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id, bool p_realtime) {
 	ERR_FAIL_COND(p_node_data == nullptr);
-	ERR_FAIL_COND_MSG(p_group_id >= realtime_sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
-	ERR_FAIL_COND_MSG(p_group_id == SceneSynchronizer::REALTIME_GLOBAL_SYNC_GROUP_ID, "You can't change this SyncGroup in any way. Create a new one.");
-	realtime_sync_groups[p_group_id].add_new_node(p_node_data);
+	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
+	ERR_FAIL_COND_MSG(p_group_id == SceneSynchronizer::GLOBAL_SYNC_GROUP_ID, "You can't change this SyncGroup in any way. Create a new one.");
+	sync_groups[p_group_id].add_new_node(p_node_data, p_realtime);
 }
 
-void ServerSynchronizer::remove_node_from_realtime_sync_group(NetUtility::NodeData *p_node_data, RealtimeSyncGroupId p_group_id) {
+void ServerSynchronizer::sync_group_remove_node(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id) {
 	ERR_FAIL_COND(p_node_data == nullptr);
-	ERR_FAIL_COND_MSG(p_group_id >= realtime_sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
-	ERR_FAIL_COND_MSG(p_group_id == SceneSynchronizer::REALTIME_GLOBAL_SYNC_GROUP_ID, "You can't change this SyncGroup in any way. Create a new one.");
-	realtime_sync_groups[p_group_id].remove_node(p_node_data);
+	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
+	ERR_FAIL_COND_MSG(p_group_id == SceneSynchronizer::GLOBAL_SYNC_GROUP_ID, "You can't change this SyncGroup in any way. Create a new one.");
+	sync_groups[p_group_id].remove_node(p_node_data);
 }
 
-void ServerSynchronizer::move_peer_to_realtime_sync_group(int p_peer_id, RealtimeSyncGroupId p_group_id) {
-	ERR_FAIL_COND_MSG(p_group_id >= realtime_sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
-	for (uint32_t i = 0; i < realtime_sync_groups.size(); ++i) {
-		realtime_sync_groups[i].peers.erase(p_peer_id);
+void ServerSynchronizer::sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id) {
+	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
+	for (uint32_t i = 0; i < sync_groups.size(); ++i) {
+		sync_groups[i].peers.erase(p_peer_id);
 	}
-	realtime_sync_groups[p_group_id].peers.push_back(p_peer_id);
+	sync_groups[p_group_id].peers.push_back(p_peer_id);
 
 	// Also mark the peer as need full snapshot, as it's into a new group now.
 	NetUtility::PeerData *pd = scene_synchronizer->peer_data.lookup_ptr(p_peer_id);
@@ -1896,7 +1896,7 @@ void ServerSynchronizer::move_peer_to_realtime_sync_group(int p_peer_id, Realtim
 
 	// Make sure the controller is added into this group.
 	NetUtility::NodeData *nd = scene_synchronizer->get_node_data(pd->controller_id);
-	add_node_to_realtime_sync_group(nd, p_group_id);
+	sync_group_add_node(nd, p_group_id, true);
 }
 
 void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
@@ -1905,8 +1905,8 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 		return;
 	}
 
-	for (int g = 0; g < int(realtime_sync_groups.size()); ++g) {
-		NetUtility::RealtimeSyncGroup &group = realtime_sync_groups[g];
+	for (int g = 0; g < int(sync_groups.size()); ++g) {
+		NetUtility::SyncGroup &group = sync_groups[g];
 
 		if (group.peers.size() == 0) {
 			// No one is interested to this group.
@@ -1928,7 +1928,7 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 			const int peer_id = group.peers[pi];
 			NetUtility::PeerData *peer = scene_synchronizer->peer_data.lookup_ptr(peer_id);
 			if (peer == nullptr) {
-				ERR_PRINT("The `process_snapshot_notificator` failed to lookup the peer_id `" + itos(peer_id) + "`. Was it removed but never cleared from realtime_sync_groups. Report this error, as this is a bug.");
+				ERR_PRINT("The `process_snapshot_notificator` failed to lookup the peer_id `" + itos(peer_id) + "`. Was it removed but never cleared from sync_groups. Report this error, as this is a bug.");
 				continue;
 			}
 
@@ -1987,9 +1987,8 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 
 Vector<Variant> ServerSynchronizer::generate_snapshot(
 		bool p_force_full_snapshot,
-		const NetUtility::RealtimeSyncGroup &p_group) const {
-	const LocalVector<NetUtility::NodeData *> &relevant_node_data = p_group.get_nodes();
-	const LocalVector<NetUtility::RealtimeSyncGroup::Change> &changes = p_group.get_changes();
+		const NetUtility::SyncGroup &p_group) const {
+	const LocalVector<NetUtility::SyncGroup::RealtimeNodeInfo> &relevant_node_data = p_group.get_realtime_sync_nodes();
 
 	Vector<Variant> snapshot_data;
 
@@ -2003,7 +2002,7 @@ Vector<Variant> ServerSynchronizer::generate_snapshot(
 		bit_array.resize_in_bits(scene_synchronizer->organized_node_data.size());
 		bit_array.zero();
 		for (uint32_t i = 0; i < relevant_node_data.size(); i += 1) {
-			const NetUtility::NodeData *nd = relevant_node_data[i];
+			const NetUtility::NodeData *nd = relevant_node_data[i].nd;
 			CRASH_COND(nd->id == NetID_NONE);
 			bit_array.store_bits(nd->id, 1, 1);
 		}
@@ -2016,13 +2015,13 @@ Vector<Variant> ServerSynchronizer::generate_snapshot(
 
 	// Then, generate the snapshot for the relevant nodes.
 	for (uint32_t i = 0; i < relevant_node_data.size(); i += 1) {
-		const NetUtility::NodeData *node_data = relevant_node_data[i];
+		const NetUtility::NodeData *node_data = relevant_node_data[i].nd;
 
 		if (node_data != nullptr) {
 			generate_snapshot_node_data(
 					node_data,
 					mode,
-					changes,
+					relevant_node_data[i].change,
 					snapshot_data);
 		}
 	}
@@ -2033,7 +2032,7 @@ Vector<Variant> ServerSynchronizer::generate_snapshot(
 void ServerSynchronizer::generate_snapshot_node_data(
 		const NetUtility::NodeData *p_node_data,
 		SnapshotGenerationMode p_mode,
-		const LocalVector<NetUtility::RealtimeSyncGroup::Change> &p_changes,
+		const NetUtility::SyncGroup::Change &p_change,
 		Vector<Variant> &r_snapshot_data) const {
 	// The packet data is an array that contains the informations to update the
 	// client snapshot.
@@ -2061,10 +2060,8 @@ void ServerSynchronizer::generate_snapshot_node_data(
 	const bool skip_snapshot_variables = p_mode == SNAPSHOT_GENERATION_MODE_FORCE_NODE_PATH_ONLY || p_mode == SNAPSHOT_GENERATION_MODE_NODE_PATH_ONLY;
 	const bool force_using_variable_name = p_mode == SNAPSHOT_GENERATION_MODE_FORCE_FULL;
 
-	const NetUtility::RealtimeSyncGroup::Change *change = p_node_data->id >= p_changes.size() ? nullptr : p_changes.ptr() + p_node_data->id;
-
-	const bool unknown = change != nullptr && change->not_known_before;
-	const bool node_has_changes = change != nullptr && change->vars.is_empty() == false;
+	const bool unknown = p_change.not_known_before;
+	const bool node_has_changes = p_change.vars.is_empty() == false;
 
 	// Insert NODE DATA.
 	Variant snap_node_data;
@@ -2094,14 +2091,14 @@ void ServerSynchronizer::generate_snapshot_node_data(
 				continue;
 			}
 
-			if (force_snapshot_variables == false && change->vars.has(var.var.name) == false) {
+			if (force_snapshot_variables == false && p_change.vars.has(var.var.name) == false) {
 				// This is a delta snapshot and this variable is the same as
 				// before. Skip it.
 				continue;
 			}
 
 			Variant var_info;
-			if (force_using_variable_name || change->uknown_vars.has(var.var.name)) {
+			if (force_using_variable_name || p_change.uknown_vars.has(var.var.name)) {
 				Vector<Variant> _var_info;
 				_var_info.resize(2);
 				_var_info.write[0] = var.id;

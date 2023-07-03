@@ -60,7 +60,7 @@ class Node;
 extern const uint32_t NetID_NONE;
 typedef uint32_t NetNodeId;
 typedef uint32_t NetVarId;
-typedef uint32_t RealtimeSyncGroupId;
+typedef uint32_t SyncGroupId;
 
 #ifdef TRACY_ENABLE
 
@@ -404,7 +404,7 @@ struct NoRewindRecover {
 	Vector<Var> vars;
 };
 
-struct RealtimeSyncGroup {
+struct SyncGroup {
 public:
 	struct Change {
 		bool not_known_before = false;
@@ -412,13 +412,30 @@ public:
 		RBSet<StringName> vars;
 	};
 
-private:
-	bool nodes_list_changed = false;
-	LocalVector<NetUtility::NodeData *> nodes;
+	struct RealtimeNodeInfo {
+		NetUtility::NodeData *nd = nullptr;
+		Change change;
 
-	/// The delta changes detected. Used to generate incremental snapshots.
-	/// NOTE: the order matters because the index is the NetNodeId.
-	LocalVector<Change> changes;
+		RealtimeNodeInfo() = default;
+		RealtimeNodeInfo(NetUtility::NodeData *p_nd) :
+				nd(p_nd) {}
+		bool operator==(const RealtimeNodeInfo &p_other) { return nd == p_other.nd; }
+	};
+
+	struct DeferredNodeInfo {
+		NetUtility::NodeData *nd = nullptr;
+
+		DeferredNodeInfo() = default;
+		DeferredNodeInfo(NetUtility::NodeData *p_nd) :
+				nd(p_nd) {}
+		bool operator==(const DeferredNodeInfo &p_other) { return nd == p_other.nd; }
+	};
+
+private:
+	bool realtime_sync_nodes_list_changed = false;
+	LocalVector<RealtimeNodeInfo> realtime_sync_nodes;
+
+	LocalVector<DeferredNodeInfo> deferred_sync_nodes;
 
 public:
 	LocalVector<int> peers;
@@ -428,12 +445,12 @@ public:
 public:
 	bool is_node_list_changed() const;
 
-	const LocalVector<NetUtility::NodeData *> &get_nodes() const;
+	const LocalVector<NetUtility::SyncGroup::RealtimeNodeInfo> &get_realtime_sync_nodes() const;
+	const LocalVector<NetUtility::SyncGroup::DeferredNodeInfo> &get_deferred_sync_nodes() const;
 
-	const LocalVector<Change> &get_changes() const;
 	void mark_changes_as_notified();
 
-	void add_new_node(NodeData *p_node_data);
+	void add_new_node(NodeData *p_node_data, bool p_realtime);
 	void remove_node(NodeData *p_node_data);
 
 	void notify_new_variable(NodeData *p_node_data, const StringName &p_var_name);
