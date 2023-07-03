@@ -75,6 +75,13 @@ public:
 	/// COMPRESSION_LEVEL_3: 8 bits are used - Stores integers -128 / 127
 	///
 	///
+	/// ## Uint
+	/// COMPRESSION_LEVEL_0: 64 bits are used - Stores integers 18446744073709551615
+	/// COMPRESSION_LEVEL_1: 32 bits are used - Stores integers 4294967295
+	/// COMPRESSION_LEVEL_2: 16 bits are used - Stores integers 65535
+	/// COMPRESSION_LEVEL_3: 8 bits are used - Stores integers 2SS
+	///
+	///
 	/// ## Real
 	/// Precision depends on an integer range
 	/// COMPRESSION_LEVEL_0: 64 bits are used - Double precision. Up to 16 precision is 0.00000000000000177636 in worst case. Up to 512 precision is 0.00000000000005684342 in worst case. Up to 1024 precision is 0.00000000000011368684 in worst case.

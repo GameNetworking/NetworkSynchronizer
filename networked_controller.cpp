@@ -115,8 +115,6 @@ void NetworkedController::_bind_methods() {
 	GDVIRTUAL_BIND(_controller_process, "delta", "buffer");
 	GDVIRTUAL_BIND(_are_inputs_different, "inputs_A", "inputs_B");
 	GDVIRTUAL_BIND(_count_input_size, "inputs");
-	GDVIRTUAL_BIND(_collect_epoch_data, "buffer");
-	GDVIRTUAL_BIND(_apply_epoch, "delta", "interpolation_alpha", "past_buffer", "future_buffer");
 
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "server_controlled"), "set_server_controlled", "get_server_controlled");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "input_storage_size", PROPERTY_HINT_RANGE, "5,2000,1"), "set_player_input_storage_size", "get_player_input_storage_size");
@@ -152,8 +150,8 @@ NetworkedController::NetworkedController() {
 	rpc_config(SNAME("_rpc_server_send_inputs"), rpc_config_unreliable);
 	rpc_config(SNAME("_rpc_set_server_controlled"), rpc_config_reliable);
 	rpc_config(SNAME("_rpc_notify_fps_acceleration"), rpc_config_unreliable);
-	rpc_config(SNAME("_rpc_doll_notify_sync_pause"), rpc_config_reliable);
-	rpc_config(SNAME("_rpc_doll_send_epoch_batch"), rpc_config_unreliable);
+	rpc_config(SNAME("_rpc_doll_notify_sync_pause"), rpc_config_reliable); // TODO remove?
+	rpc_config(SNAME("_rpc_doll_send_epoch_batch"), rpc_config_unreliable); // TODO remove?
 }
 
 NetworkedController::~NetworkedController() {
@@ -411,8 +409,6 @@ void NetworkedController::validate_script_implementation() {
 	ERR_FAIL_COND_MSG(has_method("_controller_process") == false && server_controlled == false, "In your script you must inherit the virtual method `_controller_process` to correctly use the `NetworkedController`.");
 	ERR_FAIL_COND_MSG(has_method("_are_inputs_different") == false && server_controlled == false, "In your script you must inherit the virtual method `_are_inputs_different` to correctly use the `NetworkedController`.");
 	ERR_FAIL_COND_MSG(has_method("_count_input_size") == false && server_controlled == false, "In your script you must inherit the virtual method `_count_input_size` to correctly use the `NetworkedController`.");
-	ERR_FAIL_COND_MSG(has_method("_collect_epoch_data") == false, "In your script you must inherit the virtual method `_collect_epoch_data` to correctly use the `NetworkedController`.");
-	ERR_FAIL_COND_MSG(has_method("_apply_epoch") == false, "In your script you must inherit the virtual method `_apply_epoch` to correctly use the `NetworkedController`.");
 }
 
 void NetworkedController::native_collect_inputs(double p_delta, DataBuffer &r_buffer) {
@@ -464,30 +460,6 @@ uint32_t NetworkedController::native_count_input_size(DataBuffer &p_buffer) {
 		NET_DEBUG_ERR("The function `_count_input_size` was not executed.");
 	}
 	return uint32_t(input_size >= 0 ? input_size : 0);
-}
-
-void NetworkedController::native_collect_epoch_data(DataBuffer &r_buffer) {
-	PROFILE_NODE
-
-	const bool executed = GDVIRTUAL_CALL(_collect_epoch_data, &r_buffer);
-	if (executed == false) {
-		NET_DEBUG_ERR("The function _collect_epoch_data was not executed!");
-	}
-}
-
-void NetworkedController::native_apply_epoch(double p_delta, real_t p_interpolation_alpha, DataBuffer &p_past_buffer, DataBuffer &p_future_buffer) {
-	PROFILE_NODE
-
-	const bool executed = GDVIRTUAL_CALL(
-			_apply_epoch,
-			p_delta,
-			p_interpolation_alpha,
-			&p_past_buffer,
-			&p_future_buffer);
-
-	if (executed == false) {
-		NET_DEBUG_ERR("The function _apply_epoch was not executed!");
-	}
 }
 
 bool NetworkedController::queue_instant_process(int p_i) {
@@ -734,8 +706,6 @@ void ServerController::process(double p_delta) {
 			p_delta,
 			node->get_inputs_buffer_mut());
 	SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
-
-	doll_sync(p_delta);
 
 	if (streaming_paused == false) {
 		adjust_player_tick_rate(p_delta);
@@ -1146,7 +1116,7 @@ void ServerController::doll_sync(real_t p_delta) {
 			CRASH_COND(epoch_state_data_cache.get_bit_offset() != DOLL_EPOCH_METADATA_SIZE);
 #endif
 
-			node->native_collect_epoch_data(epoch_state_data_cache);
+			//node->native_collect_epoch_data(epoch_state_data_cache);
 			epoch_state_data_cache.dry();
 			epoch_state_collected = true;
 		}
@@ -1644,11 +1614,11 @@ void DollController::process(double p_delta) {
 	// Skip metadata.
 	future_epoch_buffer.seek(DOLL_EPOCH_METADATA_SIZE);
 
-	node->native_apply_epoch(
-			p_delta,
-			interpolation_alpha,
-			past_epoch_buffer,
-			future_epoch_buffer);
+	//node->native_apply_epoch(
+	//		p_delta,
+	//		interpolation_alpha,
+	//		past_epoch_buffer,
+	//		future_epoch_buffer);
 }
 
 uint32_t DollController::get_current_input_id() const {
@@ -1692,7 +1662,7 @@ void DollController::receive_epoch(const Vector<uint8_t> &p_data) {
 	// Make sure to store the current state, so we can use it to interpolate.
 	// This is necessary so we allow a bit of overshot.
 	past_epoch_buffer.begin_write(0);
-	node->native_collect_epoch_data(past_epoch_buffer);
+	//node->native_collect_epoch_data(past_epoch_buffer);
 
 	// ~~ Establish the interpolation speed ~~
 

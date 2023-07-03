@@ -107,6 +107,10 @@ const LocalVector<NetUtility::SyncGroup::DeferredNodeInfo> &NetUtility::SyncGrou
 	return deferred_sync_nodes;
 }
 
+LocalVector<NetUtility::SyncGroup::DeferredNodeInfo> &NetUtility::SyncGroup::get_deferred_sync_nodes() {
+	return deferred_sync_nodes;
+}
+
 void NetUtility::SyncGroup::mark_changes_as_notified() {
 	for (int i = 0; i < int(realtime_sync_nodes.size()); ++i) {
 		realtime_sync_nodes[i].change.not_known_before = false;
@@ -170,4 +174,30 @@ void NetUtility::SyncGroup::notify_variable_changed(NodeData *p_node_data, const
 	if (index >= 0) {
 		realtime_sync_nodes[index].change.vars.insert(p_var_name);
 	}
+}
+
+void NetUtility::SyncGroup::set_deferred_update_rate(NetUtility::NodeData *p_node_data, real_t p_update_rate) {
+	const int index = deferred_sync_nodes.find(p_node_data);
+	ERR_FAIL_COND(index < 0);
+	deferred_sync_nodes[index].update_rate = p_update_rate;
+}
+
+real_t NetUtility::SyncGroup::get_deferred_update_rate(const NetUtility::NodeData *p_node_data) const {
+	for (int i = 0; i < int(deferred_sync_nodes.size()); ++i) {
+		if (deferred_sync_nodes[i].nd == p_node_data) {
+			return deferred_sync_nodes[i].update_rate;
+		}
+	}
+	ERR_PRINT("NodeData " + p_node_data->node->get_path() + " not found into `deferred_sync_nodes`.");
+	return 0.0;
+}
+
+void NetUtility::SyncGroup::sort_deferred_node_by_update_priority() {
+	struct DNIComparator {
+		_FORCE_INLINE_ bool operator()(const DeferredNodeInfo &a, const DeferredNodeInfo &b) const {
+			return a.update_priority >= b.update_priority;
+		}
+	};
+
+	deferred_sync_nodes.sort_custom<DNIComparator>();
 }

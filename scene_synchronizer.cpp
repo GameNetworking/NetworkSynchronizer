@@ -94,6 +94,8 @@ void SceneSynchronizer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("sync_group_add_node", "node_id", "group_id", "realtime"), &SceneSynchronizer::sync_group_add_node_by_id);
 	ClassDB::bind_method(D_METHOD("sync_group_remove_node", "node_id", "group_id"), &SceneSynchronizer::sync_group_remove_node_by_id);
 	ClassDB::bind_method(D_METHOD("sync_group_move_peer_to", "peer_id", "group_id"), &SceneSynchronizer::sync_group_move_peer_to);
+	ClassDB::bind_method(D_METHOD("sync_group_set_deferred_update_rate", "node_id", "group_id", "update_rate"), &SceneSynchronizer::sync_group_set_deferred_update_rate_by_id);
+	ClassDB::bind_method(D_METHOD("sync_group_get_deferred_update_rate", "node_id", "group_id"), &SceneSynchronizer::sync_group_get_deferred_update_rate_by_id);
 
 	ClassDB::bind_method(D_METHOD("start_tracking_scene_changes", "diff_handle"), &SceneSynchronizer::start_tracking_scene_changes);
 	ClassDB::bind_method(D_METHOD("stop_tracking_scene_changes", "diff_handle"), &SceneSynchronizer::stop_tracking_scene_changes);
@@ -125,6 +127,7 @@ void SceneSynchronizer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_rpc_notify_need_full_snapshot"), &SceneSynchronizer::_rpc_notify_need_full_snapshot);
 	ClassDB::bind_method(D_METHOD("_rpc_set_network_enabled", "enabled"), &SceneSynchronizer::_rpc_set_network_enabled);
 	ClassDB::bind_method(D_METHOD("_rpc_notify_peer_status", "enabled"), &SceneSynchronizer::_rpc_notify_peer_status);
+	ClassDB::bind_method(D_METHOD("_rpc_send_deferred_sync_data", "data"), &SceneSynchronizer::_rpc_send_deferred_sync_data);
 
 	GDVIRTUAL_BIND(_update_nodes_relevancy);
 
@@ -213,6 +216,7 @@ SceneSynchronizer::SceneSynchronizer() {
 	rpc_config(SNAME("_rpc_notify_need_full_snapshot"), rpc_config_reliable);
 	rpc_config(SNAME("_rpc_set_network_enabled"), rpc_config_reliable);
 	rpc_config(SNAME("_rpc_notify_peer_status"), rpc_config_reliable);
+	rpc_config(SNAME("_rpc_send_deferred_sync_data"), rpc_config_unreliable);
 
 	// Avoid too much useless re-allocations.
 	event_listener.reserve(100);
@@ -563,6 +567,26 @@ void SceneSynchronizer::sync_group_remove_node(NetUtility::NodeData *p_node_data
 void SceneSynchronizer::sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id) {
 	ERR_FAIL_COND_MSG(!is_server(), "This function CAN be used only on the server.");
 	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_move_peer_to(p_peer_id, p_group_id);
+}
+
+void SceneSynchronizer::sync_group_set_deferred_update_rate_by_id(NetNodeId p_node_id, SyncGroupId p_group_id, real_t p_update_rate) {
+	NetUtility::NodeData *nd = get_node_data(p_node_id);
+	sync_group_set_deferred_update_rate(nd, p_group_id, p_update_rate);
+}
+
+void SceneSynchronizer::sync_group_set_deferred_update_rate(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id, real_t p_update_rate) {
+	ERR_FAIL_COND_MSG(!is_server(), "This function CAN be used only on the server.");
+	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_set_deferred_update_rate(p_node_data, p_group_id, p_update_rate);
+}
+
+real_t SceneSynchronizer::sync_group_get_deferred_update_rate_by_id(NetNodeId p_node_id, SyncGroupId p_group_id) const {
+	const NetUtility::NodeData *nd = get_node_data(p_node_id);
+	return sync_group_get_deferred_update_rate(nd, p_group_id);
+}
+
+real_t SceneSynchronizer::sync_group_get_deferred_update_rate(const NetUtility::NodeData *p_node_data, SyncGroupId p_group_id) const {
+	ERR_FAIL_COND_V_MSG(!is_server(), 0.0, "This function CAN be used only on the server.");
+	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get_deferred_update_rate(p_node_data, p_group_id);
 }
 
 void SceneSynchronizer::start_tracking_scene_changes(Object *p_diff_handle) const {
@@ -962,6 +986,13 @@ void SceneSynchronizer::_rpc_set_network_enabled(bool p_enabled) {
 void SceneSynchronizer::_rpc_notify_peer_status(bool p_enabled) {
 	ERR_FAIL_COND_MSG(is_client() == false, "The peer status is supposed to be received by the client.");
 	static_cast<ClientSynchronizer *>(synchronizer)->set_enabled(p_enabled);
+}
+
+void SceneSynchronizer::_rpc_send_deferred_sync_data(const Vector<uint8_t> &p_data) {
+	ERR_FAIL_COND_MSG(is_client() == false, "Only clients are supposed to receive this function call.");
+	ERR_FAIL_COND_MSG(p_data.size() <= 0, "It's not supposed to receive a 0 size data.");
+
+	static_cast<ClientSynchronizer *>(synchronizer)->receive_deferred_sync_data(p_data);
 }
 
 void SceneSynchronizer::update_peers() {
@@ -1774,6 +1805,8 @@ void ServerSynchronizer::process() {
 
 	SceneSynchronizerDebugger::singleton()->scene_sync_process_start(scene_synchronizer);
 
+	epoch += 1;
+
 	// Process the scene
 	scene_synchronizer->process_functions__execute(delta);
 
@@ -1786,6 +1819,7 @@ void ServerSynchronizer::process() {
 	scene_synchronizer->change_events_flush();
 
 	process_snapshot_notificator(delta);
+	process_deferred_sync(delta);
 
 	SceneSynchronizerDebugger::singleton()->scene_sync_process_end(scene_synchronizer);
 
@@ -1897,6 +1931,20 @@ void ServerSynchronizer::sync_group_move_peer_to(int p_peer_id, SyncGroupId p_gr
 	// Make sure the controller is added into this group.
 	NetUtility::NodeData *nd = scene_synchronizer->get_node_data(pd->controller_id);
 	sync_group_add_node(nd, p_group_id, true);
+}
+
+void ServerSynchronizer::sync_group_set_deferred_update_rate(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id, real_t p_update_rate) {
+	ERR_FAIL_COND(p_node_data == nullptr);
+	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
+	ERR_FAIL_COND_MSG(p_group_id == SceneSynchronizer::GLOBAL_SYNC_GROUP_ID, "You can't change this SyncGroup in any way. Create a new one.");
+	sync_groups[p_group_id].set_deferred_update_rate(p_node_data, p_update_rate);
+}
+
+real_t ServerSynchronizer::sync_group_get_deferred_update_rate(const NetUtility::NodeData *p_node_data, SyncGroupId p_group_id) const {
+	ERR_FAIL_COND_V(p_node_data == nullptr, 0.0);
+	ERR_FAIL_COND_V_MSG(p_group_id >= sync_groups.size(), 0.0, "The group id `" + itos(p_group_id) + "` doesn't exist.");
+	ERR_FAIL_COND_V_MSG(p_group_id == SceneSynchronizer::GLOBAL_SYNC_GROUP_ID, 0.0, "You can't change this SyncGroup in any way. Create a new one.");
+	return sync_groups[p_group_id].get_deferred_update_rate(p_node_data);
 }
 
 void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
@@ -2117,6 +2165,86 @@ void ServerSynchronizer::generate_snapshot_node_data(
 	r_snapshot_data.push_back(Variant());
 }
 
+void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
+	for (int g = 0; g < int(sync_groups.size()); ++g) {
+		NetUtility::SyncGroup &group = sync_groups[g];
+
+		if (group.peers.size() == 0) {
+			// No one is interested to this group.
+			continue;
+		}
+
+		LocalVector<NetUtility::SyncGroup::DeferredNodeInfo> &node_info = group.get_deferred_sync_nodes();
+		if (node_info.size() == 0) {
+			// Nothing to sync.
+			continue;
+		}
+
+		const int max_deferred_nodes_per_update = 10; // TODO please make this a variable.
+		int update_node_count = 0;
+
+		group.sort_deferred_node_by_update_priority();
+
+		DataBuffer buffer;
+		buffer.begin_write(0);
+		buffer.add_uint(epoch, DataBuffer::COMPRESSION_LEVEL_1);
+
+		const Variant var_data_buffer = &buffer;
+		const Variant *fake_array_vars = &var_data_buffer;
+
+		for (int i = 0; i < int(node_info.size()); ++i) {
+			bool send = true;
+			if (node_info[i].update_priority < 1.0 || update_node_count >= max_deferred_nodes_per_update) {
+				send = false;
+			}
+
+			if (node_info[i].nd->id > UINT16_MAX) {
+				SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "[FATAL] The `process_deferred_sync` found a node with ID `" + itos(node_info[i].nd->id) + "::" + node_info[i].nd->node->get_path() + "` that exceedes the max ID this function can network at the moment. Please report this, we will consider improving this function.");
+				send = false;
+			}
+
+			if (node_info[i].nd->collect_epoch_func.is_null()) {
+				SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "The `process_deferred_sync` found a node `" + itos(node_info[i].nd->id) + "::" + node_info[i].nd->node->get_path() + "` with an invalid function `collect_epoch_func`. Please use `setup_deferred_sync` to correctly initialize this node for deferred sync.");
+				send = false;
+			}
+
+			if (send) {
+				node_info[i].update_priority = 0.0;
+				++update_node_count;
+
+				if (node_info[i].nd->id > UINT8_MAX) {
+					buffer.add_bool(true);
+					buffer.add_uint(node_info[i].nd->id, DataBuffer::COMPRESSION_LEVEL_2);
+				} else {
+					buffer.add_bool(false);
+					buffer.add_uint(node_info[i].nd->id, DataBuffer::COMPRESSION_LEVEL_3);
+				}
+
+				Variant r;
+				Callable::CallError e;
+				node_info[i].nd->collect_epoch_func.callp(&fake_array_vars, 1, r, e);
+
+				if (e.error != Callable::CallError::CALL_OK) {
+					SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "[FATAL] The `process_deferred_sync` was not able to execute the function `" + node_info[i].nd->collect_epoch_func.get_method() + "` for the node `" + itos(node_info[i].nd->id) + "::" + node_info[i].nd->node->get_path() + "`.");
+					return;
+				}
+			} else {
+				node_info[i].update_priority += node_info[i].update_rate;
+			}
+		}
+
+		if (update_node_count > 0) {
+			buffer.dry();
+			for (int i = 0; i < int(group.peers.size()); ++i) {
+				scene_synchronizer->rpc_id(
+						group.peers[i],
+						SNAME("_rpc_send_deferred_sync_data"),
+						buffer.get_buffer().get_bytes());
+			}
+		}
+	}
+}
+
 ClientSynchronizer::ClientSynchronizer(SceneSynchronizer *p_node) :
 		Synchronizer(p_node) {
 	clear();
@@ -2234,6 +2362,8 @@ void ClientSynchronizer::process() {
 	sync_end_events.clear();
 
 	scene_synchronizer->change_events_flush();
+
+	process_received_deferred_sync_data(delta);
 
 #if DEBUG_ENABLED
 	const int client_peer = scene_synchronizer->get_multiplayer()->get_unique_id();
@@ -3206,6 +3336,85 @@ void ClientSynchronizer::set_enabled(bool p_enabled) {
 		enabled = false;
 		want_to_enable = false;
 		scene_synchronizer->emit_signal("sync_paused");
+	}
+}
+
+void ClientSynchronizer::receive_deferred_sync_data(const Vector<uint8_t> &p_data) {
+	latest_received_deferred_sync_data = p_data;
+}
+
+void ClientSynchronizer::process_received_deferred_sync_data(real_t p_delta) {
+	if (latest_received_deferred_sync_data.size() <= 0) {
+		// Nothing new to process.
+		return;
+	}
+
+	DataBuffer buffer(latest_received_deferred_sync_data);
+	latest_received_deferred_sync_data.clear();
+
+	buffer.begin_read();
+
+	const uint32_t epoch = buffer.read_uint(DataBuffer::COMPRESSION_LEVEL_1);
+	print_line("Epoch: " + itos(epoch));
+
+	Variant array_vars[4];
+	array_vars[0] = p_delta;
+	array_vars[3] = &buffer;
+	const Variant *fake_array_vars = array_vars;
+
+	while (true) {
+		int remaining_size = buffer.size() - buffer.get_bit_offset();
+		if (remaining_size < buffer.get_bool_size()) {
+			// buffer entirely consumed, nothing else to do.
+			break;
+		}
+
+		NetNodeId node_id;
+		if (buffer.read_bool()) {
+			remaining_size = buffer.size() - buffer.get_bit_offset();
+			if (remaining_size < buffer.get_uint_size(DataBuffer::COMPRESSION_LEVEL_2)) {
+				// buffer entirely consumed, nothing else to do.
+				break;
+			}
+
+			node_id = buffer.read_uint(DataBuffer::COMPRESSION_LEVEL_2);
+		} else {
+			if (remaining_size < buffer.get_uint_size(DataBuffer::COMPRESSION_LEVEL_3)) {
+				// buffer entirely consumed, nothing else to do.
+				break;
+			}
+			node_id = buffer.read_uint(DataBuffer::COMPRESSION_LEVEL_3);
+		}
+
+		NetUtility::NodeData *nd = scene_synchronizer->get_node_data(node_id);
+		if (nd == nullptr) {
+			SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "The function `process_received_deferred_sync_data` failed becouse the node with ID `" + itos(node_id) + "` was not found locally.");
+			notify_server_full_snapshot_is_needed();
+			return;
+		}
+
+		if (nd->apply_epoch_func.is_null()) {
+			SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "[FATAL] The function `process_received_deferred_sync_data` failed becouse the node `" + nd->node->get_path() + "` has an invalid apply epoch function named `" + nd->apply_epoch_func.get_method() + "`. You have a bug in your game.");
+			return;
+		}
+
+		real_t alpha = 1.0;
+		// TODO compute the alpha.
+
+		DataBuffer past_data_buffer;
+		// TODO collect the past data buffer??
+
+		array_vars[1] = alpha;
+		array_vars[2] = &past_data_buffer;
+
+		Variant r;
+		Callable::CallError e;
+		nd->apply_epoch_func.callp(&fake_array_vars, 4, r, e);
+
+		if (e.error != Callable::CallError::CALL_OK) {
+			SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "[FATAL] The `receive_deferred_sync_data` failed executing the function`" + nd->collect_epoch_func.get_method() + "` for the node `" + nd->node->get_path() + "`.");
+			return;
+		}
 	}
 }
 
