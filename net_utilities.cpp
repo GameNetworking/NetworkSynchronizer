@@ -95,58 +95,79 @@ bool NetUtility::NodeChangeListener::operator==(const NodeChangeListener &p_othe
 	return node_data == p_other.node_data && var_id == p_other.var_id;
 }
 
-bool NetUtility::RealtimeSyncGroup::is_node_list_changed() const {
-	return nodes_list_changed;
+bool NetUtility::SyncGroup::is_node_list_changed() const {
+	return realtime_sync_nodes_list_changed;
 }
 
-const LocalVector<NetUtility::NodeData *> &NetUtility::RealtimeSyncGroup::get_nodes() const {
-	return nodes;
+const LocalVector<NetUtility::SyncGroup::RealtimeNodeInfo> &NetUtility::SyncGroup::get_realtime_sync_nodes() const {
+	return realtime_sync_nodes;
 }
 
-const LocalVector<NetUtility::RealtimeSyncGroup::Change> &NetUtility::RealtimeSyncGroup::get_changes() const {
-	return changes;
+const LocalVector<NetUtility::SyncGroup::DeferredNodeInfo> &NetUtility::SyncGroup::get_deferred_sync_nodes() const {
+	return deferred_sync_nodes;
 }
 
-void NetUtility::RealtimeSyncGroup::mark_changes_as_notified() {
-	changes.clear();
-	nodes_list_changed = false;
+void NetUtility::SyncGroup::mark_changes_as_notified() {
+	for (int i = 0; i < int(realtime_sync_nodes.size()); ++i) {
+		realtime_sync_nodes[i].change.not_known_before = false;
+		realtime_sync_nodes[i].change.uknown_vars.clear();
+		realtime_sync_nodes[i].change.vars.clear();
+	}
+	realtime_sync_nodes_list_changed = false;
 }
 
-void NetUtility::RealtimeSyncGroup::add_new_node(NodeData *p_node_data) {
-	if (nodes.find(p_node_data) == -1) {
-		if (changes.size() <= p_node_data->id) {
-			changes.resize(p_node_data->id + 1);
+void NetUtility::SyncGroup::add_new_node(NodeData *p_node_data, bool p_realtime) {
+	if (p_realtime) {
+		if (realtime_sync_nodes.find(p_node_data) == -1) {
+			const uint32_t index = realtime_sync_nodes.size();
+			realtime_sync_nodes.push_back(p_node_data);
+			realtime_sync_nodes_list_changed = true;
+
+			RealtimeNodeInfo &info = realtime_sync_nodes[index];
+
+			info.change.not_known_before = true;
+
+			for (int i = 0; i < int(p_node_data->vars.size()); ++i) {
+				notify_new_variable(p_node_data, p_node_data->vars[i].var.name);
+			}
+
+			// Make sure the node is not contained as deferred sync.
+			deferred_sync_nodes.erase(p_node_data);
+		}
+	} else {
+		const int index = realtime_sync_nodes.find(p_node_data);
+		if (index >= 0) {
+			realtime_sync_nodes.remove_at_unordered(index);
+			realtime_sync_nodes_list_changed = true;
 		}
 
-		changes[p_node_data->id].not_known_before = true;
-
-		nodes.push_back(p_node_data);
-		nodes_list_changed = true;
-
-		for (int i = 0; i < int(p_node_data->vars.size()); ++i) {
-			notify_new_variable(p_node_data, p_node_data->vars[i].var.name);
+		if (deferred_sync_nodes.find(p_node_data) == -1) {
+			deferred_sync_nodes.push_back(p_node_data);
 		}
 	}
 }
 
-void NetUtility::RealtimeSyncGroup::remove_node(NodeData *p_node_data) {
-	nodes.erase(p_node_data);
-	nodes_list_changed = true;
-}
-
-void NetUtility::RealtimeSyncGroup::notify_new_variable(NodeData *p_node_data, const StringName &p_var_name) {
-	if (changes.size() <= p_node_data->id) {
-		changes.resize(p_node_data->id + 1);
+void NetUtility::SyncGroup::remove_node(NodeData *p_node_data) {
+	const int index = realtime_sync_nodes.find(p_node_data);
+	if (index >= 0) {
+		realtime_sync_nodes.remove_at_unordered(index);
+		realtime_sync_nodes_list_changed = true;
 	}
 
-	changes[p_node_data->id].vars.insert(p_var_name);
-	changes[p_node_data->id].uknown_vars.insert(p_var_name);
+	deferred_sync_nodes.erase(p_node_data);
 }
 
-void NetUtility::RealtimeSyncGroup::notify_variable_changed(NodeData *p_node_data, const StringName &p_var_name) {
-	if (changes.size() <= p_node_data->id) {
-		changes.resize(p_node_data->id + 1);
+void NetUtility::SyncGroup::notify_new_variable(NodeData *p_node_data, const StringName &p_var_name) {
+	int index = realtime_sync_nodes.find(p_node_data);
+	if (index >= 0) {
+		realtime_sync_nodes[index].change.vars.insert(p_var_name);
+		realtime_sync_nodes[index].change.uknown_vars.insert(p_var_name);
 	}
+}
 
-	changes[p_node_data->id].vars.insert(p_var_name);
+void NetUtility::SyncGroup::notify_variable_changed(NodeData *p_node_data, const StringName &p_var_name) {
+	int index = realtime_sync_nodes.find(p_node_data);
+	if (index >= 0) {
+		realtime_sync_nodes[index].change.vars.insert(p_var_name);
+	}
 }
