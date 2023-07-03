@@ -85,8 +85,6 @@ public:
 	GDVIRTUAL2(_controller_process, real_t, DataBuffer *);
 	GDVIRTUAL2R(bool, _are_inputs_different, DataBuffer *, DataBuffer *);
 	GDVIRTUAL1RC(int, _count_input_size, DataBuffer *);
-	GDVIRTUAL1(_collect_epoch_data, DataBuffer *);
-	GDVIRTUAL4(_apply_epoch, real_t, real_t, DataBuffer *, DataBuffer *);
 
 private:
 	/// When `true`, this controller is controlled by the server: All the clients
@@ -277,8 +275,6 @@ public:
 	virtual void native_controller_process(double p_delta, DataBuffer &p_buffer);
 	virtual bool native_are_inputs_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B);
 	virtual uint32_t native_count_input_size(DataBuffer &p_buffer);
-	virtual void native_collect_epoch_data(DataBuffer &r_buffer);
-	virtual void native_apply_epoch(double p_delta, real_t p_interpolation_alpha, DataBuffer &p_past_buffer, DataBuffer &p_future_buffer);
 
 	bool queue_instant_process(int p_i);
 	void process(double p_delta);

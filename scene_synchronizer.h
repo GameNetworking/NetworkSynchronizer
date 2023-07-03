@@ -225,6 +225,10 @@ public:
 	void sync_group_remove_node_by_id(NetNodeId p_node_id, SyncGroupId p_group_id);
 	void sync_group_remove_node(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id);
 	void sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id);
+	void sync_group_set_deferred_update_rate_by_id(NetNodeId p_node_id, SyncGroupId p_group_id, real_t p_update_rate);
+	void sync_group_set_deferred_update_rate(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id, real_t p_update_rate);
+	real_t sync_group_get_deferred_update_rate_by_id(NetNodeId p_node_id, SyncGroupId p_group_id) const;
+	real_t sync_group_get_deferred_update_rate(const NetUtility::NodeData *p_node_data, SyncGroupId p_group_id) const;
 
 	void start_tracking_scene_changes(Object *p_diff_handle) const;
 	void stop_tracking_scene_changes(Object *p_diff_handle) const;
@@ -264,6 +268,7 @@ public:
 	void _rpc_notify_need_full_snapshot();
 	void _rpc_set_network_enabled(bool p_enabled);
 	void _rpc_notify_peer_status(bool p_enabled);
+	void _rpc_send_deferred_sync_data(const Vector<uint8_t> &p_data);
 
 	void update_peers();
 	void clear_peers();
@@ -386,6 +391,7 @@ public:
 class ServerSynchronizer : public Synchronizer {
 	friend class SceneSynchronizer;
 
+	uint32_t epoch = 0;
 	/// This array contains a map between the peers and the relevant nodes.
 	LocalVector<NetUtility::SyncGroup> sync_groups;
 
@@ -416,6 +422,8 @@ public:
 	void sync_group_add_node(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id, bool p_realtime);
 	void sync_group_remove_node(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id);
 	void sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id);
+	void sync_group_set_deferred_update_rate(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id, real_t p_update_rate);
+	real_t sync_group_get_deferred_update_rate(const NetUtility::NodeData *p_node_data, SyncGroupId p_group_id) const;
 
 	void process_snapshot_notificator(real_t p_delta);
 
@@ -428,6 +436,8 @@ public:
 			SnapshotGenerationMode p_mode,
 			const NetUtility::SyncGroup::Change &p_change,
 			Vector<Variant> &r_result) const;
+
+	void process_deferred_sync(real_t p_delta);
 };
 
 class ClientSynchronizer : public Synchronizer {
@@ -461,6 +471,8 @@ class ClientSynchronizer : public Synchronizer {
 
 	RBSet<EndSyncEvent> sync_end_events;
 
+	Vector<uint8_t> latest_received_deferred_sync_data;
+
 public:
 	ClientSynchronizer(SceneSynchronizer *p_node);
 
@@ -483,6 +495,9 @@ public:
 			void (*p_node_activation_parse)(void *p_user_pointer, NetUtility::NodeData *p_node_data, bool p_is_active));
 
 	void set_enabled(bool p_enabled);
+
+	void receive_deferred_sync_data(const Vector<uint8_t> &p_data);
+	void process_received_deferred_sync_data(real_t p_delta);
 
 private:
 	/// Store node data organized per controller.

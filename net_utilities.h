@@ -367,7 +367,10 @@ struct NodeData {
 	LocalVector<VarData> vars;
 	LocalVector<Callable> functions[PROCESSPHASE_COUNT];
 
+	// func _collect_epoch_data(buffer: DataBuffer):
 	Callable collect_epoch_func;
+
+	// func _apply_epoch(delta: float, interpolation_alpha: float, past_buffer: DataBuffer, future_buffer: DataBuffer):
 	Callable apply_epoch_func;
 
 	// This is valid to use only inside the process function.
@@ -424,6 +427,8 @@ public:
 
 	struct DeferredNodeInfo {
 		NetUtility::NodeData *nd = nullptr;
+		float update_rate = 0.5;
+		float update_priority = 0.0;
 
 		DeferredNodeInfo() = default;
 		DeferredNodeInfo(NetUtility::NodeData *p_nd) :
@@ -447,6 +452,7 @@ public:
 
 	const LocalVector<NetUtility::SyncGroup::RealtimeNodeInfo> &get_realtime_sync_nodes() const;
 	const LocalVector<NetUtility::SyncGroup::DeferredNodeInfo> &get_deferred_sync_nodes() const;
+	LocalVector<NetUtility::SyncGroup::DeferredNodeInfo> &get_deferred_sync_nodes();
 
 	void mark_changes_as_notified();
 
@@ -455,6 +461,10 @@ public:
 
 	void notify_new_variable(NodeData *p_node_data, const StringName &p_var_name);
 	void notify_variable_changed(NodeData *p_node_data, const StringName &p_var_name);
+
+	void set_deferred_update_rate(NetUtility::NodeData *p_node_data, real_t p_update_rate);
+	real_t get_deferred_update_rate(const NetUtility::NodeData *p_node_data) const;
+	void sort_deferred_node_by_update_priority();
 };
 
 } // namespace NetUtility
