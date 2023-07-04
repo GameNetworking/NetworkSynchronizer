@@ -135,6 +135,10 @@ static const String ProcessPhaseName[PROCESSPHASE_COUNT] = {
 };
 
 namespace NetUtility {
+// This was needed to optimize the godot stringify for byte arrays.. it was slowing down perfs.
+String stringify_byte_array_fast(const Vector<uint8_t> &p_array);
+String stringify_fast(const Variant &p_var);
+
 template <class T>
 class StatisticalRingBuffer {
 	LocalVector<T> data;
@@ -410,7 +414,7 @@ struct NoRewindRecover {
 struct SyncGroup {
 public:
 	struct Change {
-		bool not_known_before = false;
+		bool unknown = false;
 		RBSet<StringName> uknown_vars;
 		RBSet<StringName> vars;
 	};
@@ -427,6 +431,7 @@ public:
 
 	struct DeferredNodeInfo {
 		NetUtility::NodeData *nd = nullptr;
+		bool unknown = false;
 		float update_rate = 0.5;
 		float update_priority = 0.0;
 
@@ -440,6 +445,7 @@ private:
 	bool realtime_sync_nodes_list_changed = false;
 	LocalVector<RealtimeNodeInfo> realtime_sync_nodes;
 
+	bool deferred_sync_nodes_list_changed = false;
 	LocalVector<DeferredNodeInfo> deferred_sync_nodes;
 
 public:
@@ -448,7 +454,8 @@ public:
 	real_t state_notifier_timer = 0.0;
 
 public:
-	bool is_node_list_changed() const;
+	bool is_realtime_node_list_changed() const;
+	bool is_deferred_node_list_changed() const;
 
 	const LocalVector<NetUtility::SyncGroup::RealtimeNodeInfo> &get_realtime_sync_nodes() const;
 	const LocalVector<NetUtility::SyncGroup::DeferredNodeInfo> &get_deferred_sync_nodes() const;

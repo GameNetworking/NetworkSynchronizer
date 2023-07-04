@@ -49,6 +49,9 @@ uint32_t InputNetworkEncoder::register_input(
 		case DataBuffer::DATA_TYPE_NORMALIZED_VECTOR3:
 			ERR_FAIL_COND_V_MSG(p_default_value.get_type() != Variant::VECTOR3, UINT32_MAX, "The moveset initialization failed for" + p_name + " the specified data type is `Vector3` but the default parameter is " + itos(p_default_value.get_type()));
 			break;
+		case DataBuffer::DATA_TYPE_BITS:
+			CRASH_NOW_MSG("NOT SUPPORTED.");
+			break;
 		case DataBuffer::DATA_TYPE_VARIANT:
 			/* No need to check variant, anything is accepted at this point.*/
 			break;
@@ -133,6 +136,9 @@ void InputNetworkEncoder::encode(const LocalVector<Variant> &p_input, DataBuffer
 					case DataBuffer::DATA_TYPE_NORMALIZED_VECTOR3:
 						_ALLOW_DISCARD_ r_buffer.add_normalized_vector3(pending_input.operator Vector3(), info.compression_level);
 						break;
+					case DataBuffer::DATA_TYPE_BITS:
+						CRASH_NOW_MSG("Not supported.");
+						break;
 					case DataBuffer::DATA_TYPE_VARIANT:
 						_ALLOW_DISCARD_ r_buffer.add_variant(pending_input);
 						break;
@@ -198,6 +204,9 @@ void InputNetworkEncoder::decode(DataBuffer &p_buffer, LocalVector<Variant> &r_i
 				case DataBuffer::DATA_TYPE_NORMALIZED_VECTOR3:
 					r_inputs[i] = p_buffer.read_normalized_vector3(info.compression_level);
 					break;
+				case DataBuffer::DATA_TYPE_BITS:
+					CRASH_NOW_MSG("Not supported.");
+					break;
 				case DataBuffer::DATA_TYPE_VARIANT:
 					r_inputs[i] = p_buffer.read_variant();
 					break;
@@ -262,6 +271,9 @@ bool InputNetworkEncoder::are_different(DataBuffer &p_buffer_A, DataBuffer &p_bu
 				case DataBuffer::DATA_TYPE_NORMALIZED_VECTOR3:
 					are_equals = SceneSynchronizer::compare(p_buffer_A.read_normalized_vector3(info.compression_level), p_buffer_B.read_normalized_vector3(info.compression_level), info.comparison_floating_point_precision);
 					break;
+				case DataBuffer::DATA_TYPE_BITS:
+					CRASH_NOW_MSG("Not supported.");
+					break;
 				case DataBuffer::DATA_TYPE_VARIANT:
 					are_equals = SceneSynchronizer::compare(p_buffer_A.read_variant(), p_buffer_B.read_variant(), info.comparison_floating_point_precision);
 					break;
@@ -323,6 +335,9 @@ uint32_t InputNetworkEncoder::count_size(DataBuffer &p_buffer) const {
 						break;
 					case DataBuffer::DATA_TYPE_NORMALIZED_VECTOR3:
 						size += p_buffer.read_normalized_vector3_size(info.compression_level);
+						break;
+					case DataBuffer::DATA_TYPE_BITS:
+						CRASH_NOW_MSG("Not supported.");
 						break;
 					case DataBuffer::DATA_TYPE_VARIANT:
 						size += p_buffer.read_variant_size();

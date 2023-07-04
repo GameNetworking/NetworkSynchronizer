@@ -76,6 +76,7 @@ void DataBuffer::_bind_methods() {
 	BIND_ENUM_CONSTANT(DATA_TYPE_NORMALIZED_VECTOR2);
 	BIND_ENUM_CONSTANT(DATA_TYPE_VECTOR3);
 	BIND_ENUM_CONSTANT(DATA_TYPE_NORMALIZED_VECTOR3);
+	BIND_ENUM_CONSTANT(DATA_TYPE_BITS);
 	BIND_ENUM_CONSTANT(DATA_TYPE_VARIANT);
 
 	BIND_ENUM_CONSTANT(COMPRESSION_LEVEL_0);
@@ -332,11 +333,11 @@ uint64_t DataBuffer::add_uint(uint64_t p_input, CompressionLevel p_compression_l
 
 	// Clamp the value to the max that the bit can store.
 	if (bits == 8) {
-		value = MIN(value, UINT8_MAX);
+		value = MIN(value, uint64_t(UINT8_MAX));
 	} else if (bits == 16) {
-		value = MIN(value, UINT16_MAX);
+		value = MIN(value, uint64_t(UINT16_MAX));
 	} else if (bits == 32) {
-		value = MIN(value, UINT32_MAX);
+		value = MIN(value, uint64_t(UINT32_MAX));
 	} else {
 		// Nothing to do here
 	}
@@ -642,6 +643,7 @@ Vector2 DataBuffer::read_normalized_vector2(CompressionLevel p_compression_level
 }
 
 Vector3 DataBuffer::add_vector3(Vector3 p_input, CompressionLevel p_compression_level) {
+	print_line("DB ptr: " + itos((uint64_t)this)); // TODO remove.
 	ERR_FAIL_COND_V(is_reading == true, p_input);
 
 #ifndef REAL_T_IS_DOUBLE
@@ -729,6 +731,7 @@ Vector3 DataBuffer::read_normalized_vector3(CompressionLevel p_compression_level
 }
 
 Variant DataBuffer::add_variant(const Variant &p_input) {
+	ERR_FAIL_COND_V(is_reading, Variant());
 	// TODO consider to use a method similar to `_encode_and_compress_variant`
 	// to compress the encoded data a bit.
 
@@ -775,6 +778,7 @@ Variant DataBuffer::add_variant(const Variant &p_input) {
 }
 
 Variant DataBuffer::read_variant() {
+	ERR_FAIL_COND_V(!is_reading, Variant());
 	Variant ret;
 
 	int len = 0;
@@ -806,6 +810,47 @@ Variant DataBuffer::read_variant() {
 	DEB_READ(DATA_TYPE_VARIANT, COMPRESSION_LEVEL_0, ret);
 
 	return ret;
+}
+
+void DataBuffer::add_bits(const Vector<uint8_t> &p_data, int p_bit_count) {
+	ERR_FAIL_COND(is_reading);
+	ERR_FAIL_COND_MSG(
+			(p_data.size() * 8) < p_bit_count,
+			"Was not possible add bits because the passed array is smaller than the number of bits to add.");
+
+	make_room_in_bits(p_bit_count);
+
+	const uint8_t *data = p_data.ptr();
+	for (int i = 0; p_bit_count > 0; ++i) {
+		const int this_bit_count = MIN(p_bit_count, 8);
+		p_bit_count -= this_bit_count;
+
+		buffer.store_bits(bit_offset, data[i], this_bit_count);
+
+		bit_offset += this_bit_count;
+	}
+
+	DEB_WRITE(DATA_TYPE_BITS, COMPRESSION_LEVEL_0, p_data);
+}
+
+Vector<uint8_t> DataBuffer::read_bits(int p_bit_count) {
+	Vector<uint8_t> data;
+	ERR_FAIL_COND_V(!is_reading, data);
+
+	data.resize(Math::ceil(double(p_bit_count) / 8.0));
+
+	uint8_t *data_ptr = data.ptrw();
+	for (int i = 0; p_bit_count > 0; ++i) {
+		const int this_bit_count = MIN(p_bit_count, 8);
+		p_bit_count -= this_bit_count;
+
+		data_ptr[i] = buffer.read_bits(bit_offset, this_bit_count);
+
+		bit_offset += this_bit_count;
+	}
+
+	DEB_READ(DATA_TYPE_BITS, COMPRESSION_LEVEL_0, data);
+	return data;
 }
 
 void DataBuffer::zero() {
@@ -1073,6 +1118,9 @@ int DataBuffer::get_bit_taken(DataType p_data_type, CompressionLevel p_compressi
 		case DATA_TYPE_NORMALIZED_VECTOR3: {
 			return get_bit_taken(DATA_TYPE_UNIT_REAL, p_compression) * 3;
 		} break;
+		case DATA_TYPE_BITS: {
+			ERR_FAIL_V_MSG(0, "The bits size specified by the user and is not determined according to the compression level.");
+		}
 		case DATA_TYPE_VARIANT: {
 			ERR_FAIL_V_MSG(0, "The variant size is dynamic and can't be know at compile time.");
 		}

@@ -32,6 +32,7 @@
 
 #include "core/templates/local_vector.h"
 #include "core/templates/oa_hash_map.h"
+#include "data_buffer.h"
 #include "net_utilities.h"
 #include <deque>
 
@@ -471,7 +472,30 @@ class ClientSynchronizer : public Synchronizer {
 
 	RBSet<EndSyncEvent> sync_end_events;
 
-	Vector<uint8_t> latest_received_deferred_sync_data;
+	struct DeferredSyncStream {
+		NetUtility::NodeData *nd = nullptr;
+		DataBuffer past_epoch_buffer;
+		DataBuffer future_epoch_buffer;
+
+		uint32_t past_epoch = NetID_NONE;
+		uint32_t future_epoch = NetID_NONE;
+		real_t alpha_advacing_per_epoch = 1.0;
+		real_t alpha = 0.0;
+
+		DeferredSyncStream() = default;
+		DeferredSyncStream(
+				NetUtility::NodeData *p_nd) :
+				nd(p_nd) {}
+		DeferredSyncStream(
+				NetUtility::NodeData *p_nd,
+				DataBuffer p_past_epoch_buffer,
+				DataBuffer p_future_epoch_buffer) :
+				nd(p_nd),
+				past_epoch_buffer(p_past_epoch_buffer),
+				future_epoch_buffer(p_future_epoch_buffer) {}
+		bool operator==(const DeferredSyncStream &o) const { return nd == o.nd; }
+	};
+	LocalVector<DeferredSyncStream> deferred_sync_stream;
 
 public:
 	ClientSynchronizer(SceneSynchronizer *p_node);

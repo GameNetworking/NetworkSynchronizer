@@ -38,6 +38,18 @@
 
 const uint32_t NetID_NONE = UINT32_MAX;
 
+// This was needed to optimize the godot stringify for byte arrays.. it was slowing down perfs.
+String NetUtility::stringify_byte_array_fast(const Vector<uint8_t> &p_array) {
+	CharString str;
+	str.resize(p_array.size());
+	memcpy(str.ptrw(), p_array.ptr(), p_array.size());
+	return String(str);
+}
+
+String NetUtility::stringify_fast(const Variant &p_var) {
+	return p_var.get_type() == Variant::PACKED_BYTE_ARRAY ? stringify_byte_array_fast(p_var) : p_var.stringify();
+}
+
 bool NetUtility::ChangeListener::operator==(const ChangeListener &p_other) const {
 	return object_id == p_other.object_id && method == p_other.method;
 }
@@ -95,8 +107,12 @@ bool NetUtility::NodeChangeListener::operator==(const NodeChangeListener &p_othe
 	return node_data == p_other.node_data && var_id == p_other.var_id;
 }
 
-bool NetUtility::SyncGroup::is_node_list_changed() const {
+bool NetUtility::SyncGroup::is_realtime_node_list_changed() const {
 	return realtime_sync_nodes_list_changed;
+}
+
+bool NetUtility::SyncGroup::is_deferred_node_list_changed() const {
+	return deferred_sync_nodes_list_changed;
 }
 
 const LocalVector<NetUtility::SyncGroup::RealtimeNodeInfo> &NetUtility::SyncGroup::get_realtime_sync_nodes() const {
@@ -113,11 +129,15 @@ LocalVector<NetUtility::SyncGroup::DeferredNodeInfo> &NetUtility::SyncGroup::get
 
 void NetUtility::SyncGroup::mark_changes_as_notified() {
 	for (int i = 0; i < int(realtime_sync_nodes.size()); ++i) {
-		realtime_sync_nodes[i].change.not_known_before = false;
+		realtime_sync_nodes[i].change.unknown = false;
 		realtime_sync_nodes[i].change.uknown_vars.clear();
 		realtime_sync_nodes[i].change.vars.clear();
 	}
+	for (int i = 0; i < int(deferred_sync_nodes.size()); ++i) {
+		deferred_sync_nodes[i].unknown = false;
+	}
 	realtime_sync_nodes_list_changed = false;
+	deferred_sync_nodes_list_changed = false;
 }
 
 void NetUtility::SyncGroup::add_new_node(NodeData *p_node_data, bool p_realtime) {
@@ -129,7 +149,7 @@ void NetUtility::SyncGroup::add_new_node(NodeData *p_node_data, bool p_realtime)
 
 			RealtimeNodeInfo &info = realtime_sync_nodes[index];
 
-			info.change.not_known_before = true;
+			info.change.unknown = true;
 
 			for (int i = 0; i < int(p_node_data->vars.size()); ++i) {
 				notify_new_variable(p_node_data, p_node_data->vars[i].var.name);
@@ -146,7 +166,10 @@ void NetUtility::SyncGroup::add_new_node(NodeData *p_node_data, bool p_realtime)
 		}
 
 		if (deferred_sync_nodes.find(p_node_data) == -1) {
+			const int index_def = deferred_sync_nodes.size();
 			deferred_sync_nodes.push_back(p_node_data);
+			deferred_sync_nodes[index_def].unknown = true;
+			deferred_sync_nodes_list_changed = true;
 		}
 	}
 }
