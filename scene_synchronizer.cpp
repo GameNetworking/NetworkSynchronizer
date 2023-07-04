@@ -703,7 +703,7 @@ void SceneSynchronizer::apply_scene_changes(const Variant &p_sync_data) {
 
 	if (success == false) {
 		SceneSynchronizerDebugger::singleton()->debug_error(this, "Scene changes:");
-		SceneSynchronizerDebugger::singleton()->debug_error(this, p_sync_data.stringify());
+		SceneSynchronizerDebugger::singleton()->debug_error(this, NetUtility::stringify_fast(p_sync_data));
 	}
 
 	change_events_flush();
@@ -2041,7 +2041,7 @@ Vector<Variant> ServerSynchronizer::generate_snapshot(
 	Vector<Variant> snapshot_data;
 
 	// First insert the list of ALL enabled nodes, if changed.
-	if (p_group.is_node_list_changed() || p_force_full_snapshot) {
+	if (p_group.is_realtime_node_list_changed() || p_force_full_snapshot) {
 		snapshot_data.push_back(true);
 		// Here we create a bit array: The bit position is significant as it
 		// refers to a specific ID, the bit is set to 1 if the Node is relevant
@@ -2057,6 +2057,18 @@ Vector<Variant> ServerSynchronizer::generate_snapshot(
 		snapshot_data.push_back(bit_array.get_bytes());
 	} else {
 		snapshot_data.push_back(false);
+	}
+
+	if (p_group.is_deferred_node_list_changed() || p_force_full_snapshot) {
+		for (int i = 0; i < int(p_group.get_deferred_sync_nodes().size()); ++i) {
+			if (p_group.get_deferred_sync_nodes()[i].unknown || p_force_full_snapshot) {
+				generate_snapshot_node_data(
+						p_group.get_deferred_sync_nodes()[i].nd,
+						SNAPSHOT_GENERATION_MODE_FORCE_NODE_PATH_ONLY,
+						NetUtility::SyncGroup::Change(),
+						snapshot_data);
+			}
+		}
 	}
 
 	const SnapshotGenerationMode mode = p_force_full_snapshot ? SNAPSHOT_GENERATION_MODE_FORCE_FULL : SNAPSHOT_GENERATION_MODE_NORMAL;
@@ -2108,7 +2120,7 @@ void ServerSynchronizer::generate_snapshot_node_data(
 	const bool skip_snapshot_variables = p_mode == SNAPSHOT_GENERATION_MODE_FORCE_NODE_PATH_ONLY || p_mode == SNAPSHOT_GENERATION_MODE_NODE_PATH_ONLY;
 	const bool force_using_variable_name = p_mode == SNAPSHOT_GENERATION_MODE_FORCE_FULL;
 
-	const bool unknown = p_change.not_known_before;
+	const bool unknown = p_change.unknown;
 	const bool node_has_changes = p_change.vars.is_empty() == false;
 
 	// Insert NODE DATA.
@@ -2185,11 +2197,12 @@ void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
 
 		group.sort_deferred_node_by_update_priority();
 
-		DataBuffer buffer;
-		buffer.begin_write(0);
-		buffer.add_uint(epoch, DataBuffer::COMPRESSION_LEVEL_1);
+		DataBuffer global_buffer;
+		global_buffer.begin_write(0);
+		global_buffer.add_uint(epoch, DataBuffer::COMPRESSION_LEVEL_1);
 
-		const Variant var_data_buffer = &buffer;
+		DataBuffer tmp_buffer;
+		const Variant var_data_buffer = &tmp_buffer;
 		const Variant *fake_array_vars = &var_data_buffer;
 
 		for (int i = 0; i < int(node_info.size()); ++i) {
@@ -2210,36 +2223,50 @@ void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
 
 			if (send) {
 				node_info[i].update_priority = 0.0;
-				++update_node_count;
 
-				if (node_info[i].nd->id > UINT8_MAX) {
-					buffer.add_bool(true);
-					buffer.add_uint(node_info[i].nd->id, DataBuffer::COMPRESSION_LEVEL_2);
-				} else {
-					buffer.add_bool(false);
-					buffer.add_uint(node_info[i].nd->id, DataBuffer::COMPRESSION_LEVEL_3);
-				}
+				// Read the state and write into the tmp_buffer:
+				tmp_buffer.begin_write(0);
 
 				Variant r;
 				Callable::CallError e;
 				node_info[i].nd->collect_epoch_func.callp(&fake_array_vars, 1, r, e);
 
 				if (e.error != Callable::CallError::CALL_OK) {
-					SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "[FATAL] The `process_deferred_sync` was not able to execute the function `" + node_info[i].nd->collect_epoch_func.get_method() + "` for the node `" + itos(node_info[i].nd->id) + "::" + node_info[i].nd->node->get_path() + "`.");
-					return;
+					SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "The `process_deferred_sync` was not able to execute the function `" + node_info[i].nd->collect_epoch_func.get_method() + "` for the node `" + itos(node_info[i].nd->id) + "::" + node_info[i].nd->node->get_path() + "`.");
+					continue;
 				}
+
+				if (tmp_buffer.total_size() > UINT16_MAX) {
+					SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "The `process_deferred_sync` failed because the method `" + node_info[i].nd->collect_epoch_func.get_method() + "` for the node `" + itos(node_info[i].nd->id) + "::" + node_info[i].nd->node->get_path() + "` collected more than " + itos(UINT16_MAX) + " bits. Please optimize your netcode to send less data.");
+					continue;
+				}
+
+				++update_node_count;
+
+				if (node_info[i].nd->id > UINT8_MAX) {
+					global_buffer.add_bool(true);
+					global_buffer.add_uint(node_info[i].nd->id, DataBuffer::COMPRESSION_LEVEL_2);
+				} else {
+					global_buffer.add_bool(false);
+					global_buffer.add_uint(node_info[i].nd->id, DataBuffer::COMPRESSION_LEVEL_3);
+				}
+
+				// Collapse the two DataBuffer.
+				global_buffer.add_uint(uint32_t(tmp_buffer.total_size()), DataBuffer::COMPRESSION_LEVEL_2);
+				global_buffer.add_bits(tmp_buffer.get_buffer().get_bytes(), tmp_buffer.total_size());
+
 			} else {
 				node_info[i].update_priority += node_info[i].update_rate;
 			}
 		}
 
 		if (update_node_count > 0) {
-			buffer.dry();
+			global_buffer.dry();
 			for (int i = 0; i < int(group.peers.size()); ++i) {
 				scene_synchronizer->rpc_id(
 						group.peers[i],
 						SNAME("_rpc_send_deferred_sync_data"),
-						buffer.get_buffer().get_bytes());
+						global_buffer.get_buffer().get_bytes());
 			}
 		}
 	}
@@ -2821,7 +2848,7 @@ void ClientSynchronizer::__pcr__sync__rewind() {
 			nd->vars[v].var.value = s_vars_ptr[v].value.duplicate(true);
 			node->set(s_vars_ptr[v].name, s_vars_ptr[v].value);
 
-			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, " |- Variable: " + s_vars_ptr[v].name + " New value: " + s_vars_ptr[v].value.stringify());
+			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, " |- Variable: " + s_vars_ptr[v].name + " New value: " + NetUtility::stringify_fast(s_vars_ptr[v].value));
 			scene_synchronizer->change_event_add(
 					nd,
 					v,
@@ -2930,7 +2957,7 @@ void ClientSynchronizer::__pcr__sync__no_rewind(const LocalVector<NetUtility::No
 			rew_node_data->vars[rew_var_index].var.value = vars_ptr[v].value.duplicate(true);
 			node->set(vars_ptr[v].name, vars_ptr[v].value);
 
-			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, " |- Variable: " + vars_ptr[v].name + "; old value: " + old_val.stringify() + " new value: " + vars_ptr[v].value.stringify());
+			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, " |- Variable: " + vars_ptr[v].name + "; old value: " + NetUtility::stringify_fast(old_val) + " new value: " + NetUtility::stringify_fast(vars_ptr[v].value));
 			scene_synchronizer->change_event_add(
 					rew_node_data,
 					rew_var_index,
@@ -2996,7 +3023,7 @@ void ClientSynchronizer::process_paused_controller_recovery(real_t p_delta) {
 				rew_node_data->vars[var_id].var.value = snap_vars_ptr[var_id].value;
 				node->set(snap_vars_ptr[var_id].name, snap_vars_ptr[var_id].value);
 				SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "[Snapshot paused controller] Node: " + node->get_path());
-				SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, " |- Variable: " + snap_vars_ptr[var_id].name + "; value: " + snap_vars_ptr[var_id].value.stringify());
+				SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, " |- Variable: " + snap_vars_ptr[var_id].name + "; value: " + NetUtility::stringify_fast(snap_vars_ptr[var_id].value));
 				scene_synchronizer->change_event_add(
 						rew_node_data,
 						var_id,
@@ -3340,80 +3367,180 @@ void ClientSynchronizer::set_enabled(bool p_enabled) {
 }
 
 void ClientSynchronizer::receive_deferred_sync_data(const Vector<uint8_t> &p_data) {
-	latest_received_deferred_sync_data = p_data;
-}
+	print_line("Start receive def"); // TODO remove
+	DataBuffer future_epoch_buffer(p_data);
+	future_epoch_buffer.begin_read();
 
-void ClientSynchronizer::process_received_deferred_sync_data(real_t p_delta) {
-	if (latest_received_deferred_sync_data.size() <= 0) {
-		// Nothing new to process.
+	int remaining_size = future_epoch_buffer.size() - future_epoch_buffer.get_bit_offset();
+	if (remaining_size < DataBuffer::get_bit_taken(DataBuffer::DATA_TYPE_UINT, DataBuffer::COMPRESSION_LEVEL_1)) {
+		SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "[FATAL] The function `receive_deferred_sync_data` received malformed data.");
+		// Nothing to fetch.
 		return;
 	}
 
-	DataBuffer buffer(latest_received_deferred_sync_data);
-	latest_received_deferred_sync_data.clear();
-
-	buffer.begin_read();
-
-	const uint32_t epoch = buffer.read_uint(DataBuffer::COMPRESSION_LEVEL_1);
-	print_line("Epoch: " + itos(epoch));
-
-	Variant array_vars[4];
-	array_vars[0] = p_delta;
-	array_vars[3] = &buffer;
-	const Variant *fake_array_vars = array_vars;
+	const uint32_t epoch = future_epoch_buffer.read_uint(DataBuffer::COMPRESSION_LEVEL_1);
 
 	while (true) {
-		int remaining_size = buffer.size() - buffer.get_bit_offset();
-		if (remaining_size < buffer.get_bool_size()) {
+		// 1. Decode the received data.
+		remaining_size = future_epoch_buffer.size() - future_epoch_buffer.get_bit_offset();
+		if (remaining_size < future_epoch_buffer.get_bool_size()) {
 			// buffer entirely consumed, nothing else to do.
 			break;
 		}
 
+		// Fetch the `node_id`.
 		NetNodeId node_id;
-		if (buffer.read_bool()) {
-			remaining_size = buffer.size() - buffer.get_bit_offset();
-			if (remaining_size < buffer.get_uint_size(DataBuffer::COMPRESSION_LEVEL_2)) {
+		if (future_epoch_buffer.read_bool()) {
+			remaining_size = future_epoch_buffer.size() - future_epoch_buffer.get_bit_offset();
+			if (remaining_size < future_epoch_buffer.get_uint_size(DataBuffer::COMPRESSION_LEVEL_2)) {
 				// buffer entirely consumed, nothing else to do.
 				break;
 			}
 
-			node_id = buffer.read_uint(DataBuffer::COMPRESSION_LEVEL_2);
+			node_id = future_epoch_buffer.read_uint(DataBuffer::COMPRESSION_LEVEL_2);
 		} else {
-			if (remaining_size < buffer.get_uint_size(DataBuffer::COMPRESSION_LEVEL_3)) {
+			if (remaining_size < future_epoch_buffer.get_uint_size(DataBuffer::COMPRESSION_LEVEL_3)) {
 				// buffer entirely consumed, nothing else to do.
 				break;
 			}
-			node_id = buffer.read_uint(DataBuffer::COMPRESSION_LEVEL_3);
+			node_id = future_epoch_buffer.read_uint(DataBuffer::COMPRESSION_LEVEL_3);
 		}
 
-		NetUtility::NodeData *nd = scene_synchronizer->get_node_data(node_id);
+		remaining_size = future_epoch_buffer.size() - future_epoch_buffer.get_bit_offset();
+		if (remaining_size < future_epoch_buffer.get_uint_size(DataBuffer::COMPRESSION_LEVEL_2)) {
+			// buffer entirely consumed, nothing else to do.
+			break;
+		}
+		const int buffer_bit_count = future_epoch_buffer.read_uint(DataBuffer::COMPRESSION_LEVEL_2);
+
+		remaining_size = future_epoch_buffer.size() - future_epoch_buffer.get_bit_offset();
+		if (remaining_size < buffer_bit_count) {
+			SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "[FATAL] The function `receive_deferred_sync_data` failed applying the epoch because the received buffer is malformed. The node with ID `" + itos(node_id) + "` reported that the sub buffer size is `" + itos(buffer_bit_count) + "` but the main-buffer doesn't have so many bits.");
+			return;
+		}
+
+		const int current_offset = future_epoch_buffer.get_bit_offset();
+		const int expected_bit_offset_after_apply = current_offset + buffer_bit_count;
+
+		NetUtility::NodeData *nd = scene_synchronizer->get_node_data_or_null(node_id);
 		if (nd == nullptr) {
-			SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "The function `process_received_deferred_sync_data` failed becouse the node with ID `" + itos(node_id) + "` was not found locally.");
-			notify_server_full_snapshot_is_needed();
-			return;
+			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "The function `receive_deferred_sync_data` is skipping the node with ID `" + itos(node_id) + "` as it was not found locally.");
+			future_epoch_buffer.seek(expected_bit_offset_after_apply);
+			continue;
 		}
 
-		if (nd->apply_epoch_func.is_null()) {
-			SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "[FATAL] The function `process_received_deferred_sync_data` failed becouse the node `" + nd->node->get_path() + "` has an invalid apply epoch function named `" + nd->apply_epoch_func.get_method() + "`. You have a bug in your game.");
-			return;
+		Vector<uint8_t> future_buffer_data = future_epoch_buffer.read_bits(buffer_bit_count);
+		CRASH_COND_MSG(future_epoch_buffer.get_bit_offset() != expected_bit_offset_after_apply, "At this point the buffer is expected to be exactly at this bit.");
+
+		int64_t index = deferred_sync_stream.find(nd);
+		if (index == -1) {
+			index = deferred_sync_stream.size();
+			deferred_sync_stream.push_back(DeferredSyncStream(nd));
 		}
+		DeferredSyncStream &stream = deferred_sync_stream[index];
+#ifdef DEBUG_ENABLED
+		CRASH_COND(stream.nd != nd);
+#endif
+		stream.future_epoch_buffer.copy(future_buffer_data);
 
-		real_t alpha = 1.0;
-		// TODO compute the alpha.
+		stream.past_epoch_buffer.begin_write(0);
 
-		DataBuffer past_data_buffer;
-		// TODO collect the past data buffer??
+		// 2. Now collect the past epoch buffer by reading the current values.
+		//DataBuffer *db = memnew(DataBuffer);
+		//db->begin_write(0);
+		Variant var_data_buffer = &stream.past_epoch_buffer;
+		//Variant var_data_buffer = db;
+		const Variant *fake_array_vars = &var_data_buffer;
 
-		array_vars[1] = alpha;
-		array_vars[2] = &past_data_buffer;
+		print_line("");
+		print_line("PRE NodeID: " + itos(node_id) + " DB-TR: " + itos((uint64_t)&stream.past_epoch_buffer) + " -->  " + itos(stream.past_epoch_buffer.size())); // TODO remove
+		print_line(itos((uint64_t)var_data_buffer.operator Object *()));
 
 		Variant r;
 		Callable::CallError e;
-		nd->apply_epoch_func.callp(&fake_array_vars, 4, r, e);
+		stream.nd->collect_epoch_func.callp(&fake_array_vars, 1, r, e);
+
+		//stream.past_epoch_buffer.copy(*db);
+		//memdelete(db);
+
+		print_line("POST NodeID: " + itos(node_id) + " DB-PTR: " + itos((uint64_t)&stream.past_epoch_buffer) + " -->  " + itos(stream.past_epoch_buffer.size())); // TODO remove
+		CRASH_COND(stream.past_epoch_buffer.size() != stream.past_epoch_buffer.get_vector3_size(DataBuffer::COMPRESSION_LEVEL_1)); // TODO remove this ASAP.
 
 		if (e.error != Callable::CallError::CALL_OK) {
-			SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "[FATAL] The `receive_deferred_sync_data` failed executing the function`" + nd->collect_epoch_func.get_method() + "` for the node `" + nd->node->get_path() + "`.");
-			return;
+			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "The function `receive_deferred_sync_data` is skipping the node `" + stream.nd->node->get_path() + "` as the function `" + stream.nd->collect_epoch_func.get_method() + "` failed executing.");
+			future_epoch_buffer.seek(expected_bit_offset_after_apply);
+			continue;
+		}
+
+		// 3. Initialize the past_epoch and the future_epoch.
+		stream.past_epoch = stream.future_epoch;
+		stream.future_epoch = epoch;
+
+		if (stream.past_epoch < stream.future_epoch) {
+			// Reset the alpha so we can start interpolating.
+			stream.alpha = 0;
+			stream.alpha_advacing_per_epoch = 1.0 / (double(stream.future_epoch) - double(stream.past_epoch));
+		} else {
+			// The interpolation didn't start yet, so put this really high.
+			stream.alpha = FLT_MAX;
+			stream.alpha_advacing_per_epoch = FLT_MAX;
+		}
+	}
+}
+
+void ClientSynchronizer::process_received_deferred_sync_data(real_t p_delta) {
+	//print_line("TODO make sure to clear the deferred_sync_stream when a node is removed or it's updating in realtime.");
+	//print_line("TODO make sure to clear the deferred_sync_stream when a node is removed or it's updating in realtime.");
+	//print_line("TODO make sure to clear the deferred_sync_stream when a node is removed or it's updating in realtime.");
+	//print_line("TODO make sure to clear the deferred_sync_stream when a node is removed or it's updating in realtime.");
+	//print_line("TODO make sure to clear the deferred_sync_stream when a node is removed or it's updating in realtime.");
+	//print_line("TODO make sure to clear the deferred_sync_stream when a node is removed or it's updating in realtime.");
+
+	Vector<Variant> array_vars;
+	array_vars.resize(4);
+
+	for (int i = 0; i < int(deferred_sync_stream.size()); ++i) {
+		DeferredSyncStream &stream = deferred_sync_stream[i];
+		if (stream.alpha > 1.2) {
+			// The stream is not yet started.
+			// OR
+			// The stream for this node is stopped as the data received is old.
+			continue;
+		}
+
+		NetUtility::NodeData *nd = stream.nd;
+		if (nd == nullptr) {
+			SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "The function `process_received_deferred_sync_data` found a null NodeData into the `deferred_sync_stream`; this is not supposed to happen.");
+			continue;
+		}
+
+#ifdef DEBUG_ENABLED
+		if (nd->apply_epoch_func.is_null()) {
+			SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "The function `process_received_deferred_sync_data` skip the node `" + nd->node->get_path() + "` has an invalid apply epoch function named `" + nd->apply_epoch_func.get_method() + "`. Remotely you used the function `setup_deferred_sync` properly, while locally you didn't. Fix it.");
+			continue;
+		}
+#endif
+
+		stream.alpha += stream.alpha_advacing_per_epoch;
+		stream.past_epoch_buffer.begin_read();
+		stream.future_epoch_buffer.begin_read();
+
+		//Variant array_vars[4];
+		array_vars.write[0] = p_delta;
+		array_vars.write[1] = stream.alpha;
+		array_vars.write[2] = &stream.past_epoch_buffer;
+		array_vars.write[3] = &stream.future_epoch_buffer;
+		//const Variant *array_vars_ptr[4] = { array_vars.ptr() + 0, array_vars.ptr() + 1, array_vars.ptr() + 2, array_vars.ptr() + 3 };
+
+		print_line(rtos(stream.alpha) + " -- " + rtos(stream.alpha_advacing_per_epoch));
+		Variant r;
+		Callable::CallError e;
+		//nd->apply_epoch_func.callp(array_vars_ptr, 4, r, e);
+		nd->apply_epoch_func.callv(Variant(array_vars));
+
+		if (e.error != Callable::CallError::CALL_OK) {
+			SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "The `process_received_deferred_sync_data` failed executing the function`" + nd->collect_epoch_func.get_method() + "` for the node `" + nd->node->get_path() + "`.");
+			continue;
 		}
 	}
 }
@@ -3506,7 +3633,7 @@ bool ClientSynchronizer::parse_snapshot(Variant p_snapshot) {
 
 	if (success == false) {
 		SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "Snapshot:");
-		SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, p_snapshot.stringify());
+		SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, NetUtility::stringify_fast(p_snapshot));
 		return false;
 	}
 
@@ -3514,7 +3641,7 @@ bool ClientSynchronizer::parse_snapshot(Variant p_snapshot) {
 		// We espect that the player_controller is updated by this new snapshot,
 		// so make sure it's done so.
 		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "[INFO] the player controller (" + player_controller_node_data->node->get_path() + ") was not part of the received snapshot, this happens when the server destroys the peer controller. NetUtility::Snapshot:");
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, p_snapshot);
+		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, NetUtility::stringify_fast(p_snapshot));
 	}
 
 	last_received_snapshot = received_snapshot;
@@ -3561,16 +3688,16 @@ bool ClientSynchronizer::compare_vars(
 				r_no_rewind_recover.push_back(s_vars[var_index]);
 				SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer,
 						"[NO REWIND] Difference found on var #" + itos(var_index) + " " + p_synchronizer_node_data->vars[var_index].var.name + " " +
-								"Server value: `" + s_vars[var_index].value.stringify() + "` " +
-								"Client value: `" + c_vars[var_index].value.stringify() + "`.    " +
+								"Server value: `" + NetUtility::stringify_fast(s_vars[var_index].value) + "` " +
+								"Client value: `" + NetUtility::stringify_fast(c_vars[var_index].value) + "`.    " +
 								"[Server name: `" + s_vars[var_index].name + "` " +
 								"Client name: `" + c_vars[var_index].name + "`].");
 			} else {
 				// The vars are different.
 				SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer,
 						"Difference found on var #" + itos(var_index) + " " + p_synchronizer_node_data->vars[var_index].var.name + " " +
-								"Server value: `" + s_vars[var_index].value.stringify() + "` " +
-								"Client value: `" + c_vars[var_index].value.stringify() + "`.    " +
+								"Server value: `" + NetUtility::stringify_fast(s_vars[var_index].value) + "` " +
+								"Client value: `" + NetUtility::stringify_fast(c_vars[var_index].value) + "`.    " +
 								"[Server name: `" + s_vars[var_index].name + "` " +
 								"Client name: `" + c_vars[var_index].name + "`].");
 #ifdef DEBUG_ENABLED

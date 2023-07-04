@@ -54,6 +54,7 @@ public:
 		DATA_TYPE_NORMALIZED_VECTOR2,
 		DATA_TYPE_VECTOR3,
 		DATA_TYPE_NORMALIZED_VECTOR3,
+		DATA_TYPE_BITS,
 		// The only dynamic sized value.
 		DATA_TYPE_VARIANT
 	};
@@ -306,6 +307,10 @@ public:
 
 	/// Parse the next data as Variant and returns it.
 	Variant read_variant();
+
+	/// Add bits
+	void add_bits(const Vector<uint8_t> &p_data, int p_bit_count);
+	Vector<uint8_t> read_bits(int p_bit_count);
 
 	/// Puts all the bytes to 0.
 	void zero();
