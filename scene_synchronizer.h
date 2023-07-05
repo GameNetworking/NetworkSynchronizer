@@ -472,7 +472,7 @@ class ClientSynchronizer : public Synchronizer {
 
 	RBSet<EndSyncEvent> sync_end_events;
 
-	struct DeferredSyncStream {
+	struct DeferredSyncInterpolationData {
 		NetUtility::NodeData *nd = nullptr;
 		DataBuffer past_epoch_buffer;
 		DataBuffer future_epoch_buffer;
@@ -482,20 +482,30 @@ class ClientSynchronizer : public Synchronizer {
 		real_t alpha_advacing_per_epoch = 1.0;
 		real_t alpha = 0.0;
 
-		DeferredSyncStream() = default;
-		DeferredSyncStream(
+		DeferredSyncInterpolationData() = default;
+		DeferredSyncInterpolationData &operator=(const DeferredSyncInterpolationData &p_dss) {
+			nd = p_dss.nd;
+			past_epoch_buffer.copy(p_dss.past_epoch_buffer);
+			future_epoch_buffer.copy(p_dss.future_epoch_buffer);
+			past_epoch = p_dss.past_epoch;
+			future_epoch = p_dss.future_epoch;
+			alpha_advacing_per_epoch = p_dss.alpha_advacing_per_epoch;
+			alpha = p_dss.alpha;
+			return *this;
+		}
+		DeferredSyncInterpolationData(
 				NetUtility::NodeData *p_nd) :
 				nd(p_nd) {}
-		DeferredSyncStream(
+		DeferredSyncInterpolationData(
 				NetUtility::NodeData *p_nd,
 				DataBuffer p_past_epoch_buffer,
 				DataBuffer p_future_epoch_buffer) :
 				nd(p_nd),
 				past_epoch_buffer(p_past_epoch_buffer),
 				future_epoch_buffer(p_future_epoch_buffer) {}
-		bool operator==(const DeferredSyncStream &o) const { return nd == o.nd; }
+		bool operator==(const DeferredSyncInterpolationData &o) const { return nd == o.nd; }
 	};
-	LocalVector<DeferredSyncStream> deferred_sync_stream;
+	LocalVector<DeferredSyncInterpolationData> deferred_sync_array;
 
 public:
 	ClientSynchronizer(SceneSynchronizer *p_node);
@@ -522,6 +532,8 @@ public:
 
 	void receive_deferred_sync_data(const Vector<uint8_t> &p_data);
 	void process_received_deferred_sync_data(real_t p_delta);
+
+	void remove_node_from_deferred_sync(NetUtility::NodeData *p_node_data);
 
 private:
 	/// Store node data organized per controller.

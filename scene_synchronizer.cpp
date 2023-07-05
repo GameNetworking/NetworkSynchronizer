@@ -2440,6 +2440,8 @@ void ClientSynchronizer::on_node_removed(NetUtility::NodeData *p_node_data) {
 	if (p_node_data->id < uint32_t(last_received_snapshot.node_vars.size())) {
 		last_received_snapshot.node_vars.ptrw()[p_node_data->id].clear();
 	}
+
+	remove_node_from_deferred_sync(p_node_data);
 }
 
 void ClientSynchronizer::on_variable_changed(NetUtility::NodeData *p_node_data, NetVarId p_var_id, const Variant &p_old_value, int p_flag) {
@@ -3440,12 +3442,12 @@ void ClientSynchronizer::receive_deferred_sync_data(const Vector<uint8_t> &p_dat
 		Vector<uint8_t> future_buffer_data = future_epoch_buffer.read_bits(buffer_bit_count);
 		CRASH_COND_MSG(future_epoch_buffer.get_bit_offset() != expected_bit_offset_after_apply, "At this point the buffer is expected to be exactly at this bit.");
 
-		int64_t index = deferred_sync_stream.find(nd);
+		int64_t index = deferred_sync_array.find(nd);
 		if (index == -1) {
-			index = deferred_sync_stream.size();
-			deferred_sync_stream.push_back(DeferredSyncStream(nd));
+			index = deferred_sync_array.size();
+			deferred_sync_array.push_back(DeferredSyncInterpolationData(nd));
 		}
-		DeferredSyncStream &stream = deferred_sync_stream[index];
+		DeferredSyncInterpolationData &stream = deferred_sync_array[index];
 #ifdef DEBUG_ENABLED
 		CRASH_COND(stream.nd != nd);
 #endif
@@ -3486,13 +3488,6 @@ void ClientSynchronizer::receive_deferred_sync_data(const Vector<uint8_t> &p_dat
 }
 
 void ClientSynchronizer::process_received_deferred_sync_data(real_t p_delta) {
-	//print_line("TODO make sure to clear the deferred_sync_stream when a node is removed or it's updating in realtime.");
-	//print_line("TODO make sure to clear the deferred_sync_stream when a node is removed or it's updating in realtime.");
-	//print_line("TODO make sure to clear the deferred_sync_stream when a node is removed or it's updating in realtime.");
-	//print_line("TODO make sure to clear the deferred_sync_stream when a node is removed or it's updating in realtime.");
-	//print_line("TODO make sure to clear the deferred_sync_stream when a node is removed or it's updating in realtime.");
-	//print_line("TODO make sure to clear the deferred_sync_stream when a node is removed or it's updating in realtime.");
-
 	DataBuffer *db1 = memnew(DataBuffer);
 	DataBuffer *db2 = memnew(DataBuffer);
 
@@ -3504,8 +3499,8 @@ void ClientSynchronizer::process_received_deferred_sync_data(real_t p_delta) {
 
 	Variant r;
 
-	for (int i = 0; i < int(deferred_sync_stream.size()); ++i) {
-		DeferredSyncStream &stream = deferred_sync_stream[i];
+	for (int i = 0; i < int(deferred_sync_array.size()); ++i) {
+		DeferredSyncInterpolationData &stream = deferred_sync_array[i];
 		if (stream.alpha > 1.2) {
 			// The stream is not yet started.
 			// OR
@@ -3515,7 +3510,7 @@ void ClientSynchronizer::process_received_deferred_sync_data(real_t p_delta) {
 
 		NetUtility::NodeData *nd = stream.nd;
 		if (nd == nullptr) {
-			SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "The function `process_received_deferred_sync_data` found a null NodeData into the `deferred_sync_stream`; this is not supposed to happen.");
+			SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "The function `process_received_deferred_sync_data` found a null NodeData into the `deferred_sync_array`; this is not supposed to happen.");
 			continue;
 		}
 
@@ -3550,6 +3545,13 @@ void ClientSynchronizer::process_received_deferred_sync_data(real_t p_delta) {
 	memdelete(db2);
 }
 
+void ClientSynchronizer::remove_node_from_deferred_sync(NetUtility::NodeData *p_node_data) {
+	const int64_t index = deferred_sync_array.find(p_node_data);
+	if (index >= 0) {
+		deferred_sync_array.remove_at_unordered(index);
+	}
+}
+
 bool ClientSynchronizer::parse_snapshot(Variant p_snapshot) {
 	if (want_to_enable) {
 		if (enabled) {
@@ -3570,12 +3572,14 @@ bool ClientSynchronizer::parse_snapshot(Variant p_snapshot) {
 		NetUtility::Snapshot &snapshot;
 		NetUtility::NodeData *player_controller_node_data;
 		SceneSynchronizer *scene_synchronizer;
+		ClientSynchronizer *client_synchronizer;
 	};
 
 	ParseData parse_data{
 		received_snapshot,
 		player_controller_node_data,
-		scene_synchronizer
+		scene_synchronizer,
+		this
 	};
 
 	const bool success = parse_sync_data(
@@ -3627,12 +3631,17 @@ bool ClientSynchronizer::parse_snapshot(Variant p_snapshot) {
 
 			// Parse node activation:
 			[](void *p_user_pointer, NetUtility::NodeData *p_node_data, bool p_is_active) {
+				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
 				if (p_node_data->realtime_sync_enabled_on_client != p_is_active) {
 					p_node_data->realtime_sync_enabled_on_client = p_is_active;
 
 					// Make sure the process_function cache is cleared.
-					ParseData *pd = static_cast<ParseData *>(p_user_pointer);
 					pd->scene_synchronizer->process_functions__clear();
+				}
+
+				// Make sure this node is not into the deferred sync list.
+				if (p_is_active) {
+					pd->client_synchronizer->remove_node_from_deferred_sync(p_node_data);
 				}
 			});
 
