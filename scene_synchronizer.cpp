@@ -2178,6 +2178,12 @@ void ServerSynchronizer::generate_snapshot_node_data(
 }
 
 void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
+	DataBuffer *tmp_buffer = memnew(DataBuffer);
+	const Variant var_data_buffer = tmp_buffer;
+	const Variant *fake_array_vars = &var_data_buffer;
+
+	Variant r;
+
 	for (int g = 0; g < int(sync_groups.size()); ++g) {
 		NetUtility::SyncGroup &group = sync_groups[g];
 
@@ -2201,10 +2207,6 @@ void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
 		global_buffer.begin_write(0);
 		global_buffer.add_uint(epoch, DataBuffer::COMPRESSION_LEVEL_1);
 
-		DataBuffer tmp_buffer;
-		const Variant var_data_buffer = &tmp_buffer;
-		const Variant *fake_array_vars = &var_data_buffer;
-
 		for (int i = 0; i < int(node_info.size()); ++i) {
 			bool send = true;
 			if (node_info[i].update_priority < 1.0 || update_node_count >= max_deferred_nodes_per_update) {
@@ -2225,9 +2227,8 @@ void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
 				node_info[i].update_priority = 0.0;
 
 				// Read the state and write into the tmp_buffer:
-				tmp_buffer.begin_write(0);
+				tmp_buffer->begin_write(0);
 
-				Variant r;
 				Callable::CallError e;
 				node_info[i].nd->collect_epoch_func.callp(&fake_array_vars, 1, r, e);
 
@@ -2236,7 +2237,7 @@ void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
 					continue;
 				}
 
-				if (tmp_buffer.total_size() > UINT16_MAX) {
+				if (tmp_buffer->total_size() > UINT16_MAX) {
 					SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "The `process_deferred_sync` failed because the method `" + node_info[i].nd->collect_epoch_func.get_method() + "` for the node `" + itos(node_info[i].nd->id) + "::" + node_info[i].nd->node->get_path() + "` collected more than " + itos(UINT16_MAX) + " bits. Please optimize your netcode to send less data.");
 					continue;
 				}
@@ -2252,8 +2253,8 @@ void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
 				}
 
 				// Collapse the two DataBuffer.
-				global_buffer.add_uint(uint32_t(tmp_buffer.total_size()), DataBuffer::COMPRESSION_LEVEL_2);
-				global_buffer.add_bits(tmp_buffer.get_buffer().get_bytes(), tmp_buffer.total_size());
+				global_buffer.add_uint(uint32_t(tmp_buffer->total_size()), DataBuffer::COMPRESSION_LEVEL_2);
+				global_buffer.add_bits(tmp_buffer->get_buffer().get_bytes(), tmp_buffer->total_size());
 
 			} else {
 				node_info[i].update_priority += node_info[i].update_rate;
@@ -2270,6 +2271,8 @@ void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
 			}
 		}
 	}
+
+	memdelete(tmp_buffer);
 }
 
 ClientSynchronizer::ClientSynchronizer(SceneSynchronizer *p_node) :
@@ -3367,7 +3370,6 @@ void ClientSynchronizer::set_enabled(bool p_enabled) {
 }
 
 void ClientSynchronizer::receive_deferred_sync_data(const Vector<uint8_t> &p_data) {
-	print_line("Start receive def"); // TODO remove
 	DataBuffer future_epoch_buffer(p_data);
 	future_epoch_buffer.begin_read();
 
@@ -3379,6 +3381,12 @@ void ClientSynchronizer::receive_deferred_sync_data(const Vector<uint8_t> &p_dat
 	}
 
 	const uint32_t epoch = future_epoch_buffer.read_uint(DataBuffer::COMPRESSION_LEVEL_1);
+
+	DataBuffer *db = memnew(DataBuffer);
+	Variant var_data_buffer = db;
+	const Variant *fake_array_vars = &var_data_buffer;
+
+	Variant r;
 
 	while (true) {
 		// 1. Decode the received data.
@@ -3416,7 +3424,7 @@ void ClientSynchronizer::receive_deferred_sync_data(const Vector<uint8_t> &p_dat
 		remaining_size = future_epoch_buffer.size() - future_epoch_buffer.get_bit_offset();
 		if (remaining_size < buffer_bit_count) {
 			SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "[FATAL] The function `receive_deferred_sync_data` failed applying the epoch because the received buffer is malformed. The node with ID `" + itos(node_id) + "` reported that the sub buffer size is `" + itos(buffer_bit_count) + "` but the main-buffer doesn't have so many bits.");
-			return;
+			break;
 		}
 
 		const int current_offset = future_epoch_buffer.get_bit_offset();
@@ -3446,25 +3454,12 @@ void ClientSynchronizer::receive_deferred_sync_data(const Vector<uint8_t> &p_dat
 		stream.past_epoch_buffer.begin_write(0);
 
 		// 2. Now collect the past epoch buffer by reading the current values.
-		//DataBuffer *db = memnew(DataBuffer);
-		//db->begin_write(0);
-		Variant var_data_buffer = &stream.past_epoch_buffer;
-		//Variant var_data_buffer = db;
-		const Variant *fake_array_vars = &var_data_buffer;
+		db->begin_write(0);
 
-		print_line("");
-		print_line("PRE NodeID: " + itos(node_id) + " DB-TR: " + itos((uint64_t)&stream.past_epoch_buffer) + " -->  " + itos(stream.past_epoch_buffer.size())); // TODO remove
-		print_line(itos((uint64_t)var_data_buffer.operator Object *()));
-
-		Variant r;
 		Callable::CallError e;
 		stream.nd->collect_epoch_func.callp(&fake_array_vars, 1, r, e);
 
-		//stream.past_epoch_buffer.copy(*db);
-		//memdelete(db);
-
-		print_line("POST NodeID: " + itos(node_id) + " DB-PTR: " + itos((uint64_t)&stream.past_epoch_buffer) + " -->  " + itos(stream.past_epoch_buffer.size())); // TODO remove
-		CRASH_COND(stream.past_epoch_buffer.size() != stream.past_epoch_buffer.get_vector3_size(DataBuffer::COMPRESSION_LEVEL_1)); // TODO remove this ASAP.
+		stream.past_epoch_buffer.copy(*db);
 
 		if (e.error != Callable::CallError::CALL_OK) {
 			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "The function `receive_deferred_sync_data` is skipping the node `" + stream.nd->node->get_path() + "` as the function `" + stream.nd->collect_epoch_func.get_method() + "` failed executing.");
@@ -3486,6 +3481,8 @@ void ClientSynchronizer::receive_deferred_sync_data(const Vector<uint8_t> &p_dat
 			stream.alpha_advacing_per_epoch = FLT_MAX;
 		}
 	}
+
+	memdelete(db);
 }
 
 void ClientSynchronizer::process_received_deferred_sync_data(real_t p_delta) {
@@ -3496,8 +3493,16 @@ void ClientSynchronizer::process_received_deferred_sync_data(real_t p_delta) {
 	//print_line("TODO make sure to clear the deferred_sync_stream when a node is removed or it's updating in realtime.");
 	//print_line("TODO make sure to clear the deferred_sync_stream when a node is removed or it's updating in realtime.");
 
-	Vector<Variant> array_vars;
-	array_vars.resize(4);
+	DataBuffer *db1 = memnew(DataBuffer);
+	DataBuffer *db2 = memnew(DataBuffer);
+
+	Variant array_vars[4];
+	array_vars[0] = p_delta;
+	array_vars[2] = db1;
+	array_vars[3] = db2;
+	const Variant *array_vars_ptr[4] = { array_vars + 0, array_vars + 1, array_vars + 2, array_vars + 3 };
+
+	Variant r;
 
 	for (int i = 0; i < int(deferred_sync_stream.size()); ++i) {
 		DeferredSyncStream &stream = deferred_sync_stream[i];
@@ -3525,24 +3530,24 @@ void ClientSynchronizer::process_received_deferred_sync_data(real_t p_delta) {
 		stream.past_epoch_buffer.begin_read();
 		stream.future_epoch_buffer.begin_read();
 
-		//Variant array_vars[4];
-		array_vars.write[0] = p_delta;
-		array_vars.write[1] = stream.alpha;
-		array_vars.write[2] = &stream.past_epoch_buffer;
-		array_vars.write[3] = &stream.future_epoch_buffer;
-		//const Variant *array_vars_ptr[4] = { array_vars.ptr() + 0, array_vars.ptr() + 1, array_vars.ptr() + 2, array_vars.ptr() + 3 };
+		db1->copy(stream.past_epoch_buffer);
+		db2->copy(stream.future_epoch_buffer);
+		db1->begin_read();
+		db2->begin_read();
 
-		print_line(rtos(stream.alpha) + " -- " + rtos(stream.alpha_advacing_per_epoch));
-		Variant r;
+		array_vars[1] = stream.alpha;
+
 		Callable::CallError e;
-		//nd->apply_epoch_func.callp(array_vars_ptr, 4, r, e);
-		nd->apply_epoch_func.callv(Variant(array_vars));
+		nd->apply_epoch_func.callp(array_vars_ptr, 4, r, e);
 
 		if (e.error != Callable::CallError::CALL_OK) {
 			SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "The `process_received_deferred_sync_data` failed executing the function`" + nd->collect_epoch_func.get_method() + "` for the node `" + nd->node->get_path() + "`.");
 			continue;
 		}
 	}
+
+	memdelete(db1);
+	memdelete(db2);
 }
 
 bool ClientSynchronizer::parse_snapshot(Variant p_snapshot) {

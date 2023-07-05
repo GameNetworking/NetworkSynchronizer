@@ -643,7 +643,6 @@ Vector2 DataBuffer::read_normalized_vector2(CompressionLevel p_compression_level
 }
 
 Vector3 DataBuffer::add_vector3(Vector3 p_input, CompressionLevel p_compression_level) {
-	print_line("DB ptr: " + itos((uint64_t)this)); // TODO remove.
 	ERR_FAIL_COND_V(is_reading == true, p_input);
 
 #ifndef REAL_T_IS_DOUBLE
