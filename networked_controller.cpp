@@ -420,8 +420,9 @@ bool NetworkedController::has_scene_synchronizer() const {
 }
 
 void NetworkedController::_rpc_server_send_inputs(const Vector<uint8_t> &p_data) {
-	ERR_FAIL_COND(is_server_controller() == false);
-	static_cast<ServerController *>(controller)->receive_inputs(p_data);
+	if (controller) {
+		controller->receive_inputs(p_data);
+	}
 }
 
 void NetworkedController::_rpc_set_server_controlled(bool p_server_controlled) {
@@ -506,6 +507,84 @@ void NetworkedController::_notification(int p_what) {
 
 void NetworkedController::notify_controller_reset() {
 	emit_signal("controller_reset");
+}
+
+bool NetworkedController::__parse_input_data(
+		const Vector<uint8_t> p_data,
+		void *p_user_pointer,
+		void (*p_input_parse)(void *p_user_pointer, uint32_t p_input_id, int p_input_size_in_bits, const BitArray &p_input)) {
+	// The packet is composed as follow:
+	// |- Four bytes for the first input ID.
+	// \- Array of inputs:
+	//      |-- First byte the amount of times this input is duplicated in the packet.
+	//      |-- inputs buffer.
+	//
+	// Let's decode it!
+
+	const int data_len = p_data.size();
+
+	int ofs = 0;
+
+	ERR_FAIL_COND_V(data_len < 4, false);
+	const uint32_t first_input_id = decode_uint32(p_data.ptr() + ofs);
+	ofs += 4;
+
+	uint32_t inserted_input_count = 0;
+
+	// Contains the entire packet and in turn it will be seek to specific location
+	// so I will not need to copy chunk of the packet data.
+	DataBuffer *pir = memnew(DataBuffer);
+	pir->copy(p_data);
+	pir->begin_read();
+	// TODO this is for 3.2
+	//pir.get_buffer_mut().resize_in_bytes(data_len);
+	//memcpy(pir.get_buffer_mut().get_bytes_mut().ptrw(), p_data.ptr(), data_len);
+
+	while (ofs < data_len) {
+		ERR_FAIL_COND_V_MSG(ofs + 1 > data_len, false, "The arrived packet size doesn't meet the expected size.");
+		// First byte is used for the duplication count.
+		const uint8_t duplication = p_data[ofs];
+		ofs += 1;
+
+		// Validate input
+		const int input_buffer_offset_bit = ofs * 8;
+		pir->shrink_to(input_buffer_offset_bit, (data_len - ofs) * 8);
+		pir->seek(input_buffer_offset_bit);
+		// Read metadata
+		const bool has_data = pir->read_bool();
+
+		const int input_size_in_bits = (has_data ? int(native_count_input_size(*pir)) : 0) + METADATA_SIZE;
+
+		// Pad to 8 bits.
+		const int input_size_padded =
+				Math::ceil((static_cast<float>(input_size_in_bits)) / 8.0);
+		ERR_FAIL_COND_V_MSG(ofs + input_size_padded > data_len, false, "The arrived packet size doesn't meet the expected size.");
+
+		// Extract the data and copy into a BitArray.
+		BitArray bit_array;
+		bit_array.get_bytes_mut().resize(input_size_padded);
+		memcpy(
+				bit_array.get_bytes_mut().ptrw(),
+				p_data.ptr() + ofs,
+				input_size_padded);
+
+		// The input is valid, and the bit array is created: now execute the callback.
+		for (int sub = 0; sub <= duplication; sub += 1) {
+			const uint32_t input_id = first_input_id + inserted_input_count;
+			inserted_input_count += 1;
+
+			p_input_parse(p_user_pointer, input_id, input_size_in_bits, bit_array);
+		}
+
+		// Advance the offset to parse the next input.
+		ofs += input_size_padded;
+	}
+
+	memdelete(pir);
+	pir = nullptr;
+
+	ERR_FAIL_COND_V_MSG(ofs != data_len, false, "At the end was detected that the arrived packet has an unexpected size.");
+	return true;
 }
 
 ServerController::ServerController(
@@ -595,99 +674,53 @@ void ServerController::deactivate_peer(int p_peer) {
 }
 
 void ServerController::receive_inputs(const Vector<uint8_t> &p_data) {
-	// The packet is composed as follow:
-	// |- The following four bytes for the first input ID.
-	// \- Array of inputs:
-	//      |-- First byte the amount of times this input is duplicated in the packet.
-	//      |-- inputs buffer.
-	//
-	// Let's decode it!
-
 	const uint32_t now = OS::get_singleton()->get_ticks_msec();
+	struct SCParseTmpData {
+		ServerController *server_controller;
+		NetworkedController *node_controller;
+		uint32_t now;
+	} tmp = {
+		this,
+		node,
+		now
+	};
 
-	const int data_len = p_data.size();
+	const bool success = node->__parse_input_data(
+			p_data,
+			&tmp,
 
-	int ofs = 0;
+			// Parse the Input:
+			[](void *p_user_pointer, uint32_t p_input_id, int p_input_size_in_bits, const BitArray &p_bit_array) -> void {
+				SCParseTmpData *pd = static_cast<SCParseTmpData *>(p_user_pointer);
 
-	ERR_FAIL_COND(data_len < 4);
-	const uint32_t first_input_id = decode_uint32(p_data.ptr() + ofs);
-	ofs += 4;
+				if (unlikely(pd->server_controller->current_input_buffer_id != UINT32_MAX && pd->server_controller->current_input_buffer_id >= p_input_id)) {
+					// We already have this input, so we don't need it anymore.
+					return;
+				}
 
-	uint32_t inserted_input_count = 0;
+				FrameSnapshot rfs;
+				rfs.id = p_input_id;
 
-	// Contains the entire packet and in turn it will be seek to specific location
-	// so I will not need to copy chunk of the packet data.
-	DataBuffer *pir = memnew(DataBuffer);
-	pir->copy(p_data);
-	pir->begin_read();
-	// TODO this is for 3.2
-	//pir.get_buffer_mut().resize_in_bytes(data_len);
-	//memcpy(pir.get_buffer_mut().get_bytes_mut().ptrw(), p_data.ptr(), data_len);
-
-	while (ofs < data_len) {
-		ERR_FAIL_COND_MSG(ofs + 1 > data_len, "The arrived packet size doesn't meet the expected size.");
-		// First byte is used for the duplication count.
-		const uint8_t duplication = p_data[ofs];
-		ofs += 1;
-
-		// Validate input
-		const int input_buffer_offset_bit = ofs * 8;
-		pir->shrink_to(input_buffer_offset_bit, (data_len - ofs) * 8);
-		pir->seek(input_buffer_offset_bit);
-		// Read metadata
-		const bool has_data = pir->read_bool();
-
-		const int input_size_in_bits = (has_data ? int(node->native_count_input_size(*pir)) : 0) + METADATA_SIZE;
-
-		// Pad to 8 bits.
-		const int input_size_padded =
-				Math::ceil((static_cast<float>(input_size_in_bits)) / 8.0);
-		ERR_FAIL_COND_MSG(ofs + input_size_padded > data_len, "The arrived packet size doesn't meet the expected size.");
-
-		// The input is valid, populate the buffer.
-		for (int sub = 0; sub <= duplication; sub += 1) {
-			const uint32_t input_id = first_input_id + inserted_input_count;
-			inserted_input_count += 1;
-
-			if (unlikely(current_input_buffer_id != UINT32_MAX && current_input_buffer_id >= input_id)) {
-				// We already have this input, so we don't need it anymore.
-				continue;
-			}
-
-			FrameSnapshot rfs;
-			rfs.id = input_id;
-
-			const bool found = std::binary_search(
-					snapshots.begin(),
-					snapshots.end(),
-					rfs,
-					is_remote_frame_A_older);
-
-			if (found == false) {
-				rfs.buffer_size_bit = input_size_in_bits;
-				rfs.inputs_buffer.get_bytes_mut().resize(input_size_padded);
-				rfs.received_timestamp = now;
-				memcpy(
-						rfs.inputs_buffer.get_bytes_mut().ptrw(),
-						p_data.ptr() + ofs,
-						input_size_padded);
-
-				snapshots.push_back(rfs);
-
-				// Sort the new inserted snapshot.
-				std::sort(
-						snapshots.begin(),
-						snapshots.end(),
+				const bool found = std::binary_search(
+						pd->server_controller->snapshots.begin(),
+						pd->server_controller->snapshots.end(),
+						rfs,
 						is_remote_frame_A_older);
-			}
-		}
 
-		// We can now advance the offset.
-		ofs += input_size_padded;
-	}
+				if (!found) {
+					rfs.buffer_size_bit = p_input_size_in_bits;
+					rfs.inputs_buffer = p_bit_array;
+					rfs.received_timestamp = pd->now;
 
-	memdelete(pir);
-	pir = nullptr;
+					pd->server_controller->snapshots.push_back(rfs);
+
+					// Sort the new inserted snapshot.
+					std::sort(
+							pd->server_controller->snapshots.begin(),
+							pd->server_controller->snapshots.end(),
+							is_remote_frame_A_older);
+				}
+			});
 
 #ifdef DEBUG_ENABLED
 	if (snapshots.empty() == false && current_input_buffer_id != UINT32_MAX) {
@@ -697,7 +730,9 @@ void ServerController::receive_inputs(const Vector<uint8_t> &p_data) {
 	}
 #endif
 
-	ERR_FAIL_COND_MSG(ofs != data_len, "At the end was detected that the arrived packet has an unexpected size.");
+	if (!success) {
+		SceneSynchronizerDebugger::singleton()->debug_print(node, "[ServerController::receive_input] Failed.");
+	}
 }
 
 int ServerController::get_inputs_count() const {
@@ -1194,6 +1229,10 @@ uint32_t PlayerController::get_current_input_id() const {
 	return current_input_id;
 }
 
+void PlayerController::receive_inputs(const Vector<uint8_t> &p_data) {
+	SceneSynchronizerDebugger::singleton()->debug_error(node, "`receive_input` called on the `PlayerServerController` -This function is not supposed to be called on the player controller. Only the server and the doll should receive this.");
+}
+
 void PlayerController::store_input_buffer(uint32_t p_id) {
 	FrameSnapshot inputs;
 	inputs.id = p_id;
@@ -1367,6 +1406,9 @@ void DollController::process(double p_delta) {
 
 uint32_t DollController::get_current_input_id() const {
 	return UINT32_MAX; // TODO??
+}
+
+void DollController::receive_inputs(const Vector<uint8_t> &p_data) {
 }
 
 NoNetController::NoNetController(NetworkedController *p_node) :

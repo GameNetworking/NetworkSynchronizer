@@ -254,6 +254,12 @@ public:
 protected:
 	void _notification(int p_what);
 	void notify_controller_reset();
+
+public:
+	bool __parse_input_data(
+			const Vector<uint8_t> p_data,
+			void *p_user_pointer,
+			void (*p_input_parse)(void *p_user_pointer, uint32_t p_input_id, int p_input_size_in_bits, const BitArray &p_input));
 };
 
 struct FrameSnapshot {
@@ -280,6 +286,8 @@ struct Controller {
 	virtual void ready() {}
 	virtual uint32_t get_current_input_id() const = 0;
 	virtual void process(double p_delta) = 0;
+
+	virtual void receive_inputs(const Vector<uint8_t> &p_data){};
 
 	virtual void clear_peers() {}
 	virtual void activate_peer(int p_peer) {}
@@ -313,7 +321,7 @@ struct ServerController : public Controller {
 	virtual void activate_peer(int p_peer) override;
 	virtual void deactivate_peer(int p_peer) override;
 
-	virtual void receive_inputs(const Vector<uint8_t> &p_data);
+	virtual void receive_inputs(const Vector<uint8_t> &p_data) override;
 	virtual int get_inputs_count() const;
 
 	/// Fetch the next inputs, returns true if the input is new.
@@ -372,6 +380,8 @@ struct PlayerController : public Controller {
 	bool queue_instant_process(int p_i);
 	virtual void process(double p_delta) override;
 
+	virtual void receive_inputs(const Vector<uint8_t> &p_data) override;
+
 	void store_input_buffer(uint32_t p_id);
 
 	/// Sends an unreliable packet to the server, containing a packed array of
@@ -394,6 +404,7 @@ struct DollController : public Controller {
 	virtual void process(double p_delta) override;
 	// TODO consider make this non virtual
 	virtual uint32_t get_current_input_id() const override;
+	virtual void receive_inputs(const Vector<uint8_t> &p_data) override;
 };
 
 /// This controller is used when the game instance is not a peer of any kind.
