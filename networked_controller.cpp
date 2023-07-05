@@ -43,7 +43,6 @@
 #include <algorithm>
 
 #define METADATA_SIZE 1
-#define DOLL_EPOCH_METADATA_SIZE (DataBuffer::get_bit_taken(DataBuffer::DATA_TYPE_REAL, DataBuffer::COMPRESSION_LEVEL_1) + DataBuffer::get_bit_taken(DataBuffer::DATA_TYPE_INT, DataBuffer::COMPRESSION_LEVEL_1))
 
 void NetworkedController::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_server_controlled", "server_controlled"), &NetworkedController::set_server_controlled);
@@ -70,46 +69,18 @@ void NetworkedController::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_tick_acceleration", "acceleration"), &NetworkedController::set_tick_acceleration);
 	ClassDB::bind_method(D_METHOD("get_tick_acceleration"), &NetworkedController::get_tick_acceleration);
 
-	ClassDB::bind_method(D_METHOD("set_doll_sync_rate", "rate"), &NetworkedController::set_doll_sync_rate);
-	ClassDB::bind_method(D_METHOD("get_doll_sync_rate"), &NetworkedController::get_doll_sync_rate);
-
-	ClassDB::bind_method(D_METHOD("set_doll_min_frames_delay", "delay"), &NetworkedController::set_doll_min_frames_delay);
-	ClassDB::bind_method(D_METHOD("get_doll_min_frames_delay"), &NetworkedController::get_doll_min_frames_delay);
-
-	ClassDB::bind_method(D_METHOD("set_doll_max_frames_delay", "delay"), &NetworkedController::set_doll_max_frames_delay);
-	ClassDB::bind_method(D_METHOD("get_doll_max_frames_delay"), &NetworkedController::get_doll_max_frames_delay);
-
-	ClassDB::bind_method(D_METHOD("set_doll_net_sensitivity", "sensitivity"), &NetworkedController::set_doll_net_sensitivity);
-	ClassDB::bind_method(D_METHOD("get_doll_net_sensitivity"), &NetworkedController::get_doll_net_sensitivity);
-
-	ClassDB::bind_method(D_METHOD("set_doll_interpolation_max_overshot", "speedup"), &NetworkedController::set_doll_interpolation_max_overshot);
-	ClassDB::bind_method(D_METHOD("get_doll_interpolation_max_overshot"), &NetworkedController::get_doll_interpolation_max_overshot);
-
-	ClassDB::bind_method(D_METHOD("set_doll_connection_stats_frame_span", "speedup"), &NetworkedController::set_doll_connection_stats_frame_span);
-	ClassDB::bind_method(D_METHOD("get_doll_connection_stats_frame_span"), &NetworkedController::get_doll_connection_stats_frame_span);
-
 	ClassDB::bind_method(D_METHOD("get_current_input_id"), &NetworkedController::get_current_input_id);
 
 	ClassDB::bind_method(D_METHOD("player_get_pretended_delta"), &NetworkedController::player_get_pretended_delta);
 
-	ClassDB::bind_method(D_METHOD("mark_epoch_as_important"), &NetworkedController::mark_epoch_as_important);
-
-	ClassDB::bind_method(D_METHOD("set_doll_collect_rate_factor", "peer", "factor"), &NetworkedController::set_doll_collect_rate_factor);
-
-	ClassDB::bind_method(D_METHOD("set_doll_peer_active", "peer_id", "active"), &NetworkedController::set_doll_peer_active);
-
 	ClassDB::bind_method(D_METHOD("_rpc_server_send_inputs"), &NetworkedController::_rpc_server_send_inputs);
 	ClassDB::bind_method(D_METHOD("_rpc_set_server_controlled"), &NetworkedController::_rpc_set_server_controlled);
 	ClassDB::bind_method(D_METHOD("_rpc_notify_fps_acceleration"), &NetworkedController::_rpc_notify_fps_acceleration);
-	ClassDB::bind_method(D_METHOD("_rpc_doll_notify_sync_pause"), &NetworkedController::_rpc_doll_notify_sync_pause);
-	ClassDB::bind_method(D_METHOD("_rpc_doll_send_epoch_batch"), &NetworkedController::_rpc_doll_send_epoch_batch);
 
 	ClassDB::bind_method(D_METHOD("is_server_controller"), &NetworkedController::is_server_controller);
 	ClassDB::bind_method(D_METHOD("is_player_controller"), &NetworkedController::is_player_controller);
 	ClassDB::bind_method(D_METHOD("is_doll_controller"), &NetworkedController::is_doll_controller);
 	ClassDB::bind_method(D_METHOD("is_nonet_controller"), &NetworkedController::is_nonet_controller);
-
-	ClassDB::bind_method(D_METHOD("__on_sync_paused"), &NetworkedController::__on_sync_paused);
 
 	GDVIRTUAL_BIND(_collect_inputs, "delta", "buffer");
 	GDVIRTUAL_BIND(_controller_process, "delta", "buffer");
@@ -124,15 +95,7 @@ void NetworkedController::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "min_frames_delay", PROPERTY_HINT_RANGE, "0,100,1"), "set_min_frames_delay", "get_min_frames_delay");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "max_frames_delay", PROPERTY_HINT_RANGE, "0,100,1"), "set_max_frames_delay", "get_max_frames_delay");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "tick_acceleration", PROPERTY_HINT_RANGE, "0.1,20.0,0.01"), "set_tick_acceleration", "get_tick_acceleration");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "doll_sync_rate", PROPERTY_HINT_RANGE, "1,240,1"), "set_doll_sync_rate", "get_doll_sync_rate");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "doll_min_frames_delay", PROPERTY_HINT_RANGE, "0,240,1"), "set_doll_min_frames_delay", "get_doll_min_frames_delay");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "doll_max_frames_delay", PROPERTY_HINT_RANGE, "0,240,1"), "set_doll_max_frames_delay", "get_doll_max_frames_delay");
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "doll_net_sensitivity", PROPERTY_HINT_RANGE, "0,1.0,0.00001"), "set_doll_net_sensitivity", "get_doll_net_sensitivity");
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "doll_interpolation_max_overshot", PROPERTY_HINT_RANGE, "0.01,5.0,0.01"), "set_doll_interpolation_max_overshot", "get_doll_interpolation_max_overshot");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "doll_connection_stats_frame_span", PROPERTY_HINT_RANGE, "1,1000,1"), "set_doll_connection_stats_frame_span", "get_doll_connection_stats_frame_span");
 
-	ADD_SIGNAL(MethodInfo("doll_sync_started"));
-	ADD_SIGNAL(MethodInfo("doll_sync_paused"));
 	ADD_SIGNAL(MethodInfo("controller_reset"));
 	ADD_SIGNAL(MethodInfo("input_missed", PropertyInfo(Variant::INT, "missing_input_id")));
 	ADD_SIGNAL(MethodInfo("client_speedup_adjusted", PropertyInfo(Variant::INT, "input_worst_receival_time_ms"), PropertyInfo(Variant::INT, "optimal_frame_delay"), PropertyInfo(Variant::INT, "current_frame_delay"), PropertyInfo(Variant::INT, "distance_to_optimal")));
@@ -152,8 +115,6 @@ NetworkedController::NetworkedController() {
 	rpc_config(SNAME("_rpc_server_send_inputs"), rpc_config_unreliable);
 	rpc_config(SNAME("_rpc_set_server_controlled"), rpc_config_reliable);
 	rpc_config(SNAME("_rpc_notify_fps_acceleration"), rpc_config_unreliable);
-	rpc_config(SNAME("_rpc_doll_notify_sync_pause"), rpc_config_reliable); // TODO remove?
-	rpc_config(SNAME("_rpc_doll_send_epoch_batch"), rpc_config_unreliable); // TODO remove?
 }
 
 NetworkedController::~NetworkedController() {
@@ -294,54 +255,6 @@ double NetworkedController::get_tick_acceleration() const {
 	return tick_acceleration;
 }
 
-void NetworkedController::set_doll_sync_rate(uint32_t p_rate) {
-	doll_sync_rate = p_rate;
-}
-
-uint32_t NetworkedController::get_doll_sync_rate() const {
-	return doll_sync_rate;
-}
-
-void NetworkedController::set_doll_min_frames_delay(int p_min) {
-	doll_min_frames_delay = p_min;
-}
-
-int NetworkedController::get_doll_min_frames_delay() const {
-	return doll_min_frames_delay;
-}
-
-void NetworkedController::set_doll_max_frames_delay(int p_max) {
-	doll_max_frames_delay = p_max;
-}
-
-int NetworkedController::get_doll_max_frames_delay() const {
-	return doll_max_frames_delay;
-}
-
-void NetworkedController::set_doll_net_sensitivity(real_t p_sensitivity) {
-	doll_net_sensitivity = p_sensitivity;
-}
-
-real_t NetworkedController::get_doll_net_sensitivity() const {
-	return doll_net_sensitivity;
-}
-
-void NetworkedController::set_doll_interpolation_max_overshot(real_t p_speedup) {
-	doll_interpolation_max_overshot = p_speedup;
-}
-
-real_t NetworkedController::get_doll_interpolation_max_overshot() const {
-	return doll_interpolation_max_overshot;
-}
-
-void NetworkedController::set_doll_connection_stats_frame_span(int p_span) {
-	doll_connection_stats_frame_span = MAX(1, p_span);
-}
-
-int NetworkedController::get_doll_connection_stats_frame_span() const {
-	return doll_connection_stats_frame_span;
-}
-
 uint32_t NetworkedController::get_current_input_id() const {
 	ERR_FAIL_NULL_V(controller, 0);
 	return controller->get_current_input_id();
@@ -350,63 +263,6 @@ uint32_t NetworkedController::get_current_input_id() const {
 real_t NetworkedController::player_get_pretended_delta() const {
 	ERR_FAIL_COND_V_MSG(is_player_controller() == false, 1.0, "This function can be called only on client.");
 	return get_player_controller()->pretended_delta;
-}
-
-void NetworkedController::mark_epoch_as_important() {
-	ERR_FAIL_COND_MSG(is_server_controller() == false, "This function must be called only within the function `collect_epoch_data`.");
-	get_server_controller()->is_epoch_important = true;
-}
-
-void NetworkedController::set_doll_collect_rate_factor(int p_peer, real_t p_factor) {
-	ERR_FAIL_COND_MSG(is_server_controller() == false, "This function can be called only on server.");
-	ServerController *server_controller = static_cast<ServerController *>(controller);
-	const uint32_t pos = server_controller->find_peer(p_peer);
-	if (pos == UINT32_MAX) {
-		// This peers seems disabled, nothing to do here.
-		return;
-	}
-	server_controller->peers[pos].doll_sync_rate_factor = CLAMP(p_factor, 0.001, 1.0);
-}
-
-void NetworkedController::set_doll_peer_active(int p_peer_id, bool p_active) {
-	ERR_FAIL_COND_MSG(is_server_controller() == false, "You can set doll activation only on server");
-	ERR_FAIL_COND_MSG(p_peer_id == get_multiplayer_authority(), "This `peer_id` is equal to the Master `peer_id`, which is not allowed.");
-
-	ServerController *server_controller = static_cast<ServerController *>(controller);
-	const uint32_t pos = server_controller->find_peer(p_peer_id);
-	if (pos == UINT32_MAX) {
-		// This peers seems disabled, nothing to do here.
-		return;
-	}
-	if (server_controller->peers[pos].active == p_active) {
-		// Nothing to do.
-		return;
-	}
-
-	server_controller->peers[pos].active = p_active;
-	// Reset the sync timer.
-	server_controller->peers[pos].doll_sync_timer = 0.0;
-	// Set to 0 so we sync immediately
-	server_controller->peers[pos].doll_sync_time_threshold = 0.0;
-
-	if (p_active == false) {
-		// Notify the doll only for deactivations. The activations are automatically
-		// handled when the first epoch is received.
-		rpc_id(p_peer_id, SNAME("_rpc_doll_notify_sync_pause"), server_controller->epoch);
-	}
-}
-
-void NetworkedController::pause_notify_dolls() {
-	ERR_FAIL_COND_MSG(is_server_controller() == false, "You can pause the dolls only on server. [BUG]");
-
-	// Notify the dolls this actor is disabled.
-	ServerController *server_controller = static_cast<ServerController *>(controller);
-	for (uint32_t i = 0; i < server_controller->peers.size(); i += 1) {
-		if (server_controller->peers[i].active) {
-			// Notify this actor is no more active.
-			rpc_id(server_controller->peers[i].peer, SNAME("_rpc_doll_notify_sync_pause"), server_controller->epoch);
-		}
-	}
 }
 
 void NetworkedController::validate_script_implementation() {
@@ -545,14 +401,12 @@ void NetworkedController::set_inputs_buffer(const BitArray &p_new_buffer, uint32
 
 void NetworkedController::notify_registered_with_synchronizer(SceneSynchronizer *p_synchronizer) {
 	if (scene_synchronizer) {
-		scene_synchronizer->disconnect(SNAME("sync_paused"), Callable(this, SNAME("__on_sync_paused")));
 		scene_synchronizer->unregister_process(this, PROCESSPHASE_PROCESS, callable_mp(this, &NetworkedController::process));
 	}
 
 	scene_synchronizer = p_synchronizer;
 
 	if (scene_synchronizer) {
-		scene_synchronizer->connect(SNAME("sync_paused"), Callable(this, SNAME("__on_sync_paused")));
 		scene_synchronizer->register_process(this, PROCESSPHASE_PROCESS, callable_mp(this, &NetworkedController::process));
 	}
 }
@@ -614,32 +468,12 @@ void NetworkedController::_rpc_notify_fps_acceleration(const Vector<uint8_t> &p_
 #endif
 }
 
-void NetworkedController::_rpc_doll_notify_sync_pause(uint32_t p_epoch) {
-	ERR_FAIL_COND_MSG(is_doll_controller() == false, "Only dolls are supposed to receive this function call");
-
-	static_cast<DollController *>(controller)->pause(p_epoch);
-}
-
-void NetworkedController::_rpc_doll_send_epoch_batch(const Vector<uint8_t> &p_data) {
-	ERR_FAIL_COND_MSG(is_doll_controller() == false, "Only dolls are supposed to receive this function call.");
-	ERR_FAIL_COND_MSG(p_data.size() <= 0, "It's not supposed to receive a 0 size data.");
-
-	static_cast<DollController *>(controller)->receive_epoch(p_data);
-}
-
 void NetworkedController::player_set_has_new_input(bool p_has) {
 	has_player_new_input = p_has;
 }
 
 bool NetworkedController::player_has_new_input() const {
 	return has_player_new_input;
-}
-
-void NetworkedController::__on_sync_paused() {
-	if (controller_type == CONTROLLER_TYPE_DOLL) {
-		DollController *doll = static_cast<DollController *>(controller);
-		doll->pause(doll->current_epoch);
-	}
 }
 
 void NetworkedController::_notification(int p_what) {
@@ -738,7 +572,6 @@ void ServerController::set_enabled(bool p_enable) {
 		return;
 	}
 	enabled = p_enable;
-	node->pause_notify_dolls();
 
 	// ~~ On state change, reset everything to avoid accumulate old data. ~~
 
@@ -750,38 +583,15 @@ void ServerController::set_enabled(bool p_enable) {
 	previous_frame_received_timestamp = UINT32_MAX;
 	network_watcher.reset(0.0);
 	consecutive_input_watcher.reset(0.0);
-
-	// Doll reset.
-	is_epoch_important = false;
 }
 
 void ServerController::clear_peers() {
-	peers.clear();
 }
 
 void ServerController::activate_peer(int p_peer) {
-	// Collects all the dolls.
-
-#ifdef DEBUG_ENABLED
-	// Unreachable because this is the server controller.
-	CRASH_COND(node->get_tree()->get_multiplayer()->is_server() == false);
-#endif
-	if (p_peer == node->get_multiplayer_authority()) {
-		// This is self, so not a doll.
-		return;
-	}
-
-	const uint32_t index = find_peer(p_peer);
-	if (index == UINT32_MAX) {
-		peers.push_back(p_peer);
-	}
 }
 
 void ServerController::deactivate_peer(int p_peer) {
-	const uint32_t index = find_peer(p_peer);
-	if (index != UINT32_MAX) {
-		peers.remove_at_unordered(index);
-	}
 }
 
 void ServerController::receive_inputs(const Vector<uint8_t> &p_data) {
@@ -1097,58 +907,6 @@ void ServerController::notify_send_state() {
 	}
 }
 
-void ServerController::doll_sync(real_t p_delta) {
-	// Advance the epoch.
-	epoch += 1;
-	const real_t sync_rate_time = 1.0 / static_cast<real_t>(node->get_doll_sync_rate());
-
-	bool epoch_state_collected = false;
-
-	// Process each peer and send the data if needed.
-	for (uint32_t i = 0; i < peers.size(); i += 1) {
-		if (peers[i].active == false) {
-			// Nothing to do on this peer.
-			continue;
-		}
-
-		peers[i].doll_sync_timer += p_delta;
-
-		if (is_epoch_important == false && peers[i].doll_sync_timer < peers[i].doll_sync_time_threshold) {
-			// Not time to sync.
-			continue;
-		}
-		peers[i].doll_sync_timer = 0.0;
-		peers[i].doll_sync_time_threshold = sync_rate_time * peers[i].doll_sync_rate_factor;
-
-		// Prepare the epoch_data cache.
-		if (epoch_state_collected == false) {
-			epoch_state_data_cache.begin_write(DOLL_EPOCH_METADATA_SIZE);
-			epoch_state_data_cache.add_real(0.0, DataBuffer::COMPRESSION_LEVEL_1); // Sync time
-			epoch_state_data_cache.add_int(epoch, DataBuffer::COMPRESSION_LEVEL_1);
-
-#ifdef DEBUG_ENABLED
-			// This can't happen because the metadata size is correct.
-			CRASH_COND(epoch_state_data_cache.get_bit_offset() != DOLL_EPOCH_METADATA_SIZE);
-#endif
-
-			//node->native_collect_epoch_data(epoch_state_data_cache);
-			epoch_state_data_cache.dry();
-			epoch_state_collected = true;
-		}
-
-		epoch_state_data_cache.seek(0);
-		epoch_state_data_cache.add_real(peers[i].doll_sync_time_threshold, DataBuffer::COMPRESSION_LEVEL_1);
-
-		// Send the data
-		node->rpc_id(
-				peers[i].peer,
-				SNAME("_rpc_doll_send_epoch_batch"),
-				epoch_state_data_cache.get_buffer().get_bytes());
-	}
-
-	is_epoch_important = false;
-}
-
 int ceil_with_tolerance(double p_value, double p_tolerance) {
 	return Math::ceil(p_value - p_tolerance);
 }
@@ -1219,15 +977,6 @@ void ServerController::adjust_player_tick_rate(double p_delta) {
 				SNAME("_rpc_notify_fps_acceleration"),
 				packet_data);
 	}
-}
-
-uint32_t ServerController::find_peer(int p_peer) const {
-	for (uint32_t i = 0; i < peers.size(); i += 1) {
-		if (peers[i].peer == p_peer) {
-			return i;
-		}
-	}
-	return UINT32_MAX;
 }
 
 AutonomousServerController::AutonomousServerController(
@@ -1608,158 +1357,16 @@ bool PlayerController::can_accept_new_inputs() const {
 }
 
 DollController::DollController(NetworkedController *p_node) :
-		Controller(p_node),
-		network_watcher(node->get_doll_connection_stats_frame_span(), 0) {
+		Controller(p_node) {
 }
 
 void DollController::ready() {}
 
 void DollController::process(double p_delta) {
-	if (future_epoch_buffer.size() <= DOLL_EPOCH_METADATA_SIZE) {
-		// The interpolation epoch is not yet received, nothing to interpolate.
-		return;
-	}
-
-	if (interpolation_time_window <= CMP_EPSILON) {
-		interpolation_alpha = 1.0;
-	} else {
-		interpolation_alpha += p_delta / interpolation_time_window;
-		// Constraint the overshot.
-		interpolation_alpha = MIN(interpolation_alpha, 1.0 + node->get_doll_interpolation_max_overshot());
-	}
-
-	// Allow extrapolation, in case the other para didn't arrive yet.
-	current_epoch = Math::round(Math::lerp(real_t(past_epoch), real_t(future_epoch), interpolation_alpha));
-
-	past_epoch_buffer.begin_read();
-	future_epoch_buffer.begin_read();
-	// Skip metadata.
-	future_epoch_buffer.seek(DOLL_EPOCH_METADATA_SIZE);
-
-	//node->native_apply_epoch(
-	//		p_delta,
-	//		interpolation_alpha,
-	//		past_epoch_buffer,
-	//		future_epoch_buffer);
 }
 
 uint32_t DollController::get_current_input_id() const {
-	return current_epoch;
-}
-
-void DollController::receive_epoch(const Vector<uint8_t> &p_data) {
-	if (unlikely(node->get_scene_synchronizer()->is_enabled() == false)) {
-		// The sync is disabled, nothing to do.
-		return;
-	}
-
-	future_epoch_buffer.copy(p_data);
-	future_epoch_buffer.begin_read();
-	// Read from METADATA:
-	const real_t next_sync_time = future_epoch_buffer.read_real(DataBuffer::COMPRESSION_LEVEL_1);
-	const uint32_t epoch = future_epoch_buffer.read_int(DataBuffer::COMPRESSION_LEVEL_1);
-
-	if (epoch <= paused_epoch) {
-		// The sync is in pause from this epoch, so just discard this received
-		// epoch that may just be a late received epoch.
-		return;
-	}
-
-	if (epoch <= future_epoch) {
-		// This epoch is old, it arrived too late; nothing to do.
-		return;
-	}
-
-	const int64_t current_virtual_delay = int64_t(future_epoch) - int64_t(current_epoch);
-
-	if (current_epoch > future_epoch) {
-		// Make sure we set back the current epoch in case of overshot.
-		// The overshot is wanted to correctly calculate `current_virtual_delay`, but at this point
-		// the overshot need to be normalized.
-		current_epoch = future_epoch;
-	}
-	past_epoch = current_epoch;
-	future_epoch = epoch;
-
-	// Make sure to store the current state, so we can use it to interpolate.
-	// This is necessary so we allow a bit of overshot.
-	past_epoch_buffer.begin_write(0);
-	//node->native_collect_epoch_data(past_epoch_buffer);
-
-	// ~~ Establish the interpolation speed ~~
-
-	// Establish the connection quality by checking if the batch takes
-	// always the same time to arrive.
-	const uint32_t now = OS::get_singleton()->get_ticks_msec();
-
-	// If now is bigger, then the timer has been disabled, so we assume 0.
-
-	real_t packet_arrived_in = 0.0;
-	if (now > epoch_received_timestamp) {
-		packet_arrived_in = static_cast<real_t>(now - epoch_received_timestamp) / 1000.0;
-		const real_t delta_difference = packet_arrived_in - next_epoch_expected_in;
-		network_watcher.push(ABS(delta_difference));
-	}
-	epoch_received_timestamp = now;
-	next_epoch_expected_in = next_sync_time;
-
-	const real_t avg_arrival_delta_time = network_watcher.max();
-	const real_t deviation_arrival_delta_time = network_watcher.get_deviation(avg_arrival_delta_time);
-
-	// The network poorness is computed by looking at all the delta differences between the expected
-	// arrival time and the actual arrival time: the bigger this difference is the more oscillating
-	// the connection is so a virtual delay is needed to make sure the character doesn't bounces.
-	const real_t net_poorness = MIN(1.0, (avg_arrival_delta_time + deviation_arrival_delta_time) / node->get_doll_net_sensitivity());
-
-	const int64_t target_virtual_delay = Math::lerp(
-			node->get_doll_min_frames_delay(),
-			node->get_doll_max_frames_delay(),
-			net_poorness);
-
-	const real_t epochs_span = target_virtual_delay - current_virtual_delay;
-	const real_t frame_time = 1.0 / real_t(Engine::get_singleton()->get_physics_ticks_per_second());
-	interpolation_time_window =
-			next_sync_time +
-			(current_virtual_delay * frame_time) +
-			(epochs_span * frame_time);
-
-	interpolation_alpha = 0.0;
-
-#ifdef DEBUG_ENABLED
-	const bool debug = ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/debug_doll_speedup");
-	if (debug) {
-		String msg = "~~~~~~~~~~~~~~~\n";
-		msg += "Epoch #" + itos(epoch) + " ";
-		msg += "Epoch arrived in: `" + rtos(packet_arrived_in) + "` \n";
-		msg += "\n";
-		msg += "Avg arrival time difference: `" + rtos(avg_arrival_delta_time) + "` \n";
-		msg += "Deviation arrival difference: `" + rtos(deviation_arrival_delta_time) + "` \n";
-		msg += "Arrival difference: `" + rtos(avg_arrival_delta_time + deviation_arrival_delta_time) + "` \n";
-		msg += "Sensitivity: `" + rtos(node->get_doll_net_sensitivity()) + "` \n";
-		msg += "Network poorness: `" + rtos(net_poorness) + "` \n";
-		msg += "\n";
-		msg += "Next sync time`" + rtos(next_sync_time) + "` \n";
-		msg += "Interpolation time window no speedup `" + rtos(next_sync_time + (current_virtual_delay * frame_time)) + "` \n";
-		msg += "Interpolation time window `" + rtos(interpolation_time_window) + "` \n";
-		msg += "Epochs span `" + rtos(epochs_span) + "` \n";
-		msg += "Current virtual delay `" + itos(current_virtual_delay) + "` \n";
-		msg += "Target virtual delay `" + itos(target_virtual_delay) + "` \n";
-		msg += "Current epoch `" + itos(current_epoch) + "` \n";
-		msg += "Past epoch `" + itos(past_epoch) + "` \n";
-		msg += "Future epoch `" + itos(future_epoch) + "` \n";
-		msg += "~~~~~~~~~~~~~~~\n";
-		print_line(msg);
-	}
-#endif
-}
-
-void DollController::pause(uint32_t p_epoch) {
-	paused_epoch = p_epoch;
-
-	network_watcher.resize(node->get_doll_connection_stats_frame_span(), 0);
-	epoch_received_timestamp = UINT32_MAX;
-
-	node->emit_signal("doll_sync_paused");
+	return UINT32_MAX; // TODO??
 }
 
 NoNetController::NoNetController(NetworkedController *p_node) :
