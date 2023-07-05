@@ -70,6 +70,8 @@ class NetworkedController : public Node {
 	GDCLASS(NetworkedController, Node);
 
 	friend class SceneSynchronizer;
+	friend class RemotelyControlledController;
+	friend class ServerController;
 
 public:
 	enum ControllerType {
@@ -162,6 +164,9 @@ private:
 	bool packet_missing = false;
 	bool has_player_new_input = false;
 
+	// Peer controlling this controller.
+	int peer_id = -1;
+
 public:
 	static void _bind_methods();
 
@@ -241,6 +246,8 @@ public:
 	SceneSynchronizer *get_scene_synchronizer() const;
 	bool has_scene_synchronizer() const;
 
+	void on_peer_status_updated(Node *p_node, NetNodeId p_id, int p_peer_id, bool p_connected, bool p_enabled);
+
 	/* On server rpc functions. */
 	void _rpc_server_send_inputs(const Vector<uint8_t> &p_data);
 
@@ -287,21 +294,39 @@ struct Controller {
 	virtual uint32_t get_current_input_id() const = 0;
 	virtual void process(double p_delta) = 0;
 
-	virtual void receive_inputs(const Vector<uint8_t> &p_data){};
-
-	virtual void clear_peers() {}
-	virtual void activate_peer(int p_peer) {}
-	virtual void deactivate_peer(int p_peer) {}
+	virtual bool receive_inputs(const Vector<uint8_t> &p_data){};
 };
 
-struct ServerController : public Controller {
+struct RemotelyControlledController : public Controller {
 	uint32_t current_input_buffer_id = UINT32_MAX;
 	uint32_t ghost_input_count = 0;
-	uint32_t last_sent_state_input_id = 0;
-	uint32_t additional_fps_notif_timer = 0;
 	std::deque<FrameSnapshot> snapshots;
+	// The stream is paused when the client send an empty buffer.
 	bool streaming_paused = false;
-	bool enabled = true;
+
+	bool peer_enabled = false;
+
+public:
+	RemotelyControlledController(NetworkedController *p_node);
+
+	virtual void on_peer_update(bool p_peer_enabled);
+
+	virtual uint32_t get_current_input_id() const override;
+	virtual int get_inputs_count() const;
+	uint32_t last_known_input() const;
+
+	/// Fetch the next inputs, returns true if the input is new.
+	virtual bool fetch_next_input(real_t p_delta);
+
+	virtual void set_frame_input(const FrameSnapshot &p_frame_snapshot, bool p_first_input);
+
+	virtual void process(double p_delta) override;
+
+	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;
+};
+
+struct ServerController : public RemotelyControlledController {
+	uint32_t additional_fps_notif_timer = 0;
 
 	uint32_t previous_frame_received_timestamp = UINT32_MAX;
 	NetUtility::StatisticalRingBuffer<uint32_t> network_watcher;
@@ -312,24 +337,14 @@ struct ServerController : public Controller {
 			int p_traced_frames);
 
 	virtual void process(double p_delta) override;
-	uint32_t last_known_input() const;
-	virtual uint32_t get_current_input_id() const override;
 
-	void set_enabled(bool p_enable);
+	virtual void on_peer_update(bool p_peer_enabled) override;
 
-	virtual void clear_peers() override;
-	virtual void activate_peer(int p_peer) override;
-	virtual void deactivate_peer(int p_peer) override;
-
-	virtual void receive_inputs(const Vector<uint8_t> &p_data) override;
-	virtual int get_inputs_count() const;
-
-	/// Fetch the next inputs, returns true if the input is new.
-	virtual bool fetch_next_input(real_t p_delta);
-
-	void set_frame_input(const FrameSnapshot &p_frame_snapshot);
+	virtual void set_frame_input(const FrameSnapshot &p_frame_snapshot, bool p_first_input) override;
 
 	void notify_send_state();
+
+	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;
 
 	/// This function updates the `tick_additional_fps` so that the `frames_inputs`
 	/// size is enough to reduce the missing packets to 0.
@@ -349,7 +364,7 @@ struct AutonomousServerController : public ServerController {
 	AutonomousServerController(
 			NetworkedController *p_node);
 
-	virtual void receive_inputs(const Vector<uint8_t> &p_data) override;
+	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;
 	virtual int get_inputs_count() const override;
 	virtual bool fetch_next_input(real_t p_delta) override;
 	virtual void adjust_player_tick_rate(double p_delta) override;
@@ -380,7 +395,7 @@ struct PlayerController : public Controller {
 	bool queue_instant_process(int p_i);
 	virtual void process(double p_delta) override;
 
-	virtual void receive_inputs(const Vector<uint8_t> &p_data) override;
+	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;
 
 	void store_input_buffer(uint32_t p_id);
 
@@ -397,14 +412,11 @@ struct PlayerController : public Controller {
 /// and fetch them exactly like the server.
 /// After the execution of the inputs, the puppet start to act like the player,
 /// because it wait the player status from the server to correct its motion.
-struct DollController : public Controller {
+struct DollController : public RemotelyControlledController {
 	DollController(NetworkedController *p_node);
 
 	virtual void ready() override;
 	virtual void process(double p_delta) override;
-	// TODO consider make this non virtual
-	virtual uint32_t get_current_input_id() const override;
-	virtual void receive_inputs(const Vector<uint8_t> &p_data) override;
 };
 
 /// This controller is used when the game instance is not a peer of any kind.
