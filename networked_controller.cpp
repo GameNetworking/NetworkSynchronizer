@@ -139,6 +139,8 @@ void NetworkedController::_bind_methods() {
 }
 
 NetworkedController::NetworkedController() {
+	inputs_buffer = memnew(DataBuffer);
+
 	Dictionary rpc_config_reliable;
 	rpc_config_reliable["rpc_mode"] = MultiplayerAPI::RPC_MODE_ANY_PEER;
 	rpc_config_reliable["call_local"] = false;
@@ -155,6 +157,9 @@ NetworkedController::NetworkedController() {
 }
 
 NetworkedController::~NetworkedController() {
+	memdelete(inputs_buffer);
+	inputs_buffer = nullptr;
+
 	if (controller != nullptr) {
 		memdelete(controller);
 		controller = nullptr;
@@ -534,8 +539,8 @@ bool NetworkedController::is_nonet_controller() const {
 }
 
 void NetworkedController::set_inputs_buffer(const BitArray &p_new_buffer, uint32_t p_metadata_size_in_bit, uint32_t p_size_in_bit) {
-	inputs_buffer.get_buffer_mut().get_bytes_mut() = p_new_buffer.get_bytes();
-	inputs_buffer.shrink_to(p_metadata_size_in_bit, p_size_in_bit);
+	inputs_buffer->get_buffer_mut().get_bytes_mut() = p_new_buffer.get_bytes();
+	inputs_buffer->shrink_to(p_metadata_size_in_bit, p_size_in_bit);
 }
 
 void NetworkedController::notify_registered_with_synchronizer(SceneSynchronizer *p_synchronizer) {
@@ -802,9 +807,9 @@ void ServerController::receive_inputs(const Vector<uint8_t> &p_data) {
 
 	// Contains the entire packet and in turn it will be seek to specific location
 	// so I will not need to copy chunk of the packet data.
-	DataBuffer pir;
-	pir.begin_read();
-	pir.get_buffer_mut().get_bytes_mut() = p_data;
+	DataBuffer *pir = memnew(DataBuffer);
+	pir->copy(p_data);
+	pir->begin_read();
 	// TODO this is for 3.2
 	//pir.get_buffer_mut().resize_in_bytes(data_len);
 	//memcpy(pir.get_buffer_mut().get_bytes_mut().ptrw(), p_data.ptr(), data_len);
@@ -817,12 +822,12 @@ void ServerController::receive_inputs(const Vector<uint8_t> &p_data) {
 
 		// Validate input
 		const int input_buffer_offset_bit = ofs * 8;
-		pir.shrink_to(input_buffer_offset_bit, (data_len - ofs) * 8);
-		pir.seek(input_buffer_offset_bit);
+		pir->shrink_to(input_buffer_offset_bit, (data_len - ofs) * 8);
+		pir->seek(input_buffer_offset_bit);
 		// Read metadata
-		const bool has_data = pir.read_bool();
+		const bool has_data = pir->read_bool();
 
-		const int input_size_in_bits = (has_data ? int(node->native_count_input_size(pir)) : 0) + METADATA_SIZE;
+		const int input_size_in_bits = (has_data ? int(node->native_count_input_size(*pir)) : 0) + METADATA_SIZE;
 
 		// Pad to 8 bits.
 		const int input_size_padded =
@@ -870,6 +875,9 @@ void ServerController::receive_inputs(const Vector<uint8_t> &p_data) {
 		// We can now advance the offset.
 		ofs += input_size_padded;
 	}
+
+	memdelete(pir);
+	pir = nullptr;
 
 #ifdef DEBUG_ENABLED
 	if (snapshots.empty() == false && current_input_buffer_id != UINT32_MAX) {
@@ -992,7 +1000,9 @@ bool ServerController::fetch_next_input(real_t p_delta) {
 				bool recovered = false;
 				FrameSnapshot pi;
 
-				DataBuffer pir_A = node->get_inputs_buffer();
+				DataBuffer *pir_A = memnew(DataBuffer);
+				DataBuffer *pir_B = memnew(DataBuffer);
+				pir_A->copy(node->get_inputs_buffer());
 
 				for (int i = 0; i < size; i += 1) {
 					SceneSynchronizerDebugger::singleton()->debug_print(node, "[ServerController::fetch_next_input] checking if `" + itos(snapshots.front().id) + "` can be used to recover `" + itos(next_input_id) + "`.", true);
@@ -1014,21 +1024,26 @@ bool ServerController::fetch_next_input(real_t p_delta) {
 						// Useful to avoid that the server stay too much behind the
 						// client.
 
-						DataBuffer pir_B(pi.inputs_buffer);
-						pir_B.shrink_to(METADATA_SIZE, pi.buffer_size_bit - METADATA_SIZE);
+						pir_B->copy(pi.inputs_buffer);
+						pir_B->shrink_to(METADATA_SIZE, pi.buffer_size_bit - METADATA_SIZE);
 
-						pir_A.begin_read();
-						pir_A.seek(METADATA_SIZE);
-						pir_B.begin_read();
-						pir_B.seek(METADATA_SIZE);
+						pir_A->begin_read();
+						pir_A->seek(METADATA_SIZE);
+						pir_B->begin_read();
+						pir_B->seek(METADATA_SIZE);
 
-						const bool are_different = node->native_are_inputs_different(pir_A, pir_B);
+						const bool are_different = node->native_are_inputs_different(*pir_A, *pir_B);
 						if (are_different) {
 							SceneSynchronizerDebugger::singleton()->debug_print(node, "[ServerController::fetch_next_input] The input `" + itos(input_id) + "` is different from the one executed so far, so better to execute it.", true);
 							break;
 						}
 					}
 				}
+
+				memdelete(pir_A);
+				pir_A = nullptr;
+				memdelete(pir_B);
+				pir_B = nullptr;
 
 				if (recovered) {
 					set_frame_input(pi);
@@ -1466,7 +1481,9 @@ void PlayerController::send_frame_input_buffer_to_server() {
 	int previous_buffer_size = 0;
 	uint8_t duplication_count = 0;
 
-	DataBuffer pir_A(node->get_inputs_buffer().get_buffer());
+	DataBuffer *pir_A = memnew(DataBuffer);
+	DataBuffer *pir_B = memnew(DataBuffer);
+	pir_A->copy(node->get_inputs_buffer().get_buffer());
 
 	// Compose the packets
 	for (size_t i = frames_snapshot.size() - inputs_count; i < frames_snapshot.size(); i += 1) {
@@ -1483,15 +1500,15 @@ void PlayerController::send_frame_input_buffer_to_server() {
 			if (frames_snapshot[i].similarity != previous_input_id) {
 				if (frames_snapshot[i].similarity == UINT32_MAX) {
 					// This input was never compared, let's do it now.
-					DataBuffer pir_B(frames_snapshot[i].inputs_buffer);
-					pir_B.shrink_to(METADATA_SIZE, frames_snapshot[i].buffer_size_bit - METADATA_SIZE);
+					pir_B->copy(frames_snapshot[i].inputs_buffer);
+					pir_B->shrink_to(METADATA_SIZE, frames_snapshot[i].buffer_size_bit - METADATA_SIZE);
 
-					pir_A.begin_read();
-					pir_A.seek(METADATA_SIZE);
-					pir_B.begin_read();
-					pir_B.seek(METADATA_SIZE);
+					pir_A->begin_read();
+					pir_A->seek(METADATA_SIZE);
+					pir_B->begin_read();
+					pir_B->seek(METADATA_SIZE);
 
-					const bool are_different = node->native_are_inputs_different(pir_A, pir_B);
+					const bool are_different = node->native_are_inputs_different(*pir_A, *pir_B);
 					is_similar = are_different == false;
 
 				} else if (frames_snapshot[i].similarity == previous_input_similarity) {
@@ -1557,10 +1574,15 @@ void PlayerController::send_frame_input_buffer_to_server() {
 			previous_input_similarity = frames_snapshot[i].similarity;
 			previous_buffer_size = buffer_size;
 
-			pir_A.get_buffer_mut() = frames_snapshot[i].inputs_buffer;
-			pir_A.shrink_to(METADATA_SIZE, frames_snapshot[i].buffer_size_bit - METADATA_SIZE);
+			pir_A->get_buffer_mut() = frames_snapshot[i].inputs_buffer;
+			pir_A->shrink_to(METADATA_SIZE, frames_snapshot[i].buffer_size_bit - METADATA_SIZE);
 		}
 	}
+
+	memdelete(pir_A);
+	pir_A = nullptr;
+	memdelete(pir_B);
+	pir_B = nullptr;
 
 	// Finalize the last added input_buffer.
 	cached_packet_data[ofs - previous_buffer_size - 1] = duplication_count;

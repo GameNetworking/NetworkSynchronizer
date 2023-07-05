@@ -189,7 +189,11 @@ private:
 
 	ControllerType controller_type = CONTROLLER_TYPE_NULL;
 	Controller *controller = nullptr;
-	DataBuffer inputs_buffer;
+	// Created using `memnew` into the constructor:
+	// The reason why this is a pointer allocated on the heap explicitely using
+	// `memnew` is becouse in Godot 4 GDScript doesn't properly handle non
+	// `memnew` created Objects.
+	DataBuffer *inputs_buffer = nullptr;
 
 	SceneSynchronizer *scene_synchronizer = nullptr;
 
@@ -254,11 +258,11 @@ public:
 	uint32_t get_current_input_id() const;
 
 	const DataBuffer &get_inputs_buffer() const {
-		return inputs_buffer;
+		return *inputs_buffer;
 	}
 
 	DataBuffer &get_inputs_buffer_mut() {
-		return inputs_buffer;
+		return *inputs_buffer;
 	}
 
 	/// Returns the pretended delta used by the player.
