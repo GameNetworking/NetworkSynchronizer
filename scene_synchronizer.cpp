@@ -139,6 +139,7 @@ void SceneSynchronizer::_bind_methods() {
 
 	ADD_SIGNAL(MethodInfo("sync_started"));
 	ADD_SIGNAL(MethodInfo("sync_paused"));
+	ADD_SIGNAL(MethodInfo("peer_status_updated", PropertyInfo(Variant::OBJECT, "controlled_node"), PropertyInfo(Variant::INT, "node_data_id"), PropertyInfo(Variant::INT, "peer"), PropertyInfo(Variant::BOOL, "connected"), PropertyInfo(Variant::BOOL, "enabled")));
 
 	ADD_SIGNAL(MethodInfo("desync_detected", PropertyInfo(Variant::INT, "input_id"), PropertyInfo(Variant::OBJECT, "node"), PropertyInfo(Variant::ARRAY, "var_names"), PropertyInfo(Variant::ARRAY, "client_values"), PropertyInfo(Variant::ARRAY, "server_values")));
 }
@@ -577,7 +578,27 @@ void SceneSynchronizer::sync_group_remove_node(NetUtility::NodeData *p_node_data
 
 void SceneSynchronizer::sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id) {
 	ERR_FAIL_COND_MSG(!is_server(), "This function CAN be used only on the server.");
+
+	NetUtility::PeerData *pd = peer_data.lookup_ptr(p_peer_id);
+	ERR_FAIL_COND_MSG(pd == nullptr, "The PeerData doesn't exist. This looks like a bug. Are you sure the peer_id `" + itos(p_peer_id) + "` exists?");
+
+	pd->sync_group_id = p_group_id;
+
 	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_move_peer_to(p_peer_id, p_group_id);
+}
+
+SyncGroupId SceneSynchronizer::sync_group_get_peer_group(int p_peer_id) const {
+	ERR_FAIL_COND_V_MSG(!is_server(), NetID_NONE, "This function CAN be used only on the server.");
+
+	const NetUtility::PeerData *pd = peer_data.lookup_ptr(p_peer_id);
+	ERR_FAIL_COND_V_MSG(pd == nullptr, NetID_NONE, "The PeerData doesn't exist. This looks like a bug. Are you sure the peer_id `" + itos(p_peer_id) + "` exists?");
+
+	return pd->sync_group_id;
+}
+
+const LocalVector<int> *SceneSynchronizer::sync_group_get_peers(SyncGroupId p_group_id) const {
+	ERR_FAIL_COND_V_MSG(!is_server(), nullptr, "This function CAN be used only on the server.");
+	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get_peers(p_group_id);
 }
 
 void SceneSynchronizer::sync_group_set_deferred_update_rate_by_id(NetNodeId p_node_id, SyncGroupId p_group_id, real_t p_update_rate) {
@@ -804,6 +825,12 @@ void SceneSynchronizer::set_peer_networking_enable(int p_peer, bool p_enable) {
 		pd->force_notify_snapshot = true;
 		pd->need_full_snapshot = true;
 
+		if (p_enable) {
+			static_cast<ServerSynchronizer *>(synchronizer)->sync_group_move_peer_to(p_peer, pd->sync_group_id);
+		} else {
+			static_cast<ServerSynchronizer *>(synchronizer)->sync_group_move_peer_to(p_peer, NetID_NONE);
+		}
+
 		dirty_peers();
 
 		// Just notify the peer status.
@@ -832,6 +859,10 @@ bool SceneSynchronizer::is_peer_networking_enable(int p_peer) const {
 
 void SceneSynchronizer::_on_peer_connected(int p_peer) {
 	peer_data.insert(p_peer, NetUtility::PeerData());
+
+	Object *nil = nullptr;
+	emit_signal("peer_status_updated", Variant(nil), NetID_NONE, p_peer, true, false);
+
 	dirty_peers();
 	if (synchronizer) {
 		synchronizer->on_peer_connected(p_peer);
@@ -839,13 +870,18 @@ void SceneSynchronizer::_on_peer_connected(int p_peer) {
 }
 
 void SceneSynchronizer::_on_peer_disconnected(int p_peer) {
-	peer_data.remove(p_peer);
-
-	// Notify all controllers that this peer is gone.
-	for (uint32_t i = 0; i < node_data_controllers.size(); i += 1) {
-		NetworkedController *c = static_cast<NetworkedController *>(node_data_controllers[i]->node);
-		c->controller->deactivate_peer(p_peer);
+	// Emit a signal notifying this peer is gone.
+	NetUtility::PeerData *pd = peer_data.lookup_ptr(p_peer);
+	NetNodeId id = NetID_NONE;
+	Node *node = nullptr;
+	if (pd) {
+		id = pd->controller_id;
+		node = get_node_from_id(id);
 	}
+
+	emit_signal("peer_status_updated", node, id, p_peer, false, false);
+
+	peer_data.remove(p_peer);
 
 	if (synchronizer) {
 		synchronizer->on_peer_disconnected(p_peer);
@@ -1043,39 +1079,24 @@ void SceneSynchronizer::update_peers() {
 			}
 		}
 
-		// Propagate the peer change to controllers.
-		for (uint32_t i = 0; i < node_data_controllers.size(); i += 1) {
-			NetworkedController *c = static_cast<NetworkedController *>(node_data_controllers[i]->node);
-
-			if (it.value->controller_id == node_data_controllers[i]->id) {
-				// This is the controller owned by this peer.
-				c->get_server_controller()->set_enabled(it.value->enabled);
-			} else {
-				// This is a controller owned by another peer.
-				if (it.value->enabled) {
-					c->controller->activate_peer(*it.key);
-				} else {
-					c->controller->deactivate_peer(*it.key);
-				}
-			}
+		NetUtility::NodeData *nd = get_node_data(it.value->controller_id);
+		if (nd) {
+			nd->realtime_sync_enabled_on_client = it.value->enabled;
+			emit_signal("peer_status_updated", nd->node, nd->id, *it.key, true, it.value->enabled);
 		}
 	}
 }
 
 void SceneSynchronizer::clear_peers() {
-	if (synchronizer) {
-		for (OAHashMap<int, NetUtility::PeerData>::Iterator it = peer_data.iter();
-				it.valid;
-				it = peer_data.next_iter(it)) {
-			synchronizer->on_peer_disconnected(*it.key);
-		}
+	// Copy, so we can safely remove the peers from `peer_data`.
+	OAHashMap<int, NetUtility::PeerData> peer_data_tmp = peer_data;
+	for (OAHashMap<int, NetUtility::PeerData>::Iterator it = peer_data_tmp.iter();
+			it.valid;
+			it = peer_data_tmp.next_iter(it)) {
+		_on_peer_disconnected(*it.key);
 	}
 
-	peer_data.clear();
-	for (uint32_t i = 0; i < node_data_controllers.size(); i += 1) {
-		NetworkedController *c = static_cast<NetworkedController *>(node_data_controllers[i]->node);
-		c->controller->clear_peers();
-	}
+	CRASH_COND_MSG(!peer_data.is_empty(), "The above loop should have cleared this peer_data by calling `_on_peer_disconnected` for all the peers.");
 }
 
 void SceneSynchronizer::change_events_begin(int p_flag) {
@@ -1927,10 +1948,17 @@ void ServerSynchronizer::sync_group_remove_node(NetUtility::NodeData *p_node_dat
 }
 
 void ServerSynchronizer::sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id) {
-	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
+	// remove the peer from any sync_group.
 	for (uint32_t i = 0; i < sync_groups.size(); ++i) {
 		sync_groups[i].peers.erase(p_peer_id);
 	}
+
+	if (p_group_id == NetID_NONE) {
+		// This peer is not listening to anything.
+		return;
+	}
+
+	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
 	sync_groups[p_group_id].peers.push_back(p_peer_id);
 
 	// Also mark the peer as need full snapshot, as it's into a new group now.
@@ -1942,6 +1970,11 @@ void ServerSynchronizer::sync_group_move_peer_to(int p_peer_id, SyncGroupId p_gr
 	// Make sure the controller is added into this group.
 	NetUtility::NodeData *nd = scene_synchronizer->get_node_data(pd->controller_id);
 	sync_group_add_node(nd, p_group_id, true);
+}
+
+const LocalVector<int> *ServerSynchronizer::sync_group_get_peers(SyncGroupId p_group_id) const {
+	ERR_FAIL_COND_V_MSG(p_group_id >= sync_groups.size(), nullptr, "The group id `" + itos(p_group_id) + "` doesn't exist.");
+	return &sync_groups[p_group_id].peers;
 }
 
 void ServerSynchronizer::sync_group_set_deferred_update_rate(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id, real_t p_update_rate) {

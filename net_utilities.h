@@ -394,6 +394,8 @@ struct PeerData {
 	bool need_full_snapshot = true;
 	// Used to know if the peer is enabled.
 	bool enabled = true;
+	// The Sync group this peer is in.
+	SyncGroupId sync_group_id;
 };
 
 struct Snapshot {
