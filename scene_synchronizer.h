@@ -127,6 +127,7 @@ public:
 	static const SyncGroupId GLOBAL_SYNC_GROUP_ID;
 
 private:
+	int max_deferred_nodes_per_update = 30;
 	real_t server_notify_state_interval = 1.0;
 	real_t comparison_float_tolerance = 0.001;
 
@@ -170,8 +171,8 @@ public:
 	SceneSynchronizer();
 	~SceneSynchronizer();
 
-	void set_doll_desync_tolerance(int p_tolerance);
-	int get_doll_desync_tolerance() const;
+	void set_max_deferred_nodes_per_update(int p_rate);
+	int get_max_deferred_nodes_per_update() const;
 
 	void set_server_notify_state_interval(real_t p_interval);
 	real_t get_server_notify_state_interval() const;

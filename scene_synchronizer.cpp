@@ -65,6 +65,9 @@ void SceneSynchronizer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("reset_synchronizer_mode"), &SceneSynchronizer::reset_synchronizer_mode);
 	ClassDB::bind_method(D_METHOD("clear"), &SceneSynchronizer::clear);
 
+	ClassDB::bind_method(D_METHOD("set_max_deferred_nodes_per_update", "rate"), &SceneSynchronizer::set_max_deferred_nodes_per_update);
+	ClassDB::bind_method(D_METHOD("get_max_deferred_nodes_per_update"), &SceneSynchronizer::get_max_deferred_nodes_per_update);
+
 	ClassDB::bind_method(D_METHOD("set_server_notify_state_interval", "interval"), &SceneSynchronizer::set_server_notify_state_interval);
 	ClassDB::bind_method(D_METHOD("get_server_notify_state_interval"), &SceneSynchronizer::get_server_notify_state_interval);
 
@@ -225,6 +228,14 @@ SceneSynchronizer::SceneSynchronizer() {
 SceneSynchronizer::~SceneSynchronizer() {
 	clear();
 	uninit_synchronizer();
+}
+
+void SceneSynchronizer::set_max_deferred_nodes_per_update(int p_rate) {
+	max_deferred_nodes_per_update = p_rate;
+}
+
+int SceneSynchronizer::get_max_deferred_nodes_per_update() const {
+	return max_deferred_nodes_per_update;
 }
 
 void SceneSynchronizer::set_server_notify_state_interval(real_t p_interval) {
@@ -2198,7 +2209,6 @@ void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
 			continue;
 		}
 
-		const int max_deferred_nodes_per_update = 10; // TODO please make this a variable.
 		int update_node_count = 0;
 
 		group.sort_deferred_node_by_update_priority();
@@ -2209,7 +2219,7 @@ void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
 
 		for (int i = 0; i < int(node_info.size()); ++i) {
 			bool send = true;
-			if (node_info[i].update_priority < 1.0 || update_node_count >= max_deferred_nodes_per_update) {
+			if (node_info[i].update_priority < 1.0 || update_node_count >= scene_synchronizer->max_deferred_nodes_per_update) {
 				send = false;
 			}
 
