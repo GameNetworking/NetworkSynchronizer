@@ -217,7 +217,7 @@ public:
 	virtual bool native_are_inputs_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B);
 	virtual uint32_t native_count_input_size(DataBuffer &p_buffer);
 
-	bool queue_instant_process(int p_i);
+	bool has_another_instant_to_process_after(int p_i) const;
 	void process(double p_delta);
 
 	/// Returns the server controller or nullptr if this is not a server.
@@ -247,6 +247,8 @@ public:
 	bool has_scene_synchronizer() const;
 
 	void on_peer_status_updated(Node *p_node, NetNodeId p_id, int p_peer_id, bool p_connected, bool p_enabled);
+	void on_state_validated(uint32_t p_input_id);
+	void on_rewind_frame_begin(uint32_t p_input_id, int p_index, int p_count);
 
 	/* On server rpc functions. */
 	void _rpc_server_send_inputs(const Vector<uint8_t> &p_data);
@@ -263,10 +265,20 @@ protected:
 	void notify_controller_reset();
 
 public:
-	bool __parse_input_data(
-			const Vector<uint8_t> p_data,
+	bool __input_data_parse(
+			const Vector<uint8_t> &p_data,
 			void *p_user_pointer,
 			void (*p_input_parse)(void *p_user_pointer, uint32_t p_input_id, int p_input_size_in_bits, const BitArray &p_input));
+
+	/// This function is able to get the InputId for this buffer.
+	bool __input_data_get_first_input_id(
+			const Vector<uint8_t> &p_data,
+			uint32_t &p_input_id) const;
+
+	/// This function is able to set a new InputId for this buffer.
+	bool __input_data_set_first_input_id(
+			Vector<uint8_t> &p_data,
+			uint32_t p_input_id);
 };
 
 struct FrameSnapshot {
@@ -295,6 +307,8 @@ struct Controller {
 	virtual void process(double p_delta) = 0;
 
 	virtual bool receive_inputs(const Vector<uint8_t> &p_data){};
+	virtual void notify_input_checked(uint32_t p_input_id) {}
+	virtual void queue_instant_process(uint32_t p_input_id, int p_index, int p_count) {}
 };
 
 struct RemotelyControlledController : public Controller {
@@ -346,6 +360,8 @@ struct ServerController : public RemotelyControlledController {
 
 	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;
 
+	uint32_t convert_input_id_to(int p_other_peer, uint32_t p_input_id) const;
+
 	/// This function updates the `tick_additional_fps` so that the `frames_inputs`
 	/// size is enough to reduce the missing packets to 0.
 	///
@@ -387,12 +403,14 @@ struct PlayerController : public Controller {
 
 	/// Returns the amount of frames to process for this frame.
 	int calculates_sub_ticks(const double p_delta, const double p_iteration_per_seconds);
-	int notify_input_checked(uint32_t p_input_id);
+	virtual void notify_input_checked(uint32_t p_input_id) override;
+	int get_frames_input_count() const;
 	uint32_t last_known_input() const;
 	uint32_t get_stored_input_id(int p_i) const;
 	virtual uint32_t get_current_input_id() const override;
 
-	bool queue_instant_process(int p_i);
+	virtual void queue_instant_process(uint32_t p_input_id, int p_index, int p_count) override;
+	bool has_another_instant_to_process_after(int p_i) const;
 	virtual void process(double p_delta) override;
 
 	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;
@@ -415,8 +433,15 @@ struct PlayerController : public Controller {
 struct DollController : public RemotelyControlledController {
 	DollController(NetworkedController *p_node);
 
-	virtual void ready() override;
+	uint32_t last_checked_input = 0;
+	int64_t virtual_current_input = 0;
+	int queued_instant_to_process = -1;
+
+	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;
+	virtual void queue_instant_process(uint32_t p_input_id, int p_index, int p_count) override;
+	virtual bool fetch_next_input(real_t p_delta) override;
 	virtual void process(double p_delta) override;
+	virtual void notify_input_checked(uint32_t p_input_id) override;
 };
 
 /// This controller is used when the game instance is not a peer of any kind.

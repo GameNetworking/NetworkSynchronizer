@@ -141,6 +141,9 @@ void SceneSynchronizer::_bind_methods() {
 	ADD_SIGNAL(MethodInfo("sync_paused"));
 	ADD_SIGNAL(MethodInfo("peer_status_updated", PropertyInfo(Variant::OBJECT, "controlled_node"), PropertyInfo(Variant::INT, "node_data_id"), PropertyInfo(Variant::INT, "peer"), PropertyInfo(Variant::BOOL, "connected"), PropertyInfo(Variant::BOOL, "enabled")));
 
+	ADD_SIGNAL(MethodInfo("state_validated", PropertyInfo(Variant::INT, "input_id")));
+	ADD_SIGNAL(MethodInfo("rewind_frame_begin", PropertyInfo(Variant::INT, "input_id"), PropertyInfo(Variant::INT, "index"), PropertyInfo(Variant::INT, "count")));
+
 	ADD_SIGNAL(MethodInfo("desync_detected", PropertyInfo(Variant::INT, "input_id"), PropertyInfo(Variant::OBJECT, "node"), PropertyInfo(Variant::ARRAY, "var_names"), PropertyInfo(Variant::ARRAY, "client_values"), PropertyInfo(Variant::ARRAY, "server_values")));
 }
 
@@ -327,6 +330,12 @@ uint32_t SceneSynchronizer::get_node_id(Node *p_node) {
 
 Node *SceneSynchronizer::get_node_from_id(uint32_t p_id) {
 	NetUtility::NodeData *nd = get_node_data(p_id);
+	ERR_FAIL_COND_V_MSG(nd == nullptr, nullptr, "The ID " + itos(p_id) + " is not assigned to any node.");
+	return nd->node;
+}
+
+const Node *SceneSynchronizer::get_node_from_id_const(uint32_t p_id) const {
+	const NetUtility::NodeData *nd = get_node_data(p_id);
 	ERR_FAIL_COND_V_MSG(nd == nullptr, nullptr, "The ID " + itos(p_id) + " is not assigned to any node.");
 	return nd->node;
 }
@@ -1650,6 +1659,20 @@ const NetUtility::NodeData *SceneSynchronizer::get_node_data_or_null(NetNodeId p
 	return organized_node_data[p_id];
 }
 
+NetworkedController *SceneSynchronizer::get_controller_for_peer(int p_peer) {
+	const NetUtility::PeerData *pd = peer_data.lookup_ptr(p_peer);
+	ERR_FAIL_COND_V_MSG(pd == nullptr, nullptr, "The peer is unknown `" + itos(p_peer) + "`.");
+	Node *n = get_node_from_id(pd->controller_id);
+	return dynamic_cast<NetworkedController *>(n);
+}
+
+const NetworkedController *SceneSynchronizer::get_controller_for_peer(int p_peer) const {
+	const NetUtility::PeerData *pd = peer_data.lookup_ptr(p_peer);
+	ERR_FAIL_COND_V_MSG(pd == nullptr, nullptr, "The peer is unknown `" + itos(p_peer) + "`.");
+	const Node *n = get_node_from_id_const(pd->controller_id);
+	return dynamic_cast<const NetworkedController *>(n);
+}
+
 NetNodeId SceneSynchronizer::get_biggest_node_id() const {
 	return organized_node_data.size() == 0 ? UINT32_MAX : organized_node_data.size() - 1;
 }
@@ -2911,7 +2934,8 @@ void ClientSynchronizer::__pcr__rewind(
 		const uint32_t p_checkable_input_id,
 		NetworkedController *p_local_controller,
 		PlayerController *p_local_player_controller) {
-	const int remaining_inputs = p_local_player_controller->notify_input_checked(p_checkable_input_id);
+	scene_synchronizer->emit_signal("state_validated", p_checkable_input_id);
+	const int remaining_inputs = p_local_player_controller->get_frames_input_count();
 
 #ifdef DEBUG_ENABLED
 	// Unreachable because the SceneSynchronizer and the PlayerController
@@ -2928,11 +2952,10 @@ void ClientSynchronizer::__pcr__rewind(
 
 		// Step 1 -- Notify the local controller about the instant to process
 		//           on the next process.
+		scene_synchronizer->emit_signal("rewind_frame_begin", p_local_player_controller->get_stored_input_id(i), i, remaining_inputs);
 #ifdef DEBUG_ENABLED
-		has_next = p_local_controller->queue_instant_process(i);
+		has_next = p_local_controller->has_another_instant_to_process_after(i);
 		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Rewind, processed controller: " + p_local_controller->get_path());
-#else
-		p_local_controller->queue_instant_process(i);
 #endif
 
 		// Step 2 -- Process the scene.
@@ -3034,7 +3057,7 @@ void ClientSynchronizer::__pcr__sync__no_rewind(const LocalVector<NetUtility::No
 void ClientSynchronizer::__pcr__no_rewind(
 		const uint32_t p_checkable_input_id,
 		PlayerController *p_player_controller) {
-	p_player_controller->notify_input_checked(p_checkable_input_id);
+	scene_synchronizer->emit_signal("state_validated", p_checkable_input_id);
 }
 
 void ClientSynchronizer::process_paused_controller_recovery(real_t p_delta) {
