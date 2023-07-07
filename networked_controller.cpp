@@ -411,6 +411,7 @@ void NetworkedController::notify_registered_with_synchronizer(SceneSynchronizer 
 		scene_synchronizer->unregister_process(this, PROCESSPHASE_PROCESS, callable_mp(this, &NetworkedController::process));
 	}
 
+	node_id = NetID_NONE;
 	scene_synchronizer = p_synchronizer;
 
 	if (scene_synchronizer) {
@@ -450,7 +451,7 @@ void NetworkedController::on_state_validated(uint32_t p_input_id) {
 }
 
 void NetworkedController::on_rewind_frame_begin(uint32_t p_input_id, int p_index, int p_count) {
-	if (controller) {
+	if (controller && is_realtime_enabled()) {
 		controller->queue_instant_process(p_input_id, p_index, p_count);
 	}
 }
@@ -511,6 +512,24 @@ void NetworkedController::player_set_has_new_input(bool p_has) {
 
 bool NetworkedController::player_has_new_input() const {
 	return has_player_new_input;
+}
+
+bool NetworkedController::is_realtime_enabled() {
+	if (node_id == NetID_NONE) {
+		if (scene_synchronizer) {
+			NetUtility::NodeData *nd = scene_synchronizer->find_node_data(this);
+			if (nd) {
+				node_id = nd->id;
+			}
+		}
+	}
+	if (node_id != NetID_NONE) {
+		NetUtility::NodeData *nd = scene_synchronizer->get_node_data(node_id);
+		if (nd) {
+			return nd->realtime_sync_enabled_on_client;
+		}
+	}
+	return false;
 }
 
 void NetworkedController::_notification(int p_what) {
@@ -1545,6 +1564,7 @@ DollController::DollController(NetworkedController *p_node) :
 }
 
 bool DollController::receive_inputs(const Vector<uint8_t> &p_data) {
+	print_line("~~ RECEIVE ~~");
 	const uint32_t now = OS::get_singleton()->get_ticks_msec();
 	struct SCParseTmpData {
 		DollController *controller;
@@ -1586,7 +1606,7 @@ bool DollController::receive_inputs(const Vector<uint8_t> &p_data) {
 
 					pd->controller->snapshots.push_back(rfs);
 
-					// Sort the new inserted snapshot.
+					// Sort the new inserted snapshots.
 					std::sort(
 							pd->controller->snapshots.begin(),
 							pd->controller->snapshots.end(),
@@ -1602,7 +1622,7 @@ bool DollController::receive_inputs(const Vector<uint8_t> &p_data) {
 }
 
 void DollController::queue_instant_process(uint32_t p_input_id, int p_index, int p_count) {
-	if (!peer_enabled || streaming_paused) {
+	if (streaming_paused) {
 		return;
 	}
 
@@ -1629,16 +1649,33 @@ bool DollController::fetch_next_input(real_t p_delta) {
 		}
 
 	} else {
-		for (size_t i = 0; i < snapshots.size(); ++i) {
-			// Take any NEXT snapshot. Eventually the rewind will fix this.
-			int virtual_latency = 2;
-			if ((virtual_current_input - virtual_latency) >= snapshots[i].id) {
-				set_frame_input(snapshots[i], false);
+		if (current_input_buffer_id == UINT32_MAX) {
+			if (snapshots.size() > 0) {
+				// Anything, as first input is good.
+				set_frame_input(snapshots.front(), true);
+				return true;
+			} else {
+				return false;
+			}
+		} else {
+			const uint32_t next_input_id = current_input_buffer_id + 1;
+			// Loop the snapshots.
+			for (size_t i = 0; i < snapshots.size(); ++i) {
+				// Take any NEXT snapshot. Eventually the rewind will fix this.
+				// NOTE: the snapshots are sorted.
+				if (snapshots[i].id >= next_input_id) {
+					set_frame_input(snapshots[i], false);
+					return true;
+				}
+			}
+			if (snapshots.size() > 0) {
+				set_frame_input(snapshots.back(), false);
+				// true anyway, don't stop the processing, just use the input.
 				return true;
 			}
 		}
-		return false;
 	}
+	return false;
 }
 
 void DollController::process(double p_delta) {
