@@ -167,6 +167,8 @@ private:
 	// Peer controlling this controller.
 	int peer_id = -1;
 
+	NetNodeId node_id = NetID_NONE;
+
 public:
 	static void _bind_methods();
 
@@ -259,6 +261,8 @@ public:
 
 	void player_set_has_new_input(bool p_has);
 	bool player_has_new_input() const;
+
+	bool is_realtime_enabled();
 
 protected:
 	void _notification(int p_what);
