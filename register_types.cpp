@@ -63,6 +63,7 @@ void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
 	GLOBAL_DEF("NetworkSynchronizer/debugger/dump_enabled", false);
 	GLOBAL_DEF("NetworkSynchronizer/debugger/dump_classes", Array());
 	GLOBAL_DEF("NetworkSynchronizer/debugger/log_debug_fps_warnings", true);
+	GLOBAL_DEF("NetworkSynchronizer/debugger/log_debug_rewindings", false);
 }
 
 void uninitialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
