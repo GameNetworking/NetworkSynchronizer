@@ -986,7 +986,7 @@ void SceneSynchronizer::uninit_synchronizer() {
 }
 
 void SceneSynchronizer::reset_synchronizer_mode() {
-	debug_rewindings_enabled = ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/debugger/log_debug_rewindings");
+	debug_rewindings_enabled = ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/log_debug_rewindings");
 	const bool was_generating_ids = generate_id;
 	uninit_synchronizer();
 	init_synchronizer(was_generating_ids);
