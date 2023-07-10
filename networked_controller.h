@@ -161,7 +161,6 @@ private:
 
 	SceneSynchronizer *scene_synchronizer = nullptr;
 
-	bool packet_missing = false;
 	bool has_player_new_input = false;
 
 	// Peer controlling this controller.
