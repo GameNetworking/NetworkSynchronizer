@@ -1564,7 +1564,6 @@ DollController::DollController(NetworkedController *p_node) :
 }
 
 bool DollController::receive_inputs(const Vector<uint8_t> &p_data) {
-	print_line("~~ RECEIVE ~~");
 	const uint32_t now = OS::get_singleton()->get_ticks_msec();
 	struct SCParseTmpData {
 		DollController *controller;
@@ -1683,11 +1682,6 @@ void DollController::process(double p_delta) {
 	String s;
 	for (size_t i = 0; i < snapshots.size(); ++i) {
 		s += itos(snapshots[i].id) + ", ";
-	}
-	if (queued_instant_to_process == -1) {
-		print_line("STANDARD VirtualCI:" + itos(virtual_current_input) + " CI: " + itos(get_current_input_id()) + " --> " + s);
-	} else {
-		print_line("REWIND VirtualCI:" + itos(virtual_current_input) + " CI: " + itos(get_current_input_id()) + " --> " + s);
 	}
 
 	if (current_input_buffer_id > virtual_current_input && current_input_buffer_id != UINT32_MAX) {

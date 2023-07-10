@@ -986,6 +986,7 @@ void SceneSynchronizer::uninit_synchronizer() {
 }
 
 void SceneSynchronizer::reset_synchronizer_mode() {
+	debug_rewindings_enabled = ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/debugger/log_debug_rewindings");
 	const bool was_generating_ids = generate_id;
 	uninit_synchronizer();
 	init_synchronizer(was_generating_ids);
@@ -2819,7 +2820,7 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 					rec.vars);
 
 			if (different) {
-				SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Rewind on frame " + itos(p_input_id) + " is needed because the node on client is different: " + rew_node_data->node->get_path());
+				SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Rewind on frame " + itos(p_input_id) + " is needed because the node on client is different: " + rew_node_data->node->get_path(), !scene_synchronizer->debug_rewindings_enabled);
 #ifdef DEBUG_ENABLED
 				need_rewind = true;
 #else
@@ -2907,7 +2908,7 @@ void ClientSynchronizer::__pcr__sync__rewind() {
 		const Vector<NetUtility::Var> s_vars = server_snapshot.node_vars[nd->id];
 		const NetUtility::Var *s_vars_ptr = s_vars.ptr();
 
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Full reset node: " + node->get_path());
+		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Full reset node: " + node->get_path(), !scene_synchronizer->debug_rewindings_enabled);
 
 		for (int v = 0; v < s_vars.size(); v += 1) {
 			if (s_vars_ptr[v].name == StringName()) {
@@ -2919,7 +2920,7 @@ void ClientSynchronizer::__pcr__sync__rewind() {
 			nd->vars[v].var.value = s_vars_ptr[v].value.duplicate(true);
 			node->set(s_vars_ptr[v].name, s_vars_ptr[v].value);
 
-			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, " |- Variable: " + s_vars_ptr[v].name + " New value: " + NetUtility::stringify_fast(s_vars_ptr[v].value));
+			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, " |- Variable: " + s_vars_ptr[v].name + " New value: " + NetUtility::stringify_fast(s_vars_ptr[v].value), !scene_synchronizer->debug_rewindings_enabled);
 			scene_synchronizer->change_event_add(
 					nd,
 					v,
@@ -2955,7 +2956,7 @@ void ClientSynchronizer::__pcr__rewind(
 		scene_synchronizer->emit_signal("rewind_frame_begin", p_local_player_controller->get_stored_input_id(i), i, remaining_inputs);
 #ifdef DEBUG_ENABLED
 		has_next = p_local_controller->has_another_instant_to_process_after(i);
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Rewind, processed controller: " + p_local_controller->get_path());
+		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Rewind, processed controller: " + p_local_controller->get_path(), !scene_synchronizer->debug_rewindings_enabled);
 #endif
 
 		// Step 2 -- Process the scene.
@@ -3010,7 +3011,7 @@ void ClientSynchronizer::__pcr__sync__no_rewind(const LocalVector<NetUtility::No
 		Node *node = rew_node_data->node;
 		const NetUtility::Var *vars_ptr = p_no_rewind_recover[i].vars.ptr();
 
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "[Snapshot partial reset] Node: " + node->get_path());
+		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "[Snapshot partial reset] Node: " + node->get_path(), !scene_synchronizer->debug_rewindings_enabled);
 
 		// Set the value on the synchronizer too.
 		for (int v = 0; v < p_no_rewind_recover[i].vars.size(); v += 1) {
@@ -3028,7 +3029,7 @@ void ClientSynchronizer::__pcr__sync__no_rewind(const LocalVector<NetUtility::No
 			rew_node_data->vars[rew_var_index].var.value = vars_ptr[v].value.duplicate(true);
 			node->set(vars_ptr[v].name, vars_ptr[v].value);
 
-			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, " |- Variable: " + vars_ptr[v].name + "; old value: " + NetUtility::stringify_fast(old_val) + " new value: " + NetUtility::stringify_fast(vars_ptr[v].value));
+			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, " |- Variable: " + vars_ptr[v].name + "; old value: " + NetUtility::stringify_fast(old_val) + " new value: " + NetUtility::stringify_fast(vars_ptr[v].value), !scene_synchronizer->debug_rewindings_enabled);
 			scene_synchronizer->change_event_add(
 					rew_node_data,
 					rew_var_index,
@@ -3712,16 +3713,18 @@ bool ClientSynchronizer::parse_snapshot(Variant p_snapshot) {
 			});
 
 	if (success == false) {
-		SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "Snapshot:");
-		SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, NetUtility::stringify_fast(p_snapshot));
+		SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "Snapshot parsing failed.");
+		SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "Snapshot:", !scene_synchronizer->debug_rewindings_enabled);
+		SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, NetUtility::stringify_fast(p_snapshot), !scene_synchronizer->debug_rewindings_enabled);
 		return false;
 	}
 
 	if (unlikely(received_snapshot.input_id == UINT32_MAX && player_controller_node_data != nullptr)) {
 		// We espect that the player_controller is updated by this new snapshot,
 		// so make sure it's done so.
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "[INFO] the player controller (" + player_controller_node_data->node->get_path() + ") was not part of the received snapshot, this happens when the server destroys the peer controller. NetUtility::Snapshot:");
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, NetUtility::stringify_fast(p_snapshot));
+		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "[INFO] the player controller (" + player_controller_node_data->node->get_path() + ") was not part of the received snapshot, this happens when the server destroys the peer controller.");
+		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "NetUtility::Snapshot:", !scene_synchronizer->debug_rewindings_enabled);
+		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, NetUtility::stringify_fast(p_snapshot), !scene_synchronizer->debug_rewindings_enabled);
 	}
 
 	last_received_snapshot = received_snapshot;
@@ -3771,7 +3774,8 @@ bool ClientSynchronizer::compare_vars(
 								"Server value: `" + NetUtility::stringify_fast(s_vars[var_index].value) + "` " +
 								"Client value: `" + NetUtility::stringify_fast(c_vars[var_index].value) + "`.    " +
 								"[Server name: `" + s_vars[var_index].name + "` " +
-								"Client name: `" + c_vars[var_index].name + "`].");
+								"Client name: `" + c_vars[var_index].name + "`].",
+						!scene_synchronizer->debug_rewindings_enabled);
 			} else {
 				// The vars are different.
 				SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer,
@@ -3779,7 +3783,8 @@ bool ClientSynchronizer::compare_vars(
 								"Server value: `" + NetUtility::stringify_fast(s_vars[var_index].value) + "` " +
 								"Client value: `" + NetUtility::stringify_fast(c_vars[var_index].value) + "`.    " +
 								"[Server name: `" + s_vars[var_index].name + "` " +
-								"Client name: `" + c_vars[var_index].name + "`].");
+								"Client name: `" + c_vars[var_index].name + "`].",
+						!scene_synchronizer->debug_rewindings_enabled);
 #ifdef DEBUG_ENABLED
 				diff = true;
 #else

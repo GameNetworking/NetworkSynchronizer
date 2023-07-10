@@ -162,6 +162,9 @@ private:
 	bool cached_process_functions_valid = false;
 	LocalVector<Callable> cached_process_functions[PROCESSPHASE_COUNT];
 
+	// Set at runtime by the constructor by reading the project settings.
+	bool debug_rewindings_enabled = false;
+
 public:
 	static void _bind_methods();
 

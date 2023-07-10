@@ -145,7 +145,7 @@ private:
 	/// This margin of error is called `optimal_frame_delay` and it changes
 	/// depending on the connection health:
 	/// it can go from `min_frames_delay` to `max_frames_delay`.
-	int min_frames_delay = 0;
+	int min_frames_delay = 2;
 	int max_frames_delay = 7;
 
 	/// Amount of additional frames produced per second.
