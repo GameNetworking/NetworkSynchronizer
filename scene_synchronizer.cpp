@@ -77,7 +77,7 @@ void SceneSynchronizer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("register_node", "node"), &SceneSynchronizer::register_node_gdscript);
 	ClassDB::bind_method(D_METHOD("unregister_node", "node"), &SceneSynchronizer::unregister_node);
 	ClassDB::bind_method(D_METHOD("get_node_id", "node"), &SceneSynchronizer::get_node_id);
-	ClassDB::bind_method(D_METHOD("get_node_from_id", "id"), &SceneSynchronizer::get_node_from_id);
+	ClassDB::bind_method(D_METHOD("get_node_from_id", "id", "expected"), &SceneSynchronizer::get_node_from_id, DEFVAL(true));
 
 	ClassDB::bind_method(D_METHOD("register_variable", "node", "variable", "on_change_notify", "flags"), &SceneSynchronizer::register_variable, DEFVAL(StringName()), DEFVAL(NetEventFlag::DEFAULT));
 	ClassDB::bind_method(D_METHOD("unregister_variable", "node", "variable"), &SceneSynchronizer::unregister_variable);
@@ -328,16 +328,24 @@ uint32_t SceneSynchronizer::get_node_id(Node *p_node) {
 	return nd->id;
 }
 
-Node *SceneSynchronizer::get_node_from_id(uint32_t p_id) {
-	NetUtility::NodeData *nd = get_node_data(p_id);
-	ERR_FAIL_COND_V_MSG(nd == nullptr, nullptr, "The ID " + itos(p_id) + " is not assigned to any node.");
-	return nd->node;
+Node *SceneSynchronizer::get_node_from_id(uint32_t p_id, bool p_expected) {
+	NetUtility::NodeData *nd = get_node_data(p_id, p_expected);
+	if (p_expected) {
+		ERR_FAIL_COND_V_MSG(nd == nullptr, nullptr, "The ID " + itos(p_id) + " is not assigned to any node.");
+		return nd->node;
+	} else {
+		return nd ? nd->node : nullptr;
+	}
 }
 
-const Node *SceneSynchronizer::get_node_from_id_const(uint32_t p_id) const {
-	const NetUtility::NodeData *nd = get_node_data(p_id);
-	ERR_FAIL_COND_V_MSG(nd == nullptr, nullptr, "The ID " + itos(p_id) + " is not assigned to any node.");
-	return nd->node;
+const Node *SceneSynchronizer::get_node_from_id_const(uint32_t p_id, bool p_expected) const {
+	const NetUtility::NodeData *nd = get_node_data(p_id, p_expected);
+	if (p_expected) {
+		ERR_FAIL_COND_V_MSG(nd == nullptr, nullptr, "The ID " + itos(p_id) + " is not assigned to any node.");
+		return nd->node;
+	} else {
+		return nd ? nd->node : nullptr;
+	}
 }
 
 void SceneSynchronizer::register_variable(Node *p_node, const StringName &p_variable, const StringName &p_on_change_notify, NetEventFlag p_flags) {
@@ -1636,41 +1644,41 @@ const NetUtility::NodeData *SceneSynchronizer::find_node_data(const Node *p_node
 	return nullptr;
 }
 
-NetUtility::NodeData *SceneSynchronizer::get_node_data(NetNodeId p_id) {
-	ERR_FAIL_UNSIGNED_INDEX_V(p_id, organized_node_data.size(), nullptr);
-	return organized_node_data[p_id];
-}
-
-const NetUtility::NodeData *SceneSynchronizer::get_node_data(NetNodeId p_id) const {
-	ERR_FAIL_UNSIGNED_INDEX_V(p_id, organized_node_data.size(), nullptr);
-	return organized_node_data[p_id];
-}
-
-NetUtility::NodeData *SceneSynchronizer::get_node_data_or_null(NetNodeId p_id) {
-	if (p_id >= organized_node_data.size()) {
-		return nullptr;
+NetUtility::NodeData *SceneSynchronizer::get_node_data(NetNodeId p_id, bool p_expected) {
+	if (p_expected) {
+		ERR_FAIL_UNSIGNED_INDEX_V(p_id, organized_node_data.size(), nullptr);
+		return organized_node_data[p_id];
+	} else {
+		if (p_id >= organized_node_data.size()) {
+			return nullptr;
+		}
+		return organized_node_data[p_id];
 	}
-	return organized_node_data[p_id];
 }
 
-const NetUtility::NodeData *SceneSynchronizer::get_node_data_or_null(NetNodeId p_id) const {
-	if (p_id >= organized_node_data.size()) {
-		return nullptr;
+const NetUtility::NodeData *SceneSynchronizer::get_node_data(NetNodeId p_id, bool p_expected) const {
+	if (p_expected) {
+		ERR_FAIL_UNSIGNED_INDEX_V(p_id, organized_node_data.size(), nullptr);
+		return organized_node_data[p_id];
+	} else {
+		if (p_id >= organized_node_data.size()) {
+			return nullptr;
+		}
+		return organized_node_data[p_id];
 	}
-	return organized_node_data[p_id];
 }
 
-NetworkedController *SceneSynchronizer::get_controller_for_peer(int p_peer) {
+NetworkedController *SceneSynchronizer::get_controller_for_peer(int p_peer, bool p_expected) {
 	const NetUtility::PeerData *pd = peer_data.lookup_ptr(p_peer);
 	ERR_FAIL_COND_V_MSG(pd == nullptr, nullptr, "The peer is unknown `" + itos(p_peer) + "`.");
-	Node *n = get_node_from_id(pd->controller_id);
+	Node *n = get_node_from_id(pd->controller_id, p_expected);
 	return dynamic_cast<NetworkedController *>(n);
 }
 
-const NetworkedController *SceneSynchronizer::get_controller_for_peer(int p_peer) const {
+const NetworkedController *SceneSynchronizer::get_controller_for_peer(int p_peer, bool p_expected) const {
 	const NetUtility::PeerData *pd = peer_data.lookup_ptr(p_peer);
 	ERR_FAIL_COND_V_MSG(pd == nullptr, nullptr, "The peer is unknown `" + itos(p_peer) + "`.");
-	const Node *n = get_node_from_id_const(pd->controller_id);
+	const Node *n = get_node_from_id_const(pd->controller_id, p_expected);
 	return dynamic_cast<const NetworkedController *>(n);
 }
 
@@ -1992,8 +2000,10 @@ void ServerSynchronizer::sync_group_move_peer_to(int p_peer_id, SyncGroupId p_gr
 	pd->need_full_snapshot = true;
 
 	// Make sure the controller is added into this group.
-	NetUtility::NodeData *nd = scene_synchronizer->get_node_data(pd->controller_id);
-	sync_group_add_node(nd, p_group_id, true);
+	NetUtility::NodeData *nd = scene_synchronizer->get_node_data(pd->controller_id, false);
+	if (nd) {
+		sync_group_add_node(nd, p_group_id, true);
+	}
 }
 
 const LocalVector<int> *ServerSynchronizer::sync_group_get_peers(SyncGroupId p_group_id) const {
@@ -3403,7 +3413,7 @@ bool ClientSynchronizer::parse_sync_data(
 				}
 				const int bit_mask = 1 << offset;
 				const bool is_active = (bit & bit_mask) > 0;
-				NetUtility::NodeData *nd = scene_synchronizer->get_node_data_or_null(node_id);
+				NetUtility::NodeData *nd = scene_synchronizer->get_node_data(node_id, false);
 				if (nd) {
 					p_node_activation_parse(p_user_pointer, nd, is_active);
 				} else {
@@ -3499,7 +3509,7 @@ void ClientSynchronizer::receive_deferred_sync_data(const Vector<uint8_t> &p_dat
 		const int current_offset = future_epoch_buffer.get_bit_offset();
 		const int expected_bit_offset_after_apply = current_offset + buffer_bit_count;
 
-		NetUtility::NodeData *nd = scene_synchronizer->get_node_data_or_null(node_id);
+		NetUtility::NodeData *nd = scene_synchronizer->get_node_data(node_id, false);
 		if (nd == nullptr) {
 			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "The function `receive_deferred_sync_data` is skipping the node with ID `" + itos(node_id) + "` as it was not found locally.");
 			future_epoch_buffer.seek(expected_bit_offset_after_apply);

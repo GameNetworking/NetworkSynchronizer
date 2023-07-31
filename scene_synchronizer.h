@@ -195,8 +195,8 @@ public:
 	/// - The node is not registered.
 	/// - The client doesn't know the ID yet.
 	uint32_t get_node_id(Node *p_node);
-	Node *get_node_from_id(uint32_t p_id);
-	const Node *get_node_from_id_const(uint32_t p_id) const;
+	Node *get_node_from_id(uint32_t p_id, bool p_expected = true);
+	const Node *get_node_from_id_const(uint32_t p_id, bool p_expected = true) const;
 
 	void register_variable(Node *p_node, const StringName &p_variable, const StringName &p_on_change_notify_to = StringName(), NetEventFlag p_flags = NetEventFlag::DEFAULT);
 	void unregister_variable(Node *p_node, const StringName &p_variable);
@@ -302,14 +302,11 @@ public: // ------------------------------------------------------------ INTERNAL
 
 	/// This function is super fast, but only nodes with a `NetNodeId` assigned
 	/// can be returned.
-	NetUtility::NodeData *get_node_data(NetNodeId p_id);
-	const NetUtility::NodeData *get_node_data(NetNodeId p_id) const;
+	NetUtility::NodeData *get_node_data(NetNodeId p_id, bool p_expected = true);
+	const NetUtility::NodeData *get_node_data(NetNodeId p_id, bool p_expected = true) const;
 
-	NetUtility::NodeData *get_node_data_or_null(NetNodeId p_id);
-	const NetUtility::NodeData *get_node_data_or_null(NetNodeId p_id) const;
-
-	NetworkedController *get_controller_for_peer(int p_peer);
-	const NetworkedController *get_controller_for_peer(int p_peer) const;
+	NetworkedController *get_controller_for_peer(int p_peer, bool p_expected = true);
+	const NetworkedController *get_controller_for_peer(int p_peer, bool p_expected = true) const;
 
 	/// Returns the latest generated `NetNodeId`.
 	NetNodeId get_biggest_node_id() const;

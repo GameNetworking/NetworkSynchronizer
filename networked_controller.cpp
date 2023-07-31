@@ -1085,7 +1085,7 @@ uint32_t ServerController::convert_input_id_to(int p_other_peer, uint32_t p_inpu
 	const int64_t diff = int64_t(p_input_id) - int64_t(current);
 
 	// Now find the other peer current_input_id to do the conversion.
-	const NetworkedController *controller = node->get_scene_synchronizer()->get_controller_for_peer(p_other_peer);
+	const NetworkedController *controller = node->get_scene_synchronizer()->get_controller_for_peer(p_other_peer, false);
 	if (controller == nullptr || controller->get_current_input_id() == UINT32_MAX) {
 		return UINT32_MAX;
 	}
