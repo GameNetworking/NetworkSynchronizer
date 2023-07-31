@@ -309,7 +309,7 @@ struct Controller {
 	virtual uint32_t get_current_input_id() const = 0;
 	virtual void process(double p_delta) = 0;
 
-	virtual bool receive_inputs(const Vector<uint8_t> &p_data){};
+	virtual bool receive_inputs(const Vector<uint8_t> &p_data) { return false; };
 	virtual void notify_input_checked(uint32_t p_input_id) {}
 	virtual void queue_instant_process(uint32_t p_input_id, int p_index, int p_count) {}
 };
