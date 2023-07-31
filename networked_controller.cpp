@@ -1060,7 +1060,7 @@ bool ServerController::receive_inputs(const Vector<uint8_t> &p_data) {
 					const uint32_t peer_input_id = convert_input_id_to(peer_id, input_id);
 
 					if (peer_input_id == UINT32_MAX) {
-						SceneSynchronizerDebugger::singleton()->debug_error(node, "[FATAL] The input_id conversion failed.");
+						SceneSynchronizerDebugger::singleton()->debug_print(node, "The `input_id` conversion failed for the peer `" + itos(peer_id) + "`. This is expected untill the client is fully initialized.", true);
 						continue;
 					}
 
@@ -1086,8 +1086,7 @@ uint32_t ServerController::convert_input_id_to(int p_other_peer, uint32_t p_inpu
 
 	// Now find the other peer current_input_id to do the conversion.
 	const NetworkedController *controller = node->get_scene_synchronizer()->get_controller_for_peer(p_other_peer);
-	ERR_FAIL_COND_V_MSG(controller == nullptr, UINT32_MAX, "The conversion failed because the controller was not found for the peer `" + itos(p_other_peer) + "`");
-	if (controller->get_current_input_id() == UINT32_MAX) {
+	if (controller == nullptr || controller->get_current_input_id() == UINT32_MAX) {
 		return UINT32_MAX;
 	}
 	return MAX(int64_t(controller->get_current_input_id()) + diff, 0);
