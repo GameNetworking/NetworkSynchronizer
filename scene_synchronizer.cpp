@@ -3293,7 +3293,7 @@ bool ClientSynchronizer::parse_sync_data(
 
 		} else if (var_id == UINT32_MAX) {
 			// When the node is known and the `var_id` not, we expect a
-			// new variable or the end pf this node data.
+			// new variable or the end of this node data.
 
 			if (v.get_type() == Variant::NIL) {
 				// NIL found, so this node is done.
@@ -3657,15 +3657,14 @@ bool ClientSynchronizer::parse_snapshot(Variant p_snapshot) {
 			[](void *p_user_pointer, NetUtility::NodeData *p_node_data) {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
 
+#ifdef DEBUG_ENABLED
+				// This function should never receive undefined IDs.
+				CRASH_COND(p_node_data->id == UINT32_MAX);
+#endif
+
 				// Make sure this node is part of the server node too.
 				if (uint32_t(pd->snapshot.node_vars.size()) <= p_node_data->id) {
 					pd->snapshot.node_vars.resize(p_node_data->id + 1);
-				}
-
-				if (p_node_data->vars.size() != uint32_t(pd->snapshot.node_vars[p_node_data->id].size())) {
-					// This mean the parser just added a new variable.
-					// Already notified by the parser.
-					pd->snapshot.node_vars.write[p_node_data->id].resize(p_node_data->vars.size());
 				}
 			},
 
@@ -3685,12 +3684,10 @@ bool ClientSynchronizer::parse_snapshot(Variant p_snapshot) {
 			[](void *p_user_pointer, NetUtility::NodeData *p_node_data, uint32_t p_var_id, const Variant &p_value) {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
 
-#ifdef DEBUG_ENABLED
-				// This can't be triggered because the `Parse Node` function
-				// above make sure to create room for this array.
-				CRASH_COND(uint32_t(pd->snapshot.node_vars.size()) <= p_node_data->id);
-				CRASH_COND(uint32_t(pd->snapshot.node_vars[p_node_data->id].size()) != p_node_data->vars.size());
-#endif // ~DEBUG_ENABLED
+				if (p_node_data->vars.size() != uint32_t(pd->snapshot.node_vars[p_node_data->id].size())) {
+					// The parser may have added a variable, so make sure to resize the vars array.
+					pd->snapshot.node_vars.write[p_node_data->id].resize(p_node_data->vars.size());
+				}
 
 				pd->snapshot.node_vars.write[p_node_data->id].write[p_var_id].name = p_node_data->vars[p_var_id].var.name;
 				pd->snapshot.node_vars.write[p_node_data->id].write[p_var_id].value = p_value.duplicate(true);
