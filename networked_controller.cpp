@@ -1033,7 +1033,7 @@ void ServerController::set_frame_input(const FrameSnapshot &p_frame_snapshot, bo
 void ServerController::notify_send_state() {
 	// If the notified input is a void buffer, the client is allowed to pause
 	// the input streaming. So missing packets are just handled as void inputs.
-	if (node->get_inputs_buffer().size() == 0) {
+	if (current_input_buffer_id != UINT32_MAX && node->get_inputs_buffer().size() == 0) {
 		streaming_paused = true;
 	}
 }
@@ -1461,7 +1461,7 @@ void PlayerController::send_frame_input_buffer_to_server() {
 					pir_B->seek(METADATA_SIZE);
 
 					const bool are_different = node->native_are_inputs_different(*pir_A, *pir_B);
-					is_similar = are_different == false;
+					is_similar = !are_different;
 
 				} else if (frames_snapshot[i].similarity == previous_input_similarity) {
 					// This input is similar to the previous one, the thing is
