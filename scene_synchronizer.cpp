@@ -573,6 +573,11 @@ SyncGroupId SceneSynchronizer::sync_group_create() {
 	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_create();
 }
 
+const NetUtility::SyncGroup *SceneSynchronizer::sync_group_get(SyncGroupId p_group_id) const {
+	ERR_FAIL_COND_V_MSG(!is_server(), nullptr, "This function CAN be used only on the server.");
+	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get(p_group_id);
+}
+
 void SceneSynchronizer::sync_group_add_node_by_id(NetNodeId p_node_id, SyncGroupId p_group_id, bool p_realtime) {
 	NetUtility::NodeData *nd = get_node_data(p_node_id);
 	sync_group_add_node(nd, p_group_id, p_realtime);
@@ -636,6 +641,21 @@ real_t SceneSynchronizer::sync_group_get_deferred_update_rate_by_id(NetNodeId p_
 real_t SceneSynchronizer::sync_group_get_deferred_update_rate(const NetUtility::NodeData *p_node_data, SyncGroupId p_group_id) const {
 	ERR_FAIL_COND_V_MSG(!is_server(), 0.0, "This function CAN be used only on the server.");
 	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get_deferred_update_rate(p_node_data, p_group_id);
+}
+
+void SceneSynchronizer::sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_data) {
+	ERR_FAIL_COND_MSG(!is_server(), "This function CAN be used only on the server.");
+	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_set_user_data(p_group_id, p_user_data);
+}
+
+uint64_t SceneSynchronizer::sync_group_get_user_data(SyncGroupId p_group_id) const {
+	ERR_FAIL_COND_V_MSG(!is_server(), 0, "This function CAN be used only on the server.");
+	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get_user_data(p_group_id);
+}
+
+SyncGroupId SceneSynchronizer::snapshot_generator_get_current_sync_group() const {
+	ERR_FAIL_COND_V_MSG(!is_server(), UINT32_MAX, "This function CAN be used only on the server.");
+	return static_cast<ServerSynchronizer *>(synchronizer)->snapshot_generator_get_current_sync_group();
 }
 
 void SceneSynchronizer::start_tracking_scene_changes(Object *p_diff_handle) const {
@@ -1965,6 +1985,11 @@ SyncGroupId ServerSynchronizer::sync_group_create() {
 	return id;
 }
 
+const NetUtility::SyncGroup *ServerSynchronizer::sync_group_get(SyncGroupId p_group_id) const {
+	ERR_FAIL_COND_V_MSG(p_group_id >= sync_groups.size(), nullptr, "The group id `" + itos(p_group_id) + "` doesn't exist.");
+	return &sync_groups[p_group_id];
+}
+
 void ServerSynchronizer::sync_group_add_node(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id, bool p_realtime) {
 	ERR_FAIL_COND(p_node_data == nullptr);
 	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
@@ -2025,6 +2050,23 @@ real_t ServerSynchronizer::sync_group_get_deferred_update_rate(const NetUtility:
 	return sync_groups[p_group_id].get_deferred_update_rate(p_node_data);
 }
 
+void ServerSynchronizer::sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_data) {
+	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
+	sync_groups[p_group_id].user_data = p_user_data;
+}
+
+uint64_t ServerSynchronizer::sync_group_get_user_data(SyncGroupId p_group_id) const {
+	ERR_FAIL_COND_V_MSG(p_group_id >= sync_groups.size(), 0, "The group id `" + itos(p_group_id) + "` doesn't exist.");
+	return sync_groups[p_group_id].user_data;
+}
+
+SyncGroupId ServerSynchronizer::snapshot_generator_get_current_sync_group() const {
+	if (snapshot_generator_sync_group_id >= sync_groups.size()) {
+		return UINT32_MAX;
+	}
+	return snapshot_generator_sync_group_id;
+}
+
 void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 	if (scene_synchronizer->peer_data.is_empty()) {
 		// No one is listening.
@@ -2033,6 +2075,7 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 
 	for (int g = 0; g < int(sync_groups.size()); ++g) {
 		NetUtility::SyncGroup &group = sync_groups[g];
+		snapshot_generator_sync_group_id = g;
 
 		if (group.peers.size() == 0) {
 			// No one is interested to this group.
@@ -2109,6 +2152,8 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 			group.mark_changes_as_notified();
 		}
 	}
+
+	snapshot_generator_sync_group_id = UINT32_MAX;
 }
 
 Vector<Variant> ServerSynchronizer::generate_snapshot(

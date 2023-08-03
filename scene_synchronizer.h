@@ -225,7 +225,9 @@ public:
 	/// Creates a realtime sync group containing a list of nodes.
 	/// The Peers listening to this group will receive the updates only
 	/// from the nodes within this group.
-	SyncGroupId sync_group_create();
+	virtual SyncGroupId sync_group_create();
+	const NetUtility::SyncGroup *sync_group_get(SyncGroupId p_group_id) const;
+
 	void sync_group_add_node_by_id(NetNodeId p_node_id, SyncGroupId p_group_id, bool p_realtime);
 	void sync_group_add_node(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id, bool p_realtime);
 	void sync_group_remove_node_by_id(NetNodeId p_node_id, SyncGroupId p_group_id);
@@ -237,6 +239,11 @@ public:
 	void sync_group_set_deferred_update_rate(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id, real_t p_update_rate);
 	real_t sync_group_get_deferred_update_rate_by_id(NetNodeId p_node_id, SyncGroupId p_group_id) const;
 	real_t sync_group_get_deferred_update_rate(const NetUtility::NodeData *p_node_data, SyncGroupId p_group_id) const;
+
+	void sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_ptr);
+	uint64_t sync_group_get_user_data(SyncGroupId p_group_id) const;
+
+	SyncGroupId snapshot_generator_get_current_sync_group() const;
 
 	void start_tracking_scene_changes(Object *p_diff_handle) const;
 	void stop_tracking_scene_changes(Object *p_diff_handle) const;
@@ -400,6 +407,7 @@ class ServerSynchronizer : public Synchronizer {
 	friend class SceneSynchronizer;
 
 	uint32_t epoch = 0;
+	SyncGroupId snapshot_generator_sync_group_id = UINT32_MAX;
 	/// This array contains a map between the peers and the relevant nodes.
 	LocalVector<NetUtility::SyncGroup> sync_groups;
 
@@ -427,12 +435,18 @@ public:
 	virtual void on_variable_changed(NetUtility::NodeData *p_node_data, NetVarId p_var_id, const Variant &p_old_value, int p_flag) override;
 
 	SyncGroupId sync_group_create();
+	const NetUtility::SyncGroup *sync_group_get(SyncGroupId p_group_id) const;
 	void sync_group_add_node(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id, bool p_realtime);
 	void sync_group_remove_node(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id);
 	void sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id);
 	const LocalVector<int> *sync_group_get_peers(SyncGroupId p_group_id) const;
 	void sync_group_set_deferred_update_rate(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id, real_t p_update_rate);
 	real_t sync_group_get_deferred_update_rate(const NetUtility::NodeData *p_node_data, SyncGroupId p_group_id) const;
+
+	void sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_ptr);
+	uint64_t sync_group_get_user_data(SyncGroupId p_group_id) const;
+
+	SyncGroupId snapshot_generator_get_current_sync_group() const;
 
 	void process_snapshot_notificator(real_t p_delta);
 
