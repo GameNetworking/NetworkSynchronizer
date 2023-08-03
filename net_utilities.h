@@ -451,6 +451,7 @@ private:
 	LocalVector<DeferredNodeInfo> deferred_sync_nodes;
 
 public:
+	uint64_t user_data = 0;
 	LocalVector<int> peers;
 
 	real_t state_notifier_timer = 0.0;
