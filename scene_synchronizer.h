@@ -34,6 +34,7 @@
 #include "core/templates/oa_hash_map.h"
 #include "data_buffer.h"
 #include "net_utilities.h"
+#include "snapshot.h"
 #include <deque>
 
 #ifndef SCENE_SYNCHRONIZER_H
@@ -243,7 +244,9 @@ public:
 	void sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_ptr);
 	uint64_t sync_group_get_user_data(SyncGroupId p_group_id) const;
 
-	SyncGroupId snapshot_generator_get_current_sync_group() const;
+	virtual void snapshot_add_custom_data(const NetUtility::SyncGroup *p_group, Vector<Variant> &r_snapshot_data) {}
+	virtual void snapshot_extract_custom_data(const Vector<Variant> &p_snapshot_data, uint32_t p_snap_data_index, LocalVector<const Variant *> &r_out) {}
+	virtual void snapshot_apply_custom_data(const Vector<Variant> &p_custom_data) {}
 
 	void start_tracking_scene_changes(Object *p_diff_handle) const;
 	void stop_tracking_scene_changes(Object *p_diff_handle) const;
@@ -287,6 +290,8 @@ public:
 
 	void update_peers();
 	void clear_peers();
+
+	void detect_and_signal_changed_variables_events();
 
 	void change_events_begin(int p_flag);
 	void change_event_add(NetUtility::NodeData *p_node_data, NetVarId p_var_id, const Variant &p_old);
@@ -407,7 +412,6 @@ class ServerSynchronizer : public Synchronizer {
 	friend class SceneSynchronizer;
 
 	uint32_t epoch = 0;
-	SyncGroupId snapshot_generator_sync_group_id = UINT32_MAX;
 	/// This array contains a map between the peers and the relevant nodes.
 	LocalVector<NetUtility::SyncGroup> sync_groups;
 
@@ -445,8 +449,6 @@ public:
 
 	void sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_ptr);
 	uint64_t sync_group_get_user_data(SyncGroupId p_group_id) const;
-
-	SyncGroupId snapshot_generator_get_current_sync_group() const;
 
 	void process_snapshot_notificator(real_t p_delta);
 
@@ -544,6 +546,7 @@ public:
 	bool parse_sync_data(
 			Variant p_snapshot,
 			void *p_user_pointer,
+			void (*p_custom_data_parse)(void *p_user_pointer, const LocalVector<const Variant *> &p_custom_data),
 			void (*p_node_parse)(void *p_user_pointer, NetUtility::NodeData *p_node_data),
 			void (*p_input_id_parse)(void *p_user_pointer, uint32_t p_input_id),
 			void (*p_controller_parse)(void *p_user_pointer, NetUtility::NodeData *p_node_data),
@@ -569,7 +572,7 @@ private:
 
 	bool __pcr__fetch_recovery_info(
 			const uint32_t p_input_id,
-			LocalVector<NetUtility::NoRewindRecover> &r_no_rewind_recover);
+			NetUtility::Snapshot &r_no_rewind_recover);
 
 	void __pcr__sync__rewind();
 
@@ -580,20 +583,18 @@ private:
 			PlayerController *p_player_controller);
 
 	void __pcr__sync__no_rewind(
-			const LocalVector<NetUtility::NoRewindRecover> &p_postponed_recover);
+			const NetUtility::Snapshot &p_postponed_recover);
 
 	void __pcr__no_rewind(
 			const uint32_t p_checkable_input_id,
 			PlayerController *p_player_controller);
 
-	void apply_last_received_server_snapshot();
+	void apply_snapshot(
+			const NetUtility::Snapshot &p_snapshot,
+			int p_flag,
+			LocalVector<String> *r_applied_data_info);
 	void process_paused_controller_recovery(real_t p_delta);
 	bool parse_snapshot(Variant p_snapshot);
-	bool compare_vars(
-			const NetUtility::NodeData *p_synchronizer_node_data,
-			const Vector<NetUtility::Var> &p_server_vars,
-			const Vector<NetUtility::Var> &p_client_vars,
-			Vector<NetUtility::Var> &r_postponed_recover);
 
 	void notify_server_full_snapshot_is_needed();
 };

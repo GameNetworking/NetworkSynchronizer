@@ -87,22 +87,6 @@ bool NetUtility::NodeData::can_deferred_sync() const {
 	return collect_epoch_func.is_valid() && apply_epoch_func.is_valid();
 }
 
-NetUtility::Snapshot::operator String() const {
-	String s;
-	s += "Snapshot input ID: " + itos(input_id);
-
-	for (int net_node_id = 0; net_node_id < node_vars.size(); net_node_id += 1) {
-		s += "\nNode Data: " + itos(net_node_id);
-		for (int i = 0; i < node_vars[net_node_id].size(); i += 1) {
-			s += "\n|- Variable: ";
-			s += node_vars[net_node_id][i].name;
-			s += " = ";
-			s += String(node_vars[net_node_id][i].value);
-		}
-	}
-	return s;
-}
-
 bool NetUtility::NodeChangeListener::operator==(const NodeChangeListener &p_other) const {
 	return node_data == p_other.node_data && var_id == p_other.var_id;
 }
