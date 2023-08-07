@@ -398,21 +398,6 @@ struct PeerData {
 	SyncGroupId sync_group_id;
 };
 
-struct Snapshot {
-	uint32_t input_id;
-	/// The Node variables in a particular frame. The order of this vector
-	/// matters because the index is the `NetNodeId`.
-	/// The variable array order also matter.
-	Vector<Vector<Var>> node_vars;
-
-	operator String() const;
-};
-
-struct NoRewindRecover {
-	NodeData *node_data = nullptr;
-	Vector<Var> vars;
-};
-
 struct SyncGroup {
 public:
 	struct Change {

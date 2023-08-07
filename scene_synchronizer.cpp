@@ -34,8 +34,12 @@
 
 #include "scene_synchronizer.h"
 
+#include "core/error/error_macros.h"
 #include "core/os/os.h"
+#include "core/templates/oa_hash_map.h"
 #include "input_network_encoder.h"
+#include "modules/network_synchronizer/net_utilities.h"
+#include "modules/network_synchronizer/snapshot.h"
 #include "networked_controller.h"
 #include "scene/main/multiplayer_api.h"
 #include "scene/main/window.h"
@@ -653,11 +657,6 @@ uint64_t SceneSynchronizer::sync_group_get_user_data(SyncGroupId p_group_id) con
 	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get_user_data(p_group_id);
 }
 
-SyncGroupId SceneSynchronizer::snapshot_generator_get_current_sync_group() const {
-	ERR_FAIL_COND_V_MSG(!is_server(), UINT32_MAX, "This function CAN be used only on the server.");
-	return static_cast<ServerSynchronizer *>(synchronizer)->snapshot_generator_get_current_sync_group();
-}
-
 void SceneSynchronizer::start_tracking_scene_changes(Object *p_diff_handle) const {
 	ERR_FAIL_COND_MSG(get_tree()->get_multiplayer()->is_server() == false, "This function is supposed to be called only on server.");
 	SceneDiff *diff = Object::cast_to<SceneDiff>(p_diff_handle);
@@ -734,6 +733,15 @@ void SceneSynchronizer::apply_scene_changes(const Variant &p_sync_data) {
 	const bool success = client_sync->parse_sync_data(
 			p_sync_data,
 			this,
+
+			// Custom data:
+			[](void *p_user_pointer, const LocalVector<const Variant *> &p_custom_data) {
+				for (int i = 0; i < int(p_custom_data.size()); i++) {
+					if (p_custom_data[i] != nullptr) {
+						ERR_PRINT("[ERROR] Please add support to this feature.");
+					}
+				}
+			},
 
 			// Parse the Node:
 			[](void *p_user_pointer, NetUtility::NodeData *p_node_data) {},
@@ -1135,6 +1143,16 @@ void SceneSynchronizer::clear_peers() {
 	}
 
 	CRASH_COND_MSG(!peer_data.is_empty(), "The above loop should have cleared this peer_data by calling `_on_peer_disconnected` for all the peers.");
+}
+
+void SceneSynchronizer::detect_and_signal_changed_variables_events() {
+	// Pull the changes.
+	change_events_begin(NetEventFlag::CHANGE);
+	for (NetNodeId i = 0; i < node_data.size(); i += 1) {
+		NetUtility::NodeData *nd = node_data[i];
+		pull_node_changes(nd);
+	}
+	change_events_flush();
 }
 
 void SceneSynchronizer::change_events_begin(int p_flag) {
@@ -1835,13 +1853,7 @@ void NoNetSynchronizer::process() {
 	// Process the scene.
 	scene_synchronizer->process_functions__execute(delta);
 
-	// Pull the changes.
-	scene_synchronizer->change_events_begin(NetEventFlag::CHANGE);
-	for (uint32_t i = 0; i < scene_synchronizer->node_data.size(); i += 1) {
-		NetUtility::NodeData *nd = scene_synchronizer->node_data[i];
-		scene_synchronizer->pull_node_changes(nd);
-	}
-	scene_synchronizer->change_events_flush();
+	scene_synchronizer->detect_and_signal_changed_variables_events();
 
 	SceneSynchronizerDebugger::singleton()->scene_sync_process_end(scene_synchronizer);
 	SceneSynchronizerDebugger::singleton()->write_dump(0, frame_index);
@@ -1894,13 +1906,7 @@ void ServerSynchronizer::process() {
 	// Process the scene
 	scene_synchronizer->process_functions__execute(delta);
 
-	// Pull the changes.
-	scene_synchronizer->change_events_begin(NetEventFlag::CHANGE);
-	for (uint32_t i = 0; i < scene_synchronizer->node_data.size(); i += 1) {
-		NetUtility::NodeData *nd = scene_synchronizer->node_data[i];
-		scene_synchronizer->pull_node_changes(nd);
-	}
-	scene_synchronizer->change_events_flush();
+	scene_synchronizer->detect_and_signal_changed_variables_events();
 
 	process_snapshot_notificator(delta);
 	process_deferred_sync(delta);
@@ -2060,13 +2066,6 @@ uint64_t ServerSynchronizer::sync_group_get_user_data(SyncGroupId p_group_id) co
 	return sync_groups[p_group_id].user_data;
 }
 
-SyncGroupId ServerSynchronizer::snapshot_generator_get_current_sync_group() const {
-	if (snapshot_generator_sync_group_id >= sync_groups.size()) {
-		return UINT32_MAX;
-	}
-	return snapshot_generator_sync_group_id;
-}
-
 void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 	if (scene_synchronizer->peer_data.is_empty()) {
 		// No one is listening.
@@ -2075,7 +2074,6 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 
 	for (int g = 0; g < int(sync_groups.size()); ++g) {
 		NetUtility::SyncGroup &group = sync_groups[g];
-		snapshot_generator_sync_group_id = g;
 
 		if (group.peers.size() == 0) {
 			// No one is interested to this group.
@@ -2152,8 +2150,6 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 			group.mark_changes_as_notified();
 		}
 	}
-
-	snapshot_generator_sync_group_id = UINT32_MAX;
 }
 
 Vector<Variant> ServerSynchronizer::generate_snapshot(
@@ -2181,6 +2177,9 @@ Vector<Variant> ServerSynchronizer::generate_snapshot(
 	} else {
 		snapshot_data.push_back(false);
 	}
+
+	// Calling this function to allow customize the snapshot per group.
+	scene_synchronizer->snapshot_add_custom_data(&p_group, snapshot_data);
 
 	if (p_group.is_deferred_node_list_changed() || p_force_full_snapshot) {
 		for (int i = 0; i < int(p_group.get_deferred_sync_nodes().size()); ++i) {
@@ -2466,13 +2465,7 @@ void ClientSynchronizer::process() {
 		// Process the scene.
 		scene_synchronizer->process_functions__execute(delta);
 
-		// Pull the changes.
-		scene_synchronizer->change_events_begin(NetEventFlag::CHANGE);
-		for (NetNodeId i = 0; i < scene_synchronizer->node_data.size(); i += 1) {
-			NetUtility::NodeData *nd = scene_synchronizer->node_data[i];
-			scene_synchronizer->pull_node_changes(nd);
-		}
-		scene_synchronizer->change_events_flush();
+		scene_synchronizer->detect_and_signal_changed_variables_events();
 
 		if (controller->player_has_new_input()) {
 			store_snapshot();
@@ -2614,6 +2607,7 @@ void ClientSynchronizer::store_snapshot() {
 	NetUtility::Snapshot &snap = client_snapshots.back();
 	snap.input_id = controller->get_current_input_id();
 
+	scene_synchronizer->snapshot_add_custom_data(nullptr, snap.custom_data);
 	snap.node_vars.resize(scene_synchronizer->organized_node_data.size());
 
 	// Store the nodes state and skip anything is related to the other
@@ -2682,24 +2676,68 @@ void ClientSynchronizer::store_controllers_snapshot(
 	}
 }
 
-void ClientSynchronizer::apply_last_received_server_snapshot() {
-	const Vector<NetUtility::Var> *vars = server_snapshots.back().node_vars.ptr();
+void ClientSynchronizer::apply_snapshot(
+		const NetUtility::Snapshot &p_snapshot,
+		int p_flag,
+		LocalVector<String> *r_applied_data_info) {
+	const Vector<NetUtility::Var> *nodes_vars = p_snapshot.node_vars.ptr();
 
-	scene_synchronizer->change_events_begin(NetEventFlag::SYNC_RECOVER);
-	for (int i = 0; i < server_snapshots.back().node_vars.size(); i += 1) {
-		NetNodeId id = i;
-		NetUtility::NodeData *nd = scene_synchronizer->get_node_data(id);
-		for (int v = 0; v < vars[i].size(); v += 1) {
-			const Variant current_val = nd->node->get(vars[i][v].name);
-			if (scene_synchronizer->compare(current_val, vars[i][v].value)) {
-				nd->node->set(vars[i][v].name, vars[i][v].value);
+	scene_synchronizer->change_events_begin(p_flag);
+
+	for (int net_node_id = 0; net_node_id < p_snapshot.node_vars.size(); net_node_id += 1) {
+		NetUtility::NodeData *nd = scene_synchronizer->get_node_data(net_node_id);
+
+		if (nd == nullptr) {
+			// This can happen, and it's totally expected, because the server
+			// doesn't always sync ALL the node_data: so that will result in a
+			// not registered node.
+			continue;
+		}
+
+		if (nd->realtime_sync_enabled_on_client == false) {
+			// This node sync is disabled.
+			continue;
+		}
+
+#ifdef DEBUG_ENABLED
+		// The parser make sure to properly initialize the snapshot variable
+		// array size. So the following condition is always `false`.
+		CRASH_COND(uint32_t(nodes_vars[nd->id].size()) != nd->vars.size());
+#endif
+
+		Node *node = nd->node;
+		const Vector<NetUtility::Var> &vars = nodes_vars[net_node_id];
+		const NetUtility::Var *vars_ptr = vars.ptr();
+
+		if (r_applied_data_info) {
+			r_applied_data_info->push_back("Applied snapshot data on the node: " + node->get_path());
+		}
+
+		for (int v = 0; v < vars.size(); v += 1) {
+			if (vars_ptr[v].name == StringName()) {
+				// This variable was not set, skip it.
+				continue;
+			}
+
+			const Variant current_val = nd->vars[v].var.value;
+			nd->vars[v].var.value = vars_ptr[v].value.duplicate(true);
+
+			if (!scene_synchronizer->compare(current_val, vars_ptr[v].value)) {
+				node->set(vars_ptr[v].name, vars_ptr[v].value);
 				scene_synchronizer->change_event_add(
 						nd,
 						v,
 						current_val);
+
+				if (r_applied_data_info) {
+					r_applied_data_info->push_back(" |- Variable: " + vars_ptr[v].name + " New value: " + NetUtility::stringify_fast(vars_ptr[v].value));
+				}
 			}
 		}
 	}
+
+	scene_synchronizer->snapshot_apply_custom_data(p_snapshot.custom_data);
+
 	scene_synchronizer->change_events_flush();
 }
 
@@ -2725,7 +2763,7 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 		// The server last received snapshot is a no input snapshot. Just assume it's the most up-to-date.
 		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "The client received a \"no input\" snapshot, so the client is setting it right away assuming is the most updated one.", true);
 
-		apply_last_received_server_snapshot();
+		apply_snapshot(server_snapshots.back(), NetEventFlag::SYNC_RECOVER, nullptr);
 
 		server_snapshots.clear();
 		client_snapshots.clear();
@@ -2797,7 +2835,7 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 #endif
 
 	// --- Phase two: compare the server snapshot with the client snapshot. ---
-	LocalVector<NetUtility::NoRewindRecover> no_rewind_recover;
+	NetUtility::Snapshot no_rewind_recover;
 
 	const bool need_rewind = __pcr__fetch_recovery_info(
 			checkable_input_id,
@@ -2822,7 +2860,7 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 				controller,
 				player_controller);
 	} else {
-		if (no_rewind_recover.size() > 0) {
+		if (no_rewind_recover.input_id == 0) {
 			SceneSynchronizerDebugger::singleton()->notify_event(SceneSynchronizerDebugger::FrameEvent::CLIENT_DESYNC_DETECTED_SOFT);
 		}
 
@@ -2841,57 +2879,33 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 
 bool ClientSynchronizer::__pcr__fetch_recovery_info(
 		const uint32_t p_input_id,
-		LocalVector<NetUtility::NoRewindRecover> &r_no_rewind_recover) {
-#ifdef DEBUG_ENABLED
-	bool need_rewind = false;
-#endif
-
-	Vector<StringName> variable_names;
-	Vector<Variant> server_values;
-	Vector<Variant> client_values;
-
-	for (uint32_t net_node_id = 0; net_node_id < uint32_t(server_snapshots.front().node_vars.size()); net_node_id += 1) {
-		NetUtility::NodeData *rew_node_data = scene_synchronizer->get_node_data(net_node_id);
-		if (rew_node_data == nullptr || rew_node_data->realtime_sync_enabled_on_client == false) {
-			continue;
-		}
-
-		bool different = false;
-		if (net_node_id >= uint32_t(client_snapshots.front().node_vars.size())) {
-			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Rewind is needed because the client snapshot doesn't contain this node: " + rew_node_data->node->get_path());
-#ifdef DEBUG_ENABLED
-			need_rewind = true;
-#else
-			return true;
-#endif
-			different = true;
-		} else {
-			NetUtility::NoRewindRecover rec;
-
-			different = compare_vars(
-					rew_node_data,
-					server_snapshots.front().node_vars[net_node_id],
-					client_snapshots.front().node_vars[net_node_id],
-					rec.vars);
-
-			if (different) {
-				SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Rewind on frame " + itos(p_input_id) + " is needed because the node on client is different: " + rew_node_data->node->get_path(), !scene_synchronizer->debug_rewindings_enabled);
-#ifdef DEBUG_ENABLED
-				need_rewind = true;
-#else
-				return true;
-#endif
-			} else if (rec.vars.size() > 0) {
-				rec.node_data = rew_node_data;
-				r_no_rewind_recover.push_back(rec);
-			}
-		}
+		NetUtility::Snapshot &r_no_rewind_recover) {
+	LocalVector<String> differences_info;
 
 #ifdef DEBUG_ENABLED
-		if (different) {
-			// Emit the de-sync detected signal.
+	LocalVector<NetNodeId> different_node_data;
+	const bool is_different = NetUtility::Snapshot::equals(
+			*scene_synchronizer,
+			server_snapshots.front(),
+			client_snapshots.front(),
+			&r_no_rewind_recover,
+			scene_synchronizer->debug_rewindings_enabled ? &differences_info : nullptr,
+			&different_node_data);
 
-			static const Vector<NetUtility::Var> const_empty_vector;
+	if (is_different) {
+		Vector<StringName> variable_names;
+		Vector<Variant> server_values;
+		Vector<Variant> client_values;
+		const Vector<NetUtility::Var> const_empty_vector;
+
+		// Emit the de-sync detected signal.
+		for (
+				int i = 0;
+				i < int(different_node_data.size());
+				i += 1) {
+			const NetNodeId net_node_id = different_node_data[i];
+			NetUtility::NodeData *rew_node_data = scene_synchronizer->get_node_data(net_node_id);
+
 			const Vector<NetUtility::Var> &server_node_vars = uint32_t(server_snapshots.front().node_vars.size()) <= net_node_id ? const_empty_vector : server_snapshots.front().node_vars[net_node_id];
 			const Vector<NetUtility::Var> &client_node_vars = uint32_t(client_snapshots.front().node_vars.size()) <= net_node_id ? const_empty_vector : client_snapshots.front().node_vars[net_node_id];
 
@@ -2923,66 +2937,44 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 				SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "No node associated to `" + itos(net_node_id) + "`, was not possible to generate the event `desync_detected`.");
 			}
 		}
+	}
+#else
+	const bool is_different = NetUtility::Snapshot::equals(
+			*scene_synchronizer,
+			server_snapshots.front(),
+			client_snapshots.front(),
+			&r_no_rewind_recover,
+			scene_synchronizer->debug_rewindings_enabled ? &differences_info : nullptr);
 #endif
+
+	if (differences_info.size() > 0 && scene_synchronizer->debug_rewindings_enabled) {
+		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Rewind on frame " + itos(p_input_id) + " is needed because:");
+		for (int i = 0; i < int(differences_info.size()); i++) {
+			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|- " + differences_info[i]);
+		}
 	}
 
-#ifdef DEBUG_ENABLED
-	return need_rewind;
-#else
-	return false;
-#endif
+	return is_different;
 }
 
 void ClientSynchronizer::__pcr__sync__rewind() {
 	// Apply the server snapshot so to go back in time till that moment,
 	// so to be able to correctly reply the movements.
-	scene_synchronizer->change_events_begin(NetEventFlag::SYNC_RECOVER | NetEventFlag::SYNC_RESET);
+
+	LocalVector<String> applied_data_info;
 
 	const NetUtility::Snapshot &server_snapshot = server_snapshots.front();
+	apply_snapshot(
+			server_snapshot,
+			NetEventFlag::SYNC_RECOVER | NetEventFlag::SYNC_RESET,
+			scene_synchronizer->debug_rewindings_enabled ? &applied_data_info : nullptr);
 
-	for (NetNodeId net_node_id = 0; net_node_id < NetNodeId(server_snapshot.node_vars.size()); net_node_id += 1) {
-		NetUtility::NodeData *nd = scene_synchronizer->get_node_data(net_node_id);
-		if (nd == nullptr) {
-			// This can happen, and it's totally expected, because the server
-			// doesn't always sync ALL the node_data: so that will result in a
-			// not registered node.
-			continue;
-		}
-		if (nd->realtime_sync_enabled_on_client == false) {
-			// Don't sync this node.
-			continue;
-		}
-
-#ifdef DEBUG_ENABLED
-		// The parser make sure to properly initialize the snapshot variable
-		// array size. So the following condition is always `false`.
-		CRASH_COND(uint32_t(server_snapshot.node_vars[nd->id].size()) != nd->vars.size());
-#endif
-
-		Node *node = nd->node;
-		const Vector<NetUtility::Var> s_vars = server_snapshot.node_vars[nd->id];
-		const NetUtility::Var *s_vars_ptr = s_vars.ptr();
-
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Full reset node: " + node->get_path(), !scene_synchronizer->debug_rewindings_enabled);
-
-		for (int v = 0; v < s_vars.size(); v += 1) {
-			if (s_vars_ptr[v].name == StringName()) {
-				// This variable was not set, skip it.
-				continue;
-			}
-
-			const Variant current_val = nd->vars[v].var.value;
-			nd->vars[v].var.value = s_vars_ptr[v].value.duplicate(true);
-			node->set(s_vars_ptr[v].name, s_vars_ptr[v].value);
-
-			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, " |- Variable: " + s_vars_ptr[v].name + " New value: " + NetUtility::stringify_fast(s_vars_ptr[v].value), !scene_synchronizer->debug_rewindings_enabled);
-			scene_synchronizer->change_event_add(
-					nd,
-					v,
-					current_val);
+	if (applied_data_info.size() > 0) {
+		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Full reset:");
+		for (int i = 0; i < int(applied_data_info.size()); i++) {
+			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|- " + applied_data_info[i]);
 		}
 	}
-	scene_synchronizer->change_events_flush();
 }
 
 void ClientSynchronizer::__pcr__rewind(
@@ -3053,61 +3045,45 @@ void ClientSynchronizer::__pcr__rewind(
 #endif
 }
 
-void ClientSynchronizer::__pcr__sync__no_rewind(const LocalVector<NetUtility::NoRewindRecover> &p_no_rewind_recover) {
+void ClientSynchronizer::__pcr__sync__no_rewind(const NetUtility::Snapshot &p_no_rewind_recover) {
 	// Apply found differences without rewind.
-	scene_synchronizer->change_events_begin(NetEventFlag::SYNC_RECOVER);
-	for (uint32_t i = 0; i < p_no_rewind_recover.size(); i += 1) {
-		NetUtility::NodeData *rew_node_data = p_no_rewind_recover[i].node_data;
-		if (rew_node_data->realtime_sync_enabled_on_client == false) {
-			// This node sync is disabled.
-			continue;
+	LocalVector<String> applied_data_info;
+
+	apply_snapshot(
+			p_no_rewind_recover,
+			NetEventFlag::SYNC_RECOVER,
+			scene_synchronizer->debug_rewindings_enabled ? &applied_data_info : nullptr);
+
+	if (applied_data_info.size() > 0) {
+		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Partial reset:");
+		for (int i = 0; i < int(applied_data_info.size()); i++) {
+			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|- " + applied_data_info[i]);
 		}
+	}
 
-		Node *node = rew_node_data->node;
-		const NetUtility::Var *vars_ptr = p_no_rewind_recover[i].vars.ptr();
-
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "[Snapshot partial reset] Node: " + node->get_path(), !scene_synchronizer->debug_rewindings_enabled);
-
-		// Set the value on the synchronizer too.
-		for (int v = 0; v < p_no_rewind_recover[i].vars.size(); v += 1) {
-			// We need to search it because the postponed recovered is not
-			// aligned.
-			// TODO This array is generated few lines above.
-			// Can we store the ID too, so to avoid this search????
-			const int rew_var_index = rew_node_data->vars.find(vars_ptr[v].name);
-			// Unreachable, because when the snapshot is received the
-			// algorithm make sure the `scene_synchronizer` is traking the
-			// variable.
-			CRASH_COND(rew_var_index <= -1);
-
-			const Variant old_val = rew_node_data->vars[rew_var_index].var.value;
-			rew_node_data->vars[rew_var_index].var.value = vars_ptr[v].value.duplicate(true);
-			node->set(vars_ptr[v].name, vars_ptr[v].value);
-
-			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, " |- Variable: " + vars_ptr[v].name + "; old value: " + NetUtility::stringify_fast(old_val) + " new value: " + NetUtility::stringify_fast(vars_ptr[v].value), !scene_synchronizer->debug_rewindings_enabled);
-			scene_synchronizer->change_event_add(
-					rew_node_data,
-					rew_var_index,
-					old_val);
-		}
-
-		// Update the last client snapshot.
-		if (client_snapshots.empty() == false) {
-			if (uint32_t(client_snapshots.back().node_vars.size()) <= rew_node_data->id) {
-				client_snapshots.back().node_vars.resize(rew_node_data->id + 1);
+	// Update the last client snapshot.
+	// NOTE: Ignoring both the input_id and the custom_data: when custom_data changes partial recover is never triggered.
+	if (client_snapshots.empty() == false) {
+		for (NetNodeId net_node_id = 0; net_node_id < NetNodeId(scene_synchronizer->organized_node_data.size()); net_node_id += 1) {
+			NetUtility::NodeData *nd = scene_synchronizer->get_node_data(net_node_id);
+			if (nd == nullptr || nd->realtime_sync_enabled_on_client == false) {
+				continue;
 			}
 
-			Vector<NetUtility::Var> *snap_node_vars = client_snapshots.back().node_vars.ptrw() + rew_node_data->id;
-			snap_node_vars->resize(rew_node_data->vars.size());
+			if (uint32_t(client_snapshots.back().node_vars.size()) <= nd->id) {
+				client_snapshots.back().node_vars.resize(nd->id + 1);
+			}
 
-			NetUtility::Var *vars = snap_node_vars->ptrw();
+			Vector<NetUtility::Var> *snap_node_vars = client_snapshots.back().node_vars.ptrw() + nd->id;
+			snap_node_vars->resize(nd->vars.size());
 
-			for (uint32_t v = 0; v < rew_node_data->vars.size(); v += 1) {
-				vars[v] = rew_node_data->vars[v].var;
+			NetUtility::Var *client_snapshot_node_vars_ptr = snap_node_vars->ptrw();
+
+			for (uint32_t v = 0; v < nd->vars.size(); v += 1) {
+				client_snapshot_node_vars_ptr[v] = nd->vars[v].var;
 			}
 		}
 	}
-	scene_synchronizer->change_events_flush();
 }
 
 void ClientSynchronizer::__pcr__no_rewind(
@@ -3167,6 +3143,7 @@ void ClientSynchronizer::process_paused_controller_recovery(real_t p_delta) {
 bool ClientSynchronizer::parse_sync_data(
 		Variant p_sync_data,
 		void *p_user_pointer,
+		void (*p_custom_data_parse)(void *p_user_pointer, const LocalVector<const Variant *> &p_custom_data),
 		void (*p_node_parse)(void *p_user_pointer, NetUtility::NodeData *p_node_data),
 		void (*p_input_id_parse)(void *p_user_pointer, uint32_t p_input_id),
 		void (*p_controller_parse)(void *p_user_pointer, NetUtility::NodeData *p_node_data),
@@ -3178,6 +3155,7 @@ bool ClientSynchronizer::parse_sync_data(
 	//
 	// The data is composed as follows:
 	//  [TRUE/FALSE, InputID,
+	//  CUSTOM DATA (optional),
 	//	NODE, VARIABLE, Value, VARIABLE, Value, VARIABLE, value, NIL,
 	//  NODE, INPUT ID, VARIABLE, Value, VARIABLE, Value, NIL,
 	//  NODE, VARIABLE, Value, VARIABLE, Value, NIL]
@@ -3232,6 +3210,13 @@ bool ClientSynchronizer::parse_sync_data(
 		ERR_FAIL_COND_V_MSG(raw_snapshot_ptr[snap_data_index].get_type() != Variant::PACKED_BYTE_ARRAY, false, "This snapshot is corrupted as the ActiveNodeList` parameter is not a BYTE array.");
 		active_node_list_byte_array = raw_snapshot_ptr[snap_data_index];
 		snap_data_index += 1;
+	}
+
+	{
+		LocalVector<const Variant *> custom_data;
+		scene_synchronizer->snapshot_extract_custom_data(p_sync_data, snap_data_index, custom_data);
+		snap_data_index += custom_data.size();
+		p_custom_data_parse(p_user_pointer, custom_data);
 	}
 
 	NetUtility::NodeData *synchronizer_node_data = nullptr;
@@ -3708,6 +3693,18 @@ bool ClientSynchronizer::parse_snapshot(Variant p_snapshot) {
 			p_snapshot,
 			&parse_data,
 
+			// Custom data:
+			[](void *p_user_pointer, const LocalVector<const Variant *> &p_custom_data) {
+				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
+
+				pd->snapshot.custom_data.resize(p_custom_data.size());
+				for (int i = 0; i < int(p_custom_data.size()); i++) {
+					if (p_custom_data[i] != nullptr) {
+						pd->snapshot.custom_data.ptrw()[i] = *p_custom_data[i];
+					}
+				}
+			},
+
 			// Parse node:
 			[](void *p_user_pointer, NetUtility::NodeData *p_node_data) {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
@@ -3783,74 +3780,6 @@ bool ClientSynchronizer::parse_snapshot(Variant p_snapshot) {
 
 	// Success.
 	return true;
-}
-
-bool ClientSynchronizer::compare_vars(
-		const NetUtility::NodeData *p_synchronizer_node_data,
-		const Vector<NetUtility::Var> &p_server_vars,
-		const Vector<NetUtility::Var> &p_client_vars,
-		Vector<NetUtility::Var> &r_no_rewind_recover) {
-	const NetUtility::Var *s_vars = p_server_vars.ptr();
-	const NetUtility::Var *c_vars = p_client_vars.ptr();
-
-#ifdef DEBUG_ENABLED
-	bool diff = false;
-#endif
-
-	for (uint32_t var_index = 0; var_index < uint32_t(p_client_vars.size()); var_index += 1) {
-		if (uint32_t(p_server_vars.size()) <= var_index) {
-			// This variable isn't defined into the server snapshot, so assuming it's correct.
-			continue;
-		}
-
-		if (s_vars[var_index].name == StringName()) {
-			// This variable was not set, skip the check.
-			continue;
-		}
-
-		// Compare.
-		const bool different =
-				// Make sure this variable is set.
-				c_vars[var_index].name == StringName() ||
-				// Check if the value is different.
-				!scene_synchronizer->compare(
-						s_vars[var_index].value,
-						c_vars[var_index].value);
-
-		if (different) {
-			if (p_synchronizer_node_data->vars[var_index].skip_rewinding) {
-				// The vars are different, but we don't need to trigger a rewind.
-				r_no_rewind_recover.push_back(s_vars[var_index]);
-				SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer,
-						"[NO REWIND] Difference found on var #" + itos(var_index) + " " + p_synchronizer_node_data->vars[var_index].var.name + " " +
-								"Server value: `" + NetUtility::stringify_fast(s_vars[var_index].value) + "` " +
-								"Client value: `" + NetUtility::stringify_fast(c_vars[var_index].value) + "`.    " +
-								"[Server name: `" + s_vars[var_index].name + "` " +
-								"Client name: `" + c_vars[var_index].name + "`].",
-						!scene_synchronizer->debug_rewindings_enabled);
-			} else {
-				// The vars are different.
-				SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer,
-						"Difference found on var #" + itos(var_index) + " " + p_synchronizer_node_data->vars[var_index].var.name + " " +
-								"Server value: `" + NetUtility::stringify_fast(s_vars[var_index].value) + "` " +
-								"Client value: `" + NetUtility::stringify_fast(c_vars[var_index].value) + "`.    " +
-								"[Server name: `" + s_vars[var_index].name + "` " +
-								"Client name: `" + c_vars[var_index].name + "`].",
-						!scene_synchronizer->debug_rewindings_enabled);
-#ifdef DEBUG_ENABLED
-				diff = true;
-#else
-				return true;
-#endif
-			}
-		}
-	}
-
-#ifdef DEBUG_ENABLED
-	return diff;
-#else
-	return false;
-#endif
 }
 
 void ClientSynchronizer::notify_server_full_snapshot_is_needed() {
