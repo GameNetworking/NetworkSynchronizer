@@ -37,6 +37,7 @@
 #include "core/error/error_macros.h"
 #include "core/os/os.h"
 #include "core/templates/oa_hash_map.h"
+#include "core/variant/variant.h"
 #include "input_network_encoder.h"
 #include "modules/network_synchronizer/net_utilities.h"
 #include "modules/network_synchronizer/snapshot.h"
@@ -1154,7 +1155,7 @@ void SceneSynchronizer::detect_and_signal_changed_variables(int p_flags) {
 
 	for (NetNodeId i = 0; i < node_data.size(); i += 1) {
 		NetUtility::NodeData *nd = node_data[i];
-		CRASH_COND_MSG(nd != nullptr, "This can't happen because we are looping over the `node_data`.");
+		CRASH_COND_MSG(nd == nullptr, "This can't happen because we are looping over the `node_data`.");
 		if (nd->id == NetID_NONE || nd->realtime_sync_enabled_on_client == false) {
 			// This node is not sync.
 			continue;
@@ -2659,71 +2660,6 @@ void ClientSynchronizer::store_controllers_snapshot(
 	}
 }
 
-void ClientSynchronizer::apply_snapshot(
-		const NetUtility::Snapshot &p_snapshot,
-		int p_flag,
-		LocalVector<String> *r_applied_data_info) {
-	const Vector<NetUtility::Var> *nodes_vars = p_snapshot.node_vars.ptr();
-
-	scene_synchronizer->change_events_begin(p_flag);
-
-	for (int net_node_id = 0; net_node_id < p_snapshot.node_vars.size(); net_node_id += 1) {
-		NetUtility::NodeData *nd = scene_synchronizer->get_node_data(net_node_id);
-
-		if (nd == nullptr) {
-			// This can happen, and it's totally expected, because the server
-			// doesn't always sync ALL the node_data: so that will result in a
-			// not registered node.
-			continue;
-		}
-
-		if (nd->realtime_sync_enabled_on_client == false) {
-			// This node sync is disabled.
-			continue;
-		}
-
-#ifdef DEBUG_ENABLED
-		// The parser make sure to properly initialize the snapshot variable
-		// array size. So the following condition is always `false`.
-		CRASH_COND(uint32_t(nodes_vars[nd->id].size()) != nd->vars.size());
-#endif
-
-		Node *node = nd->node;
-		const Vector<NetUtility::Var> &vars = nodes_vars[net_node_id];
-		const NetUtility::Var *vars_ptr = vars.ptr();
-
-		if (r_applied_data_info) {
-			r_applied_data_info->push_back("Applied snapshot data on the node: " + node->get_path());
-		}
-
-		for (int v = 0; v < vars.size(); v += 1) {
-			if (vars_ptr[v].name == StringName()) {
-				// This variable was not set, skip it.
-				continue;
-			}
-
-			const Variant current_val = nd->vars[v].var.value;
-			nd->vars[v].var.value = vars_ptr[v].value.duplicate(true);
-
-			if (!scene_synchronizer->compare(current_val, vars_ptr[v].value)) {
-				node->set(vars_ptr[v].name, vars_ptr[v].value);
-				scene_synchronizer->change_event_add(
-						nd,
-						v,
-						current_val);
-
-				if (r_applied_data_info) {
-					r_applied_data_info->push_back(" |- Variable: " + vars_ptr[v].name + " New value: " + NetUtility::stringify_fast(vars_ptr[v].value));
-				}
-			}
-		}
-	}
-
-	scene_synchronizer->snapshot_apply_custom_data(p_snapshot.custom_data);
-
-	scene_synchronizer->change_events_flush();
-}
-
 void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 	// The client is responsible to recover only its local controller, while all
 	// the other controllers_node_data (dolls) have their state interpolated. There is
@@ -3141,7 +3077,10 @@ bool ClientSynchronizer::parse_sync_data(
 
 	{
 		LocalVector<const Variant *> custom_data;
-		scene_synchronizer->snapshot_extract_custom_data(p_sync_data, snap_data_index, custom_data);
+		const bool cd_success = scene_synchronizer->snapshot_extract_custom_data(raw_snapshot, snap_data_index, custom_data);
+		if (!cd_success) {
+			return false;
+		}
 		snap_data_index += custom_data.size();
 		p_custom_data_parse(p_user_pointer, custom_data);
 	}
@@ -3625,9 +3564,13 @@ bool ClientSynchronizer::parse_snapshot(Variant p_snapshot) {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
 
 				pd->snapshot.custom_data.resize(p_custom_data.size());
+				Variant *arr = pd->snapshot.custom_data.ptrw();
 				for (int i = 0; i < int(p_custom_data.size()); i++) {
 					if (p_custom_data[i] != nullptr) {
-						pd->snapshot.custom_data.ptrw()[i] = *p_custom_data[i];
+						arr[i] = *p_custom_data[i];
+#ifdef DEBUG_ENABLED
+						CRASH_COND(arr[i].get_type() != p_custom_data[i]->get_type());
+#endif
 					}
 				}
 			},
@@ -3734,7 +3677,7 @@ void ClientSynchronizer::update_client_snapshot(NetUtility::Snapshot &p_snapshot
 		}
 
 		// Make sure this ID is valid.
-		ERR_FAIL_COND_MSG(nd->id != UINT32_MAX, "[BUG] It's not expected that the client has a node with the NetNodeId (" + itos(nd->id) + ") bigger than the registered node count: " + itos(p_snapshot.node_vars.size()));
+		ERR_FAIL_COND_MSG(nd->id == UINT32_MAX, "[BUG] It's not expected that the client has an uninitialized NetNodeId into the `organized_node_data` ");
 
 #ifdef DEBUG_ENABLED
 		CRASH_COND_MSG(nd->id >= uint32_t(p_snapshot.node_vars.size()), "This array was resized above, this can't be triggered.");
@@ -3752,4 +3695,65 @@ void ClientSynchronizer::update_client_snapshot(NetUtility::Snapshot &p_snapshot
 			}
 		}
 	}
+}
+
+void ClientSynchronizer::apply_snapshot(
+		const NetUtility::Snapshot &p_snapshot,
+		int p_flag,
+		LocalVector<String> *r_applied_data_info) {
+	const Vector<NetUtility::Var> *nodes_vars = p_snapshot.node_vars.ptr();
+
+	scene_synchronizer->change_events_begin(p_flag);
+
+	for (int net_node_id = 0; net_node_id < p_snapshot.node_vars.size(); net_node_id += 1) {
+		NetUtility::NodeData *nd = scene_synchronizer->get_node_data(net_node_id);
+
+		if (nd == nullptr) {
+			// This can happen, and it's totally expected, because the server
+			// doesn't always sync ALL the node_data: so that will result in a
+			// not registered node.
+			continue;
+		}
+
+		if (nd->realtime_sync_enabled_on_client == false) {
+			// This node sync is disabled.
+			continue;
+		}
+
+		Node *node = nd->node;
+		const Vector<NetUtility::Var> &vars = nodes_vars[net_node_id];
+		const NetUtility::Var *vars_ptr = vars.ptr();
+
+		if (r_applied_data_info) {
+			r_applied_data_info->push_back("Applied snapshot data on the node: " + node->get_path());
+		}
+
+		// NOTE: The vars may not contain ALL the variables: it depends on how
+		//       the snapshot was captured.
+		for (int v = 0; v < vars.size(); v += 1) {
+			if (vars_ptr[v].name == StringName()) {
+				// This variable was not set, skip it.
+				continue;
+			}
+
+			const Variant current_val = nd->vars[v].var.value;
+			nd->vars[v].var.value = vars_ptr[v].value.duplicate(true);
+
+			if (!scene_synchronizer->compare(current_val, vars_ptr[v].value)) {
+				node->set(vars_ptr[v].name, vars_ptr[v].value);
+				scene_synchronizer->change_event_add(
+						nd,
+						v,
+						current_val);
+
+				if (r_applied_data_info) {
+					r_applied_data_info->push_back(" |- Variable: " + vars_ptr[v].name + " New value: " + NetUtility::stringify_fast(vars_ptr[v].value));
+				}
+			}
+		}
+	}
+
+	scene_synchronizer->snapshot_apply_custom_data(p_snapshot.custom_data);
+
+	scene_synchronizer->change_events_flush();
 }
