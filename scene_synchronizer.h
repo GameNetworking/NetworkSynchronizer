@@ -245,7 +245,7 @@ public:
 	uint64_t sync_group_get_user_data(SyncGroupId p_group_id) const;
 
 	virtual void snapshot_add_custom_data(const NetUtility::SyncGroup *p_group, Vector<Variant> &r_snapshot_data) {}
-	virtual void snapshot_extract_custom_data(const Vector<Variant> &p_snapshot_data, uint32_t p_snap_data_index, LocalVector<const Variant *> &r_out) {}
+	virtual bool snapshot_extract_custom_data(const Vector<Variant> &p_snapshot_data, uint32_t p_snap_data_index, LocalVector<const Variant *> &r_out) const { return true; }
 	virtual void snapshot_apply_custom_data(const Vector<Variant> &p_custom_data) {}
 
 	void start_tracking_scene_changes(Object *p_diff_handle) const;
@@ -590,15 +590,16 @@ private:
 			const uint32_t p_checkable_input_id,
 			PlayerController *p_player_controller);
 
-	void apply_snapshot(
-			const NetUtility::Snapshot &p_snapshot,
-			int p_flag,
-			LocalVector<String> *r_applied_data_info);
 	void process_paused_controller_recovery(real_t p_delta);
 	bool parse_snapshot(Variant p_snapshot);
 
 	void notify_server_full_snapshot_is_needed();
+
 	void update_client_snapshot(NetUtility::Snapshot &p_snapshot);
+	void apply_snapshot(
+			const NetUtility::Snapshot &p_snapshot,
+			int p_flag,
+			LocalVector<String> *r_applied_data_info);
 };
 
 VARIANT_ENUM_CAST(NetEventFlag)
