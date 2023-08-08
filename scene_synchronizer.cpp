@@ -2620,37 +2620,7 @@ void ClientSynchronizer::store_snapshot() {
 	NetUtility::Snapshot &snap = client_snapshots.back();
 	snap.input_id = controller->get_current_input_id();
 
-	scene_synchronizer->snapshot_add_custom_data(nullptr, snap.custom_data);
-	snap.node_vars.resize(scene_synchronizer->organized_node_data.size());
-
-	// Store the nodes state and skip anything is related to the other
-	// controllers.
-	for (uint32_t i = 0; i < scene_synchronizer->organized_node_data.size(); i += 1) {
-		const NetUtility::NodeData *node_data = scene_synchronizer->organized_node_data[i];
-
-		if (node_data == nullptr) {
-			// Nothing to do.
-			continue;
-		}
-
-		if (node_data->id >= uint32_t(snap.node_vars.size())) {
-			// Make sure this ID is valid.
-			ERR_FAIL_COND_MSG(node_data->id != UINT32_MAX, "[BUG] It's not expected that the client has a node with the NetNodeId (" + itos(node_data->id) + ") bigger than the registered node count: " + itos(snap.node_vars.size()));
-			// Skip this node
-			continue;
-		}
-
-		Vector<NetUtility::Var> *snap_node_vars = snap.node_vars.ptrw() + node_data->id;
-		snap_node_vars->resize(node_data->vars.size());
-		NetUtility::Var *vars = snap_node_vars->ptrw();
-		for (uint32_t v = 0; v < node_data->vars.size(); v += 1) {
-			if (node_data->vars[v].enabled) {
-				vars[v] = node_data->vars[v].var;
-			} else {
-				vars[v].name = StringName();
-			}
-		}
-	}
+	update_client_snapshot(snap);
 }
 
 void ClientSynchronizer::store_controllers_snapshot(
@@ -3750,22 +3720,36 @@ void ClientSynchronizer::notify_server_full_snapshot_is_needed() {
 }
 
 void ClientSynchronizer::update_client_snapshot(NetUtility::Snapshot &p_snapshot) {
+	p_snapshot.custom_data.clear();
+	scene_synchronizer->snapshot_add_custom_data(nullptr, p_snapshot.custom_data);
+
+	// Make sure we have room for all the NodeData.
+	p_snapshot.node_vars.resize(scene_synchronizer->organized_node_data.size());
+
+	// Fetch the data.
 	for (NetNodeId net_node_id = 0; net_node_id < NetNodeId(scene_synchronizer->organized_node_data.size()); net_node_id += 1) {
 		NetUtility::NodeData *nd = scene_synchronizer->organized_node_data[net_node_id];
 		if (nd == nullptr || nd->realtime_sync_enabled_on_client == false) {
 			continue;
 		}
 
-		if (uint32_t(p_snapshot.node_vars.size()) <= nd->id) {
-			p_snapshot.node_vars.resize(nd->id + 1);
-		}
+		// Make sure this ID is valid.
+		ERR_FAIL_COND_MSG(nd->id != UINT32_MAX, "[BUG] It's not expected that the client has a node with the NetNodeId (" + itos(nd->id) + ") bigger than the registered node count: " + itos(p_snapshot.node_vars.size()));
+
+#ifdef DEBUG_ENABLED
+		CRASH_COND_MSG(nd->id >= uint32_t(p_snapshot.node_vars.size()), "This array was resized above, this can't be triggered.");
+#endif
 
 		Vector<NetUtility::Var> *snap_node_vars = p_snapshot.node_vars.ptrw() + nd->id;
 		snap_node_vars->resize(nd->vars.size());
 
 		NetUtility::Var *snap_node_vars_ptr = snap_node_vars->ptrw();
 		for (uint32_t v = 0; v < nd->vars.size(); v += 1) {
-			snap_node_vars_ptr[v] = nd->vars[v].var;
+			if (nd->vars[v].enabled) {
+				snap_node_vars_ptr[v] = nd->vars[v].var;
+			} else {
+				snap_node_vars_ptr[v].name = StringName();
+			}
 		}
 	}
 }
