@@ -2488,25 +2488,7 @@ void ClientSynchronizer::process() {
 	process_controllers_recovery(delta);
 
 	// Now trigger the END_SYNC event.
-	scene_synchronizer->change_events_begin(NetEventFlag::END_SYNC);
-	for (const RBSet<EndSyncEvent>::Element *e = sync_end_events.front();
-			e != nullptr;
-			e = e->next()) {
-		// Check if the values between the variables before the sync and the
-		// current one are different.
-		if (scene_synchronizer->compare(
-					e->get().node_data->vars[e->get().var_id].var.value,
-					e->get().old_value) == false) {
-			// Are different so we need to emit the `END_SYNC`.
-			scene_synchronizer->change_event_add(
-					e->get().node_data,
-					e->get().var_id,
-					e->get().old_value);
-		}
-	}
-	sync_end_events.clear();
-
-	scene_synchronizer->change_events_flush();
+	signal_end_sync_changed_variables_events();
 
 	process_received_deferred_sync_data(delta);
 
@@ -2567,6 +2549,28 @@ void ClientSynchronizer::on_variable_changed(NetUtility::NodeData *p_node_data, 
 						p_var_id,
 						p_old_value });
 	}
+}
+
+void ClientSynchronizer::signal_end_sync_changed_variables_events() {
+	scene_synchronizer->change_events_begin(NetEventFlag::END_SYNC);
+	for (const RBSet<EndSyncEvent>::Element *e = sync_end_events.front();
+			e != nullptr;
+			e = e->next()) {
+		// Check if the values between the variables before the sync and the
+		// current one are different.
+		if (scene_synchronizer->compare(
+					e->get().node_data->vars[e->get().var_id].var.value,
+					e->get().old_value) == false) {
+			// Are different so we need to emit the `END_SYNC`.
+			scene_synchronizer->change_event_add(
+					e->get().node_data,
+					e->get().var_id,
+					e->get().old_value);
+		}
+	}
+	sync_end_events.clear();
+
+	scene_synchronizer->change_events_flush();
 }
 
 void ClientSynchronizer::on_controller_reset(NetUtility::NodeData *p_node_data) {

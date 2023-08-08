@@ -540,6 +540,7 @@ public:
 	virtual void on_node_added(NetUtility::NodeData *p_node_data) override;
 	virtual void on_node_removed(NetUtility::NodeData *p_node_data) override;
 	virtual void on_variable_changed(NetUtility::NodeData *p_node_data, NetVarId p_var_id, const Variant &p_old_value, int p_flag) override;
+	void signal_end_sync_changed_variables_events();
 	virtual void on_controller_reset(NetUtility::NodeData *p_node_data) override;
 
 	void receive_snapshot(Variant p_snapshot);
