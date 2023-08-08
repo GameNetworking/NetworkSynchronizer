@@ -103,7 +103,7 @@ bool compare_vars(
 #endif
 }
 
-bool NetUtility::Snapshot::equals(
+bool NetUtility::Snapshot::compare(
 		SceneSynchronizer &scene_synchronizer,
 		const Snapshot &p_snap_A,
 		const Snapshot &p_snap_B,
@@ -152,7 +152,7 @@ bool NetUtility::Snapshot::equals(
 			continue;
 		}
 
-		bool is_node_different = false;
+		bool are_nodes_different = false;
 		if (net_node_id >= uint32_t(p_snap_B.node_vars.size())) {
 			if (r_differences_info) {
 				r_differences_info->push_back("Difference detected: The B snapshot doesn't contain this node: " + rew_node_data->node->get_path());
@@ -162,9 +162,9 @@ bool NetUtility::Snapshot::equals(
 #else
 			return false;
 #endif
-			is_node_different = true;
+			are_nodes_different = true;
 		} else {
-			is_node_different = !compare_vars(
+			are_nodes_different = !compare_vars(
 					scene_synchronizer,
 					rew_node_data,
 					p_snap_A.node_vars[net_node_id],
@@ -172,7 +172,7 @@ bool NetUtility::Snapshot::equals(
 					r_no_rewind_recover,
 					r_differences_info);
 
-			if (is_node_different) {
+			if (are_nodes_different) {
 				if (r_differences_info) {
 					r_differences_info->push_back("Difference detected: The node status on snapshot B is different. NODE: " + rew_node_data->node->get_path());
 				}
@@ -185,7 +185,7 @@ bool NetUtility::Snapshot::equals(
 		}
 
 #ifdef DEBUG_ENABLED
-		if (is_node_different && r_different_node_data) {
+		if (are_nodes_different && r_different_node_data) {
 			r_different_node_data->push_back(net_node_id);
 		}
 #endif

@@ -2884,7 +2884,7 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 
 #ifdef DEBUG_ENABLED
 	LocalVector<NetNodeId> different_node_data;
-	const bool is_different = NetUtility::Snapshot::equals(
+	const bool is_equal = NetUtility::Snapshot::compare(
 			*scene_synchronizer,
 			server_snapshots.front(),
 			client_snapshots.front(),
@@ -2892,7 +2892,7 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 			scene_synchronizer->debug_rewindings_enabled ? &differences_info : nullptr,
 			&different_node_data);
 
-	if (is_different) {
+	if (!is_equal) {
 		Vector<StringName> variable_names;
 		Vector<Variant> server_values;
 		Vector<Variant> client_values;
@@ -2939,7 +2939,7 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 		}
 	}
 #else
-	const bool is_different = NetUtility::Snapshot::equals(
+	const bool is_equal = NetUtility::Snapshot::compare(
 			*scene_synchronizer,
 			server_snapshots.front(),
 			client_snapshots.front(),
@@ -2947,6 +2947,7 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 			scene_synchronizer->debug_rewindings_enabled ? &differences_info : nullptr);
 #endif
 
+	// Prints the comparison info.
 	if (differences_info.size() > 0 && scene_synchronizer->debug_rewindings_enabled) {
 		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Rewind on frame " + itos(p_input_id) + " is needed because:");
 		for (int i = 0; i < int(differences_info.size()); i++) {
@@ -2954,7 +2955,7 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 		}
 	}
 
-	return is_different;
+	return !is_equal;
 }
 
 void ClientSynchronizer::__pcr__sync__rewind() {
@@ -3065,7 +3066,7 @@ void ClientSynchronizer::__pcr__sync__no_rewind(const NetUtility::Snapshot &p_no
 	// NOTE: Ignoring both the input_id and the custom_data: when custom_data changes partial recover is never triggered.
 	if (client_snapshots.empty() == false) {
 		for (NetNodeId net_node_id = 0; net_node_id < NetNodeId(scene_synchronizer->organized_node_data.size()); net_node_id += 1) {
-			NetUtility::NodeData *nd = scene_synchronizer->get_node_data(net_node_id);
+			NetUtility::NodeData *nd = scene_synchronizer->organized_node_data[net_node_id];
 			if (nd == nullptr || nd->realtime_sync_enabled_on_client == false) {
 				continue;
 			}
@@ -3106,38 +3107,21 @@ void ClientSynchronizer::process_paused_controller_recovery(real_t p_delta) {
 #ifdef DEBUG_ENABLED
 	CRASH_COND(server_snapshots.empty());
 #endif
-	scene_synchronizer->change_events_begin(NetEventFlag::SYNC_RECOVER);
-	for (uint32_t net_node_id = 0; net_node_id < uint32_t(server_snapshots.front().node_vars.size()); net_node_id += 1) {
-		NetUtility::NodeData *rew_node_data = scene_synchronizer->get_node_data(net_node_id);
-		if (rew_node_data == nullptr || rew_node_data->realtime_sync_enabled_on_client == false) {
-			continue;
-		}
+	LocalVector<String> applied_data_info;
 
-		Node *node = rew_node_data->node;
-
-		const NetUtility::Var *snap_vars_ptr = server_snapshots.front().node_vars[net_node_id].ptr();
-		for (int var_id = 0; var_id < server_snapshots.front().node_vars[net_node_id].size(); var_id += 1) {
-			// Note: the snapshot variable array is ordered per var_id.
-			const Variant old_val = rew_node_data->vars[var_id].var.value;
-			if (!scene_synchronizer->compare(
-						old_val,
-						snap_vars_ptr[var_id].value)) {
-				// Different
-				rew_node_data->vars[var_id].var.value = snap_vars_ptr[var_id].value;
-				node->set(snap_vars_ptr[var_id].name, snap_vars_ptr[var_id].value);
-				SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "[Snapshot paused controller] Node: " + node->get_path());
-				SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, " |- Variable: " + snap_vars_ptr[var_id].name + "; value: " + NetUtility::stringify_fast(snap_vars_ptr[var_id].value));
-				scene_synchronizer->change_event_add(
-						rew_node_data,
-						var_id,
-						old_val);
-			}
-		}
-	}
+	apply_snapshot(
+			server_snapshots.front(),
+			NetEventFlag::SYNC_RECOVER,
+			&applied_data_info);
 
 	server_snapshots.pop_front();
 
-	scene_synchronizer->change_events_flush();
+	if (applied_data_info.size() > 0) {
+		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Paused controller recover:");
+		for (int i = 0; i < int(applied_data_info.size()); i++) {
+			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|- " + applied_data_info[i]);
+		}
+	}
 }
 
 bool ClientSynchronizer::parse_sync_data(
