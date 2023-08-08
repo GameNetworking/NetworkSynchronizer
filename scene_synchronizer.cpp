@@ -1156,10 +1156,6 @@ void SceneSynchronizer::detect_and_signal_changed_variables(int p_flags) {
 	for (NetNodeId i = 0; i < node_data.size(); i += 1) {
 		NetUtility::NodeData *nd = node_data[i];
 		CRASH_COND_MSG(nd == nullptr, "This can't happen because we are looping over the `node_data`.");
-		if (nd->id == NetID_NONE || nd->realtime_sync_enabled_on_client == false) {
-			// This node is not sync.
-			continue;
-		}
 		pull_node_changes(nd);
 	}
 	change_events_flush();
