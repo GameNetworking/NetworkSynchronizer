@@ -17,7 +17,7 @@ struct Snapshot {
 
 	operator String() const;
 
-	static bool equals(
+	static bool compare(
 			SceneSynchronizer &scene_synchronizer,
 			const Snapshot &p_snap_A,
 			const Snapshot &p_snap_B,
