@@ -291,7 +291,7 @@ public:
 	void update_peers();
 	void clear_peers();
 
-	void detect_and_signal_changed_variables_events();
+	void detect_and_signal_changed_variables(int p_flags);
 
 	void change_events_begin(int p_flag);
 	void change_event_add(NetUtility::NodeData *p_node_data, NetVarId p_var_id, const Variant &p_old);
@@ -598,6 +598,7 @@ private:
 	bool parse_snapshot(Variant p_snapshot);
 
 	void notify_server_full_snapshot_is_needed();
+	void update_client_snapshot(NetUtility::Snapshot &p_snapshot);
 };
 
 VARIANT_ENUM_CAST(NetEventFlag)
