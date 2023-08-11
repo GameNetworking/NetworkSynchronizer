@@ -159,13 +159,79 @@ void NetUtility::SyncGroup::add_new_node(NodeData *p_node_data, bool p_realtime)
 }
 
 void NetUtility::SyncGroup::remove_node(NodeData *p_node_data) {
-	const int index = realtime_sync_nodes.find(p_node_data);
-	if (index >= 0) {
-		realtime_sync_nodes.remove_at_unordered(index);
+	{
+		const int index = realtime_sync_nodes.find(p_node_data);
+		if (index >= 0) {
+			realtime_sync_nodes.remove_at_unordered(index);
+			realtime_sync_nodes_list_changed = true;
+			// No need to check the deferred array. Nodes can be in 1 single array.
+			return;
+		}
+	}
+
+	{
+		const int index = deferred_sync_nodes.find(p_node_data);
+		if (index >= 0) {
+			deferred_sync_nodes.erase(p_node_data);
+			deferred_sync_nodes_list_changed = true;
+		}
+	}
+}
+
+template <class T>
+void replace_nodes_impl(
+		NetUtility::SyncGroup &p_sync_group,
+		LocalVector<NetUtility::NodeData *> &&p_nodes_to_add,
+		bool p_is_realtime,
+		LocalVector<T> &r_sync_group_nodes,
+		bool &r_changed) {
+	for (int i = int(r_sync_group_nodes.size()) - 1; i >= 0; i--) {
+		const int64_t nta_index = p_nodes_to_add.find(r_sync_group_nodes[i].nd);
+		if (nta_index == -1) {
+			r_sync_group_nodes.remove_at_unordered(i);
+			r_changed = true;
+		} else {
+			// This node exists on both sides, no need to add again.
+			p_nodes_to_add.remove_at_unordered(nta_index);
+		}
+	}
+
+	// All the remained nodes, can change now.
+	for (int i = 0; i < int(p_nodes_to_add.size()); i++) {
+		NetUtility::NodeData *nd = p_nodes_to_add[i];
+
+		// At this point,
+		p_sync_group.add_new_node(nd, p_is_realtime);
+		r_changed = true;
+	}
+}
+
+void NetUtility::SyncGroup::replace_nodes(LocalVector<NodeData *> &&p_new_realtime_nodes, LocalVector<NodeData *> &&p_new_deferred_nodes) {
+	replace_nodes_impl(
+			*this,
+			std::move(p_new_realtime_nodes),
+			true,
+			realtime_sync_nodes,
+			realtime_sync_nodes_list_changed);
+
+	replace_nodes_impl(
+			*this,
+			std::move(p_new_deferred_nodes),
+			false,
+			deferred_sync_nodes,
+			deferred_sync_nodes_list_changed);
+}
+
+void NetUtility::SyncGroup::remove_all_nodes() {
+	if (!realtime_sync_nodes.is_empty()) {
+		realtime_sync_nodes.clear();
 		realtime_sync_nodes_list_changed = true;
 	}
 
-	deferred_sync_nodes.erase(p_node_data);
+	if (!deferred_sync_nodes.is_empty()) {
+		deferred_sync_nodes.clear();
+		deferred_sync_nodes_list_changed = true;
+	}
 }
 
 void NetUtility::SyncGroup::notify_new_variable(NodeData *p_node_data, const StringName &p_var_name) {

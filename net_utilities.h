@@ -453,6 +453,8 @@ public:
 
 	void add_new_node(NodeData *p_node_data, bool p_realtime);
 	void remove_node(NodeData *p_node_data);
+	void replace_nodes(LocalVector<NodeData *> &&p_new_realtime_nodes, LocalVector<NodeData *> &&p_new_deferred_nodes);
+	void remove_all_nodes();
 
 	void notify_new_variable(NodeData *p_node_data, const StringName &p_var_name);
 	void notify_variable_changed(NodeData *p_node_data, const StringName &p_var_name);
