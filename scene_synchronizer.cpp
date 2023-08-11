@@ -603,11 +603,26 @@ void SceneSynchronizer::sync_group_remove_node(NetUtility::NodeData *p_node_data
 	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_remove_node(p_node_data, p_group_id);
 }
 
+void SceneSynchronizer::sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NetUtility::NodeData *> &&p_new_realtime_nodes, LocalVector<NetUtility::NodeData *> &&p_new_deferred_nodes) {
+	ERR_FAIL_COND_MSG(!is_server(), "This function CAN be used only on the server.");
+	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_replace_nodes(p_group_id, std::move(p_new_realtime_nodes), std::move(p_new_deferred_nodes));
+}
+
+void SceneSynchronizer::sync_group_remove_all_nodes(SyncGroupId p_group_id) {
+	ERR_FAIL_COND_MSG(!is_server(), "This function CAN be used only on the server.");
+	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_remove_all_nodes(p_group_id);
+}
+
 void SceneSynchronizer::sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id) {
 	ERR_FAIL_COND_MSG(!is_server(), "This function CAN be used only on the server.");
 
 	NetUtility::PeerData *pd = peer_data.lookup_ptr(p_peer_id);
 	ERR_FAIL_COND_MSG(pd == nullptr, "The PeerData doesn't exist. This looks like a bug. Are you sure the peer_id `" + itos(p_peer_id) + "` exists?");
+
+	if (pd->sync_group_id == p_group_id) {
+		// Nothing to do.
+		return;
+	}
 
 	pd->sync_group_id = p_group_id;
 
@@ -2014,6 +2029,18 @@ void ServerSynchronizer::sync_group_remove_node(NetUtility::NodeData *p_node_dat
 	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
 	ERR_FAIL_COND_MSG(p_group_id == SceneSynchronizer::GLOBAL_SYNC_GROUP_ID, "You can't change this SyncGroup in any way. Create a new one.");
 	sync_groups[p_group_id].remove_node(p_node_data);
+}
+
+void ServerSynchronizer::sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NetUtility::NodeData *> &&p_new_realtime_nodes, LocalVector<NetUtility::NodeData *> &&p_new_deferred_nodes) {
+	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
+	ERR_FAIL_COND_MSG(p_group_id == SceneSynchronizer::GLOBAL_SYNC_GROUP_ID, "You can't change this SyncGroup in any way. Create a new one.");
+	sync_groups[p_group_id].replace_nodes(std::move(p_new_realtime_nodes), std::move(p_new_deferred_nodes));
+}
+
+void ServerSynchronizer::sync_group_remove_all_nodes(SyncGroupId p_group_id) {
+	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
+	ERR_FAIL_COND_MSG(p_group_id == SceneSynchronizer::GLOBAL_SYNC_GROUP_ID, "You can't change this SyncGroup in any way. Create a new one.");
+	sync_groups[p_group_id].remove_all_nodes();
 }
 
 void ServerSynchronizer::sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id) {

@@ -233,6 +233,9 @@ public:
 	void sync_group_add_node(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id, bool p_realtime);
 	void sync_group_remove_node_by_id(NetNodeId p_node_id, SyncGroupId p_group_id);
 	void sync_group_remove_node(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id);
+	/// Use `std::move()` to transfer `p_new_realtime_nodes` and `p_new_deferred_nodes`.
+	void sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NetUtility::NodeData *> &&p_new_realtime_nodes, LocalVector<NetUtility::NodeData *> &&p_new_deferred_nodes);
+	void sync_group_remove_all_nodes(SyncGroupId p_group_id);
 	void sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id);
 	SyncGroupId sync_group_get_peer_group(int p_peer_id) const;
 	const LocalVector<int> *sync_group_get_peers(SyncGroupId p_group_id) const;
@@ -442,6 +445,8 @@ public:
 	const NetUtility::SyncGroup *sync_group_get(SyncGroupId p_group_id) const;
 	void sync_group_add_node(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id, bool p_realtime);
 	void sync_group_remove_node(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id);
+	void sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NetUtility::NodeData *> &&p_new_realtime_nodes, LocalVector<NetUtility::NodeData *> &&p_new_deferred_nodes);
+	void sync_group_remove_all_nodes(SyncGroupId p_group_id);
 	void sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id);
 	const LocalVector<int> *sync_group_get_peers(SyncGroupId p_group_id) const;
 	void sync_group_set_deferred_update_rate(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id, real_t p_update_rate);
