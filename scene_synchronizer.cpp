@@ -79,6 +79,9 @@ void SceneSynchronizer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_comparison_float_tolerance", "tolerance"), &SceneSynchronizer::set_comparison_float_tolerance);
 	ClassDB::bind_method(D_METHOD("get_comparison_float_tolerance"), &SceneSynchronizer::get_comparison_float_tolerance);
 
+	ClassDB::bind_method(D_METHOD("set_nodes_relevancy_update_time", "time"), &SceneSynchronizer::set_nodes_relevancy_update_time);
+	ClassDB::bind_method(D_METHOD("get_nodes_relevancy_update_time"), &SceneSynchronizer::get_nodes_relevancy_update_time);
+
 	ClassDB::bind_method(D_METHOD("register_node", "node"), &SceneSynchronizer::register_node_gdscript);
 	ClassDB::bind_method(D_METHOD("unregister_node", "node"), &SceneSynchronizer::unregister_node);
 	ClassDB::bind_method(D_METHOD("get_node_id", "node"), &SceneSynchronizer::get_node_id);
@@ -141,6 +144,7 @@ void SceneSynchronizer::_bind_methods() {
 
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "server_notify_state_interval", PROPERTY_HINT_RANGE, "0.001,10.0,0.0001"), "set_server_notify_state_interval", "get_server_notify_state_interval");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "comparison_float_tolerance", PROPERTY_HINT_RANGE, "0.000001,0.01,0.000001"), "set_comparison_float_tolerance", "get_comparison_float_tolerance");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "nodes_relevancy_update_time", PROPERTY_HINT_RANGE, "0.0,2.0,0.01"), "set_nodes_relevancy_update_time", "get_nodes_relevancy_update_time");
 
 	ADD_SIGNAL(MethodInfo("sync_started"));
 	ADD_SIGNAL(MethodInfo("sync_paused"));
@@ -261,6 +265,14 @@ void SceneSynchronizer::set_comparison_float_tolerance(real_t p_tolerance) {
 
 real_t SceneSynchronizer::get_comparison_float_tolerance() const {
 	return comparison_float_tolerance;
+}
+
+void SceneSynchronizer::set_nodes_relevancy_update_time(real_t p_time) {
+	nodes_relevancy_update_time = p_time;
+}
+
+real_t SceneSynchronizer::get_nodes_relevancy_update_time() const {
+	return nodes_relevancy_update_time;
 }
 
 bool SceneSynchronizer::is_variable_registered(Node *p_node, const StringName &p_variable) const {
@@ -603,7 +615,7 @@ void SceneSynchronizer::sync_group_remove_node(NetUtility::NodeData *p_node_data
 	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_remove_node(p_node_data, p_group_id);
 }
 
-void SceneSynchronizer::sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NetUtility::NodeData *> &&p_new_realtime_nodes, LocalVector<NetUtility::NodeData *> &&p_new_deferred_nodes) {
+void SceneSynchronizer::sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NetUtility::SyncGroup::RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<NetUtility::SyncGroup::DeferredNodeInfo> &&p_new_deferred_nodes) {
 	ERR_FAIL_COND_MSG(!is_server(), "This function CAN be used only on the server.");
 	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_replace_nodes(p_group_id, std::move(p_new_realtime_nodes), std::move(p_new_deferred_nodes));
 }
@@ -1610,9 +1622,16 @@ void SceneSynchronizer::validate_nodes() {
 #endif
 
 void SceneSynchronizer::update_nodes_relevancy() {
-	const bool executed = GDVIRTUAL_CALL(_update_nodes_relevancy);
-	if (executed == false) {
-		NET_DEBUG_ERR("The function _update_nodes_relevancy failed!");
+	if (GDVIRTUAL_IS_OVERRIDDEN(_update_nodes_relevancy)) {
+		const bool executed = GDVIRTUAL_CALL(_update_nodes_relevancy);
+		if (executed == false) {
+			NET_DEBUG_ERR("The function _update_nodes_relevancy failed!");
+		}
+	}
+
+	const bool log_debug_nodes_relevancy_update = ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/log_debug_nodes_relevancy_update");
+	if (log_debug_nodes_relevancy_update) {
+		static_cast<ServerSynchronizer *>(synchronizer)->sync_group_debug_print();
 	}
 }
 
@@ -1908,6 +1927,7 @@ ServerSynchronizer::ServerSynchronizer(SceneSynchronizer *p_node) :
 }
 
 void ServerSynchronizer::clear() {
+	nodes_relevancy_update_timer = 0.0;
 	// Release the internal memory.
 	sync_groups.clear();
 }
@@ -1919,6 +1939,12 @@ void ServerSynchronizer::process() {
 
 	const double physics_ticks_per_second = Engine::get_singleton()->get_physics_ticks_per_second();
 	const double delta = 1.0 / physics_ticks_per_second;
+
+	if (nodes_relevancy_update_timer >= scene_synchronizer->nodes_relevancy_update_time) {
+		scene_synchronizer->update_nodes_relevancy();
+		nodes_relevancy_update_timer = 0.0;
+	}
+	nodes_relevancy_update_timer += delta;
 
 	SceneSynchronizerDebugger::singleton()->scene_sync_process_start(scene_synchronizer);
 
@@ -2031,7 +2057,7 @@ void ServerSynchronizer::sync_group_remove_node(NetUtility::NodeData *p_node_dat
 	sync_groups[p_group_id].remove_node(p_node_data);
 }
 
-void ServerSynchronizer::sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NetUtility::NodeData *> &&p_new_realtime_nodes, LocalVector<NetUtility::NodeData *> &&p_new_deferred_nodes) {
+void ServerSynchronizer::sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NetUtility::SyncGroup::RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<NetUtility::SyncGroup::DeferredNodeInfo> &&p_new_deferred_nodes) {
 	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
 	ERR_FAIL_COND_MSG(p_group_id == SceneSynchronizer::GLOBAL_SYNC_GROUP_ID, "You can't change this SyncGroup in any way. Create a new one.");
 	sync_groups[p_group_id].replace_nodes(std::move(p_new_realtime_nodes), std::move(p_new_deferred_nodes));
@@ -2097,6 +2123,44 @@ void ServerSynchronizer::sync_group_set_user_data(SyncGroupId p_group_id, uint64
 uint64_t ServerSynchronizer::sync_group_get_user_data(SyncGroupId p_group_id) const {
 	ERR_FAIL_COND_V_MSG(p_group_id >= sync_groups.size(), 0, "The group id `" + itos(p_group_id) + "` doesn't exist.");
 	return sync_groups[p_group_id].user_data;
+}
+
+void ServerSynchronizer::sync_group_debug_print() {
+	SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "");
+	SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|-----------------------");
+	SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "| Sync groups");
+	SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|-----------------------");
+
+	for (int g = 0; g < int(sync_groups.size()); ++g) {
+		NetUtility::SyncGroup &group = sync_groups[g];
+
+		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "| [Group " + itos(g) + "#]");
+		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|    Listening peers");
+		for (int peer : group.peers) {
+			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|      |- " + itos(peer));
+		}
+
+		const LocalVector<NetUtility::SyncGroup::RealtimeNodeInfo> &realtime_node_info = group.get_realtime_sync_nodes();
+		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|");
+		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|    [Realtime nodes]");
+		for (auto info : realtime_node_info) {
+			if (info.nd->node) {
+				SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|      |- " + info.nd->node->get_path());
+			}
+		}
+
+		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|");
+
+		const LocalVector<NetUtility::SyncGroup::DeferredNodeInfo> &deferred_node_info = group.get_deferred_sync_nodes();
+		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|    [Deferred nodes (UR: Update Rate)]");
+		for (auto info : deferred_node_info) {
+			if (info.nd->node) {
+				SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|      |- [UR: " + rtos(info.update_rate) + "] " + info.nd->node->get_path());
+			}
+		}
+	}
+	SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|-----------------------");
+	SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "");
 }
 
 void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
@@ -2216,7 +2280,7 @@ Vector<Variant> ServerSynchronizer::generate_snapshot(
 
 	if (p_group.is_deferred_node_list_changed() || p_force_full_snapshot) {
 		for (int i = 0; i < int(p_group.get_deferred_sync_nodes().size()); ++i) {
-			if (p_group.get_deferred_sync_nodes()[i].unknown || p_force_full_snapshot) {
+			if (p_group.get_deferred_sync_nodes()[i]._unknown || p_force_full_snapshot) {
 				generate_snapshot_node_data(
 						p_group.get_deferred_sync_nodes()[i].nd,
 						SNAPSHOT_GENERATION_MODE_FORCE_NODE_PATH_ONLY,
@@ -2363,7 +2427,7 @@ void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
 
 		for (int i = 0; i < int(node_info.size()); ++i) {
 			bool send = true;
-			if (node_info[i].update_priority < 1.0 || update_node_count >= scene_synchronizer->max_deferred_nodes_per_update) {
+			if (node_info[i]._update_priority < 1.0 || update_node_count >= scene_synchronizer->max_deferred_nodes_per_update) {
 				send = false;
 			}
 
@@ -2378,7 +2442,7 @@ void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
 			}
 
 			if (send) {
-				node_info[i].update_priority = 0.0;
+				node_info[i]._update_priority = 0.0;
 
 				// Read the state and write into the tmp_buffer:
 				tmp_buffer->begin_write(0);
@@ -2411,7 +2475,7 @@ void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
 				global_buffer.add_bits(tmp_buffer->get_buffer().get_bytes(), tmp_buffer->total_size());
 
 			} else {
-				node_info[i].update_priority += node_info[i].update_rate;
+				node_info[i]._update_priority += node_info[i].update_rate;
 			}
 		}
 
@@ -2804,10 +2868,10 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 	} else {
 		if (no_rewind_recover.input_id == 0) {
 			SceneSynchronizerDebugger::singleton()->notify_event(SceneSynchronizerDebugger::FrameEvent::CLIENT_DESYNC_DETECTED_SOFT);
-		}
 
-		// Sync.
-		__pcr__sync__no_rewind(no_rewind_recover);
+			// Sync.
+			__pcr__sync__no_rewind(no_rewind_recover);
+		}
 
 		// No rewind.
 		__pcr__no_rewind(checkable_input_id, player_controller);
@@ -2967,13 +3031,17 @@ void ClientSynchronizer::__pcr__rewind(
 }
 
 void ClientSynchronizer::__pcr__sync__no_rewind(const NetUtility::Snapshot &p_no_rewind_recover) {
+	CRASH_COND_MSG(p_no_rewind_recover.input_id != 0, "This function is never called unless there is something to recover without rewinding.");
+
 	// Apply found differences without rewind.
 	LocalVector<String> applied_data_info;
 
 	apply_snapshot(
 			p_no_rewind_recover,
 			NetEventFlag::SYNC_RECOVER,
-			scene_synchronizer->debug_rewindings_enabled ? &applied_data_info : nullptr);
+			scene_synchronizer->debug_rewindings_enabled ? &applied_data_info : nullptr,
+			// ALWAYS skips custom data because partial snapshots don't contain custom_data.
+			true);
 
 	if (applied_data_info.size() > 0) {
 		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Partial reset:");
@@ -2983,8 +3051,7 @@ void ClientSynchronizer::__pcr__sync__no_rewind(const NetUtility::Snapshot &p_no
 	}
 
 	// Update the last client snapshot.
-	// NOTE: Ignoring both the input_id and the custom_data: when custom_data changes partial recover is never triggered.
-	if (client_snapshots.empty() == false) {
+	if (!client_snapshots.empty()) {
 		update_client_snapshot(client_snapshots.back());
 	}
 }
@@ -3723,7 +3790,8 @@ void ClientSynchronizer::update_client_snapshot(NetUtility::Snapshot &p_snapshot
 void ClientSynchronizer::apply_snapshot(
 		const NetUtility::Snapshot &p_snapshot,
 		int p_flag,
-		LocalVector<String> *r_applied_data_info) {
+		LocalVector<String> *r_applied_data_info,
+		bool p_skip_custom_data) {
 	const Vector<NetUtility::Var> *nodes_vars = p_snapshot.node_vars.ptr();
 
 	scene_synchronizer->change_events_begin(p_flag);
@@ -3776,7 +3844,9 @@ void ClientSynchronizer::apply_snapshot(
 		}
 	}
 
-	scene_synchronizer->snapshot_apply_custom_data(p_snapshot.custom_data);
+	if (!p_skip_custom_data) {
+		scene_synchronizer->snapshot_apply_custom_data(p_snapshot.custom_data);
+	}
 
 	scene_synchronizer->change_events_flush();
 }

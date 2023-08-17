@@ -411,21 +411,38 @@ public:
 		Change change;
 
 		RealtimeNodeInfo() = default;
+		RealtimeNodeInfo(const RealtimeNodeInfo &) = default;
 		RealtimeNodeInfo(NetUtility::NodeData *p_nd) :
 				nd(p_nd) {}
 		bool operator==(const RealtimeNodeInfo &p_other) { return nd == p_other.nd; }
+
+		void update_from(const RealtimeNodeInfo &p_other) {}
 	};
 
 	struct DeferredNodeInfo {
 		NetUtility::NodeData *nd = nullptr;
-		bool unknown = false;
+
+		/// The node update rate, relative to the godot physics processing rate.
+		/// With the godot physics processing rate set to 60Hz, 0.5 means 30Hz.
 		float update_rate = 0.5;
-		float update_priority = 0.0;
+
+		/// INTERNAL: The update priority is calculated and updated each frame
+		///           by the `ServerSynchronizer` based on the `update_rate`:
+		///           the nodes with higher priority get sync.
+		float _update_priority = 0.0;
+
+		/// INTERNAL
+		bool _unknown = false;
 
 		DeferredNodeInfo() = default;
+		DeferredNodeInfo(const DeferredNodeInfo &) = default;
 		DeferredNodeInfo(NetUtility::NodeData *p_nd) :
 				nd(p_nd) {}
 		bool operator==(const DeferredNodeInfo &p_other) { return nd == p_other.nd; }
+
+		void update_from(const DeferredNodeInfo &p_other) {
+			update_rate = p_other.update_rate;
+		}
 	};
 
 private:
@@ -451,9 +468,10 @@ public:
 
 	void mark_changes_as_notified();
 
-	void add_new_node(NodeData *p_node_data, bool p_realtime);
+	/// Returns the `index` or `UINT32_MAX` on error.
+	uint32_t add_new_node(NodeData *p_node_data, bool p_realtime);
 	void remove_node(NodeData *p_node_data);
-	void replace_nodes(LocalVector<NodeData *> &&p_new_realtime_nodes, LocalVector<NodeData *> &&p_new_deferred_nodes);
+	void replace_nodes(LocalVector<RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<DeferredNodeInfo> &&p_new_deferred_nodes);
 	void remove_all_nodes();
 
 	void notify_new_variable(NodeData *p_node_data, const StringName &p_var_name);
@@ -461,6 +479,7 @@ public:
 
 	void set_deferred_update_rate(NetUtility::NodeData *p_node_data, real_t p_update_rate);
 	real_t get_deferred_update_rate(const NetUtility::NodeData *p_node_data) const;
+
 	void sort_deferred_node_by_update_priority();
 };
 
