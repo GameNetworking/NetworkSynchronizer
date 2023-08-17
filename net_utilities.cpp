@@ -118,16 +118,26 @@ void NetUtility::SyncGroup::mark_changes_as_notified() {
 		realtime_sync_nodes[i].change.vars.clear();
 	}
 	for (int i = 0; i < int(deferred_sync_nodes.size()); ++i) {
-		deferred_sync_nodes[i].unknown = false;
+		deferred_sync_nodes[i]._unknown = false;
 	}
 	realtime_sync_nodes_list_changed = false;
 	deferred_sync_nodes_list_changed = false;
 }
 
-void NetUtility::SyncGroup::add_new_node(NodeData *p_node_data, bool p_realtime) {
+uint32_t NetUtility::SyncGroup::add_new_node(NodeData *p_node_data, bool p_realtime) {
 	if (p_realtime) {
-		if (realtime_sync_nodes.find(p_node_data) == -1) {
-			const uint32_t index = realtime_sync_nodes.size();
+		// Make sure the node is not contained into the deferred sync.
+		const int dsn_index = deferred_sync_nodes.find(p_node_data);
+		if (dsn_index >= 0) {
+			deferred_sync_nodes.remove_at_unordered(dsn_index);
+			deferred_sync_nodes_list_changed = true;
+		}
+
+		// Add it into the realtime sync nodes
+		int index = realtime_sync_nodes.find(p_node_data);
+
+		if (index <= -1) {
+			index = realtime_sync_nodes.size();
 			realtime_sync_nodes.push_back(p_node_data);
 			realtime_sync_nodes_list_changed = true;
 
@@ -138,23 +148,28 @@ void NetUtility::SyncGroup::add_new_node(NodeData *p_node_data, bool p_realtime)
 			for (int i = 0; i < int(p_node_data->vars.size()); ++i) {
 				notify_new_variable(p_node_data, p_node_data->vars[i].var.name);
 			}
-
-			// Make sure the node is not contained as deferred sync.
-			deferred_sync_nodes.erase(p_node_data);
 		}
+
+		return index;
 	} else {
-		const int index = realtime_sync_nodes.find(p_node_data);
-		if (index >= 0) {
-			realtime_sync_nodes.remove_at_unordered(index);
+		// Make sure the node is not contained into the realtime sync.
+		const int rsn_index = realtime_sync_nodes.find(p_node_data);
+		if (rsn_index >= 0) {
+			realtime_sync_nodes.remove_at_unordered(rsn_index);
 			realtime_sync_nodes_list_changed = true;
 		}
 
-		if (deferred_sync_nodes.find(p_node_data) == -1) {
-			const int index_def = deferred_sync_nodes.size();
+		// Add it into the deferred sync nodes
+		int index = deferred_sync_nodes.find(p_node_data);
+
+		if (index <= -1) {
+			index = deferred_sync_nodes.size();
 			deferred_sync_nodes.push_back(p_node_data);
-			deferred_sync_nodes[index_def].unknown = true;
+			deferred_sync_nodes[index]._unknown = true;
 			deferred_sync_nodes_list_changed = true;
 		}
+
+		return index;
 	}
 }
 
@@ -181,32 +196,45 @@ void NetUtility::SyncGroup::remove_node(NodeData *p_node_data) {
 template <class T>
 void replace_nodes_impl(
 		NetUtility::SyncGroup &p_sync_group,
-		LocalVector<NetUtility::NodeData *> &&p_nodes_to_add,
+		LocalVector<T> &&p_nodes_to_add,
 		bool p_is_realtime,
 		LocalVector<T> &r_sync_group_nodes,
 		bool &r_changed) {
 	for (int i = int(r_sync_group_nodes.size()) - 1; i >= 0; i--) {
 		const int64_t nta_index = p_nodes_to_add.find(r_sync_group_nodes[i].nd);
 		if (nta_index == -1) {
+			// This node is not part of this sync group, remove it.
 			r_sync_group_nodes.remove_at_unordered(i);
 			r_changed = true;
 		} else {
-			// This node exists on both sides, no need to add again.
+			// This node is still part of this SyncGroup.
+			// Update the existing one.
+			r_sync_group_nodes[i].update_from(p_nodes_to_add[nta_index]);
+
+			// Then, make sure not to add again:
 			p_nodes_to_add.remove_at_unordered(nta_index);
+
+#ifdef DEBUG_ENABLED
+			// Make sure there are no duplicates:
+			CRASH_COND_MSG(p_nodes_to_add.find(r_sync_group_nodes[i].nd) != -1, "The function `replace_nodes` must receive unique nodes on each array. Make sure not to add duplicates.");
+#endif
 		}
 	}
 
-	// All the remained nodes, can change now.
+	// Add the missing nodes now.
 	for (int i = 0; i < int(p_nodes_to_add.size()); i++) {
-		NetUtility::NodeData *nd = p_nodes_to_add[i];
+		NetUtility::NodeData *nd = p_nodes_to_add[i].nd;
 
-		// At this point,
-		p_sync_group.add_new_node(nd, p_is_realtime);
-		r_changed = true;
+#ifdef DEBUG_ENABLED
+		CRASH_COND_MSG(r_sync_group_nodes.find(nd) != -1, "[FATAL] This is impossible to trigger, because the above loop cleaned this.");
+#endif
+
+		const uint32_t index = p_sync_group.add_new_node(nd, p_is_realtime);
+		r_sync_group_nodes[index].update_from(p_nodes_to_add[i]);
 	}
 }
 
-void NetUtility::SyncGroup::replace_nodes(LocalVector<NodeData *> &&p_new_realtime_nodes, LocalVector<NodeData *> &&p_new_deferred_nodes) {
+void NetUtility::SyncGroup::replace_nodes(LocalVector<RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<DeferredNodeInfo> &&p_new_deferred_nodes) {
 	replace_nodes_impl(
 			*this,
 			std::move(p_new_realtime_nodes),
@@ -268,7 +296,7 @@ real_t NetUtility::SyncGroup::get_deferred_update_rate(const NetUtility::NodeDat
 void NetUtility::SyncGroup::sort_deferred_node_by_update_priority() {
 	struct DNIComparator {
 		_FORCE_INLINE_ bool operator()(const DeferredNodeInfo &a, const DeferredNodeInfo &b) const {
-			return a.update_priority >= b.update_priority;
+			return a._update_priority >= b._update_priority;
 		}
 	};
 

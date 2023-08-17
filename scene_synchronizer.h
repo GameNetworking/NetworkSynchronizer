@@ -131,6 +131,8 @@ private:
 	int max_deferred_nodes_per_update = 30;
 	real_t server_notify_state_interval = 1.0;
 	real_t comparison_float_tolerance = 0.001;
+	/// Can be 0.0 to update the relevancy each frame.
+	real_t nodes_relevancy_update_time = 0.5;
 
 	SynchronizerType synchronizer_type = SYNCHRONIZER_TYPE_NULL;
 	Synchronizer *synchronizer = nullptr;
@@ -184,6 +186,9 @@ public:
 	void set_comparison_float_tolerance(real_t p_tolerance);
 	real_t get_comparison_float_tolerance() const;
 
+	void set_nodes_relevancy_update_time(real_t p_time);
+	real_t get_nodes_relevancy_update_time() const;
+
 	bool is_variable_registered(Node *p_node, const StringName &p_variable) const;
 
 	/// Register a new node and returns its `NodeData`.
@@ -233,12 +238,15 @@ public:
 	void sync_group_add_node(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id, bool p_realtime);
 	void sync_group_remove_node_by_id(NetNodeId p_node_id, SyncGroupId p_group_id);
 	void sync_group_remove_node(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id);
+
 	/// Use `std::move()` to transfer `p_new_realtime_nodes` and `p_new_deferred_nodes`.
-	void sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NetUtility::NodeData *> &&p_new_realtime_nodes, LocalVector<NetUtility::NodeData *> &&p_new_deferred_nodes);
+	void sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NetUtility::SyncGroup::RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<NetUtility::SyncGroup::DeferredNodeInfo> &&p_new_deferred_nodes);
+
 	void sync_group_remove_all_nodes(SyncGroupId p_group_id);
 	void sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id);
 	SyncGroupId sync_group_get_peer_group(int p_peer_id) const;
 	const LocalVector<int> *sync_group_get_peers(SyncGroupId p_group_id) const;
+
 	void sync_group_set_deferred_update_rate_by_id(NetNodeId p_node_id, SyncGroupId p_group_id, real_t p_update_rate);
 	void sync_group_set_deferred_update_rate(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id, real_t p_update_rate);
 	real_t sync_group_get_deferred_update_rate_by_id(NetNodeId p_node_id, SyncGroupId p_group_id) const;
@@ -414,6 +422,7 @@ public:
 class ServerSynchronizer : public Synchronizer {
 	friend class SceneSynchronizer;
 
+	real_t nodes_relevancy_update_timer = 0.0;
 	uint32_t epoch = 0;
 	/// This array contains a map between the peers and the relevant nodes.
 	LocalVector<NetUtility::SyncGroup> sync_groups;
@@ -445,15 +454,18 @@ public:
 	const NetUtility::SyncGroup *sync_group_get(SyncGroupId p_group_id) const;
 	void sync_group_add_node(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id, bool p_realtime);
 	void sync_group_remove_node(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id);
-	void sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NetUtility::NodeData *> &&p_new_realtime_nodes, LocalVector<NetUtility::NodeData *> &&p_new_deferred_nodes);
+	void sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NetUtility::SyncGroup::RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<NetUtility::SyncGroup::DeferredNodeInfo> &&p_new_deferred_nodes);
 	void sync_group_remove_all_nodes(SyncGroupId p_group_id);
 	void sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id);
 	const LocalVector<int> *sync_group_get_peers(SyncGroupId p_group_id) const;
+
 	void sync_group_set_deferred_update_rate(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id, real_t p_update_rate);
 	real_t sync_group_get_deferred_update_rate(const NetUtility::NodeData *p_node_data, SyncGroupId p_group_id) const;
 
 	void sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_ptr);
 	uint64_t sync_group_get_user_data(SyncGroupId p_group_id) const;
+
+	void sync_group_debug_print();
 
 	void process_snapshot_notificator(real_t p_delta);
 
@@ -604,7 +616,8 @@ private:
 	void apply_snapshot(
 			const NetUtility::Snapshot &p_snapshot,
 			int p_flag,
-			LocalVector<String> *r_applied_data_info);
+			LocalVector<String> *r_applied_data_info,
+			bool p_skip_custom_data = false);
 };
 
 VARIANT_ENUM_CAST(NetEventFlag)
