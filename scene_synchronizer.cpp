@@ -306,6 +306,12 @@ NetUtility::NodeData *SceneSynchronizer::register_node(Node *p_node) {
 
 		add_node_data(nd);
 
+		if (p_node->has_method("_setup_synchronizer")) {
+			p_node->call("_setup_synchronizer");
+		} else {
+			SceneSynchronizerDebugger::singleton()->debug_error(this, "[ERROR] The registered node " + (generate_id ? String(" #ID: ") + itos(nd->id) : "") + " : " + p_node->get_path() + " doesn't override the method `_setup_synchronizer`, which is called by the SceneSynchronizer to know the node sync properties. Pleaes implement it.");
+		}
+
 		SceneSynchronizerDebugger::singleton()->debug_print(this, "New node registered" + (generate_id ? String(" #ID: ") + itos(nd->id) : "") + " : " + p_node->get_path());
 
 		if (controller) {
@@ -583,6 +589,7 @@ void SceneSynchronizer::setup_deferred_sync(Node *p_node, const Callable &p_coll
 	NetUtility::NodeData *node_data = register_node(p_node);
 	node_data->collect_epoch_func = p_collect_epoch_func;
 	node_data->apply_epoch_func = p_apply_epoch_func;
+	SceneSynchronizerDebugger::singleton()->debug_print(this, "Setup deferred sync functions for: `" + p_node->get_path() + "`. Collect epoch, method name: `" + p_collect_epoch_func.get_method() + "`. Apply epoch, method name: `" + p_apply_epoch_func.get_method() + "`.");
 }
 
 SyncGroupId SceneSynchronizer::sync_group_create() {
