@@ -70,8 +70,8 @@ class NetworkedController : public Node {
 	GDCLASS(NetworkedController, Node);
 
 	friend class SceneSynchronizer;
-	friend class RemotelyControlledController;
-	friend class ServerController;
+	friend struct RemotelyControlledController;
+	friend struct ServerController;
 
 public:
 	enum ControllerType {

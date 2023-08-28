@@ -412,6 +412,8 @@ public:
 
 		RealtimeNodeInfo() = default;
 		RealtimeNodeInfo(const RealtimeNodeInfo &) = default;
+		RealtimeNodeInfo &operator=(const RealtimeNodeInfo &) = default;
+		RealtimeNodeInfo &operator=(RealtimeNodeInfo &&) = default;
 		RealtimeNodeInfo(NetUtility::NodeData *p_nd) :
 				nd(p_nd) {}
 		bool operator==(const RealtimeNodeInfo &p_other) { return nd == p_other.nd; }
@@ -436,6 +438,8 @@ public:
 
 		DeferredNodeInfo() = default;
 		DeferredNodeInfo(const DeferredNodeInfo &) = default;
+		DeferredNodeInfo &operator=(const DeferredNodeInfo &) = default;
+		DeferredNodeInfo &operator=(DeferredNodeInfo &&) = default;
 		DeferredNodeInfo(NetUtility::NodeData *p_nd) :
 				nd(p_nd) {}
 		bool operator==(const DeferredNodeInfo &p_other) { return nd == p_other.nd; }
