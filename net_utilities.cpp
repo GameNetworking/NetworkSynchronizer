@@ -296,7 +296,7 @@ real_t NetUtility::SyncGroup::get_deferred_update_rate(const NetUtility::NodeDat
 void NetUtility::SyncGroup::sort_deferred_node_by_update_priority() {
 	struct DNIComparator {
 		_FORCE_INLINE_ bool operator()(const DeferredNodeInfo &a, const DeferredNodeInfo &b) const {
-			return a._update_priority >= b._update_priority;
+			return a._update_priority > b._update_priority;
 		}
 	};
 
