@@ -938,7 +938,7 @@ bool SceneSynchronizer::is_peer_networking_enable(int p_peer) const {
 }
 
 void SceneSynchronizer::_on_peer_connected(int p_peer) {
-	peer_data.insert(p_peer, NetUtility::PeerData());
+	peer_data.set(p_peer, NetUtility::PeerData());
 
 	Object *nil = nullptr;
 	emit_signal("peer_status_updated", Variant(nil), NetID_NONE, p_peer, true, false);
@@ -962,6 +962,9 @@ void SceneSynchronizer::_on_peer_disconnected(int p_peer) {
 	emit_signal("peer_status_updated", node, id, p_peer, false, false);
 
 	peer_data.remove(p_peer);
+#ifdef DEBUG_ENABLED
+	CRASH_COND_MSG(peer_data.has(p_peer), "The peer was just removed. This can't be triggered.");
+#endif
 
 	if (synchronizer) {
 		synchronizer->on_peer_disconnected(p_peer);
