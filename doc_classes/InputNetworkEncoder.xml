@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="InputNetworkEncoder" inherits="Resource" version="4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="are_different" qualifiers="const">
+			<return type="bool" />
+			<param index="0" name="buffer_a" type="Object" />
+			<param index="1" name="buffer_b" type="Object" />
+			<description>
+			</description>
+		</method>
+		<method name="count_size" qualifiers="const">
+			<return type="int" />
+			<param index="0" name="buffer" type="Object" />
+			<description>
+			</description>
+		</method>
+		<method name="decode" qualifiers="const">
+			<return type="Array" />
+			<param index="0" name="buffer" type="Object" />
+			<description>
+			</description>
+		</method>
+		<method name="encode" qualifiers="const">
+			<return type="void" />
+			<param index="0" name="inputs" type="Array" />
+			<param index="1" name="buffer" type="Object" />
+			<description>
+			</description>
+		</method>
+		<method name="find_input_id" qualifiers="const">
+			<return type="int" />
+			<param index="0" name="name" type="StringName" />
+			<description>
+			</description>
+		</method>
+		<method name="get_defaults" qualifiers="const">
+			<return type="Array" />
+			<description>
+			</description>
+		</method>
+		<method name="register_input">
+			<return type="int" />
+			<param index="0" name="name" type="StringName" />
+			<param index="1" name="default_value" type="Variant" />
+			<param index="2" name="type" type="int" enum="DataBuffer.DataType" />
+			<param index="3" name="compression_level" type="int" enum="DataBuffer.CompressionLevel" />
+			<param index="4" name="comparison_floating_point_precision" type="float" default="1e-05" />
+			<description>
+			</description>
+		</method>
+	</methods>
+</class>

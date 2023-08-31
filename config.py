@@ -12,9 +12,11 @@ def get_doc_path():
 
 def get_doc_classes():
     return [
-        "SceneSynchronizer",
-        "NetworkedController",
         "DataBuffer",
+        "InputNetworkEncoder",
+        "NetworkedController",
+        "SceneDiff",
+        "SceneSynchronizer",
     ]
 
 

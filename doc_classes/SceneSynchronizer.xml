@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<class name="SceneSynchronizer" inherits="Node" version="3.5" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+<class name="SceneSynchronizer" inherits="Node" version="4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
 	<brief_description>
 		The `SceneSynchronizer` is used to synchronize all the peers using server authoritative networking model.
 	</brief_description>
@@ -8,9 +8,14 @@
 	<tutorials>
 	</tutorials>
 	<methods>
+		<method name="_update_nodes_relevancy" qualifiers="virtual">
+			<return type="void" />
+			<description>
+			</description>
+		</method>
 		<method name="apply_scene_changes">
 			<return type="void" />
-			<argument index="0" name="sync_data" type="Variant" />
+			<param index="0" name="sync_data" type="Variant" />
 			<description>
 			</description>
 		</method>
@@ -21,31 +26,43 @@
 		</method>
 		<method name="force_state_notify">
 			<return type="void" />
+			<param index="0" name="group_id" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="force_state_notify_all">
+			<return type="void" />
+			<description>
+			</description>
+		</method>
+		<method name="get_max_deferred_nodes_per_update" qualifiers="const">
+			<return type="int" />
 			<description>
 			</description>
 		</method>
 		<method name="get_node_from_id">
 			<return type="Node" />
-			<argument index="0" name="id" type="int" />
+			<param index="0" name="id" type="int" />
+			<param index="1" name="expected" type="bool" default="true" />
 			<description>
 			</description>
 		</method>
 		<method name="get_node_id">
 			<return type="int" />
-			<argument index="0" name="node" type="Node" />
+			<param index="0" name="node" type="Node" />
 			<description>
 			</description>
 		</method>
 		<method name="get_peer_networking_enable" qualifiers="const">
 			<return type="bool" />
-			<argument index="0" name="peer" type="int" />
+			<param index="0" name="peer" type="int" />
 			<description>
 			</description>
 		</method>
 		<method name="get_variable_id">
 			<return type="int" />
-			<argument index="0" name="node" type="Node" />
-			<argument index="1" name="variable" type="String" />
+			<param index="0" name="node" type="Node" />
+			<param index="1" name="variable" type="StringName" />
 			<description>
 			</description>
 		</method>
@@ -61,12 +78,6 @@
 		</method>
 		<method name="is_networked" qualifiers="const">
 			<return type="bool" />
-			<description>
-			</description>
-		</method>
-		<method name="is_node_sync" qualifiers="const">
-			<return type="bool" />
-			<argument index="0" name="node" type="Node" />
 			<description>
 			</description>
 		</method>
@@ -92,29 +103,30 @@
 		</method>
 		<method name="pop_scene_changes" qualifiers="const">
 			<return type="Variant" />
-			<argument index="0" name="diff_handle" type="Object" />
+			<param index="0" name="diff_handle" type="Object" />
 			<description>
 			</description>
 		</method>
 		<method name="register_node">
 			<return type="int" />
-			<argument index="0" name="node" type="Node" />
+			<param index="0" name="node" type="Node" />
 			<description>
 			</description>
 		</method>
 		<method name="register_process">
 			<return type="void" />
-			<argument index="0" name="node" type="Node" />
-			<argument index="1" name="function" type="String" />
+			<param index="0" name="node" type="Node" />
+			<param index="1" name="phase" type="int" enum="ProcessPhase" />
+			<param index="2" name="function" type="Callable" />
 			<description>
 			</description>
 		</method>
 		<method name="register_variable">
 			<return type="void" />
-			<argument index="0" name="node" type="Node" />
-			<argument index="1" name="variable" type="String" />
-			<argument index="2" name="on_change_notify" type="String" default="&quot;&quot;" />
-			<argument index="3" name="flags" type="int" enum="NetEventFlag" default="17" />
+			<param index="0" name="node" type="Node" />
+			<param index="1" name="variable" type="StringName" />
+			<param index="2" name="on_change_notify" type="StringName" default="&amp;&quot;&quot;" />
+			<param index="3" name="flags" type="int" enum="NetEventFlag" default="17" />
 			<description>
 			</description>
 		</method>
@@ -125,85 +137,130 @@
 		</method>
 		<method name="set_enabled">
 			<return type="void" />
-			<argument index="0" name="enabled" type="bool" />
+			<param index="0" name="enabled" type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="set_max_deferred_nodes_per_update">
+			<return type="void" />
+			<param index="0" name="rate" type="int" />
 			<description>
 			</description>
 		</method>
 		<method name="set_peer_networking_enable">
 			<return type="void" />
-			<argument index="0" name="peer" type="int" />
-			<argument index="1" name="enabled" type="bool" />
+			<param index="0" name="peer" type="int" />
+			<param index="1" name="enabled" type="bool" />
 			<description>
 			</description>
 		</method>
 		<method name="set_skip_rewinding">
 			<return type="void" />
-			<argument index="0" name="node" type="Node" />
-			<argument index="1" name="variable" type="String" />
-			<argument index="2" name="skip_rewinding" type="bool" />
+			<param index="0" name="node" type="Node" />
+			<param index="1" name="variable" type="StringName" />
+			<param index="2" name="skip_rewinding" type="bool" />
 			<description>
 			</description>
 		</method>
-		<method name="start_node_sync">
+		<method name="setup_deferred_sync">
 			<return type="void" />
-			<argument index="0" name="node" type="Node" />
+			<param index="0" name="node" type="Node" />
+			<param index="1" name="collect_epoch_func" type="Callable" />
+			<param index="2" name="apply_epoch_func" type="Callable" />
 			<description>
 			</description>
 		</method>
 		<method name="start_tracking_scene_changes" qualifiers="const">
 			<return type="void" />
-			<argument index="0" name="diff_handle" type="Object" />
-			<description>
-			</description>
-		</method>
-		<method name="stop_node_sync">
-			<return type="void" />
-			<argument index="0" name="node" type="Node" />
+			<param index="0" name="diff_handle" type="Object" />
 			<description>
 			</description>
 		</method>
 		<method name="stop_tracking_scene_changes" qualifiers="const">
 			<return type="void" />
-			<argument index="0" name="diff_handle" type="Object" />
+			<param index="0" name="diff_handle" type="Object" />
+			<description>
+			</description>
+		</method>
+		<method name="sync_group_add_node">
+			<return type="void" />
+			<param index="0" name="node_id" type="int" />
+			<param index="1" name="group_id" type="int" />
+			<param index="2" name="realtime" type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="sync_group_create">
+			<return type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="sync_group_get_deferred_update_rate" qualifiers="const">
+			<return type="float" />
+			<param index="0" name="node_id" type="int" />
+			<param index="1" name="group_id" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="sync_group_move_peer_to">
+			<return type="void" />
+			<param index="0" name="peer_id" type="int" />
+			<param index="1" name="group_id" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="sync_group_remove_node">
+			<return type="void" />
+			<param index="0" name="node_id" type="int" />
+			<param index="1" name="group_id" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="sync_group_set_deferred_update_rate">
+			<return type="void" />
+			<param index="0" name="node_id" type="int" />
+			<param index="1" name="group_id" type="int" />
+			<param index="2" name="update_rate" type="float" />
 			<description>
 			</description>
 		</method>
 		<method name="track_variable_changes">
 			<return type="void" />
-			<argument index="0" name="node" type="Node" />
-			<argument index="1" name="variable" type="String" />
-			<argument index="2" name="object" type="Object" />
-			<argument index="3" name="method" type="String" />
-			<argument index="4" name="flags" type="int" enum="NetEventFlag" default="17" />
+			<param index="0" name="node" type="Node" />
+			<param index="1" name="variable" type="StringName" />
+			<param index="2" name="object" type="Object" />
+			<param index="3" name="method" type="StringName" />
+			<param index="4" name="flags" type="int" enum="NetEventFlag" default="17" />
 			<description>
 			</description>
 		</method>
 		<method name="unregister_node">
 			<return type="void" />
-			<argument index="0" name="node" type="Node" />
+			<param index="0" name="node" type="Node" />
 			<description>
 			</description>
 		</method>
 		<method name="unregister_process">
 			<return type="void" />
-			<argument index="0" name="node" type="Node" />
-			<argument index="1" name="function" type="String" />
+			<param index="0" name="node" type="Node" />
+			<param index="1" name="phase" type="int" enum="ProcessPhase" />
+			<param index="2" name="function" type="Callable" />
 			<description>
 			</description>
 		</method>
 		<method name="unregister_variable">
 			<return type="void" />
-			<argument index="0" name="node" type="Node" />
-			<argument index="1" name="variable" type="String" />
+			<param index="0" name="node" type="Node" />
+			<param index="1" name="variable" type="StringName" />
 			<description>
 			</description>
 		</method>
 		<method name="untrack_variable_changes">
 			<return type="void" />
-			<argument index="0" name="node" type="Node" />
-			<argument index="1" name="variable" type="String" />
-			<argument index="2" name="object" type="Object" />
-			<argument index="3" name="method" type="String" />
+			<param index="0" name="node" type="Node" />
+			<param index="1" name="variable" type="StringName" />
+			<param index="2" name="object" type="Object" />
+			<param index="3" name="method" type="StringName" />
 			<description>
 			</description>
 		</method>
@@ -211,10 +268,42 @@
 	<members>
 		<member name="comparison_float_tolerance" type="float" setter="set_comparison_float_tolerance" getter="get_comparison_float_tolerance" default="0.001">
 		</member>
+		<member name="nodes_relevancy_update_time" type="float" setter="set_nodes_relevancy_update_time" getter="get_nodes_relevancy_update_time" default="0.5">
+		</member>
 		<member name="server_notify_state_interval" type="float" setter="set_server_notify_state_interval" getter="get_server_notify_state_interval" default="1.0">
 		</member>
 	</members>
 	<signals>
+		<signal name="desync_detected">
+			<param index="0" name="input_id" type="int" />
+			<param index="1" name="node" type="Object" />
+			<param index="2" name="var_names" type="Array" />
+			<param index="3" name="client_values" type="Array" />
+			<param index="4" name="server_values" type="Array" />
+			<description>
+			</description>
+		</signal>
+		<signal name="peer_status_updated">
+			<param index="0" name="controlled_node" type="Object" />
+			<param index="1" name="node_data_id" type="int" />
+			<param index="2" name="peer" type="int" />
+			<param index="3" name="connected" type="bool" />
+			<param index="4" name="enabled" type="bool" />
+			<description>
+			</description>
+		</signal>
+		<signal name="rewind_frame_begin">
+			<param index="0" name="input_id" type="int" />
+			<param index="1" name="index" type="int" />
+			<param index="2" name="count" type="int" />
+			<description>
+			</description>
+		</signal>
+		<signal name="state_validated">
+			<param index="0" name="input_id" type="int" />
+			<description>
+			</description>
+		</signal>
 		<signal name="sync_paused">
 			<description>
 			</description>
@@ -225,6 +314,8 @@
 		</signal>
 	</signals>
 	<constants>
+		<constant name="GLOBAL_SYNC_GROUP_ID" value="0">
+		</constant>
 		<constant name="CHANGE" value="1" enum="NetEventFlag">
 		</constant>
 		<constant name="SYNC_RECOVER" value="2" enum="NetEventFlag">
@@ -240,6 +331,16 @@
 		<constant name="SYNC" value="14" enum="NetEventFlag">
 		</constant>
 		<constant name="ALWAYS" value="31" enum="NetEventFlag">
+		</constant>
+		<constant name="PROCESSPHASE_EARLY" value="0" enum="ProcessPhase">
+		</constant>
+		<constant name="PROCESSPHASE_PRE" value="1" enum="ProcessPhase">
+		</constant>
+		<constant name="PROCESSPHASE_PROCESS" value="2" enum="ProcessPhase">
+		</constant>
+		<constant name="PROCESSPHASE_POST" value="3" enum="ProcessPhase">
+		</constant>
+		<constant name="PROCESSPHASE_LATE" value="4" enum="ProcessPhase">
 		</constant>
 	</constants>
 </class>
