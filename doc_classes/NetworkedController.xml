@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<class name="NetworkedController" inherits="Node" version="3.5" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+<class name="NetworkedController" inherits="Node" version="4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
 	<brief_description>
 	</brief_description>
 	<description>
@@ -7,45 +7,30 @@
 	<tutorials>
 	</tutorials>
 	<methods>
-		<method name="_apply_epoch" qualifiers="virtual">
-			<return type="void" />
-			<argument index="0" name="delta" type="float" />
-			<argument index="1" name="interpolation_alpha" type="float" />
-			<argument index="2" name="past_buffer" type="DataBuffer" />
-			<argument index="3" name="future_buffer" type="DataBuffer" />
-			<description>
-			</description>
-		</method>
 		<method name="_are_inputs_different" qualifiers="virtual">
 			<return type="bool" />
-			<argument index="0" name="inputs_A" type="DataBuffer" />
-			<argument index="1" name="inputs_B" type="DataBuffer" />
-			<description>
-			</description>
-		</method>
-		<method name="_collect_epoch_data" qualifiers="virtual">
-			<return type="void" />
-			<argument index="0" name="buffer" type="DataBuffer" />
+			<param index="0" name="inputs_A" type="DataBuffer" />
+			<param index="1" name="inputs_B" type="DataBuffer" />
 			<description>
 			</description>
 		</method>
 		<method name="_collect_inputs" qualifiers="virtual">
 			<return type="void" />
-			<argument index="0" name="delta" type="float" />
-			<argument index="1" name="buffer" type="DataBuffer" />
+			<param index="0" name="delta" type="float" />
+			<param index="1" name="buffer" type="DataBuffer" />
 			<description>
 			</description>
 		</method>
 		<method name="_controller_process" qualifiers="virtual">
 			<return type="void" />
-			<argument index="0" name="delta" type="float" />
-			<argument index="1" name="buffer" type="DataBuffer" />
+			<param index="0" name="delta" type="float" />
+			<param index="1" name="buffer" type="DataBuffer" />
 			<description>
 			</description>
 		</method>
-		<method name="_count_input_size" qualifiers="virtual">
+		<method name="_count_input_size" qualifiers="virtual const">
 			<return type="int" />
-			<argument index="0" name="inputs" type="DataBuffer" />
+			<param index="0" name="inputs" type="DataBuffer" />
 			<description>
 			</description>
 		</method>
@@ -74,78 +59,71 @@
 			<description>
 			</description>
 		</method>
-		<method name="mark_epoch_as_important">
+		<method name="on_peer_status_updated">
 			<return type="void" />
+			<param index="0" name="_unnamed_arg0" type="Node" />
+			<param index="1" name="_unnamed_arg1" type="int" />
+			<param index="2" name="_unnamed_arg2" type="int" />
+			<param index="3" name="_unnamed_arg3" type="bool" />
+			<param index="4" name="_unnamed_arg4" type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="on_rewind_frame_begin">
+			<return type="void" />
+			<param index="0" name="_unnamed_arg0" type="int" />
+			<param index="1" name="_unnamed_arg1" type="int" />
+			<param index="2" name="_unnamed_arg2" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="on_state_validated">
+			<return type="void" />
+			<param index="0" name="_unnamed_arg0" type="int" />
 			<description>
 			</description>
 		</method>
 		<method name="player_get_pretended_delta" qualifiers="const">
 			<return type="float" />
-			<argument index="0" name="iterations_per_seconds" type="int" />
-			<description>
-			</description>
-		</method>
-		<method name="set_doll_collect_rate_factor">
-			<return type="void" />
-			<argument index="0" name="peer" type="int" />
-			<argument index="1" name="factor" type="float" />
-			<description>
-			</description>
-		</method>
-		<method name="set_doll_peer_active">
-			<return type="void" />
-			<argument index="0" name="peer_id" type="int" />
-			<argument index="1" name="active" type="bool" />
 			<description>
 			</description>
 		</method>
 	</methods>
 	<members>
-		<member name="doll_connection_stats_frame_span" type="int" setter="set_doll_connection_stats_frame_span" getter="get_doll_connection_stats_frame_span" default="60">
-		</member>
-		<member name="doll_interpolation_max_overshot" type="float" setter="set_doll_interpolation_max_overshot" getter="get_doll_interpolation_max_overshot" default="0.2">
-		</member>
-		<member name="doll_max_frames_delay" type="int" setter="set_doll_max_frames_delay" getter="get_doll_max_frames_delay" default="25">
-		</member>
-		<member name="doll_min_frames_delay" type="int" setter="set_doll_min_frames_delay" getter="get_doll_min_frames_delay" default="0">
-		</member>
-		<member name="doll_net_sensitivity" type="float" setter="set_doll_net_sensitivity" getter="get_doll_net_sensitivity" default="0.21">
-		</member>
-		<member name="doll_sync_rate" type="int" setter="set_doll_sync_rate" getter="get_doll_sync_rate" default="30">
-		</member>
 		<member name="input_storage_size" type="int" setter="set_player_input_storage_size" getter="get_player_input_storage_size" default="180">
 		</member>
-		<member name="max_frames_delay" type="int" setter="set_max_frames_delay" getter="get_max_frames_delay" default="6">
+		<member name="max_frames_delay" type="int" setter="set_max_frames_delay" getter="get_max_frames_delay" default="7">
 		</member>
-		<member name="max_redundant_inputs" type="int" setter="set_max_redundant_inputs" getter="get_max_redundant_inputs" default="5">
+		<member name="max_redundant_inputs" type="int" setter="set_max_redundant_inputs" getter="get_max_redundant_inputs" default="6">
 		</member>
-		<member name="min_frames_delay" type="int" setter="set_min_frames_delay" getter="get_min_frames_delay" default="1">
-		</member>
-		<member name="net_sensitivity" type="float" setter="set_net_sensitivity" getter="get_net_sensitivity" default="0.1">
+		<member name="min_frames_delay" type="int" setter="set_min_frames_delay" getter="get_min_frames_delay" default="2">
 		</member>
 		<member name="network_traced_frames" type="int" setter="set_network_traced_frames" getter="get_network_traced_frames" default="120">
 		</member>
 		<member name="server_controlled" type="bool" setter="set_server_controlled" getter="get_server_controlled" default="false">
 		</member>
-		<member name="tick_acceleration" type="float" setter="set_tick_acceleration" getter="get_tick_acceleration" default="2.0">
+		<member name="tick_acceleration" type="float" setter="set_tick_acceleration" getter="get_tick_acceleration" default="5.0">
 		</member>
-		<member name="tick_speedup_notification_delay" type="float" setter="set_tick_speedup_notification_delay" getter="get_tick_speedup_notification_delay" default="0.33">
+		<member name="tick_speedup_notification_delay" type="int" setter="set_tick_speedup_notification_delay" getter="get_tick_speedup_notification_delay" default="600">
 		</member>
 	</members>
 	<signals>
+		<signal name="client_speedup_adjusted">
+			<param index="0" name="input_worst_receival_time_ms" type="int" />
+			<param index="1" name="optimal_frame_delay" type="int" />
+			<param index="2" name="current_frame_delay" type="int" />
+			<param index="3" name="distance_to_optimal" type="int" />
+			<description>
+			</description>
+		</signal>
 		<signal name="controller_reset">
 			<description>
 			</description>
 		</signal>
-		<signal name="doll_sync_paused">
-			<description>
-			</description>
-		</signal>
-		<signal name="doll_sync_started">
+		<signal name="input_missed">
+			<param index="0" name="missing_input_id" type="int" />
 			<description>
 			</description>
 		</signal>
 	</signals>
-	<constants>
-	</constants>
 </class>
