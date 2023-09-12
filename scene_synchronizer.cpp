@@ -3288,13 +3288,7 @@ bool ClientSynchronizer::parse_sync_data(
 			p_node_parse(p_user_pointer, synchronizer_node_data);
 
 			if (synchronizer_node_data->is_controller) {
-				if (synchronizer_node_data == player_controller_node_data) {
-					// The current controller.
-					p_controller_parse(p_user_pointer, synchronizer_node_data);
-				} else {
-					// This is just a remoote controller
-					p_controller_parse(p_user_pointer, synchronizer_node_data);
-				}
+				p_controller_parse(p_user_pointer, synchronizer_node_data);
 			}
 
 		} else if (var_id == UINT32_MAX) {
