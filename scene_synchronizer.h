@@ -524,6 +524,15 @@ class ClientSynchronizer : public Synchronizer {
 		real_t alpha = 0.0;
 
 		DeferredSyncInterpolationData() = default;
+		DeferredSyncInterpolationData(const DeferredSyncInterpolationData &p_dss) :
+				nd(p_dss.nd),
+				past_epoch(p_dss.past_epoch),
+				future_epoch(p_dss.future_epoch),
+				alpha_advacing_per_epoch(p_dss.alpha_advacing_per_epoch),
+				alpha(p_dss.alpha) {
+			past_epoch_buffer.copy(p_dss.past_epoch_buffer);
+			future_epoch_buffer.copy(p_dss.future_epoch_buffer);
+		}
 		DeferredSyncInterpolationData &operator=(const DeferredSyncInterpolationData &p_dss) {
 			nd = p_dss.nd;
 			past_epoch_buffer.copy(p_dss.past_epoch_buffer);
@@ -534,6 +543,7 @@ class ClientSynchronizer : public Synchronizer {
 			alpha = p_dss.alpha;
 			return *this;
 		}
+
 		DeferredSyncInterpolationData(
 				NetUtility::NodeData *p_nd) :
 				nd(p_nd) {}
