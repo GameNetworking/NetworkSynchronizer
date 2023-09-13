@@ -437,7 +437,6 @@ struct DollController : public RemotelyControlledController {
 	DollController(NetworkedController *p_node);
 
 	uint32_t last_checked_input = 0;
-	int64_t virtual_current_input = 0;
 	int queued_instant_to_process = -1;
 
 	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;
