@@ -28,7 +28,7 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#include "scene/main/node.h"
+#include "networked_unit.h"
 
 #include "core/templates/local_vector.h"
 #include "core/templates/oa_hash_map.h"
@@ -105,8 +105,8 @@ struct PlayerController;
 // The server `SceneSynchronizer` code is inside the class `ServerSynchronizer`.
 // The client `SceneSynchronizer` code is inside the class `ClientSynchronizer`.
 // The no networking `SceneSynchronizer` code is inside the class `NoNetSynchronizer`.
-class SceneSynchronizer : public Node {
-	GDCLASS(SceneSynchronizer, Node);
+class SceneSynchronizer : public NetworkedUnit {
+	GDCLASS(SceneSynchronizer, NetworkedUnit);
 
 	friend class Synchronizer;
 	friend class ServerSynchronizer;
@@ -156,8 +156,8 @@ private:
 	// Controller nodes.
 	LocalVector<NetUtility::NodeData *> node_data_controllers;
 
-	// Just used to detect when the peer change. TODO Remove this and use a singnal instead.
-	void *peer_ptr = nullptr;
+	// Just used to detect when the low level peer change.
+	void *low_level_peer = nullptr;
 
 	int event_flag;
 	LocalVector<NetUtility::ChangeListener> event_listener;
@@ -281,8 +281,8 @@ public:
 	void set_peer_networking_enable(int p_peer, bool p_enable);
 	bool is_peer_networking_enable(int p_peer) const;
 
-	void _on_peer_connected(int p_peer);
-	void _on_peer_disconnected(int p_peer);
+	virtual void on_peer_connected(int p_peer) override;
+	virtual void on_peer_disconnected(int p_peer) override;
 
 	void _on_node_removed(Node *p_node);
 

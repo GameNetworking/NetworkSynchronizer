@@ -37,7 +37,6 @@
 #include "core/config/engine.h"
 #include "core/config/project_settings.h"
 #include "core/io/marshalls.h"
-#include "scene/main/multiplayer_api.h"
 #include "scene_synchronizer.h"
 #include "scene_synchronizer_debugger.h"
 #include <algorithm>
@@ -108,17 +107,9 @@ void NetworkedController::_bind_methods() {
 NetworkedController::NetworkedController() {
 	inputs_buffer = memnew(DataBuffer);
 
-	Dictionary rpc_config_reliable;
-	rpc_config_reliable["rpc_mode"] = MultiplayerAPI::RPC_MODE_ANY_PEER;
-	rpc_config_reliable["call_local"] = false;
-	rpc_config_reliable["transfer_mode"] = MultiplayerPeer::TRANSFER_MODE_RELIABLE;
-
-	Dictionary rpc_config_unreliable = rpc_config_reliable;
-	rpc_config_unreliable["transfer_mode"] = MultiplayerPeer::TRANSFER_MODE_UNRELIABLE;
-
-	rpc_config(SNAME("_rpc_server_send_inputs"), rpc_config_unreliable);
-	rpc_config(SNAME("_rpc_set_server_controlled"), rpc_config_reliable);
-	rpc_config(SNAME("_rpc_notify_fps_acceleration"), rpc_config_unreliable);
+	ns_configure_rpc(SNAME("_rpc_server_send_inputs"), false, false);
+	ns_configure_rpc(SNAME("_rpc_set_server_controlled"), false, true);
+	ns_configure_rpc(SNAME("_rpc_notify_fps_acceleration"), false, false);
 }
 
 NetworkedController::~NetworkedController() {
@@ -153,9 +144,9 @@ void NetworkedController::set_server_controlled(bool p_server_controlled) {
 			scene_synchronizer->notify_controller_control_mode_changed(this);
 
 			// Tell the client to do the switch too.
-			if (get_multiplayer_authority() != 1) {
-				rpc_id(
-						get_multiplayer_authority(),
+			if (ns_get_unit_authority() != 1) {
+				ns_rpc(
+						ns_get_unit_authority(),
 						SNAME("_rpc_set_server_controlled"),
 						server_controlled);
 			} else {
@@ -1066,7 +1057,7 @@ bool ServerController::receive_inputs(const Vector<uint8_t> &p_data) {
 
 					node->__input_data_set_first_input_id(data, peer_input_id);
 
-					node->rpc_id(
+					node->ns_rpc(
 							peer_id,
 							SNAME("_rpc_server_send_inputs"),
 							data);
@@ -1157,8 +1148,8 @@ void ServerController::adjust_player_tick_rate(double p_delta) {
 		Vector<uint8_t> packet_data;
 		packet_data.push_back(compressed_distance);
 
-		node->rpc_id(
-				node->get_multiplayer_authority(),
+		node->ns_rpc(
+				node->ns_get_unit_authority(),
 				SNAME("_rpc_notify_fps_acceleration"),
 				packet_data);
 	}
@@ -1548,7 +1539,7 @@ void PlayerController::send_frame_input_buffer_to_server() {
 			ofs);
 
 	const int server_peer_id = 1;
-	node->rpc_id(
+	node->ns_rpc(
 			server_peer_id,
 			SNAME("_rpc_server_send_inputs"),
 			packet_data);

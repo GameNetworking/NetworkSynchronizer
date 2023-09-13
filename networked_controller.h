@@ -32,7 +32,7 @@
 	@author AndreaCatania
 */
 
-#include "scene/main/node.h"
+#include "networked_unit.h"
 
 #include "data_buffer.h"
 #include "net_utilities.h"
@@ -66,8 +66,8 @@ struct NoNetController;
 // instantiated.
 // The most important part is inside the `PlayerController`, `ServerController`,
 // `DollController`, `NoNetController`.
-class NetworkedController : public Node {
-	GDCLASS(NetworkedController, Node);
+class NetworkedController : public NetworkedUnit {
+	GDCLASS(NetworkedController, NetworkedUnit);
 
 	friend class SceneSynchronizer;
 	friend struct RemotelyControlledController;
