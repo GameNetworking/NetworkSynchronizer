@@ -1678,23 +1678,6 @@ bool DollController::fetch_next_input(real_t p_delta) {
 
 void DollController::process(double p_delta) {
 	const bool is_new_input = fetch_next_input(p_delta);
-	String s;
-	for (size_t i = 0; i < snapshots.size(); ++i) {
-		s += itos(snapshots[i].id) + ", ";
-	}
-
-	if (current_input_buffer_id > virtual_current_input && current_input_buffer_id != UINT32_MAX) {
-		// If the current buffer surpasses the virtual buffer: reset it.
-		// This can be triggered by a rewind.
-		//virtual_current_input = current_input_buffer_id;
-	}
-
-	if (queued_instant_to_process == -1) {
-		virtual_current_input += 1;
-	} else {
-		virtual_current_input = current_input_buffer_id;
-	}
-	queued_instant_to_process = -1;
 
 	if (is_new_input) {
 		SceneSynchronizerDebugger::singleton()->debug_print(node, "Doll process index: " + itos(current_input_buffer_id), true);
@@ -1707,6 +1690,8 @@ void DollController::process(double p_delta) {
 				node->get_inputs_buffer_mut());
 		SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
 	}
+
+	queued_instant_to_process = -1;
 }
 
 void DollController::notify_input_checked(uint32_t p_input_id) {
