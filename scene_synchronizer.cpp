@@ -576,10 +576,11 @@ void SceneSynchronizer::register_process(Node *p_node, ProcessPhase p_phase, con
 void SceneSynchronizer::unregister_process(Node *p_node, ProcessPhase p_phase, const Callable &p_func) {
 	ERR_FAIL_COND(p_node == nullptr);
 	ERR_FAIL_COND(!p_func.is_valid());
-	NetUtility::NodeData *node_data = register_node(p_node);
-	ERR_FAIL_COND(node_data == nullptr);
-	node_data->functions[p_phase].erase(p_func);
-	process_functions__clear();
+	NetUtility::NodeData *node_data = find_node_data(p_node);
+	if (node_data) {
+		node_data->functions[p_phase].erase(p_func);
+		process_functions__clear();
+	}
 }
 
 void SceneSynchronizer::setup_deferred_sync(Node *p_node, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func) {
