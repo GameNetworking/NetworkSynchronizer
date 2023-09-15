@@ -12,6 +12,8 @@ public:
 	virtual ~GdNetworkInterface();
 
 public: // ---------------------------------------------------------------- APIs
+	virtual String get_name() const override;
+
 	/// Call this function to start receiving events on peer connection / disconnection.
 	virtual void start_listening_peer_connection(
 			std::function<void(int /*p_peer*/)> p_on_peer_connected_callback,
@@ -56,7 +58,7 @@ public: // ---------------------------------------------------------------- APIs
 	virtual int rpc_get_sender() const override;
 
 protected:
-	/// This is just for internal usage.
+	/// Implements the rpc send mechanism.
 	virtual void rpc_array(
 			int p_peer_id,
 			const StringName &p_method,

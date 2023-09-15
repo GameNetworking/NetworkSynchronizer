@@ -41,6 +41,10 @@
 class SceneSynchronizer;
 class SceneTree;
 
+namespace NS {
+class NetworkInterface;
+};
+
 class SceneSynchronizerDebugger : public Node {
 	GDCLASS(SceneSynchronizerDebugger, Node);
 
@@ -149,7 +153,7 @@ public:
 	void scene_sync_process_start(const SceneSynchronizer *p_scene_sync);
 	void scene_sync_process_end(const SceneSynchronizer *p_scene_sync);
 
-	void databuffer_operation_begin_record(Node *p_node, DataBufferDumpMode p_mode);
+	void databuffer_operation_begin_record(NS::NetworkInterface *p_network_interface, DataBufferDumpMode p_mode);
 	void databuffer_operation_end_record();
 	void databuffer_write(uint32_t p_data_type, uint32_t p_compression_level, Variant p_variable);
 	void databuffer_read(uint32_t p_data_type, uint32_t p_compression_level, Variant p_variable);
@@ -157,12 +161,14 @@ public:
 	void notify_input_sent_to_server(Node *p_node, uint32_t p_frame_index, uint32_t p_input_index);
 	void notify_are_inputs_different_result(Node *p_node, uint32_t p_other_frame_index, bool p_is_similar);
 
-	void add_node_message(Node *p_node, const String &p_message);
-	void add_node_message_by_path(const String &p_node_path, const String &p_message);
+	void add_node_message(const String &p_name, const String &p_message);
 
-	void debug_print(Node *p_node, const String &p_message, bool p_silent = false);
-	void debug_warning(Node *p_node, const String &p_message, bool p_silent = false);
-	void debug_error(Node *p_node, const String &p_message, bool p_silent = false);
+	void debug_print(NS::NetworkInterface *p_network_interface, const String &p_message, bool p_silent = false);
+	void debug_warning(NS::NetworkInterface *p_network_interface, const String &p_message, bool p_silent = false);
+	void debug_error(NS::NetworkInterface *p_network_interface, const String &p_message, bool p_silent = false);
+	void gd_debug_print(Node *p_node, const String &p_message, bool p_silent = false);
+	void gd_debug_warning(Node *p_node, const String &p_message, bool p_silent = false);
+	void gd_debug_error(Node *p_node, const String &p_message, bool p_silent = false);
 
 	void notify_event(FrameEvent p_event);
 

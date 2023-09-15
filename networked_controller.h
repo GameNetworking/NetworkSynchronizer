@@ -41,7 +41,10 @@
 #ifndef NETWORKED_CONTROLLER_H
 #define NETWORKED_CONTROLLER_H
 
+namespace NS {
 class SceneSynchronizer;
+};
+
 struct Controller;
 struct ServerController;
 struct PlayerController;
@@ -73,7 +76,7 @@ class NetworkInterface;
 class NetworkedController : public Node {
 	GDCLASS(NetworkedController, Node);
 
-	friend class SceneSynchronizer;
+	friend class NS::SceneSynchronizer;
 	friend struct RemotelyControlledController;
 	friend struct ServerController;
 
@@ -165,7 +168,7 @@ private:
 	// `memnew` created Objects.
 	DataBuffer *inputs_buffer = nullptr;
 
-	SceneSynchronizer *scene_synchronizer = nullptr;
+	NS::SceneSynchronizer *scene_synchronizer = nullptr;
 
 	bool has_player_new_input = false;
 
@@ -252,8 +255,8 @@ public:
 public:
 	void set_inputs_buffer(const BitArray &p_new_buffer, uint32_t p_metadata_size_in_bit, uint32_t p_size_in_bit);
 
-	void notify_registered_with_synchronizer(SceneSynchronizer *p_synchronizer);
-	SceneSynchronizer *get_scene_synchronizer() const;
+	void notify_registered_with_synchronizer(NS::SceneSynchronizer *p_synchronizer);
+	NS::SceneSynchronizer *get_scene_synchronizer() const;
 	bool has_scene_synchronizer() const;
 
 	void on_peer_status_updated(Node *p_node, NetNodeId p_id, int p_peer_id, bool p_connected, bool p_enabled);

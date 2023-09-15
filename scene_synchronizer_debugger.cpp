@@ -38,6 +38,7 @@
 #include "core/io/json.h"
 #include "core/os/os.h"
 #include "data_buffer.h"
+#include "modules/network_synchronizer/core/network_interface.h"
 #include "net_utilities.h"
 #include "scene/main/viewport.h"
 #include "scene/main/window.h"
@@ -55,12 +56,11 @@ void SceneSynchronizerDebugger::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("on_node_added"), &SceneSynchronizerDebugger::on_node_added);
 	ClassDB::bind_method(D_METHOD("on_node_removed"), &SceneSynchronizerDebugger::on_node_removed);
 
-	ClassDB::bind_method(D_METHOD("add_node_message", "node", "message"), &SceneSynchronizerDebugger::add_node_message);
-	ClassDB::bind_method(D_METHOD("add_node_message_by_path", "node_path", "message"), &SceneSynchronizerDebugger::add_node_message_by_path);
+	ClassDB::bind_method(D_METHOD("add_node_message", "name", "message"), &SceneSynchronizerDebugger::add_node_message);
 
-	ClassDB::bind_method(D_METHOD("debug_print", "node", "message", "silent"), &SceneSynchronizerDebugger::debug_print);
-	ClassDB::bind_method(D_METHOD("debug_warning", "node", "message", "silent"), &SceneSynchronizerDebugger::debug_warning);
-	ClassDB::bind_method(D_METHOD("debug_error", "node", "message", "silent"), &SceneSynchronizerDebugger::debug_error);
+	ClassDB::bind_method(D_METHOD("debug_print", "node", "message", "silent"), &SceneSynchronizerDebugger::gd_debug_print);
+	ClassDB::bind_method(D_METHOD("debug_warning", "node", "message", "silent"), &SceneSynchronizerDebugger::gd_debug_warning);
+	ClassDB::bind_method(D_METHOD("debug_error", "node", "message", "silent"), &SceneSynchronizerDebugger::gd_debug_error);
 }
 
 SceneSynchronizerDebugger::SceneSynchronizerDebugger() :
@@ -519,19 +519,19 @@ void SceneSynchronizerDebugger::scene_sync_process_end(const SceneSynchronizer *
 #endif
 }
 
-void SceneSynchronizerDebugger::databuffer_operation_begin_record(Node *p_node, DataBufferDumpMode p_mode) {
+void SceneSynchronizerDebugger::databuffer_operation_begin_record(NS::NetworkInterface *p_network_interface, DataBufferDumpMode p_mode) {
 #ifdef DEBUG_ENABLED
 	if (!dump_enabled) {
 		return;
 	}
 
-	frame_dump__data_buffer_name = p_node->get_path();
+	frame_dump__data_buffer_name = p_network_interface->get_name();
 	frame_dump_data_buffer_dump_mode = p_mode;
 
 	if (frame_dump_data_buffer_dump_mode == DataBufferDumpMode::WRITE) {
-		add_node_message_by_path(frame_dump__data_buffer_name, "[WRITE] DataBuffer start write");
+		add_node_message(frame_dump__data_buffer_name, "[WRITE] DataBuffer start write");
 	} else {
-		add_node_message_by_path(frame_dump__data_buffer_name, "[READ] DataBuffer start read");
+		add_node_message(frame_dump__data_buffer_name, "[READ] DataBuffer start read");
 	}
 #endif
 }
@@ -543,9 +543,9 @@ void SceneSynchronizerDebugger::databuffer_operation_end_record() {
 	}
 
 	if (frame_dump_data_buffer_dump_mode == DataBufferDumpMode::WRITE) {
-		add_node_message_by_path(frame_dump__data_buffer_name, "[WRITE] end");
+		add_node_message(frame_dump__data_buffer_name, "[WRITE] end");
 	} else {
-		add_node_message_by_path(frame_dump__data_buffer_name, "[READ] end");
+		add_node_message(frame_dump__data_buffer_name, "[READ] end");
 	}
 
 	frame_dump_data_buffer_dump_mode = DataBufferDumpMode::NONE;
@@ -569,7 +569,7 @@ void SceneSynchronizerDebugger::databuffer_write(uint32_t p_data_type, uint32_t 
 
 	const String operation = "[WRITE]      [" + compression_level_to_string(p_compression_level) + "] [" + data_type_to_string(p_data_type) + "] " + val_string;
 
-	add_node_message_by_path(frame_dump__data_buffer_name, operation);
+	add_node_message(frame_dump__data_buffer_name, operation);
 #endif
 }
 
@@ -589,13 +589,13 @@ void SceneSynchronizerDebugger::databuffer_read(uint32_t p_data_type, uint32_t p
 
 	const String operation = "[READ]     [" + compression_level_to_string(p_compression_level) + "] [" + data_type_to_string(p_data_type) + "] " + val_string;
 
-	add_node_message_by_path(frame_dump__data_buffer_name, operation);
+	add_node_message(frame_dump__data_buffer_name, operation);
 #endif
 }
 
 void SceneSynchronizerDebugger::notify_input_sent_to_server(Node *p_node, uint32_t p_frame_index, uint32_t p_input_index) {
 #ifdef DEBUG_ENABLED
-	debug_print(p_node, "The client sent to server the input `" + itos(p_input_index) + "` for frame:`" + itos(p_frame_index) + "`.", true);
+	gd_debug_print(p_node, "The client sent to server the input `" + itos(p_input_index) + "` for frame:`" + itos(p_frame_index) + "`.", true);
 #endif
 }
 
@@ -605,25 +605,15 @@ void SceneSynchronizerDebugger::notify_are_inputs_different_result(
 		bool p_is_similar) {
 #ifdef DEBUG_ENABLED
 	if (p_is_similar) {
-		debug_print(p_node, "This frame input is SIMILAR to `" + itos(p_other_frame_index) + "`", true);
+		gd_debug_print(p_node, "This frame input is SIMILAR to `" + itos(p_other_frame_index) + "`", true);
 	} else {
-		debug_print(p_node, "This frame input is DIFFERENT to `" + itos(p_other_frame_index) + "`", true);
+		gd_debug_print(p_node, "This frame input is DIFFERENT to `" + itos(p_other_frame_index) + "`", true);
 	}
 	frame_dump__are_inputs_different_results[p_other_frame_index] = p_is_similar;
 #endif
 }
 
-void SceneSynchronizerDebugger::add_node_message(Node *p_node, const String &p_message) {
-#ifdef DEBUG_ENABLED
-	if (p_node) {
-		add_node_message_by_path(p_node->get_path(), p_message);
-	} else {
-		add_node_message_by_path("GLOBAL", p_message);
-	}
-#endif
-}
-
-void SceneSynchronizerDebugger::add_node_message_by_path(const String &p_node_path, const String &p_message) {
+void SceneSynchronizerDebugger::add_node_message(const String &p_node_path, const String &p_message) {
 #ifdef DEBUG_ENABLED
 	if (!dump_enabled) {
 		return;
@@ -644,31 +634,60 @@ void SceneSynchronizerDebugger::add_node_message_by_path(const String &p_node_pa
 #endif
 }
 
-void SceneSynchronizerDebugger::debug_print(Node *p_node, const String &p_message, bool p_silent) {
+void SceneSynchronizerDebugger::debug_print(NS::NetworkInterface *p_network_interface, const String &p_message, bool p_silent) {
 #ifdef DEBUG_ENABLED
 	if (!p_silent) {
 		NET_DEBUG_PRINT(p_message);
 	}
-	add_node_message(p_node, "[INFO]    " + p_message);
+	add_node_message(p_network_interface ? p_network_interface->get_name() : "GLOBAL", "[INFO]    " + p_message);
 #endif
 }
 
-void SceneSynchronizerDebugger::debug_warning(Node *p_node, const String &p_message, bool p_silent) {
+void SceneSynchronizerDebugger::debug_warning(NS::NetworkInterface *p_network_interface, const String &p_message, bool p_silent) {
 #ifdef DEBUG_ENABLED
 	if (!p_silent) {
 		NET_DEBUG_WARN(p_message);
 	}
-	add_node_message(p_node, "[WARNING] " + p_message);
+	add_node_message(p_network_interface ? p_network_interface->get_name() : "GLOBAL", "[WARNING] " + p_message);
 	frame_dump__has_warnings = true;
 #endif
 }
 
-void SceneSynchronizerDebugger::debug_error(Node *p_node, const String &p_message, bool p_silent) {
+void SceneSynchronizerDebugger::debug_error(NS::NetworkInterface *p_network_interface, const String &p_message, bool p_silent) {
 #ifdef DEBUG_ENABLED
 	if (!p_silent) {
 		NET_DEBUG_ERR(p_message);
 	}
-	add_node_message(p_node, "[ERROR]   " + p_message);
+	add_node_message(p_network_interface ? p_network_interface->get_name() : "GLOBAL", "[ERROR]   " + p_message);
+	frame_dump__has_errors = true;
+#endif
+}
+
+void SceneSynchronizerDebugger::gd_debug_print(Node *p_node, const String &p_message, bool p_silent) {
+#ifdef DEBUG_ENABLED
+	if (!p_silent) {
+		NET_DEBUG_PRINT(p_message);
+	}
+	add_node_message(p_node ? String(p_node->get_path()) : "GLOBAL", "[INFO]    " + p_message);
+#endif
+}
+
+void SceneSynchronizerDebugger::gd_debug_warning(Node *p_node, const String &p_message, bool p_silent) {
+#ifdef DEBUG_ENABLED
+	if (!p_silent) {
+		NET_DEBUG_WARN(p_message);
+	}
+	add_node_message(p_node ? String(p_node->get_path()) : "GLOBAL", "[WARNING] " + p_message);
+	frame_dump__has_warnings = true;
+#endif
+}
+
+void SceneSynchronizerDebugger::gd_debug_error(Node *p_node, const String &p_message, bool p_silent) {
+#ifdef DEBUG_ENABLED
+	if (!p_silent) {
+		NET_DEBUG_ERR(p_message);
+	}
+	add_node_message(p_node ? String(p_node->get_path()) : "GLOBAL", "[ERROR]   " + p_message);
 	frame_dump__has_errors = true;
 #endif
 }

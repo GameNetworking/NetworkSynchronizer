@@ -11,6 +11,10 @@ GdNetworkInterface::GdNetworkInterface() {
 GdNetworkInterface::~GdNetworkInterface() {
 }
 
+String GdNetworkInterface::get_name() const {
+	return owner->get_path();
+}
+
 void GdNetworkInterface::start_listening_peer_connection(
 		std::function<void(int /*p_peer*/)> p_on_peer_connected_callback,
 		std::function<void(int /*p_peer*/)> p_on_peer_disconnected_callback) {

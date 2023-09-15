@@ -38,7 +38,9 @@
 #include "core/object/class_db.h"
 #include "net_utilities.h"
 
+namespace NS {
 class SceneSynchronizer;
+};
 
 struct VarDiff {
 	bool is_different = false;
@@ -51,7 +53,7 @@ struct VarDiff {
 class SceneDiff : public Object {
 	GDCLASS(SceneDiff, Object);
 
-	friend class SceneSynchronizer;
+	friend class NS::SceneSynchronizer;
 
 	static void _bind_methods();
 
@@ -63,7 +65,7 @@ public:
 	SceneDiff() = default;
 
 	void start_tracking_scene_changes(const LocalVector<NetUtility::NodeData *> &p_nodes);
-	void stop_tracking_scene_changes(const SceneSynchronizer *p_synchronizer);
+	void stop_tracking_scene_changes(const NS::SceneSynchronizer *p_synchronizer);
 
 	bool is_tracking_in_progress() const;
 };
