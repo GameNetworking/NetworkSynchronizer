@@ -159,11 +159,11 @@ void NetworkedController::set_server_controlled(bool p_server_controlled) {
 						SNAME("_rpc_set_server_controlled"),
 						server_controlled);
 			} else {
-				SceneSynchronizerDebugger::singleton()->debug_warning(this, "The node is owned by the server, there is no client that can control it; please assign the proper authority.");
+				SceneSynchronizerDebugger::singleton()->debug_warning(network_interface, "The node is owned by the server, there is no client that can control it; please assign the proper authority.");
 			}
 
 		} else if (is_player_controller() || is_doll_controller()) {
-			SceneSynchronizerDebugger::singleton()->debug_warning(this, "You should never call the function `set_server_controlled` on the client, this has an effect only if called on the server.");
+			SceneSynchronizerDebugger::singleton()->debug_warning(network_interface, "You should never call the function `set_server_controlled` on the client, this has an effect only if called on the server.");
 
 		} else if (is_nonet_controller()) {
 			// There is no networking, the same instance is both the client and the
@@ -403,7 +403,7 @@ void NetworkedController::set_inputs_buffer(const BitArray &p_new_buffer, uint32
 	inputs_buffer->shrink_to(p_metadata_size_in_bit, p_size_in_bit);
 }
 
-void NetworkedController::notify_registered_with_synchronizer(SceneSynchronizer *p_synchronizer) {
+void NetworkedController::notify_registered_with_synchronizer(NS::SceneSynchronizer *p_synchronizer) {
 	if (scene_synchronizer) {
 		scene_synchronizer->disconnect("rewind_frame_begin", Callable(this, "on_rewind_frame_begin"));
 		scene_synchronizer->disconnect("state_validated", Callable(this, "on_state_validated"));
@@ -422,7 +422,7 @@ void NetworkedController::notify_registered_with_synchronizer(SceneSynchronizer 
 	}
 }
 
-SceneSynchronizer *NetworkedController::get_scene_synchronizer() const {
+NS::SceneSynchronizer *NetworkedController::get_scene_synchronizer() const {
 	return scene_synchronizer;
 }
 
@@ -714,17 +714,17 @@ bool RemotelyControlledController::fetch_next_input(real_t p_delta) {
 			set_frame_input(snapshots.front(), true);
 			snapshots.pop_front();
 			// Start tracing the packets from this moment on.
-			SceneSynchronizerDebugger::singleton()->debug_print(node, "[RemotelyControlledController::fetch_next_input] Input `" + itos(current_input_buffer_id) + "` selected as first input.", true);
+			SceneSynchronizerDebugger::singleton()->debug_print(node->network_interface, "[RemotelyControlledController::fetch_next_input] Input `" + itos(current_input_buffer_id) + "` selected as first input.", true);
 		} else {
 			is_new_input = false;
-			SceneSynchronizerDebugger::singleton()->debug_print(node, "[RemotelyControlledController::fetch_next_input] Still no inputs.", true);
+			SceneSynchronizerDebugger::singleton()->debug_print(node->network_interface, "[RemotelyControlledController::fetch_next_input] Still no inputs.", true);
 		}
 	} else {
 		const uint32_t next_input_id = current_input_buffer_id + 1;
-		SceneSynchronizerDebugger::singleton()->debug_print(node, "[RemotelyControlledController::fetch_next_input] The server is looking for: " + itos(next_input_id), true);
+		SceneSynchronizerDebugger::singleton()->debug_print(node->network_interface, "[RemotelyControlledController::fetch_next_input] The server is looking for: " + itos(next_input_id), true);
 
 		if (unlikely(streaming_paused)) {
-			SceneSynchronizerDebugger::singleton()->debug_print(node, "[RemotelyControlledController::fetch_next_input] The streaming is paused.", true);
+			SceneSynchronizerDebugger::singleton()->debug_print(node->network_interface, "[RemotelyControlledController::fetch_next_input] The streaming is paused.", true);
 			// Stream is paused.
 			if (snapshots.empty() == false &&
 					snapshots.front().id >= next_input_id) {
@@ -742,17 +742,17 @@ bool RemotelyControlledController::fetch_next_input(real_t p_delta) {
 			}
 		} else if (unlikely(snapshots.empty() == true)) {
 			// The input buffer is empty; a packet is missing.
-			SceneSynchronizerDebugger::singleton()->debug_print(node, "[RemotelyControlledController::fetch_next_input] Missing input: " + itos(next_input_id) + " Input buffer is void, i'm using the previous one!");
+			SceneSynchronizerDebugger::singleton()->debug_print(node->network_interface, "[RemotelyControlledController::fetch_next_input] Missing input: " + itos(next_input_id) + " Input buffer is void, i'm using the previous one!");
 
 			is_new_input = false;
 			ghost_input_count += 1;
 
 		} else {
-			SceneSynchronizerDebugger::singleton()->debug_print(node, "[RemotelyControlledController::fetch_next_input] The input buffer is not empty, so looking for the next input. Hopefully `" + itos(next_input_id) + "`", true);
+			SceneSynchronizerDebugger::singleton()->debug_print(node->network_interface, "[RemotelyControlledController::fetch_next_input] The input buffer is not empty, so looking for the next input. Hopefully `" + itos(next_input_id) + "`", true);
 
 			// The input buffer is not empty, search the new input.
 			if (next_input_id == snapshots.front().id) {
-				SceneSynchronizerDebugger::singleton()->debug_print(node, "[RemotelyControlledController::fetch_next_input] The input `" + itos(next_input_id) + "` was found.", true);
+				SceneSynchronizerDebugger::singleton()->debug_print(node->network_interface, "[RemotelyControlledController::fetch_next_input] The input `" + itos(next_input_id) + "` was found.", true);
 
 				// Wow, the next input is perfect!
 				set_frame_input(snapshots.front(), false);
@@ -795,8 +795,8 @@ bool RemotelyControlledController::fetch_next_input(real_t p_delta) {
 				// For this reason we keep track the amount of missing packets
 				// using `ghost_input_count`.
 
-				SceneSynchronizerDebugger::singleton()->debug_print(node, "[RemotelyControlledController::fetch_next_input] The input `" + itos(next_input_id) + "` was NOT found. Recovering process started.", true);
-				SceneSynchronizerDebugger::singleton()->debug_print(node, "[RemotelyControlledController::fetch_next_input] ghost_input_count: `" + itos(ghost_input_count) + "`", true);
+				SceneSynchronizerDebugger::singleton()->debug_print(node->network_interface, "[RemotelyControlledController::fetch_next_input] The input `" + itos(next_input_id) + "` was NOT found. Recovering process started.", true);
+				SceneSynchronizerDebugger::singleton()->debug_print(node->network_interface, "[RemotelyControlledController::fetch_next_input] ghost_input_count: `" + itos(ghost_input_count) + "`", true);
 
 				const int size = MIN(ghost_input_count, snapshots.size());
 				const uint32_t ghost_packet_id = next_input_id + ghost_input_count;
@@ -809,14 +809,14 @@ bool RemotelyControlledController::fetch_next_input(real_t p_delta) {
 				pir_A->copy(node->get_inputs_buffer());
 
 				for (int i = 0; i < size; i += 1) {
-					SceneSynchronizerDebugger::singleton()->debug_print(node, "[RemotelyControlledController::fetch_next_input] checking if `" + itos(snapshots.front().id) + "` can be used to recover `" + itos(next_input_id) + "`.", true);
+					SceneSynchronizerDebugger::singleton()->debug_print(node->network_interface, "[RemotelyControlledController::fetch_next_input] checking if `" + itos(snapshots.front().id) + "` can be used to recover `" + itos(next_input_id) + "`.", true);
 
 					if (ghost_packet_id < snapshots.front().id) {
-						SceneSynchronizerDebugger::singleton()->debug_print(node, "[RemotelyControlledController::fetch_next_input] The input `" + itos(snapshots.front().id) + "` can't be used as the ghost_packet_id (`" + itos(ghost_packet_id) + "`) is more than the input.", true);
+						SceneSynchronizerDebugger::singleton()->debug_print(node->network_interface, "[RemotelyControlledController::fetch_next_input] The input `" + itos(snapshots.front().id) + "` can't be used as the ghost_packet_id (`" + itos(ghost_packet_id) + "`) is more than the input.", true);
 						break;
 					} else {
 						const uint32_t input_id = snapshots.front().id;
-						SceneSynchronizerDebugger::singleton()->debug_print(node, "[RemotelyControlledController::fetch_next_input] The input `" + itos(input_id) + "` is eligible as next frame.", true);
+						SceneSynchronizerDebugger::singleton()->debug_print(node->network_interface, "[RemotelyControlledController::fetch_next_input] The input `" + itos(input_id) + "` is eligible as next frame.", true);
 
 						pi = snapshots.front();
 						snapshots.pop_front();
@@ -838,7 +838,7 @@ bool RemotelyControlledController::fetch_next_input(real_t p_delta) {
 
 						const bool are_different = node->native_are_inputs_different(*pir_A, *pir_B);
 						if (are_different) {
-							SceneSynchronizerDebugger::singleton()->debug_print(node, "[RemotelyControlledController::fetch_next_input] The input `" + itos(input_id) + "` is different from the one executed so far, so better to execute it.", true);
+							SceneSynchronizerDebugger::singleton()->debug_print(node->network_interface, "[RemotelyControlledController::fetch_next_input] The input `" + itos(input_id) + "` is different from the one executed so far, so better to execute it.", true);
 							break;
 						}
 					}
@@ -852,11 +852,11 @@ bool RemotelyControlledController::fetch_next_input(real_t p_delta) {
 				if (recovered) {
 					set_frame_input(pi, false);
 					ghost_input_count = 0;
-					SceneSynchronizerDebugger::singleton()->debug_print(node, "Packet recovered. The new InputID is: `" + itos(current_input_buffer_id) + "`");
+					SceneSynchronizerDebugger::singleton()->debug_print(node->network_interface, "Packet recovered. The new InputID is: `" + itos(current_input_buffer_id) + "`");
 				} else {
 					ghost_input_count += 1;
 					is_new_input = false;
-					SceneSynchronizerDebugger::singleton()->debug_print(node, "Packet still missing, the server is still using the old input.");
+					SceneSynchronizerDebugger::singleton()->debug_print(node->network_interface, "Packet still missing, the server is still using the old input.");
 				}
 			}
 		}
@@ -885,7 +885,7 @@ void RemotelyControlledController::process(double p_delta) {
 
 	if (unlikely(current_input_buffer_id == UINT32_MAX)) {
 		// Skip this until the first input arrive.
-		SceneSynchronizerDebugger::singleton()->debug_print(node, "Server skips this frame as the current_input_buffer_id == UINT32_MAX", true);
+		SceneSynchronizerDebugger::singleton()->debug_print(node->network_interface, "Server skips this frame as the current_input_buffer_id == UINT32_MAX", true);
 		return;
 	}
 
@@ -895,11 +895,11 @@ void RemotelyControlledController::process(double p_delta) {
 	}
 #endif
 
-	SceneSynchronizerDebugger::singleton()->debug_print(node, "RemotelyControlled process index: " + itos(current_input_buffer_id), true);
+	SceneSynchronizerDebugger::singleton()->debug_print(node->network_interface, "RemotelyControlled process index: " + itos(current_input_buffer_id), true);
 
 	node->get_inputs_buffer_mut().begin_read();
 	node->get_inputs_buffer_mut().seek(METADATA_SIZE);
-	SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(node, SceneSynchronizerDebugger::READ);
+	SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(&node->get_network_interface(), SceneSynchronizerDebugger::READ);
 	node->native_controller_process(
 			p_delta,
 			node->get_inputs_buffer_mut());
@@ -968,7 +968,7 @@ bool RemotelyControlledController::receive_inputs(const Vector<uint8_t> &p_data)
 #endif
 
 	if (!success) {
-		SceneSynchronizerDebugger::singleton()->debug_print(node, "[RemotelyControlledController::receive_input] Failed.");
+		SceneSynchronizerDebugger::singleton()->debug_print(node->network_interface, "[RemotelyControlledController::receive_input] Failed.");
 	}
 
 	return success;
@@ -1060,7 +1060,7 @@ bool ServerController::receive_inputs(const Vector<uint8_t> &p_data) {
 					const uint32_t peer_input_id = convert_input_id_to(peer_id, input_id);
 
 					if (peer_input_id == UINT32_MAX) {
-						SceneSynchronizerDebugger::singleton()->debug_print(node, "The `input_id` conversion failed for the peer `" + itos(peer_id) + "`. This is expected untill the client is fully initialized.", true);
+						SceneSynchronizerDebugger::singleton()->debug_print(node->network_interface, "The `input_id` conversion failed for the peer `" + itos(peer_id) + "`. This is expected untill the client is fully initialized.", true);
 						continue;
 					}
 
@@ -1180,11 +1180,11 @@ int AutonomousServerController::get_inputs_count() const {
 }
 
 bool AutonomousServerController::fetch_next_input(real_t p_delta) {
-	SceneSynchronizerDebugger::singleton()->debug_print(node, "Autonomous server fetch input.", true);
+	SceneSynchronizerDebugger::singleton()->debug_print(node->network_interface, "Autonomous server fetch input.", true);
 
 	node->get_inputs_buffer_mut().begin_write(METADATA_SIZE);
 	node->get_inputs_buffer_mut().seek(METADATA_SIZE);
-	SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(node, SceneSynchronizerDebugger::WRITE);
+	SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(&node->get_network_interface(), SceneSynchronizerDebugger::WRITE);
 	node->native_collect_inputs(p_delta, node->get_inputs_buffer_mut());
 	SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
 	node->get_inputs_buffer_mut().dry();
@@ -1343,13 +1343,13 @@ void PlayerController::process(double p_delta) {
 		if (accept_new_inputs) {
 			current_input_id = input_buffers_counter;
 
-			SceneSynchronizerDebugger::singleton()->debug_print(node, "Player process index: " + itos(current_input_id), true);
+			SceneSynchronizerDebugger::singleton()->debug_print(&node->get_network_interface(), "Player process index: " + itos(current_input_id), true);
 
 			node->get_inputs_buffer_mut().begin_write(METADATA_SIZE);
 
 			node->get_inputs_buffer_mut().seek(METADATA_SIZE);
 
-			SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(node, SceneSynchronizerDebugger::WRITE);
+			SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(&node->get_network_interface(), SceneSynchronizerDebugger::WRITE);
 			node->native_collect_inputs(p_delta, node->get_inputs_buffer_mut());
 			SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
 
@@ -1369,7 +1369,7 @@ void PlayerController::process(double p_delta) {
 		node->get_inputs_buffer_mut().begin_read();
 		node->get_inputs_buffer_mut().seek(METADATA_SIZE); // Skip meta.
 
-		SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(node, SceneSynchronizerDebugger::READ);
+		SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(&node->get_network_interface(), SceneSynchronizerDebugger::READ);
 		// The physics process is always emitted, because we still need to simulate
 		// the character motion even if we don't store the player inputs.
 		node->native_controller_process(p_delta, node->get_inputs_buffer_mut());
@@ -1613,7 +1613,7 @@ bool DollController::receive_inputs(const Vector<uint8_t> &p_data) {
 			});
 
 	if (!success) {
-		SceneSynchronizerDebugger::singleton()->debug_print(node, "[DollController::receive_input] Failed.");
+		SceneSynchronizerDebugger::singleton()->debug_print(node->network_interface, "[DollController::receive_input] Failed.");
 	}
 
 	return success;
@@ -1680,11 +1680,11 @@ void DollController::process(double p_delta) {
 	const bool is_new_input = fetch_next_input(p_delta);
 
 	if (is_new_input) {
-		SceneSynchronizerDebugger::singleton()->debug_print(node, "Doll process index: " + itos(current_input_buffer_id), true);
+		SceneSynchronizerDebugger::singleton()->debug_print(node->network_interface, "Doll process index: " + itos(current_input_buffer_id), true);
 
 		node->get_inputs_buffer_mut().begin_read();
 		node->get_inputs_buffer_mut().seek(METADATA_SIZE);
-		SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(node, SceneSynchronizerDebugger::READ);
+		SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(&node->get_network_interface(), SceneSynchronizerDebugger::READ);
 		node->native_controller_process(
 				p_delta,
 				node->get_inputs_buffer_mut());
@@ -1714,13 +1714,13 @@ NoNetController::NoNetController(NetworkedController *p_node) :
 
 void NoNetController::process(double p_delta) {
 	node->get_inputs_buffer_mut().begin_write(0); // No need of meta in this case.
-	SceneSynchronizerDebugger::singleton()->debug_print(node, "Nonet process index: " + itos(frame_id), true);
-	SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(node, SceneSynchronizerDebugger::WRITE);
+	SceneSynchronizerDebugger::singleton()->debug_print(&node->get_network_interface(), "Nonet process index: " + itos(frame_id), true);
+	SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(&node->get_network_interface(), SceneSynchronizerDebugger::WRITE);
 	node->native_collect_inputs(p_delta, node->get_inputs_buffer_mut());
 	SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
 	node->get_inputs_buffer_mut().dry();
 	node->get_inputs_buffer_mut().begin_read();
-	SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(node, SceneSynchronizerDebugger::READ);
+	SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(&node->get_network_interface(), SceneSynchronizerDebugger::READ);
 	node->native_controller_process(p_delta, node->get_inputs_buffer_mut());
 	SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
 	frame_id += 1;

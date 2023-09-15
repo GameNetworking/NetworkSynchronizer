@@ -9,6 +9,8 @@ NS_NAMESPACE_BEGIN
 
 class NetworkInterface {
 public:
+	/// Must be called when this interface receives an RPC.
+	std::function<void(int p_peer, const StringName &p_func, const Vector<Variant> &p_vars)> on_rpc_received;
 	std::function<void(int /*p_peer*/)> on_peer_connected_callback;
 	std::function<void(int /*p_peer*/)> on_peer_disconnected_callback;
 
@@ -16,6 +18,8 @@ public:
 	virtual ~NetworkInterface() = default;
 
 public: // ---------------------------------------------------------------- APIs
+	virtual String get_name() const = 0;
+
 	/// Call this function to start receiving events on peer connection / disconnection.
 	virtual void start_listening_peer_connection(
 			std::function<void(int /*p_peer*/)> p_on_peer_connected_callback,
@@ -56,6 +60,7 @@ public: // ---------------------------------------------------------------- APIs
 
 protected:
 	/// This is just for internal usage.
+	/// Implements the rpc send mechanism.
 	virtual void rpc_array(
 			int p_peer_id,
 			const StringName &p_method,

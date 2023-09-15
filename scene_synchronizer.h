@@ -1,34 +1,6 @@
-/*************************************************************************/
-/*  scene_synchronizer.h                                                 */
-/*************************************************************************/
-/*                       This file is part of:                           */
-/*                           GODOT ENGINE                                */
-/*                      https://godotengine.org                          */
-/*************************************************************************/
-/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
-/*                                                                       */
-/* Permission is hereby granted, free of charge, to any person obtaining */
-/* a copy of this software and associated documentation files (the       */
-/* "Software"), to deal in the Software without restriction, including   */
-/* without limitation the rights to use, copy, modify, merge, publish,   */
-/* distribute, sublicense, and/or sell copies of the Software, and to    */
-/* permit persons to whom the Software is furnished to do so, subject to */
-/* the following conditions:                                             */
-/*                                                                       */
-/* The above copyright notice and this permission notice shall be        */
-/* included in all copies or substantial portions of the Software.       */
-/*                                                                       */
-/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,       */
-/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF    */
-/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.*/
-/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY  */
-/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,  */
-/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
-/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
-/*************************************************************************/
+#pragma once
 
-#include "scene/main/node.h"
+#include "modules/network_synchronizer/core/core.h"
 
 #include "core/templates/local_vector.h"
 #include "core/templates/oa_hash_map.h"
@@ -37,16 +9,12 @@
 #include "snapshot.h"
 #include <deque>
 
-#ifndef SCENE_SYNCHRONIZER_H
-#define SCENE_SYNCHRONIZER_H
-
-class Synchronizer;
 class NetworkedController;
 struct PlayerController;
 
-namespace NS {
-class NetworkInterface;
-};
+NS_NAMESPACE_BEGIN
+
+class Synchronizer;
 
 /// # SceneSynchronizer
 ///
@@ -109,9 +77,7 @@ class NetworkInterface;
 // The server `SceneSynchronizer` code is inside the class `ServerSynchronizer`.
 // The client `SceneSynchronizer` code is inside the class `ClientSynchronizer`.
 // The no networking `SceneSynchronizer` code is inside the class `NoNetSynchronizer`.
-class SceneSynchronizer : public Node {
-	GDCLASS(SceneSynchronizer, Node);
-
+class SceneSynchronizer {
 	friend class Synchronizer;
 	friend class ServerSynchronizer;
 	friend class ClientSynchronizer;
@@ -126,13 +92,11 @@ public:
 		SYNCHRONIZER_TYPE_SERVER
 	};
 
-	GDVIRTUAL0(_update_nodes_relevancy);
-
 	/// This SyncGroup contains ALL the registered NodeData.
 	static const SyncGroupId GLOBAL_SYNC_GROUP_ID;
 
 private:
-	NS::NetworkInterface *network_interface = nullptr;
+	class NetworkInterface *network_interface = nullptr;
 
 	int max_deferred_nodes_per_update = 30;
 	real_t server_notify_state_interval = 1.0;
@@ -162,9 +126,6 @@ private:
 	// Controller nodes.
 	LocalVector<NetUtility::NodeData *> node_data_controllers;
 
-	// Just used to detect when the low level peer change.
-	void *low_level_peer = nullptr;
-
 	int event_flag;
 	LocalVector<NetUtility::ChangeListener> event_listener;
 
@@ -175,14 +136,23 @@ private:
 	bool debug_rewindings_enabled = false;
 
 public:
-	static void _bind_methods();
-
-	void _notification(int p_what);
-
-public:
 	SceneSynchronizer();
 	~SceneSynchronizer();
 
+public: // -------------------------------------------------------- Manager APIs
+	/// Setup the synchronizer
+	void setup(NetworkInterface &p_network_interface);
+
+	/// Prepare the synchronizer for destruction.
+	void pre_destroy();
+
+	/// Process the SceneSync.
+	void process();
+
+	/// Call this function when a networked node is destroyed.
+	void on_node_removed(Node *p_node);
+
+public:
 	NS::NetworkInterface &get_network_interface() { return *network_interface; }
 	const NS::NetworkInterface &get_network_interface() const { return *network_interface; }
 
@@ -200,9 +170,9 @@ public:
 
 	bool is_variable_registered(Node *p_node, const StringName &p_variable) const;
 
+public: // ---------------------------------------------------------------- APIs
 	/// Register a new node and returns its `NodeData`.
 	NetUtility::NodeData *register_node(Node *p_node);
-	uint32_t register_node_gdscript(Node *p_node);
 	void unregister_node(Node *p_node);
 
 	/// Returns the node ID.
@@ -293,11 +263,9 @@ public:
 	void on_peer_connected(int p_peer);
 	void on_peer_disconnected(int p_peer);
 
-	void _on_node_removed(Node *p_node);
-
-	virtual void init_synchronizer(bool p_was_generating_ids);
-	virtual void uninit_synchronizer();
-	virtual void reset_synchronizer_mode();
+	void init_synchronizer(bool p_was_generating_ids);
+	void uninit_synchronizer();
+	void reset_synchronizer_mode();
 	void clear();
 
 	void notify_controller_control_mode_changed(NetworkedController *controller);
@@ -345,8 +313,6 @@ public: // ------------------------------------------------------------ INTERNAL
 
 	void reset_controllers();
 	void reset_controller(NetUtility::NodeData *p_controller);
-
-	void process();
 
 #ifdef DEBUG_ENABLED
 	void validate_nodes();
@@ -639,7 +605,4 @@ private:
 			bool p_skip_custom_data = false);
 };
 
-VARIANT_ENUM_CAST(NetEventFlag)
-VARIANT_ENUM_CAST(ProcessPhase)
-
-#endif
+NS_NAMESPACE_END

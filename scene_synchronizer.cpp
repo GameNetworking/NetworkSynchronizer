@@ -39,193 +39,21 @@
 #include "core/templates/oa_hash_map.h"
 #include "core/variant/variant.h"
 #include "input_network_encoder.h"
+#include "modules/network_synchronizer/core/network_interface.h"
 #include "modules/network_synchronizer/godot4/gd_network_interface.h"
 #include "modules/network_synchronizer/net_utilities.h"
+#include "modules/network_synchronizer/networked_controller.h"
 #include "modules/network_synchronizer/snapshot.h"
-#include "networked_controller.h"
-#include "scene/main/multiplayer_api.h"
 #include "scene/main/window.h"
 #include "scene_diff.h"
 #include "scene_synchronizer_debugger.h"
 #include <functional>
 
+NS_NAMESPACE_BEGIN
+
 const SyncGroupId SceneSynchronizer::GLOBAL_SYNC_GROUP_ID = 0;
 
-void SceneSynchronizer::_bind_methods() {
-	BIND_CONSTANT(GLOBAL_SYNC_GROUP_ID)
-
-	BIND_ENUM_CONSTANT(CHANGE)
-	BIND_ENUM_CONSTANT(SYNC_RECOVER)
-	BIND_ENUM_CONSTANT(SYNC_RESET)
-	BIND_ENUM_CONSTANT(SYNC_REWIND)
-	BIND_ENUM_CONSTANT(END_SYNC)
-	BIND_ENUM_CONSTANT(DEFAULT)
-	BIND_ENUM_CONSTANT(SYNC)
-	BIND_ENUM_CONSTANT(ALWAYS)
-
-	BIND_ENUM_CONSTANT(PROCESSPHASE_EARLY)
-	BIND_ENUM_CONSTANT(PROCESSPHASE_PRE)
-	BIND_ENUM_CONSTANT(PROCESSPHASE_PROCESS)
-	BIND_ENUM_CONSTANT(PROCESSPHASE_POST)
-	BIND_ENUM_CONSTANT(PROCESSPHASE_LATE)
-
-	ClassDB::bind_method(D_METHOD("reset_synchronizer_mode"), &SceneSynchronizer::reset_synchronizer_mode);
-	ClassDB::bind_method(D_METHOD("clear"), &SceneSynchronizer::clear);
-
-	ClassDB::bind_method(D_METHOD("set_max_deferred_nodes_per_update", "rate"), &SceneSynchronizer::set_max_deferred_nodes_per_update);
-	ClassDB::bind_method(D_METHOD("get_max_deferred_nodes_per_update"), &SceneSynchronizer::get_max_deferred_nodes_per_update);
-
-	ClassDB::bind_method(D_METHOD("set_server_notify_state_interval", "interval"), &SceneSynchronizer::set_server_notify_state_interval);
-	ClassDB::bind_method(D_METHOD("get_server_notify_state_interval"), &SceneSynchronizer::get_server_notify_state_interval);
-
-	ClassDB::bind_method(D_METHOD("set_comparison_float_tolerance", "tolerance"), &SceneSynchronizer::set_comparison_float_tolerance);
-	ClassDB::bind_method(D_METHOD("get_comparison_float_tolerance"), &SceneSynchronizer::get_comparison_float_tolerance);
-
-	ClassDB::bind_method(D_METHOD("set_nodes_relevancy_update_time", "time"), &SceneSynchronizer::set_nodes_relevancy_update_time);
-	ClassDB::bind_method(D_METHOD("get_nodes_relevancy_update_time"), &SceneSynchronizer::get_nodes_relevancy_update_time);
-
-	ClassDB::bind_method(D_METHOD("register_node", "node"), &SceneSynchronizer::register_node_gdscript);
-	ClassDB::bind_method(D_METHOD("unregister_node", "node"), &SceneSynchronizer::unregister_node);
-	ClassDB::bind_method(D_METHOD("get_node_id", "node"), &SceneSynchronizer::get_node_id);
-	ClassDB::bind_method(D_METHOD("get_node_from_id", "id", "expected"), &SceneSynchronizer::get_node_from_id, DEFVAL(true));
-
-	ClassDB::bind_method(D_METHOD("register_variable", "node", "variable", "on_change_notify", "flags"), &SceneSynchronizer::register_variable, DEFVAL(StringName()), DEFVAL(NetEventFlag::DEFAULT));
-	ClassDB::bind_method(D_METHOD("unregister_variable", "node", "variable"), &SceneSynchronizer::unregister_variable);
-	ClassDB::bind_method(D_METHOD("get_variable_id", "node", "variable"), &SceneSynchronizer::get_variable_id);
-
-	ClassDB::bind_method(D_METHOD("set_skip_rewinding", "node", "variable", "skip_rewinding"), &SceneSynchronizer::set_skip_rewinding);
-
-	ClassDB::bind_method(D_METHOD("track_variable_changes", "node", "variable", "object", "method", "flags"), &SceneSynchronizer::track_variable_changes, DEFVAL(NetEventFlag::DEFAULT));
-	ClassDB::bind_method(D_METHOD("untrack_variable_changes", "node", "variable", "object", "method"), &SceneSynchronizer::untrack_variable_changes);
-
-	ClassDB::bind_method(D_METHOD("register_process", "node", "phase", "function"), &SceneSynchronizer::register_process);
-	ClassDB::bind_method(D_METHOD("unregister_process", "node", "phase", "function"), &SceneSynchronizer::unregister_process);
-
-	ClassDB::bind_method(D_METHOD("setup_deferred_sync", "node", "collect_epoch_func", "apply_epoch_func"), &SceneSynchronizer::setup_deferred_sync);
-
-	ClassDB::bind_method(D_METHOD("sync_group_create"), &SceneSynchronizer::sync_group_create);
-	ClassDB::bind_method(D_METHOD("sync_group_add_node", "node_id", "group_id", "realtime"), &SceneSynchronizer::sync_group_add_node_by_id);
-	ClassDB::bind_method(D_METHOD("sync_group_remove_node", "node_id", "group_id"), &SceneSynchronizer::sync_group_remove_node_by_id);
-	ClassDB::bind_method(D_METHOD("sync_group_move_peer_to", "peer_id", "group_id"), &SceneSynchronizer::sync_group_move_peer_to);
-	ClassDB::bind_method(D_METHOD("sync_group_set_deferred_update_rate", "node_id", "group_id", "update_rate"), &SceneSynchronizer::sync_group_set_deferred_update_rate_by_id);
-	ClassDB::bind_method(D_METHOD("sync_group_get_deferred_update_rate", "node_id", "group_id"), &SceneSynchronizer::sync_group_get_deferred_update_rate_by_id);
-
-	ClassDB::bind_method(D_METHOD("start_tracking_scene_changes", "diff_handle"), &SceneSynchronizer::start_tracking_scene_changes);
-	ClassDB::bind_method(D_METHOD("stop_tracking_scene_changes", "diff_handle"), &SceneSynchronizer::stop_tracking_scene_changes);
-	ClassDB::bind_method(D_METHOD("pop_scene_changes", "diff_handle"), &SceneSynchronizer::pop_scene_changes);
-	ClassDB::bind_method(D_METHOD("apply_scene_changes", "sync_data"), &SceneSynchronizer::apply_scene_changes);
-
-	ClassDB::bind_method(D_METHOD("is_recovered"), &SceneSynchronizer::is_recovered);
-	ClassDB::bind_method(D_METHOD("is_resetted"), &SceneSynchronizer::is_resetted);
-	ClassDB::bind_method(D_METHOD("is_rewinding"), &SceneSynchronizer::is_rewinding);
-	ClassDB::bind_method(D_METHOD("is_end_sync"), &SceneSynchronizer::is_end_sync);
-
-	ClassDB::bind_method(D_METHOD("force_state_notify", "group_id"), &SceneSynchronizer::force_state_notify);
-	ClassDB::bind_method(D_METHOD("force_state_notify_all"), &SceneSynchronizer::force_state_notify_all);
-
-	ClassDB::bind_method(D_METHOD("set_enabled", "enabled"), &SceneSynchronizer::set_enabled);
-	ClassDB::bind_method(D_METHOD("set_peer_networking_enable", "peer", "enabled"), &SceneSynchronizer::set_peer_networking_enable);
-	ClassDB::bind_method(D_METHOD("get_peer_networking_enable", "peer"), &SceneSynchronizer::is_peer_networking_enable);
-
-	ClassDB::bind_method(D_METHOD("is_server"), &SceneSynchronizer::is_server);
-	ClassDB::bind_method(D_METHOD("is_client"), &SceneSynchronizer::is_client);
-	ClassDB::bind_method(D_METHOD("is_networked"), &SceneSynchronizer::is_networked);
-
-	ClassDB::bind_method(D_METHOD("_on_node_removed"), &SceneSynchronizer::_on_node_removed);
-
-	ClassDB::bind_method(D_METHOD("_rpc_send_state"), &SceneSynchronizer::_rpc_send_state);
-	ClassDB::bind_method(D_METHOD("_rpc_notify_need_full_snapshot"), &SceneSynchronizer::_rpc_notify_need_full_snapshot);
-	ClassDB::bind_method(D_METHOD("_rpc_set_network_enabled", "enabled"), &SceneSynchronizer::_rpc_set_network_enabled);
-	ClassDB::bind_method(D_METHOD("_rpc_notify_peer_status", "enabled"), &SceneSynchronizer::_rpc_notify_peer_status);
-	ClassDB::bind_method(D_METHOD("_rpc_send_deferred_sync_data", "data"), &SceneSynchronizer::_rpc_send_deferred_sync_data);
-
-	GDVIRTUAL_BIND(_update_nodes_relevancy);
-
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "server_notify_state_interval", PROPERTY_HINT_RANGE, "0.001,10.0,0.0001"), "set_server_notify_state_interval", "get_server_notify_state_interval");
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "comparison_float_tolerance", PROPERTY_HINT_RANGE, "0.000001,0.01,0.000001"), "set_comparison_float_tolerance", "get_comparison_float_tolerance");
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "nodes_relevancy_update_time", PROPERTY_HINT_RANGE, "0.0,2.0,0.01"), "set_nodes_relevancy_update_time", "get_nodes_relevancy_update_time");
-
-	ADD_SIGNAL(MethodInfo("sync_started"));
-	ADD_SIGNAL(MethodInfo("sync_paused"));
-	ADD_SIGNAL(MethodInfo("peer_status_updated", PropertyInfo(Variant::OBJECT, "controlled_node"), PropertyInfo(Variant::INT, "node_data_id"), PropertyInfo(Variant::INT, "peer"), PropertyInfo(Variant::BOOL, "connected"), PropertyInfo(Variant::BOOL, "enabled")));
-
-	ADD_SIGNAL(MethodInfo("state_validated", PropertyInfo(Variant::INT, "input_id")));
-	ADD_SIGNAL(MethodInfo("rewind_frame_begin", PropertyInfo(Variant::INT, "input_id"), PropertyInfo(Variant::INT, "index"), PropertyInfo(Variant::INT, "count")));
-
-	ADD_SIGNAL(MethodInfo("desync_detected", PropertyInfo(Variant::INT, "input_id"), PropertyInfo(Variant::OBJECT, "node"), PropertyInfo(Variant::ARRAY, "var_names"), PropertyInfo(Variant::ARRAY, "client_values"), PropertyInfo(Variant::ARRAY, "server_values")));
-}
-
-void SceneSynchronizer::_notification(int p_what) {
-	switch (p_what) {
-		case NOTIFICATION_INTERNAL_PHYSICS_PROCESS: {
-			if (Engine::get_singleton()->is_editor_hint())
-				return;
-
-			if (low_level_peer != get_multiplayer()->get_multiplayer_peer().ptr()) {
-				// The low level peer changed, so we need to refresh the synchronizer.
-				reset_synchronizer_mode();
-			}
-
-			const int lowest_priority_number = INT32_MAX;
-			ERR_FAIL_COND_MSG(get_process_priority() != lowest_priority_number, "The process priority MUST not be changed, it's likely there is a better way of doing what you are trying to do, if you really need it please open an issue.");
-
-			process();
-		} break;
-		case NOTIFICATION_ENTER_TREE: {
-			if (Engine::get_singleton()->is_editor_hint())
-				return;
-
-			clear();
-			reset_synchronizer_mode();
-
-			network_interface->start_listening_peer_connection(
-					[this](int p_peer) { on_peer_connected(p_peer); },
-					[this](int p_peer) { on_peer_disconnected(p_peer); });
-
-			get_tree()->connect(SNAME("node_removed"), Callable(this, SNAME("_on_node_removed")));
-
-			// Make sure to reset all the assigned controllers.
-			reset_controllers();
-
-			// Init the peers already connected.
-			const Vector<int> peer_ids = network_interface->fetch_connected_peers();
-			for (int peer_id : peer_ids) {
-				on_peer_connected(peer_id);
-			}
-
-		} break;
-		case NOTIFICATION_EXIT_TREE: {
-			if (Engine::get_singleton()->is_editor_hint())
-				return;
-
-			clear_peers();
-
-			network_interface->stop_listening_peer_connection();
-
-			get_tree()->disconnect(SNAME("node_removed"), Callable(this, SNAME("_on_node_removed")));
-
-			clear();
-
-			uninit_synchronizer();
-
-			// Make sure to reset all the assigned controllers.
-			reset_controllers();
-		}
-	}
-}
-
-SceneSynchronizer::SceneSynchronizer() :
-		Node() {
-	GdNetworkInterface *ni = memnew(GdNetworkInterface);
-	ni->owner = this;
-	network_interface = ni;
-
-	network_interface->configure_rpc(SNAME("_rpc_send_state"), false, true);
-	network_interface->configure_rpc(SNAME("_rpc_notify_need_full_snapshot"), false, true);
-	network_interface->configure_rpc(SNAME("_rpc_set_network_enabled"), false, true);
-	network_interface->configure_rpc(SNAME("_rpc_notify_peer_status"), false, true);
-	network_interface->configure_rpc(SNAME("_rpc_send_deferred_sync_data"), false, false);
-
+SceneSynchronizer::SceneSynchronizer() {
 	// Avoid too much useless re-allocations.
 	event_listener.reserve(100);
 }
@@ -233,8 +61,62 @@ SceneSynchronizer::SceneSynchronizer() :
 SceneSynchronizer::~SceneSynchronizer() {
 	clear();
 	uninit_synchronizer();
-	memdelete(network_interface);
+}
+
+void SceneSynchronizer::setup(NetworkInterface &p_network_interface) {
+	network_interface = &p_network_interface;
+
+	clear();
+	reset_synchronizer_mode();
+
+	network_interface->start_listening_peer_connection(
+			[this](int p_peer) { on_peer_connected(p_peer); },
+			[this](int p_peer) { on_peer_disconnected(p_peer); });
+
+	// Make sure to reset all the assigned controllers.
+	reset_controllers();
+
+	// Init the peers already connected.
+	const Vector<int> peer_ids = network_interface->fetch_connected_peers();
+	for (int peer_id : peer_ids) {
+		on_peer_connected(peer_id);
+	}
+
+	network_interface->configure_rpc(SNAME("_rpc_send_state"), false, true);
+	network_interface->configure_rpc(SNAME("_rpc_notify_need_full_snapshot"), false, true);
+	network_interface->configure_rpc(SNAME("_rpc_set_network_enabled"), false, true);
+	network_interface->configure_rpc(SNAME("_rpc_notify_peer_status"), false, true);
+	network_interface->configure_rpc(SNAME("_rpc_send_deferred_sync_data"), false, false);
+}
+
+void SceneSynchronizer::pre_destroy() {
+	clear_peers();
+
+	network_interface->stop_listening_peer_connection();
+
+	clear();
+
+	uninit_synchronizer();
+
+	// Make sure to reset all the assigned controllers.
+	reset_controllers();
+
 	network_interface = nullptr;
+}
+
+void SceneSynchronizer::process() {
+	PROFILE_NODE
+
+#ifdef DEBUG_ENABLED
+	validate_nodes();
+	CRASH_COND_MSG(synchronizer == nullptr, "Never execute this function unless this synchronizer is ready.");
+#endif
+
+	synchronizer->process();
+}
+
+void SceneSynchronizer::on_node_removed(Node *p_node) {
+	unregister_node(p_node);
 }
 
 void SceneSynchronizer::set_max_deferred_nodes_per_update(int p_rate) {
@@ -303,10 +185,10 @@ NetUtility::NodeData *SceneSynchronizer::register_node(Node *p_node) {
 		if (p_node->has_method("_setup_synchronizer")) {
 			p_node->call("_setup_synchronizer");
 		} else {
-			SceneSynchronizerDebugger::singleton()->debug_error(this, "[ERROR] The registered node " + (generate_id ? String(" #ID: ") + itos(nd->id) : "") + " : " + p_node->get_path() + " doesn't override the method `_setup_synchronizer`, which is called by the SceneSynchronizer to know the node sync properties. Pleaes implement it.");
+			SceneSynchronizerDebugger::singleton()->debug_error(network_interface, "[ERROR] The registered node " + (generate_id ? String(" #ID: ") + itos(nd->id) : "") + " : " + p_node->get_path() + " doesn't override the method `_setup_synchronizer`, which is called by the SceneSynchronizer to know the node sync properties. Pleaes implement it.");
 		}
 
-		SceneSynchronizerDebugger::singleton()->debug_print(this, "New node registered" + (generate_id ? String(" #ID: ") + itos(nd->id) : "") + " : " + p_node->get_path());
+		SceneSynchronizerDebugger::singleton()->debug_print(network_interface, "New node registered" + (generate_id ? String(" #ID: ") + itos(nd->id) : "") + " : " + p_node->get_path());
 
 		if (controller) {
 			controller->notify_registered_with_synchronizer(this);
@@ -316,14 +198,6 @@ NetUtility::NodeData *SceneSynchronizer::register_node(Node *p_node) {
 	SceneSynchronizerDebugger::singleton()->register_class_for_node_to_dump(p_node);
 
 	return nd;
-}
-
-uint32_t SceneSynchronizer::register_node_gdscript(Node *p_node) {
-	NetUtility::NodeData *nd = register_node(p_node);
-	if (unlikely(nd == nullptr)) {
-		return UINT32_MAX;
-	}
-	return nd->id;
 }
 
 void SceneSynchronizer::unregister_node(Node *p_node) {
@@ -966,10 +840,6 @@ void SceneSynchronizer::on_peer_disconnected(int p_peer) {
 	}
 }
 
-void SceneSynchronizer::_on_node_removed(Node *p_node) {
-	unregister_node(p_node);
-}
-
 void SceneSynchronizer::init_synchronizer(bool p_was_generating_ids) {
 	low_level_peer = get_multiplayer()->get_multiplayer_peer().ptr();
 
@@ -986,11 +856,6 @@ void SceneSynchronizer::init_synchronizer(bool p_was_generating_ids) {
 		synchronizer_type = SYNCHRONIZER_TYPE_CLIENT;
 		synchronizer = memnew(ClientSynchronizer(this));
 	}
-
-	// Always runs the SceneSynchronizer last.
-	const int lowest_priority_number = INT32_MAX;
-	set_process_priority(lowest_priority_number);
-	set_physics_process_internal(true);
 
 	if (p_was_generating_ids != generate_id) {
 		organized_node_data.resize(node_data.size());
@@ -1039,10 +904,11 @@ void SceneSynchronizer::init_synchronizer(bool p_was_generating_ids) {
 	reset_controllers();
 
 	process_functions__clear();
+
+	network_interface->on_init_synchronizer();
 }
 
 void SceneSynchronizer::uninit_synchronizer() {
-	set_physics_process_internal(false);
 	generate_id = false;
 
 	if (synchronizer) {
@@ -1052,6 +918,7 @@ void SceneSynchronizer::uninit_synchronizer() {
 	}
 
 	low_level_peer = nullptr;
+	network_interface->on_uninit_synchronizer();
 }
 
 void SceneSynchronizer::reset_synchronizer_mode() {
@@ -1829,21 +1696,6 @@ void SceneSynchronizer::reset_controller(NetUtility::NodeData *p_controller_nd) 
 	if (synchronizer) {
 		synchronizer->on_controller_reset(p_controller_nd);
 	}
-}
-
-void SceneSynchronizer::process() {
-	PROFILE_NODE
-
-#ifdef DEBUG_ENABLED
-	validate_nodes();
-	// Never triggered because this function is called by `PHYSICS_PROCESS`,
-	// notification that is emitted only when the node is in the tree.
-	// When the node is in the tree, there is no way that the `synchronizer` is
-	// null.
-	CRASH_COND(synchronizer == nullptr);
-#endif
-
-	synchronizer->process();
 }
 
 void SceneSynchronizer::pull_node_changes(NetUtility::NodeData *p_node_data) {
@@ -3850,3 +3702,5 @@ void ClientSynchronizer::apply_snapshot(
 
 	scene_synchronizer->change_events_flush();
 }
+
+NS_NAMESPACE_END
