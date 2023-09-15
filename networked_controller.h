@@ -32,7 +32,7 @@
 	@author AndreaCatania
 */
 
-#include "networked_unit.h"
+#include "scene/main/node.h"
 
 #include "data_buffer.h"
 #include "net_utilities.h"
@@ -47,6 +47,10 @@ struct ServerController;
 struct PlayerController;
 struct DollController;
 struct NoNetController;
+
+namespace NS {
+class NetworkInterface;
+};
 
 /// The `NetworkedController` is responsible to sync the `Player` inputs between
 /// the peers. This allows to control a character, or an object with high precision
@@ -66,8 +70,8 @@ struct NoNetController;
 // instantiated.
 // The most important part is inside the `PlayerController`, `ServerController`,
 // `DollController`, `NoNetController`.
-class NetworkedController : public NetworkedUnit {
-	GDCLASS(NetworkedController, NetworkedUnit);
+class NetworkedController : public Node {
+	GDCLASS(NetworkedController, Node);
 
 	friend class SceneSynchronizer;
 	friend struct RemotelyControlledController;
@@ -89,6 +93,8 @@ public:
 	GDVIRTUAL1RC(int, _count_input_size, DataBuffer *);
 
 private:
+	NS::NetworkInterface *network_interface = nullptr;
+
 	/// When `true`, this controller is controlled by the server: All the clients
 	/// see it as a `Doll`.
 	/// This property is really useful to implement bots (Character controlled by
@@ -174,6 +180,9 @@ public:
 public:
 	NetworkedController();
 	~NetworkedController();
+
+	NS::NetworkInterface &get_network_interface() { return *network_interface; }
+	const NS::NetworkInterface &get_network_interface() const { return *network_interface; }
 
 	void set_server_controlled(bool p_server_controlled);
 	bool get_server_controlled() const;

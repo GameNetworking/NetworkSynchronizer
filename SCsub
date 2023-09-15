@@ -9,4 +9,7 @@ Import("env_modules")
 
 env_network_synchronizer = env_modules.Clone()
 
+env_network_synchronizer.add_source_files(env.modules_sources, "core/**.cpp")
+env_network_synchronizer.add_source_files(env.modules_sources, "godot4/**.cpp")
 env_network_synchronizer.add_source_files(env.modules_sources, "*.cpp")
+env_network_synchronizer.add_source_files(env.modules_sources, "tests/**.cpp")

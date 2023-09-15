@@ -37,6 +37,7 @@
 #include "core/config/engine.h"
 #include "core/config/project_settings.h"
 #include "core/io/marshalls.h"
+#include "godot4/gd_network_interface.h"
 #include "scene_synchronizer.h"
 #include "scene_synchronizer_debugger.h"
 #include <algorithm>
@@ -104,12 +105,17 @@ void NetworkedController::_bind_methods() {
 	ADD_SIGNAL(MethodInfo("client_speedup_adjusted", PropertyInfo(Variant::INT, "input_worst_receival_time_ms"), PropertyInfo(Variant::INT, "optimal_frame_delay"), PropertyInfo(Variant::INT, "current_frame_delay"), PropertyInfo(Variant::INT, "distance_to_optimal")));
 }
 
-NetworkedController::NetworkedController() {
+NetworkedController::NetworkedController() :
+		Node() {
+	GdNetworkInterface *ni = memnew(GdNetworkInterface);
+	ni->owner = this;
+	network_interface = ni;
+
 	inputs_buffer = memnew(DataBuffer);
 
-	ns_configure_rpc(SNAME("_rpc_server_send_inputs"), false, false);
-	ns_configure_rpc(SNAME("_rpc_set_server_controlled"), false, true);
-	ns_configure_rpc(SNAME("_rpc_notify_fps_acceleration"), false, false);
+	network_interface->configure_rpc(SNAME("_rpc_server_send_inputs"), false, false);
+	network_interface->configure_rpc(SNAME("_rpc_set_server_controlled"), false, true);
+	network_interface->configure_rpc(SNAME("_rpc_notify_fps_acceleration"), false, false);
 }
 
 NetworkedController::~NetworkedController() {
@@ -121,6 +127,9 @@ NetworkedController::~NetworkedController() {
 		controller = nullptr;
 		controller_type = CONTROLLER_TYPE_NULL;
 	}
+
+	memdelete(network_interface);
+	network_interface = nullptr;
 }
 
 void NetworkedController::set_server_controlled(bool p_server_controlled) {
@@ -144,9 +153,9 @@ void NetworkedController::set_server_controlled(bool p_server_controlled) {
 			scene_synchronizer->notify_controller_control_mode_changed(this);
 
 			// Tell the client to do the switch too.
-			if (ns_get_unit_authority() != 1) {
-				ns_rpc(
-						ns_get_unit_authority(),
+			if (network_interface->get_unit_authority() != 1) {
+				network_interface->rpc(
+						network_interface->get_unit_authority(),
 						SNAME("_rpc_set_server_controlled"),
 						server_controlled);
 			} else {
@@ -1057,7 +1066,7 @@ bool ServerController::receive_inputs(const Vector<uint8_t> &p_data) {
 
 					node->__input_data_set_first_input_id(data, peer_input_id);
 
-					node->ns_rpc(
+					node->network_interface->rpc(
 							peer_id,
 							SNAME("_rpc_server_send_inputs"),
 							data);
@@ -1148,8 +1157,8 @@ void ServerController::adjust_player_tick_rate(double p_delta) {
 		Vector<uint8_t> packet_data;
 		packet_data.push_back(compressed_distance);
 
-		node->ns_rpc(
-				node->ns_get_unit_authority(),
+		node->network_interface->rpc(
+				node->network_interface->get_unit_authority(),
 				SNAME("_rpc_notify_fps_acceleration"),
 				packet_data);
 	}
@@ -1539,7 +1548,7 @@ void PlayerController::send_frame_input_buffer_to_server() {
 			ofs);
 
 	const int server_peer_id = 1;
-	node->ns_rpc(
+	node->get_network_interface().rpc(
 			server_peer_id,
 			SNAME("_rpc_server_send_inputs"),
 			packet_data);

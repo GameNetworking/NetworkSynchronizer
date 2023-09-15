@@ -39,14 +39,15 @@
 #include "core/templates/oa_hash_map.h"
 #include "core/variant/variant.h"
 #include "input_network_encoder.h"
+#include "modules/network_synchronizer/godot4/gd_network_interface.h"
 #include "modules/network_synchronizer/net_utilities.h"
-#include "modules/network_synchronizer/networked_unit.h"
 #include "modules/network_synchronizer/snapshot.h"
 #include "networked_controller.h"
 #include "scene/main/multiplayer_api.h"
 #include "scene/main/window.h"
 #include "scene_diff.h"
 #include "scene_synchronizer_debugger.h"
+#include <functional>
 
 const SyncGroupId SceneSynchronizer::GLOBAL_SYNC_GROUP_ID = 0;
 
@@ -177,7 +178,9 @@ void SceneSynchronizer::_notification(int p_what) {
 			clear();
 			reset_synchronizer_mode();
 
-			ns_start_listening_peer_connection();
+			network_interface->start_listening_peer_connection(
+					[this](int p_peer) { on_peer_connected(p_peer); },
+					[this](int p_peer) { on_peer_disconnected(p_peer); });
 
 			get_tree()->connect(SNAME("node_removed"), Callable(this, SNAME("_on_node_removed")));
 
@@ -185,7 +188,7 @@ void SceneSynchronizer::_notification(int p_what) {
 			reset_controllers();
 
 			// Init the peers already connected.
-			const Vector<int> peer_ids = ns_fetch_connected_peers();
+			const Vector<int> peer_ids = network_interface->fetch_connected_peers();
 			for (int peer_id : peer_ids) {
 				on_peer_connected(peer_id);
 			}
@@ -197,7 +200,7 @@ void SceneSynchronizer::_notification(int p_what) {
 
 			clear_peers();
 
-			ns_stop_listening_peer_connection();
+			network_interface->stop_listening_peer_connection();
 
 			get_tree()->disconnect(SNAME("node_removed"), Callable(this, SNAME("_on_node_removed")));
 
@@ -212,12 +215,16 @@ void SceneSynchronizer::_notification(int p_what) {
 }
 
 SceneSynchronizer::SceneSynchronizer() :
-		NetworkedUnit() {
-	ns_configure_rpc(SNAME("_rpc_send_state"), false, true);
-	ns_configure_rpc(SNAME("_rpc_notify_need_full_snapshot"), false, true);
-	ns_configure_rpc(SNAME("_rpc_set_network_enabled"), false, true);
-	ns_configure_rpc(SNAME("_rpc_notify_peer_status"), false, true);
-	ns_configure_rpc(SNAME("_rpc_send_deferred_sync_data"), false, false);
+		Node() {
+	GdNetworkInterface *ni = memnew(GdNetworkInterface);
+	ni->owner = this;
+	network_interface = ni;
+
+	network_interface->configure_rpc(SNAME("_rpc_send_state"), false, true);
+	network_interface->configure_rpc(SNAME("_rpc_notify_need_full_snapshot"), false, true);
+	network_interface->configure_rpc(SNAME("_rpc_set_network_enabled"), false, true);
+	network_interface->configure_rpc(SNAME("_rpc_notify_peer_status"), false, true);
+	network_interface->configure_rpc(SNAME("_rpc_send_deferred_sync_data"), false, false);
 
 	// Avoid too much useless re-allocations.
 	event_listener.reserve(100);
@@ -226,6 +233,8 @@ SceneSynchronizer::SceneSynchronizer() :
 SceneSynchronizer::~SceneSynchronizer() {
 	clear();
 	uninit_synchronizer();
+	memdelete(network_interface);
+	network_interface = nullptr;
 }
 
 void SceneSynchronizer::set_max_deferred_nodes_per_update(int p_rate) {
@@ -850,7 +859,7 @@ void SceneSynchronizer::dirty_peers() {
 void SceneSynchronizer::set_enabled(bool p_enable) {
 	ERR_FAIL_COND_MSG(synchronizer_type == SYNCHRONIZER_TYPE_SERVER, "The server is always enabled.");
 	if (synchronizer_type == SYNCHRONIZER_TYPE_CLIENT) {
-		ns_rpc(1, SNAME("_rpc_set_network_enabled"), p_enable);
+		network_interface->rpc(1, SNAME("_rpc_set_network_enabled"), p_enable);
 		if (p_enable == false) {
 			// If the peer want to disable, we can disable it locally
 			// immediately. When it wants to enable the networking, the server
@@ -900,7 +909,7 @@ void SceneSynchronizer::set_peer_networking_enable(int p_peer, bool p_enable) {
 		dirty_peers();
 
 		// Just notify the peer status.
-		ns_rpc(p_peer, SNAME("_rpc_notify_peer_status"), p_enable);
+		network_interface->rpc(p_peer, SNAME("_rpc_notify_peer_status"), p_enable);
 	} else {
 		ERR_FAIL_COND_MSG(synchronizer_type != SYNCHRONIZER_TYPE_NONETWORK, "At this point no network is expected.");
 		static_cast<NoNetSynchronizer *>(synchronizer)->set_enabled(p_enable);
@@ -964,12 +973,12 @@ void SceneSynchronizer::_on_node_removed(Node *p_node) {
 void SceneSynchronizer::init_synchronizer(bool p_was_generating_ids) {
 	low_level_peer = get_multiplayer()->get_multiplayer_peer().ptr();
 
-	if (!ns_is_local_peer_networked()) {
+	if (!network_interface->is_local_peer_networked()) {
 		synchronizer_type = SYNCHRONIZER_TYPE_NONETWORK;
 		synchronizer = memnew(NoNetSynchronizer(this));
 		generate_id = true;
 
-	} else if (ns_is_local_peer_server()) {
+	} else if (network_interface->is_local_peer_server()) {
 		synchronizer_type = SYNCHRONIZER_TYPE_SERVER;
 		synchronizer = memnew(ServerSynchronizer(this));
 		generate_id = true;
@@ -1087,7 +1096,7 @@ void SceneSynchronizer::_rpc_send_state(const Variant &p_snapshot) {
 void SceneSynchronizer::_rpc_notify_need_full_snapshot() {
 	ERR_FAIL_COND_MSG(is_server() == false, "Only the server can receive the request to send a full snapshot.");
 
-	const int sender_peer = ns_rpc_get_sender();
+	const int sender_peer = network_interface->rpc_get_sender();
 	NetUtility::PeerData *pd = peer_data.lookup_ptr(sender_peer);
 	ERR_FAIL_COND(pd == nullptr);
 	pd->need_full_snapshot = true;
@@ -1096,7 +1105,7 @@ void SceneSynchronizer::_rpc_notify_need_full_snapshot() {
 void SceneSynchronizer::_rpc_set_network_enabled(bool p_enabled) {
 	ERR_FAIL_COND_MSG(is_server() == false, "The peer status is supposed to be received by the server.");
 	set_peer_networking_enable(
-			ns_rpc_get_sender(),
+			network_interface->rpc_get_sender(),
 			p_enabled);
 }
 
@@ -1132,7 +1141,7 @@ void SceneSynchronizer::update_peers() {
 			NetUtility::NodeData *nd = get_node_data(it.value->controller_id);
 			if (nd == nullptr ||
 					nd->is_controller == false ||
-					static_cast<const NetworkedUnit *>(nd->node)->ns_get_unit_authority() != (*it.key)) {
+					static_cast<const NetworkedController *>(nd->node)->network_interface->get_unit_authority() != (*it.key)) {
 				// Invalidate the controller id
 				it.value->controller_id = UINT32_MAX;
 			}
@@ -1141,8 +1150,8 @@ void SceneSynchronizer::update_peers() {
 		if (it.value->controller_id == UINT32_MAX) {
 			// The controller_id is not assigned, search it.
 			for (uint32_t i = 0; i < node_data_controllers.size(); i += 1) {
-				const NetworkedUnit *nu = dynamic_cast<const NetworkedUnit *>(node_data_controllers[i]->node);
-				if (nu && nu->ns_get_unit_authority() == (*it.key)) {
+				const NetworkedController *nc = static_cast<const NetworkedController *>(node_data_controllers[i]->node);
+				if (nc && nc->network_interface->get_unit_authority() == (*it.key)) {
 					// Controller found.
 					it.value->controller_id = node_data_controllers[i]->id;
 					break;
@@ -1793,10 +1802,10 @@ void SceneSynchronizer::reset_controller(NetUtility::NodeData *p_controller_nd) 
 		return;
 	}
 
-	if (!ns_is_local_peer_networked()) {
+	if (!network_interface->is_local_peer_networked()) {
 		controller->controller_type = NetworkedController::CONTROLLER_TYPE_NONETWORK;
 		controller->controller = memnew(NoNetController(controller));
-	} else if (ns_is_local_peer_server()) {
+	} else if (network_interface->is_local_peer_server()) {
 		if (controller->get_server_controlled()) {
 			controller->controller_type = NetworkedController::CONTROLLER_TYPE_AUTONOMOUS_SERVER;
 			controller->controller = memnew(AutonomousServerController(controller));
@@ -1804,7 +1813,7 @@ void SceneSynchronizer::reset_controller(NetUtility::NodeData *p_controller_nd) 
 			controller->controller_type = NetworkedController::CONTROLLER_TYPE_SERVER;
 			controller->controller = memnew(ServerController(controller, controller->get_network_traced_frames()));
 		}
-	} else if (controller->ns_is_local_peer_authority_of_this_unit() && controller->get_server_controlled() == false) {
+	} else if (controller->network_interface->is_local_peer_authority_of_this_unit() && controller->get_server_controlled() == false) {
 		controller->controller_type = NetworkedController::CONTROLLER_TYPE_PLAYER;
 		controller->controller = memnew(PlayerController(controller));
 	} else {
@@ -2230,7 +2239,7 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 				snap.append_array(delta_global_nodes_snapshot);
 			}
 
-			scene_synchronizer->ns_rpc(peer_id, SNAME("_rpc_send_state"), snap);
+			scene_synchronizer->network_interface->rpc(peer_id, SNAME("_rpc_send_state"), snap);
 
 			if (nd) {
 				NetworkedController *controller = static_cast<NetworkedController *>(nd->node);
@@ -2479,7 +2488,7 @@ void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
 		if (update_node_count > 0) {
 			global_buffer.dry();
 			for (int i = 0; i < int(group.peers.size()); ++i) {
-				scene_synchronizer->ns_rpc(
+				scene_synchronizer->network_interface->rpc(
 						group.peers[i],
 						SNAME("_rpc_send_deferred_sync_data"),
 						global_buffer.get_buffer().get_bytes());
@@ -2572,7 +2581,7 @@ void ClientSynchronizer::process() {
 		if (sub_ticks > 0) {
 			// This is an intermediate sub tick, so store the dumping.
 			// The last sub frame is not dumped, untile the end of the frame, so we can capture any subsequent message.
-			const int client_peer = scene_synchronizer->ns_fetch_local_peer_id();
+			const int client_peer = scene_synchronizer->network_interface->fetch_local_peer_id();
 			SceneSynchronizerDebugger::singleton()->write_dump(client_peer, player_controller->get_current_input_id());
 			SceneSynchronizerDebugger::singleton()->start_new_frame();
 		}
@@ -2587,7 +2596,7 @@ void ClientSynchronizer::process() {
 	process_received_deferred_sync_data(delta);
 
 #if DEBUG_ENABLED
-	const int client_peer = scene_synchronizer->ns_fetch_local_peer_id();
+	const int client_peer = scene_synchronizer->network_interface->fetch_local_peer_id();
 	SceneSynchronizerDebugger::singleton()->write_dump(client_peer, player_controller->get_current_input_id());
 	SceneSynchronizerDebugger::singleton()->start_new_frame();
 #endif
@@ -3740,7 +3749,7 @@ void ClientSynchronizer::notify_server_full_snapshot_is_needed() {
 
 	// Notify the server that a full snapshot is needed.
 	need_full_snapshot_notified = true;
-	scene_synchronizer->ns_rpc(1, SNAME("_rpc_notify_need_full_snapshot"));
+	scene_synchronizer->network_interface->rpc(1, SNAME("_rpc_notify_need_full_snapshot"));
 }
 
 void ClientSynchronizer::update_client_snapshot(NetUtility::Snapshot &p_snapshot) {
