@@ -28,7 +28,7 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#include "networked_unit.h"
+#include "scene/main/node.h"
 
 #include "core/templates/local_vector.h"
 #include "core/templates/oa_hash_map.h"
@@ -43,6 +43,10 @@
 class Synchronizer;
 class NetworkedController;
 struct PlayerController;
+
+namespace NS {
+class NetworkInterface;
+};
 
 /// # SceneSynchronizer
 ///
@@ -105,8 +109,8 @@ struct PlayerController;
 // The server `SceneSynchronizer` code is inside the class `ServerSynchronizer`.
 // The client `SceneSynchronizer` code is inside the class `ClientSynchronizer`.
 // The no networking `SceneSynchronizer` code is inside the class `NoNetSynchronizer`.
-class SceneSynchronizer : public NetworkedUnit {
-	GDCLASS(SceneSynchronizer, NetworkedUnit);
+class SceneSynchronizer : public Node {
+	GDCLASS(SceneSynchronizer, Node);
 
 	friend class Synchronizer;
 	friend class ServerSynchronizer;
@@ -128,6 +132,8 @@ public:
 	static const SyncGroupId GLOBAL_SYNC_GROUP_ID;
 
 private:
+	NS::NetworkInterface *network_interface = nullptr;
+
 	int max_deferred_nodes_per_update = 30;
 	real_t server_notify_state_interval = 1.0;
 	real_t comparison_float_tolerance = 0.001;
@@ -176,6 +182,9 @@ public:
 public:
 	SceneSynchronizer();
 	~SceneSynchronizer();
+
+	NS::NetworkInterface &get_network_interface() { return *network_interface; }
+	const NS::NetworkInterface &get_network_interface() const { return *network_interface; }
 
 	void set_max_deferred_nodes_per_update(int p_rate);
 	int get_max_deferred_nodes_per_update() const;
@@ -281,8 +290,8 @@ public:
 	void set_peer_networking_enable(int p_peer, bool p_enable);
 	bool is_peer_networking_enable(int p_peer) const;
 
-	virtual void on_peer_connected(int p_peer) override;
-	virtual void on_peer_disconnected(int p_peer) override;
+	void on_peer_connected(int p_peer);
+	void on_peer_disconnected(int p_peer);
 
 	void _on_node_removed(Node *p_node);
 

@@ -43,27 +43,29 @@
 #include "scene_synchronizer.h"
 #include "scene_synchronizer_debugger.h"
 
+#include "tests/test_scene_synchronizer.h"
+
 void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
-	if (p_level != MODULE_INITIALIZATION_LEVEL_SERVERS) {
-		return;
+	if (p_level == MODULE_INITIALIZATION_LEVEL_SERVERS) {
+		GDREGISTER_CLASS(DataBuffer);
+		GDREGISTER_CLASS(SceneDiff);
+		GDREGISTER_CLASS(NetworkedController);
+		GDREGISTER_CLASS(SceneSynchronizer);
+		GDREGISTER_CLASS(InputNetworkEncoder);
+
+		memnew(SceneSynchronizerDebugger);
+		Engine::get_singleton()->add_singleton(Engine::Singleton("SceneSynchronizerDebugger", SceneSynchronizerDebugger::singleton()));
+
+		GLOBAL_DEF("NetworkSynchronizer/debug_server_speedup", false);
+		GLOBAL_DEF("NetworkSynchronizer/log_debug_rewindings", false);
+		GLOBAL_DEF("NetworkSynchronizer/log_debug_warnings_and_messages", true);
+		GLOBAL_DEF("NetworkSynchronizer/log_debug_nodes_relevancy_update", false);
+		GLOBAL_DEF("NetworkSynchronizer/debugger/dump_enabled", false);
+		GLOBAL_DEF("NetworkSynchronizer/debugger/dump_classes", Array());
+		GLOBAL_DEF("NetworkSynchronizer/debugger/log_debug_fps_warnings", true);
+	} else if (p_level == MODULE_INITIALIZATION_LEVEL_EDITOR) {
+		//test_scene_synchronizer();
 	}
-
-	GDREGISTER_CLASS(DataBuffer);
-	GDREGISTER_CLASS(SceneDiff);
-	GDREGISTER_CLASS(NetworkedController);
-	GDREGISTER_CLASS(SceneSynchronizer);
-	GDREGISTER_CLASS(InputNetworkEncoder);
-
-	memnew(SceneSynchronizerDebugger);
-	Engine::get_singleton()->add_singleton(Engine::Singleton("SceneSynchronizerDebugger", SceneSynchronizerDebugger::singleton()));
-
-	GLOBAL_DEF("NetworkSynchronizer/debug_server_speedup", false);
-	GLOBAL_DEF("NetworkSynchronizer/log_debug_rewindings", false);
-	GLOBAL_DEF("NetworkSynchronizer/log_debug_warnings_and_messages", true);
-	GLOBAL_DEF("NetworkSynchronizer/log_debug_nodes_relevancy_update", false);
-	GLOBAL_DEF("NetworkSynchronizer/debugger/dump_enabled", false);
-	GLOBAL_DEF("NetworkSynchronizer/debugger/dump_classes", Array());
-	GLOBAL_DEF("NetworkSynchronizer/debugger/log_debug_fps_warnings", true);
 }
 
 void uninitialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
