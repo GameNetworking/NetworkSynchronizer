@@ -2,7 +2,9 @@
 
 #include "net_utilities.h"
 
+namespace NS {
 class SceneSynchronizer;
+};
 
 namespace NetUtility {
 
@@ -18,7 +20,7 @@ struct Snapshot {
 	operator String() const;
 
 	static bool compare(
-			SceneSynchronizer &scene_synchronizer,
+			NS::SceneSynchronizer &scene_synchronizer,
 			const Snapshot &p_snap_A,
 			const Snapshot &p_snap_B,
 			Snapshot *r_no_rewind_recover,

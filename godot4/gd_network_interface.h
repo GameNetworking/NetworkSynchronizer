@@ -47,21 +47,6 @@ public: // ---------------------------------------------------------------- APIs
 	/// Can be used to verify if the local peer is the authority of this unit.
 	virtual bool is_local_peer_authority_of_this_unit() const override;
 
-	/// Configures the rpc call.
-	virtual void configure_rpc(
-			const StringName &p_func,
-			bool p_call_local,
-			bool p_is_reliable) override;
-
-	/// Returns the peer that remotelly called the currently executed rpc function.
 	/// Should be called always from an rpc function.
 	virtual int rpc_get_sender() const override;
-
-protected:
-	/// Implements the rpc send mechanism.
-	virtual void rpc_array(
-			int p_peer_id,
-			const StringName &p_method,
-			const Variant **p_arg,
-			int p_argcount) override;
 };

@@ -80,7 +80,7 @@ void SceneDiff::start_tracking_scene_changes(
 	}
 }
 
-void SceneDiff::stop_tracking_scene_changes(const SceneSynchronizer *p_synchronizer) {
+void SceneDiff::stop_tracking_scene_changes(const NS::SceneSynchronizer *p_synchronizer) {
 	ERR_FAIL_COND_MSG(
 			start_tracking_count == 0,
 			"The tracking is not yet started on this SceneDiff, so can't be end.");

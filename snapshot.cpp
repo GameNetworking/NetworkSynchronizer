@@ -1,5 +1,6 @@
-
 #include "snapshot.h"
+
+#include "scene/main/node.h"
 #include "scene_synchronizer.h"
 
 NetUtility::Snapshot::operator String() const {
@@ -23,7 +24,7 @@ NetUtility::Snapshot::operator String() const {
 }
 
 bool compare_vars(
-		SceneSynchronizer &scene_synchronizer,
+		NS::SceneSynchronizer &scene_synchronizer,
 		const NetUtility::NodeData *p_synchronizer_node_data,
 		const Vector<NetUtility::Var> &p_server_vars,
 		const Vector<NetUtility::Var> &p_client_vars,
@@ -104,7 +105,7 @@ bool compare_vars(
 }
 
 bool NetUtility::Snapshot::compare(
-		SceneSynchronizer &scene_synchronizer,
+		NS::SceneSynchronizer &scene_synchronizer,
 		const Snapshot &p_snap_A,
 		const Snapshot &p_snap_B,
 		Snapshot *r_no_rewind_recover,

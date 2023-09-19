@@ -44,43 +44,9 @@ public: // ---------------------------------------------------------------- APIs
 	/// Can be used to verify if the local peer is the authority of this unit.
 	virtual bool is_local_peer_authority_of_this_unit() const = 0;
 
-	/// Configures the rpc call.
-	virtual void configure_rpc(
-			const StringName &p_func,
-			bool p_call_local,
-			bool p_is_reliable) = 0;
-
 	/// Returns the peer that remotelly called the currently executed rpc function.
 	/// Should be called always from an rpc function.
 	virtual int rpc_get_sender() const = 0;
-
-	/// Calls an rpc.
-	template <typename... VarArgs>
-	void rpc(int p_peer_id, const StringName &p_method, VarArgs... p_args);
-
-protected:
-	/// This is just for internal usage.
-	/// Implements the rpc send mechanism.
-	virtual void rpc_array(
-			int p_peer_id,
-			const StringName &p_method,
-			const Variant **p_arg,
-			int p_argcount) = 0;
 };
-
-template <typename... VarArgs>
-void NetworkInterface::rpc(int p_peer_id, const StringName &p_method, VarArgs... p_args) {
-	Variant args[sizeof...(p_args) + 1] = { p_args..., Variant() }; // +1 makes sure zero sized arrays are also supported.
-	const Variant *argptrs[sizeof...(p_args) + 1];
-	for (uint32_t i = 0; i < sizeof...(p_args); i++) {
-		argptrs[i] = &args[i];
-	}
-
-	rpc_array(
-			p_peer_id,
-			p_method,
-			sizeof...(p_args) == 0 ? nullptr : (const Variant **)argptrs,
-			sizeof...(p_args));
-}
 
 NS_NAMESPACE_END

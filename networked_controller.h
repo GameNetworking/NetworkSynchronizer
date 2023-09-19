@@ -32,6 +32,7 @@
 	@author AndreaCatania
 */
 
+#include "modules/network_synchronizer/core/event.h"
 #include "scene/main/node.h"
 
 #include "data_buffer.h"
@@ -177,6 +178,10 @@ private:
 
 	NetNodeId node_id = NetID_NONE;
 
+	NS::EventFuncHandler event_handler_rewind_frame_begin = NS::NullEventHandler;
+	NS::EventFuncHandler event_handler_state_validated = NS::NullEventHandler;
+	NS::EventFuncHandler event_handler_peer_status_updated = NS::NullEventHandler;
+
 public:
 	static void _bind_methods();
 
@@ -223,6 +228,15 @@ public:
 
 	/// Returns the pretended delta used by the player.
 	real_t player_get_pretended_delta() const;
+
+public: // -------------------------------------------------------------- Events
+	virtual void trigger_event__controller_reset();
+	virtual void trigger_event__input_missed(uint32_t p_input_id);
+	virtual void trigger_event__client_speedup_adjusted(
+			uint32_t p_input_worst_receival_time_ms,
+			int p_optimal_frame_delay,
+			int p_current_frame_delay,
+			int p_distance_to_optimal);
 
 	virtual void validate_script_implementation();
 	virtual void native_collect_inputs(double p_delta, DataBuffer &r_buffer);

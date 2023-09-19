@@ -36,8 +36,11 @@
 
 #include "core/config/engine.h"
 #include "core/config/project_settings.h"
+#include "core/error/error_macros.h"
 #include "core/io/marshalls.h"
 #include "godot4/gd_network_interface.h"
+#include "modules/network_synchronizer/core/event.h"
+#include "scene/main/multiplayer_api.h"
 #include "scene_synchronizer.h"
 #include "scene_synchronizer_debugger.h"
 #include <algorithm>
@@ -72,10 +75,6 @@ void NetworkedController::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_current_input_id"), &NetworkedController::get_current_input_id);
 
 	ClassDB::bind_method(D_METHOD("player_get_pretended_delta"), &NetworkedController::player_get_pretended_delta);
-
-	ClassDB::bind_method(D_METHOD("on_peer_status_updated"), &NetworkedController::on_peer_status_updated);
-	ClassDB::bind_method(D_METHOD("on_state_validated"), &NetworkedController::on_state_validated);
-	ClassDB::bind_method(D_METHOD("on_rewind_frame_begin"), &NetworkedController::on_rewind_frame_begin);
 
 	ClassDB::bind_method(D_METHOD("_rpc_server_send_inputs"), &NetworkedController::_rpc_server_send_inputs);
 	ClassDB::bind_method(D_METHOD("_rpc_set_server_controlled"), &NetworkedController::_rpc_set_server_controlled);
@@ -113,9 +112,17 @@ NetworkedController::NetworkedController() :
 
 	inputs_buffer = memnew(DataBuffer);
 
-	network_interface->configure_rpc(SNAME("_rpc_server_send_inputs"), false, false);
-	network_interface->configure_rpc(SNAME("_rpc_set_server_controlled"), false, true);
-	network_interface->configure_rpc(SNAME("_rpc_notify_fps_acceleration"), false, false);
+	Dictionary rpc_config_reliable;
+	rpc_config_reliable["rpc_mode"] = MultiplayerAPI::RPC_MODE_ANY_PEER;
+	rpc_config_reliable["call_local"] = false;
+	rpc_config_reliable["transfer_mode"] = MultiplayerPeer::TRANSFER_MODE_RELIABLE;
+
+	Dictionary rpc_config_unreliable = rpc_config_reliable;
+	rpc_config_unreliable["transfer_mode"] = MultiplayerPeer::TRANSFER_MODE_UNRELIABLE;
+
+	rpc_config(SNAME("_rpc_server_send_inputs"), rpc_config_unreliable);
+	rpc_config(SNAME("_rpc_set_server_controlled"), rpc_config_reliable);
+	rpc_config(SNAME("_rpc_notify_fps_acceleration"), rpc_config_unreliable);
 }
 
 NetworkedController::~NetworkedController() {
@@ -154,8 +161,8 @@ void NetworkedController::set_server_controlled(bool p_server_controlled) {
 
 			// Tell the client to do the switch too.
 			if (network_interface->get_unit_authority() != 1) {
-				network_interface->rpc(
-						network_interface->get_unit_authority(),
+				rpc_id(
+						get_multiplayer_authority(),
 						SNAME("_rpc_set_server_controlled"),
 						server_controlled);
 			} else {
@@ -267,6 +274,27 @@ uint32_t NetworkedController::get_current_input_id() const {
 real_t NetworkedController::player_get_pretended_delta() const {
 	ERR_FAIL_COND_V_MSG(is_player_controller() == false, 1.0, "This function can be called only on client.");
 	return get_player_controller()->pretended_delta;
+}
+
+void NetworkedController::trigger_event__controller_reset() {
+	emit_signal("controller_reset");
+}
+
+void NetworkedController::trigger_event__input_missed(uint32_t p_input_id) {
+	emit_signal("input_missed", p_input_id);
+}
+
+void NetworkedController::trigger_event__client_speedup_adjusted(
+		uint32_t p_input_worst_receival_time_ms,
+		int p_optimal_frame_delay,
+		int p_current_frame_delay,
+		int p_distance_to_optimal) {
+	emit_signal(
+			"client_speedup_adjusted",
+			p_input_worst_receival_time_ms,
+			p_optimal_frame_delay,
+			p_current_frame_delay,
+			p_distance_to_optimal);
 }
 
 void NetworkedController::validate_script_implementation() {
@@ -405,9 +433,12 @@ void NetworkedController::set_inputs_buffer(const BitArray &p_new_buffer, uint32
 
 void NetworkedController::notify_registered_with_synchronizer(NS::SceneSynchronizer *p_synchronizer) {
 	if (scene_synchronizer) {
-		scene_synchronizer->disconnect("rewind_frame_begin", Callable(this, "on_rewind_frame_begin"));
-		scene_synchronizer->disconnect("state_validated", Callable(this, "on_state_validated"));
-		scene_synchronizer->disconnect("peer_status_updated", Callable(this, "on_peer_status_updated"));
+		scene_synchronizer->event_peer_status_updated.unbind(event_handler_peer_status_updated);
+		scene_synchronizer->event_state_validated.unbind(event_handler_state_validated);
+		scene_synchronizer->event_rewind_frame_begin.unbind(event_handler_rewind_frame_begin);
+		event_handler_rewind_frame_begin = NS::NullEventHandler;
+		event_handler_state_validated = NS::NullEventHandler;
+		event_handler_peer_status_updated = NS::NullEventHandler;
 		scene_synchronizer->unregister_process(this, PROCESSPHASE_PROCESS, callable_mp(this, &NetworkedController::process));
 	}
 
@@ -416,9 +447,21 @@ void NetworkedController::notify_registered_with_synchronizer(NS::SceneSynchroni
 
 	if (scene_synchronizer) {
 		scene_synchronizer->register_process(this, PROCESSPHASE_PROCESS, callable_mp(this, &NetworkedController::process));
-		scene_synchronizer->connect("peer_status_updated", Callable(this, "on_peer_status_updated"));
-		scene_synchronizer->connect("state_validated", Callable(this, "on_state_validated"));
-		scene_synchronizer->connect("rewind_frame_begin", Callable(this, "on_rewind_frame_begin"));
+
+		event_handler_peer_status_updated =
+				scene_synchronizer->event_peer_status_updated.bind([this](Node *p_node, NetNodeId p_id, int p_peer_id, bool p_connected, bool p_enabled) -> void {
+					on_peer_status_updated(p_node, p_id, p_peer_id, p_connected, p_enabled);
+				});
+
+		event_handler_state_validated =
+				scene_synchronizer->event_state_validated.bind([this](uint32_t p_input_id) -> void {
+					on_state_validated(p_input_id);
+				});
+
+		event_handler_rewind_frame_begin =
+				scene_synchronizer->event_rewind_frame_begin.bind([this](uint32_t p_input_id, int p_index, int p_count) -> void {
+					on_rewind_frame_begin(p_input_id, p_index, p_count);
+				});
 	}
 }
 
@@ -561,7 +604,7 @@ void NetworkedController::_notification(int p_what) {
 }
 
 void NetworkedController::notify_controller_reset() {
-	emit_signal("controller_reset");
+	trigger_event__controller_reset();
 }
 
 bool NetworkedController::__input_data_parse(
@@ -891,7 +934,7 @@ void RemotelyControlledController::process(double p_delta) {
 
 #ifdef DEBUG_ENABLED
 	if (!is_new_input) {
-		node->emit_signal("input_missed", current_input_buffer_id + 1);
+		node->trigger_event__input_missed(current_input_buffer_id + 1);
 	}
 #endif
 
@@ -1066,7 +1109,7 @@ bool ServerController::receive_inputs(const Vector<uint8_t> &p_data) {
 
 					node->__input_data_set_first_input_id(data, peer_input_id);
 
-					node->network_interface->rpc(
+					node->rpc_id(
 							peer_id,
 							SNAME("_rpc_server_send_inputs"),
 							data);
@@ -1151,14 +1194,15 @@ void ServerController::adjust_player_tick_rate(double p_delta) {
 					"` Distance to optimal: `" + itos(distance_to_optimal) +
 					"`");
 		}
-		node->emit_signal("client_speedup_adjusted", worst_receival_time_ms, optimal_frame_delay, current_frame_delay, distance_to_optimal);
+		node->trigger_event__client_speedup_adjusted(worst_receival_time_ms, optimal_frame_delay, current_frame_delay, distance_to_optimal);
 #endif
 
-		Vector<uint8_t> packet_data;
+		Vector<uint8_t>
+				packet_data;
 		packet_data.push_back(compressed_distance);
 
-		node->network_interface->rpc(
-				node->network_interface->get_unit_authority(),
+		node->rpc_id(
+				node->get_multiplayer_authority(),
 				SNAME("_rpc_notify_fps_acceleration"),
 				packet_data);
 	}
@@ -1170,7 +1214,7 @@ AutonomousServerController::AutonomousServerController(
 }
 
 bool AutonomousServerController::receive_inputs(const Vector<uint8_t> &p_data) {
-	SceneSynchronizerDebugger::singleton()->debug_warning(node, "`receive_input` called on the `AutonomousServerController` - If this is called just after `set_server_controlled(true)` is called, you can ignore this warning, as the client is not aware about the switch for a really small window after this function call.");
+	SceneSynchronizerDebugger::singleton()->debug_warning(&node->get_network_interface(), "`receive_input` called on the `AutonomousServerController` - If this is called just after `set_server_controlled(true)` is called, you can ignore this warning, as the client is not aware about the switch for a really small window after this function call.");
 	return false;
 }
 
@@ -1180,7 +1224,7 @@ int AutonomousServerController::get_inputs_count() const {
 }
 
 bool AutonomousServerController::fetch_next_input(real_t p_delta) {
-	SceneSynchronizerDebugger::singleton()->debug_print(node->network_interface, "Autonomous server fetch input.", true);
+	SceneSynchronizerDebugger::singleton()->debug_print(&node->get_network_interface(), "Autonomous server fetch input.", true);
 
 	node->get_inputs_buffer_mut().begin_write(METADATA_SIZE);
 	node->get_inputs_buffer_mut().seek(METADATA_SIZE);
@@ -1246,7 +1290,7 @@ int PlayerController::calculates_sub_ticks(const double p_delta, const double p_
 void PlayerController::notify_input_checked(uint32_t p_input_id) {
 	if (frames_snapshot.empty() || p_input_id < frames_snapshot.front().id || p_input_id > frames_snapshot.back().id) {
 		// The received p_input_id is not known, so nothing to do.
-		SceneSynchronizerDebugger::singleton()->debug_error(node, "The received snapshot, with input id: " + itos(p_input_id) + " is not known. This is a bug or someone is trying to hack.");
+		SceneSynchronizerDebugger::singleton()->debug_error(&node->get_network_interface(), "The received snapshot, with input id: " + itos(p_input_id) + " is not known. This is a bug or someone is trying to hack.");
 		return;
 	}
 
@@ -1362,7 +1406,7 @@ void PlayerController::process(double p_delta) {
 				node->get_inputs_buffer_mut().add_bool(false);
 			}
 		} else {
-			SceneSynchronizerDebugger::singleton()->debug_warning(node, "It's not possible to accept new inputs. Is this lagging?");
+			SceneSynchronizerDebugger::singleton()->debug_warning(&node->get_network_interface(), "It's not possible to accept new inputs. Is this lagging?");
 		}
 
 		node->get_inputs_buffer_mut().dry();
@@ -1392,7 +1436,7 @@ uint32_t PlayerController::get_current_input_id() const {
 }
 
 bool PlayerController::receive_inputs(const Vector<uint8_t> &p_data) {
-	SceneSynchronizerDebugger::singleton()->debug_error(node, "`receive_input` called on the `PlayerServerController` -This function is not supposed to be called on the player controller. Only the server and the doll should receive this.");
+	SceneSynchronizerDebugger::singleton()->debug_error(&node->get_network_interface(), "`receive_input` called on the `PlayerServerController` -This function is not supposed to be called on the player controller. Only the server and the doll should receive this.");
 	return false;
 }
 
@@ -1548,7 +1592,7 @@ void PlayerController::send_frame_input_buffer_to_server() {
 			ofs);
 
 	const int server_peer_id = 1;
-	node->get_network_interface().rpc(
+	node->rpc_id(
 			server_peer_id,
 			SNAME("_rpc_server_send_inputs"),
 			packet_data);
@@ -1613,7 +1657,7 @@ bool DollController::receive_inputs(const Vector<uint8_t> &p_data) {
 			});
 
 	if (!success) {
-		SceneSynchronizerDebugger::singleton()->debug_print(node->network_interface, "[DollController::receive_input] Failed.");
+		SceneSynchronizerDebugger::singleton()->debug_print(&node->get_network_interface(), "[DollController::receive_input] Failed.");
 	}
 
 	return success;
@@ -1631,7 +1675,7 @@ void DollController::queue_instant_process(uint32_t p_input_id, int p_index, int
 		}
 	}
 
-	SceneSynchronizerDebugger::singleton()->debug_warning(node, "DollController was uable to find the input: " + itos(p_input_id) + " maybe it was never received?", true);
+	SceneSynchronizerDebugger::singleton()->debug_warning(&node->get_network_interface(), "DollController was uable to find the input: " + itos(p_input_id) + " maybe it was never received?", true);
 	queued_instant_to_process = snapshots.size();
 	return;
 }
@@ -1680,7 +1724,7 @@ void DollController::process(double p_delta) {
 	const bool is_new_input = fetch_next_input(p_delta);
 
 	if (is_new_input) {
-		SceneSynchronizerDebugger::singleton()->debug_print(node->network_interface, "Doll process index: " + itos(current_input_buffer_id), true);
+		SceneSynchronizerDebugger::singleton()->debug_print(&node->get_network_interface(), "Doll process index: " + itos(current_input_buffer_id), true);
 
 		node->get_inputs_buffer_mut().begin_read();
 		node->get_inputs_buffer_mut().seek(METADATA_SIZE);

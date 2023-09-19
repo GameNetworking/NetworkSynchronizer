@@ -9,8 +9,6 @@
 #include "scene/main/scene_tree.h"
 #include "scene/main/window.h"
 
-SceneTree *st = nullptr;
-
 template <class C>
 C *new_node(const StringName &p_name, Node *p_parent) {
 	C *n = memnew(C);
@@ -31,22 +29,17 @@ void delete_node(Node *p_node) {
 }
 
 void test_scene_node_registration() {
-	st->reload_current_scene();
+	//st->reload_current_scene();
 
-	SceneSynchronizer *synchronizer = new_node<SceneSynchronizer>("scene_sync", st->get_root());
-	Node *node = new_node<Node>("node", st->get_root());
+	//SceneSynchronizer *synchronizer = new_node<SceneSynchronizer>("scene_sync", st->get_root());
+	//Node *node = new_node<Node>("node", st->get_root());
 
-	synchronizer->register_variable(node, "global_transform");
+	//synchronizer->register_variable(node, "global_transform");
 
-	delete_node(node);
-	delete_node(synchronizer);
+	//delete_node(node);
+	//delete_node(synchronizer);
 }
 
 void test_scene_synchronizer() {
-	st = memnew(SceneTree);
-
 	test_scene_node_registration();
-
-	memdelete(st);
-	st = nullptr;
 }

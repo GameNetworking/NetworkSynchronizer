@@ -1,12 +1,13 @@
 #pragma once
 
+#include "modules/network_synchronizer/core/event.h"
 #include "modules/network_synchronizer/scene_synchronizer.h"
 #include "scene/main/node.h"
 
 #include "modules/network_synchronizer/core/core.h"
 #include "modules/network_synchronizer/net_utilities.h"
 
-class GdSceneSynchronizer : public Node {
+class GdSceneSynchronizer : public Node, public NS::SynchronizerManager {
 	GDCLASS(GdSceneSynchronizer, Node);
 
 public:
@@ -18,6 +19,13 @@ public:
 
 	// Just used to detect when the low level peer change.
 	void *low_level_peer = nullptr;
+
+	NS::EventFuncHandler event_handler_sync_started = NS::NullEventHandler;
+	NS::EventFuncHandler event_handler_sync_paused = NS::NullEventHandler;
+	NS::EventFuncHandler event_handler_peer_status_updated = NS::NullEventHandler;
+	NS::EventFuncHandler event_handler_state_validated = NS::NullEventHandler;
+	NS::EventFuncHandler event_handler_rewind_frame_begin = NS::NullEventHandler;
+	NS::EventFuncHandler event_handler_desync_detected = NS::NullEventHandler;
 
 public:
 	GdSceneSynchronizer();
@@ -38,9 +46,30 @@ public: // ---------------------------------------------------------- Properties
 	void set_nodes_relevancy_update_time(real_t p_time);
 	real_t get_nodes_relevancy_update_time() const;
 
-public: // -------------------------------------------------------------- Events
-	void on_init_synchronizer();
-	void on_uninit_synchronizer();
+public: // ---------------------------------------- Scene Synchronizer Interface
+	virtual void on_init_synchronizer(bool p_was_generating_ids) override;
+	virtual void on_uninit_synchronizer() override;
+
+	virtual void update_nodes_relevancy() override;
+
+	virtual void snapshot_add_custom_data(const NetUtility::SyncGroup *p_group, Vector<Variant> &r_snapshot_data) override {}
+	virtual bool snapshot_extract_custom_data(const Vector<Variant> &p_snapshot_data, uint32_t p_snap_data_index, LocalVector<const Variant *> &r_out) const override { return true; }
+	virtual void snapshot_apply_custom_data(const Vector<Variant> &p_custom_data) override {}
+
+	virtual Node *get_node_or_null(const NodePath &p_path) override;
+
+public: // ------------------------------------------------------- RPC Interface
+	virtual void rpc_send__state(int p_peer, const Variant &p_snapshot) override;
+	virtual void rpc_send__notify_need_full_snapshot(int p_peer) override;
+	virtual void rpc_send__set_network_enabled(int p_peer, bool p_enabled) override;
+	virtual void rpc_send__notify_peer_status(int p_peer, bool p_enabled) override;
+	virtual void rpc_send__deferred_sync_data(int p_peer, const Vector<uint8_t> &p_data) override;
+
+	void _rpc_send_state(const Variant &p_snapshot);
+	void _rpc_notify_need_full_snapshot();
+	void _rpc_set_network_enabled(bool p_enabled);
+	void _rpc_notify_peer_status(bool p_enabled);
+	void _rpc_send_deferred_sync_data(const Vector<uint8_t> &p_data);
 
 public: // ---------------------------------------------------------------- APIs
 	virtual void reset_synchronizer_mode();
@@ -110,10 +139,6 @@ public: // ---------------------------------------------------------------- APIs
 	void sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_ptr);
 	uint64_t sync_group_get_user_data(SyncGroupId p_group_id) const;
 
-	virtual void snapshot_add_custom_data(const NetUtility::SyncGroup *p_group, Vector<Variant> &r_snapshot_data) {}
-	virtual bool snapshot_extract_custom_data(const Vector<Variant> &p_snapshot_data, uint32_t p_snap_data_index, LocalVector<const Variant *> &r_out) const { return true; }
-	virtual void snapshot_apply_custom_data(const Vector<Variant> &p_custom_data) {}
-
 	void start_tracking_scene_changes(Object *p_diff_handle) const;
 	void stop_tracking_scene_changes(Object *p_diff_handle) const;
 	Variant pop_scene_changes(Object *p_diff_handle) const;
@@ -140,6 +165,8 @@ public: // ---------------------------------------------------------------- APIs
 	bool is_no_network() const;
 	/// Returns true if network is enabled.
 	bool is_networked() const;
+
+	void _on_node_removed(Node *p_node);
 };
 
 VARIANT_ENUM_CAST(NetEventFlag)

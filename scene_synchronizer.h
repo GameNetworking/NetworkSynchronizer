@@ -5,9 +5,11 @@
 #include "core/templates/local_vector.h"
 #include "core/templates/oa_hash_map.h"
 #include "data_buffer.h"
+#include "modules/network_synchronizer/core/event.h"
 #include "net_utilities.h"
 #include "snapshot.h"
 #include <deque>
+#include <functional>
 
 class NetworkedController;
 struct PlayerController;
@@ -15,6 +17,35 @@ struct PlayerController;
 NS_NAMESPACE_BEGIN
 
 class Synchronizer;
+
+class SynchronizerManager {
+public:
+	virtual void on_init_synchronizer(bool p_was_generating_ids) {}
+	virtual void on_uninit_synchronizer() {}
+
+	/// Add node data and generates the `NetNodeId` if allowed.
+	virtual void on_add_node_data(NetUtility::NodeData *p_node_data) {}
+	virtual void on_drop_node_data(NetUtility::NodeData *p_node_data) {}
+
+	virtual void on_sync_group_created(SyncGroupId p_group_id) {}
+
+	/// This function is always executed on the server before anything else
+	/// and it's here that you want to update the node relevancy.
+	virtual void update_nodes_relevancy() {}
+
+	virtual void snapshot_add_custom_data(const NetUtility::SyncGroup *p_group, Vector<Variant> &r_snapshot_data) {}
+	virtual bool snapshot_extract_custom_data(const Vector<Variant> &p_snapshot_data, uint32_t p_snap_data_index, LocalVector<const Variant *> &r_out) const { return true; }
+	virtual void snapshot_apply_custom_data(const Vector<Variant> &p_custom_data) {}
+
+	virtual Node *get_node_or_null(const NodePath &p_path) = 0;
+
+public: // ------------------------------------------------------- RPC Interface
+	virtual void rpc_send__state(int p_peer, const Variant &p_snapshot) = 0;
+	virtual void rpc_send__notify_need_full_snapshot(int p_peer) = 0;
+	virtual void rpc_send__set_network_enabled(int p_peer, bool p_enabled) = 0;
+	virtual void rpc_send__notify_peer_status(int p_peer, bool p_enabled) = 0;
+	virtual void rpc_send__deferred_sync_data(int p_peer, const Vector<uint8_t> &p_data) = 0;
+};
 
 /// # SceneSynchronizer
 ///
@@ -97,6 +128,7 @@ public:
 
 private:
 	class NetworkInterface *network_interface = nullptr;
+	SynchronizerManager *synchronizer_manager = nullptr;
 
 	int max_deferred_nodes_per_update = 30;
 	real_t server_notify_state_interval = 1.0;
@@ -135,16 +167,26 @@ private:
 	// Set at runtime by the constructor by reading the project settings.
 	bool debug_rewindings_enabled = false;
 
+public: // -------------------------------------------------------------- Events
+	Event<> event_sync_started;
+	Event<> event_sync_paused;
+	Event<Node * /*p_controlled_node*/, NetNodeId /*p_node_data_id*/, int /*p_peer*/, bool /*p_connected*/, bool /*p_enabled*/> event_peer_status_updated;
+	Event<uint32_t /*p_input_id*/> event_state_validated;
+	Event<uint32_t /*p_input_id*/, int /*p_index*/, int /*p_count*/> event_rewind_frame_begin;
+	Event<uint32_t /*p_input_id*/, Node * /*p_node*/, const Vector<StringName> & /*p_var_names*/, const Vector<Variant> & /*p_client_values*/, const Vector<Variant> & /*p_server_values*/> event_desync_detected;
+
 public:
 	SceneSynchronizer();
 	~SceneSynchronizer();
 
 public: // -------------------------------------------------------- Manager APIs
 	/// Setup the synchronizer
-	void setup(NetworkInterface &p_network_interface);
+	void setup(
+			NetworkInterface &p_network_interface,
+			SynchronizerManager &p_synchronizer_interface);
 
 	/// Prepare the synchronizer for destruction.
-	void pre_destroy();
+	void conclude();
 
 	/// Process the SceneSync.
 	void process();
@@ -153,8 +195,12 @@ public: // -------------------------------------------------------- Manager APIs
 	void on_node_removed(Node *p_node);
 
 public:
-	NS::NetworkInterface &get_network_interface() { return *network_interface; }
-	const NS::NetworkInterface &get_network_interface() const { return *network_interface; }
+	NS::NetworkInterface &get_network_interface() {
+		return *network_interface;
+	}
+	const NS::NetworkInterface &get_network_interface() const {
+		return *network_interface;
+	}
 
 	void set_max_deferred_nodes_per_update(int p_rate);
 	int get_max_deferred_nodes_per_update() const;
@@ -169,6 +215,13 @@ public:
 	real_t get_nodes_relevancy_update_time() const;
 
 	bool is_variable_registered(Node *p_node, const StringName &p_variable) const;
+
+public: // ---------------------------------------------------------------- RPCs
+	void rpc_receive__state(const Variant &p_snapshot);
+	void rpc_receive__notify_need_full_snapshot();
+	void rpc_receive__set_network_enabled(bool p_enabled);
+	void rpc_receive__notify_peer_status(bool p_enabled);
+	void rpc_receive__deferred_sync_data(const Vector<uint8_t> &p_data);
 
 public: // ---------------------------------------------------------------- APIs
 	/// Register a new node and returns its `NodeData`.
@@ -210,7 +263,7 @@ public: // ---------------------------------------------------------------- APIs
 	/// Creates a realtime sync group containing a list of nodes.
 	/// The Peers listening to this group will receive the updates only
 	/// from the nodes within this group.
-	virtual SyncGroupId sync_group_create();
+	SyncGroupId sync_group_create();
 	const NetUtility::SyncGroup *sync_group_get(SyncGroupId p_group_id) const;
 
 	void sync_group_add_node_by_id(NetNodeId p_node_id, SyncGroupId p_group_id, bool p_realtime);
@@ -233,10 +286,6 @@ public: // ---------------------------------------------------------------- APIs
 
 	void sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_ptr);
 	uint64_t sync_group_get_user_data(SyncGroupId p_group_id) const;
-
-	virtual void snapshot_add_custom_data(const NetUtility::SyncGroup *p_group, Vector<Variant> &r_snapshot_data) {}
-	virtual bool snapshot_extract_custom_data(const Vector<Variant> &p_snapshot_data, uint32_t p_snap_data_index, LocalVector<const Variant *> &r_out) const { return true; }
-	virtual void snapshot_apply_custom_data(const Vector<Variant> &p_custom_data) {}
 
 	void start_tracking_scene_changes(Object *p_diff_handle) const;
 	void stop_tracking_scene_changes(Object *p_diff_handle) const;
@@ -270,12 +319,6 @@ public: // ---------------------------------------------------------------- APIs
 
 	void notify_controller_control_mode_changed(NetworkedController *controller);
 
-	void _rpc_send_state(const Variant &p_snapshot);
-	void _rpc_notify_need_full_snapshot();
-	void _rpc_set_network_enabled(bool p_enabled);
-	void _rpc_notify_peer_status(bool p_enabled);
-	void _rpc_send_deferred_sync_data(const Vector<uint8_t> &p_data);
-
 	void update_peers();
 	void clear_peers();
 
@@ -286,9 +329,7 @@ public: // ---------------------------------------------------------------- APIs
 	void change_events_flush();
 
 public: // ------------------------------------------------------------ INTERNAL
-	/// This function is always executed on the server before anything else
-	/// and it's here that you want to update the node relevancy.
-	virtual void update_nodes_relevancy();
+	void update_nodes_relevancy();
 
 	void process_functions__clear();
 	void process_functions__execute(const double p_delta);
@@ -325,8 +366,8 @@ public: // ------------------------------------------------------------ INTERNAL
 	void pull_node_changes(NetUtility::NodeData *p_node_data);
 
 	/// Add node data and generates the `NetNodeId` if allowed.
-	virtual void add_node_data(NetUtility::NodeData *p_node_data);
-	virtual void drop_node_data(NetUtility::NodeData *p_node_data);
+	void add_node_data(NetUtility::NodeData *p_node_data);
+	void drop_node_data(NetUtility::NodeData *p_node_data);
 
 	/// Set the node data net id.
 	void set_node_data_id(NetUtility::NodeData *p_node_data, NetNodeId p_id);
