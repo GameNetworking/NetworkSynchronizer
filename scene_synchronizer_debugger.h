@@ -160,8 +160,8 @@ public:
 	void databuffer_write(uint32_t p_data_type, uint32_t p_compression_level, Variant p_variable);
 	void databuffer_read(uint32_t p_data_type, uint32_t p_compression_level, Variant p_variable);
 
-	void notify_input_sent_to_server(Node *p_node, uint32_t p_frame_index, uint32_t p_input_index);
-	void notify_are_inputs_different_result(Node *p_node, uint32_t p_other_frame_index, bool p_is_similar);
+	void notify_input_sent_to_server(NS::NetworkInterface *p_network_interface, uint32_t p_frame_index, uint32_t p_input_index);
+	void notify_are_inputs_different_result(NS::NetworkInterface *p_network_interface, uint32_t p_other_frame_index, bool p_is_similar);
 
 	void add_node_message(const String &p_name, const String &p_message);
 
