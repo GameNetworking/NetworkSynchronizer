@@ -39,6 +39,7 @@
 #include "core/error/error_macros.h"
 #include "core/io/marshalls.h"
 #include "godot4/gd_network_interface.h"
+#include "modules/network_synchronizer/core/core.h"
 #include "modules/network_synchronizer/core/event.h"
 #include "scene/main/multiplayer_api.h"
 #include "scene_synchronizer.h"
@@ -47,82 +48,10 @@
 
 #define METADATA_SIZE 1
 
-void NetworkedController::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("set_server_controlled", "server_controlled"), &NetworkedController::set_server_controlled);
-	ClassDB::bind_method(D_METHOD("get_server_controlled"), &NetworkedController::get_server_controlled);
+NS_NAMESPACE_BEGIN
 
-	ClassDB::bind_method(D_METHOD("set_player_input_storage_size", "size"), &NetworkedController::set_player_input_storage_size);
-	ClassDB::bind_method(D_METHOD("get_player_input_storage_size"), &NetworkedController::get_player_input_storage_size);
-
-	ClassDB::bind_method(D_METHOD("set_max_redundant_inputs", "max_redundant_inputs"), &NetworkedController::set_max_redundant_inputs);
-	ClassDB::bind_method(D_METHOD("get_max_redundant_inputs"), &NetworkedController::get_max_redundant_inputs);
-
-	ClassDB::bind_method(D_METHOD("set_tick_speedup_notification_delay", "delay_in_ms"), &NetworkedController::set_tick_speedup_notification_delay);
-	ClassDB::bind_method(D_METHOD("get_tick_speedup_notification_delay"), &NetworkedController::get_tick_speedup_notification_delay);
-
-	ClassDB::bind_method(D_METHOD("set_network_traced_frames", "size"), &NetworkedController::set_network_traced_frames);
-	ClassDB::bind_method(D_METHOD("get_network_traced_frames"), &NetworkedController::get_network_traced_frames);
-
-	ClassDB::bind_method(D_METHOD("set_min_frames_delay", "val"), &NetworkedController::set_min_frames_delay);
-	ClassDB::bind_method(D_METHOD("get_min_frames_delay"), &NetworkedController::get_min_frames_delay);
-
-	ClassDB::bind_method(D_METHOD("set_max_frames_delay", "val"), &NetworkedController::set_max_frames_delay);
-	ClassDB::bind_method(D_METHOD("get_max_frames_delay"), &NetworkedController::get_max_frames_delay);
-
-	ClassDB::bind_method(D_METHOD("set_tick_acceleration", "acceleration"), &NetworkedController::set_tick_acceleration);
-	ClassDB::bind_method(D_METHOD("get_tick_acceleration"), &NetworkedController::get_tick_acceleration);
-
-	ClassDB::bind_method(D_METHOD("get_current_input_id"), &NetworkedController::get_current_input_id);
-
-	ClassDB::bind_method(D_METHOD("player_get_pretended_delta"), &NetworkedController::player_get_pretended_delta);
-
-	ClassDB::bind_method(D_METHOD("_rpc_server_send_inputs"), &NetworkedController::_rpc_server_send_inputs);
-	ClassDB::bind_method(D_METHOD("_rpc_set_server_controlled"), &NetworkedController::_rpc_set_server_controlled);
-	ClassDB::bind_method(D_METHOD("_rpc_notify_fps_acceleration"), &NetworkedController::_rpc_notify_fps_acceleration);
-
-	ClassDB::bind_method(D_METHOD("is_server_controller"), &NetworkedController::is_server_controller);
-	ClassDB::bind_method(D_METHOD("is_player_controller"), &NetworkedController::is_player_controller);
-	ClassDB::bind_method(D_METHOD("is_doll_controller"), &NetworkedController::is_doll_controller);
-	ClassDB::bind_method(D_METHOD("is_nonet_controller"), &NetworkedController::is_nonet_controller);
-
-	GDVIRTUAL_BIND(_collect_inputs, "delta", "buffer");
-	GDVIRTUAL_BIND(_controller_process, "delta", "buffer");
-	GDVIRTUAL_BIND(_are_inputs_different, "inputs_A", "inputs_B");
-	GDVIRTUAL_BIND(_count_input_size, "inputs");
-
-	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "server_controlled"), "set_server_controlled", "get_server_controlled");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "input_storage_size", PROPERTY_HINT_RANGE, "5,2000,1"), "set_player_input_storage_size", "get_player_input_storage_size");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "max_redundant_inputs", PROPERTY_HINT_RANGE, "0,1000,1"), "set_max_redundant_inputs", "get_max_redundant_inputs");
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "tick_speedup_notification_delay", PROPERTY_HINT_RANGE, "0,5000,1"), "set_tick_speedup_notification_delay", "get_tick_speedup_notification_delay");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "network_traced_frames", PROPERTY_HINT_RANGE, "1,1000,1"), "set_network_traced_frames", "get_network_traced_frames");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "min_frames_delay", PROPERTY_HINT_RANGE, "0,100,1"), "set_min_frames_delay", "get_min_frames_delay");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "max_frames_delay", PROPERTY_HINT_RANGE, "0,100,1"), "set_max_frames_delay", "get_max_frames_delay");
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "tick_acceleration", PROPERTY_HINT_RANGE, "0.1,20.0,0.01"), "set_tick_acceleration", "get_tick_acceleration");
-
-	ADD_SIGNAL(MethodInfo("controller_reset"));
-	ADD_SIGNAL(MethodInfo("input_missed", PropertyInfo(Variant::INT, "missing_input_id")));
-	ADD_SIGNAL(MethodInfo("client_speedup_adjusted", PropertyInfo(Variant::INT, "input_worst_receival_time_ms"), PropertyInfo(Variant::INT, "optimal_frame_delay"), PropertyInfo(Variant::INT, "current_frame_delay"), PropertyInfo(Variant::INT, "distance_to_optimal")));
-}
-
-NetworkedController::NetworkedController() :
-		Node() {
-	GdNetworkInterface *ni = memnew(GdNetworkInterface);
-	ni->owner = this;
-	network_interface = ni;
-
+NetworkedController::NetworkedController() {
 	inputs_buffer = memnew(DataBuffer);
-
-	Dictionary rpc_config_reliable;
-	rpc_config_reliable["rpc_mode"] = MultiplayerAPI::RPC_MODE_ANY_PEER;
-	rpc_config_reliable["call_local"] = false;
-	rpc_config_reliable["transfer_mode"] = MultiplayerPeer::TRANSFER_MODE_RELIABLE;
-
-	Dictionary rpc_config_unreliable = rpc_config_reliable;
-	rpc_config_unreliable["transfer_mode"] = MultiplayerPeer::TRANSFER_MODE_UNRELIABLE;
-
-	rpc_config(SNAME("_rpc_server_send_inputs"), rpc_config_unreliable);
-	rpc_config(SNAME("_rpc_set_server_controlled"), rpc_config_reliable);
-	rpc_config(SNAME("_rpc_notify_fps_acceleration"), rpc_config_unreliable);
 }
 
 NetworkedController::~NetworkedController() {
@@ -134,9 +63,18 @@ NetworkedController::~NetworkedController() {
 		controller = nullptr;
 		controller_type = CONTROLLER_TYPE_NULL;
 	}
+}
 
-	memdelete(network_interface);
+void NetworkedController::setup(
+		NetworkInterface &p_network_interface,
+		NetworkedControllerManager &p_controller_manager) {
+	network_interface = &p_network_interface;
+	networked_controller_manager = &p_controller_manager;
+}
+
+void NetworkedController::conclude() {
 	network_interface = nullptr;
+	networked_controller_manager = nullptr;
 }
 
 void NetworkedController::set_server_controlled(bool p_server_controlled) {
@@ -161,9 +99,8 @@ void NetworkedController::set_server_controlled(bool p_server_controlled) {
 
 			// Tell the client to do the switch too.
 			if (network_interface->get_unit_authority() != 1) {
-				rpc_id(
-						get_multiplayer_authority(),
-						SNAME("_rpc_set_server_controlled"),
+				networked_controller_manager->rpc_send__set_server_controlled(
+						network_interface->get_unit_authority(),
 						server_controlled);
 			} else {
 				SceneSynchronizerDebugger::singleton()->debug_warning(network_interface, "The node is owned by the server, there is no client that can control it; please assign the proper authority.");
@@ -187,23 +124,6 @@ void NetworkedController::set_server_controlled(bool p_server_controlled) {
 		// set it.
 		server_controlled = p_server_controlled;
 	}
-#ifdef DEBUG_ENABLED
-	if (GDVIRTUAL_IS_OVERRIDDEN(_collect_inputs) == false && server_controlled == false) {
-		WARN_PRINT("In your script you must inherit the virtual method `_collect_inputs` to correctly use the `NetworkedController`.");
-	}
-
-	if (GDVIRTUAL_IS_OVERRIDDEN(_controller_process) == false && server_controlled == false) {
-		WARN_PRINT("In your script you must inherit the virtual method `_controller_process` to correctly use the `NetworkedController`.");
-	}
-
-	if (GDVIRTUAL_IS_OVERRIDDEN(_are_inputs_different) == false && server_controlled == false) {
-		WARN_PRINT("In your script you must inherit the virtual method `_are_inputs_different` to correctly use the `NetworkedController`.");
-	}
-
-	if (GDVIRTUAL_IS_OVERRIDDEN(_count_input_size) == false && server_controlled == false) {
-		WARN_PRINT("In your script you must inherit the virtual method `_count_input_size` to correctly use the `NetworkedController`.");
-	}
-#endif
 }
 
 bool NetworkedController::get_server_controlled() const {
@@ -274,85 +194,6 @@ uint32_t NetworkedController::get_current_input_id() const {
 real_t NetworkedController::player_get_pretended_delta() const {
 	ERR_FAIL_COND_V_MSG(is_player_controller() == false, 1.0, "This function can be called only on client.");
 	return get_player_controller()->pretended_delta;
-}
-
-void NetworkedController::trigger_event__controller_reset() {
-	emit_signal("controller_reset");
-}
-
-void NetworkedController::trigger_event__input_missed(uint32_t p_input_id) {
-	emit_signal("input_missed", p_input_id);
-}
-
-void NetworkedController::trigger_event__client_speedup_adjusted(
-		uint32_t p_input_worst_receival_time_ms,
-		int p_optimal_frame_delay,
-		int p_current_frame_delay,
-		int p_distance_to_optimal) {
-	emit_signal(
-			"client_speedup_adjusted",
-			p_input_worst_receival_time_ms,
-			p_optimal_frame_delay,
-			p_current_frame_delay,
-			p_distance_to_optimal);
-}
-
-void NetworkedController::validate_script_implementation() {
-	ERR_FAIL_COND_MSG(has_method("_collect_inputs") == false && server_controlled == false, "In your script you must inherit the virtual method `_collect_inputs` to correctly use the `NetworkedController`.");
-	ERR_FAIL_COND_MSG(has_method("_controller_process") == false && server_controlled == false, "In your script you must inherit the virtual method `_controller_process` to correctly use the `NetworkedController`.");
-	ERR_FAIL_COND_MSG(has_method("_are_inputs_different") == false && server_controlled == false, "In your script you must inherit the virtual method `_are_inputs_different` to correctly use the `NetworkedController`.");
-	ERR_FAIL_COND_MSG(has_method("_count_input_size") == false && server_controlled == false, "In your script you must inherit the virtual method `_count_input_size` to correctly use the `NetworkedController`.");
-}
-
-void NetworkedController::native_collect_inputs(double p_delta, DataBuffer &r_buffer) {
-	PROFILE_NODE
-
-	const bool executed = GDVIRTUAL_CALL(_collect_inputs, p_delta, &r_buffer);
-	if (executed == false) {
-		NET_DEBUG_ERR("The function _collect_inputs was not executed!");
-	}
-}
-
-void NetworkedController::native_controller_process(double p_delta, DataBuffer &p_buffer) {
-	PROFILE_NODE
-
-	const bool executed = GDVIRTUAL_CALL(
-			_controller_process,
-			p_delta,
-			&p_buffer);
-
-	if (executed == false) {
-		NET_DEBUG_ERR("The function _controller_process was not executed!");
-	}
-}
-
-bool NetworkedController::native_are_inputs_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B) {
-	PROFILE_NODE
-
-	bool are_different = true;
-	const bool executed = GDVIRTUAL_CALL(
-			_are_inputs_different,
-			&p_buffer_A,
-			&p_buffer_B,
-			are_different);
-
-	if (executed == false) {
-		NET_DEBUG_ERR("The function _are_inputs_different was not executed!");
-		return true;
-	}
-
-	return are_different;
-}
-
-uint32_t NetworkedController::native_count_input_size(DataBuffer &p_buffer) {
-	PROFILE_NODE
-
-	int input_size = 0;
-	const bool executed = GDVIRTUAL_CALL(_count_input_size, &p_buffer, input_size);
-	if (executed == false) {
-		NET_DEBUG_ERR("The function `_count_input_size` was not executed.");
-	}
-	return uint32_t(input_size >= 0 ? input_size : 0);
 }
 
 bool NetworkedController::has_another_instant_to_process_after(int p_i) const {
@@ -499,13 +340,13 @@ void NetworkedController::on_rewind_frame_begin(uint32_t p_input_id, int p_index
 	}
 }
 
-void NetworkedController::_rpc_server_send_inputs(const Vector<uint8_t> &p_data) {
+void NetworkedController::rpc_receive__server_send_inputs(const Vector<uint8_t> &p_data) {
 	if (controller) {
 		controller->receive_inputs(p_data);
 	}
 }
 
-void NetworkedController::_rpc_set_server_controlled(bool p_server_controlled) {
+void NetworkedController::rpc_receive__set_server_controlled(bool p_server_controlled) {
 	ERR_FAIL_COND_MSG(is_player_controller() == false, "This function is supposed to be called on the server.");
 	server_controlled = p_server_controlled;
 
@@ -513,7 +354,7 @@ void NetworkedController::_rpc_set_server_controlled(bool p_server_controlled) {
 	scene_synchronizer->notify_controller_control_mode_changed(this);
 }
 
-void NetworkedController::_rpc_notify_fps_acceleration(const Vector<uint8_t> &p_data) {
+void NetworkedController::rpc_receive__notify_fps_acceleration(const Vector<uint8_t> &p_data) {
 	ERR_FAIL_COND(is_player_controller() == false);
 	ERR_FAIL_COND(p_data.size() != 1);
 
@@ -575,36 +416,8 @@ bool NetworkedController::is_realtime_enabled() {
 	return false;
 }
 
-void NetworkedController::_notification(int p_what) {
-	switch (p_what) {
-		case NOTIFICATION_INTERNAL_PHYSICS_PROCESS: {
-			if (Engine::get_singleton()->is_editor_hint()) {
-				return;
-			}
-
-#ifdef DEBUG_ENABLED
-			// This can't happen, since only the doll are processed here.
-			CRASH_COND(is_doll_controller() == false);
-#endif
-			const double physics_ticks_per_second = Engine::get_singleton()->get_physics_ticks_per_second();
-			const double delta = 1.0 / physics_ticks_per_second;
-			static_cast<DollController *>(controller)->process(delta);
-
-		} break;
-#ifdef DEBUG_ENABLED
-		case NOTIFICATION_READY: {
-			if (Engine::get_singleton()->is_editor_hint()) {
-				return;
-			}
-
-			validate_script_implementation();
-		} break;
-#endif
-	}
-}
-
 void NetworkedController::notify_controller_reset() {
-	trigger_event__controller_reset();
+	event_controller_reset.broadcast();
 }
 
 bool NetworkedController::__input_data_parse(
@@ -651,7 +464,7 @@ bool NetworkedController::__input_data_parse(
 		// Read metadata
 		const bool has_data = pir->read_bool();
 
-		const int input_size_in_bits = (has_data ? int(native_count_input_size(*pir)) : 0) + METADATA_SIZE;
+		const int input_size_in_bits = (has_data ? int(networked_controller_manager->count_input_size(*pir)) : 0) + METADATA_SIZE;
 
 		// Pad to 8 bits.
 		const int input_size_padded =
@@ -879,7 +692,7 @@ bool RemotelyControlledController::fetch_next_input(real_t p_delta) {
 						pir_B->begin_read();
 						pir_B->seek(METADATA_SIZE);
 
-						const bool are_different = node->native_are_inputs_different(*pir_A, *pir_B);
+						const bool are_different = node->networked_controller_manager->are_inputs_different(*pir_A, *pir_B);
 						if (are_different) {
 							SceneSynchronizerDebugger::singleton()->debug_print(node->network_interface, "[RemotelyControlledController::fetch_next_input] The input `" + itos(input_id) + "` is different from the one executed so far, so better to execute it.", true);
 							break;
@@ -934,7 +747,7 @@ void RemotelyControlledController::process(double p_delta) {
 
 #ifdef DEBUG_ENABLED
 	if (!is_new_input) {
-		node->trigger_event__input_missed(current_input_buffer_id + 1);
+		node->event_input_missed.broadcast(current_input_buffer_id + 1);
 	}
 #endif
 
@@ -943,7 +756,7 @@ void RemotelyControlledController::process(double p_delta) {
 	node->get_inputs_buffer_mut().begin_read();
 	node->get_inputs_buffer_mut().seek(METADATA_SIZE);
 	SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(&node->get_network_interface(), SceneSynchronizerDebugger::READ);
-	node->native_controller_process(
+	node->networked_controller_manager->controller_process(
 			p_delta,
 			node->get_inputs_buffer_mut());
 	SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
@@ -1109,10 +922,7 @@ bool ServerController::receive_inputs(const Vector<uint8_t> &p_data) {
 
 					node->__input_data_set_first_input_id(data, peer_input_id);
 
-					node->rpc_id(
-							peer_id,
-							SNAME("_rpc_server_send_inputs"),
-							data);
+					node->networked_controller_manager->rpc_send__server_send_inputs(peer_id, data);
 				}
 			}
 		}
@@ -1194,16 +1004,15 @@ void ServerController::adjust_player_tick_rate(double p_delta) {
 					"` Distance to optimal: `" + itos(distance_to_optimal) +
 					"`");
 		}
-		node->trigger_event__client_speedup_adjusted(worst_receival_time_ms, optimal_frame_delay, current_frame_delay, distance_to_optimal);
+		node->event_client_speedup_adjusted.broadcast(worst_receival_time_ms, optimal_frame_delay, current_frame_delay, distance_to_optimal);
 #endif
 
 		Vector<uint8_t>
 				packet_data;
 		packet_data.push_back(compressed_distance);
 
-		node->rpc_id(
-				node->get_multiplayer_authority(),
-				SNAME("_rpc_notify_fps_acceleration"),
+		node->networked_controller_manager->rpc_send__notify_fps_acceleration(
+				node->network_interface->get_unit_authority(),
 				packet_data);
 	}
 }
@@ -1229,7 +1038,7 @@ bool AutonomousServerController::fetch_next_input(real_t p_delta) {
 	node->get_inputs_buffer_mut().begin_write(METADATA_SIZE);
 	node->get_inputs_buffer_mut().seek(METADATA_SIZE);
 	SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(&node->get_network_interface(), SceneSynchronizerDebugger::WRITE);
-	node->native_collect_inputs(p_delta, node->get_inputs_buffer_mut());
+	node->networked_controller_manager->collect_inputs(p_delta, node->get_inputs_buffer_mut());
 	SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
 	node->get_inputs_buffer_mut().dry();
 
@@ -1372,7 +1181,7 @@ void PlayerController::process(double p_delta) {
 		ib.shrink_to(METADATA_SIZE, frames_snapshot[queued_instant_to_process].buffer_size_bit - METADATA_SIZE);
 		ib.begin_read();
 		ib.seek(METADATA_SIZE);
-		node->native_controller_process(p_delta, ib);
+		node->networked_controller_manager->controller_process(p_delta, ib);
 		queued_instant_to_process = -1;
 	} else {
 		// Process a new frame.
@@ -1394,7 +1203,7 @@ void PlayerController::process(double p_delta) {
 			node->get_inputs_buffer_mut().seek(METADATA_SIZE);
 
 			SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(&node->get_network_interface(), SceneSynchronizerDebugger::WRITE);
-			node->native_collect_inputs(p_delta, node->get_inputs_buffer_mut());
+			node->networked_controller_manager->collect_inputs(p_delta, node->get_inputs_buffer_mut());
 			SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
 
 			// Set metadata data.
@@ -1416,7 +1225,7 @@ void PlayerController::process(double p_delta) {
 		SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(&node->get_network_interface(), SceneSynchronizerDebugger::READ);
 		// The physics process is always emitted, because we still need to simulate
 		// the character motion even if we don't store the player inputs.
-		node->native_controller_process(p_delta, node->get_inputs_buffer_mut());
+		node->networked_controller_manager->controller_process(p_delta, node->get_inputs_buffer_mut());
 		SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
 
 		node->player_set_has_new_input(false);
@@ -1503,7 +1312,7 @@ void PlayerController::send_frame_input_buffer_to_server() {
 					pir_B->begin_read();
 					pir_B->seek(METADATA_SIZE);
 
-					const bool are_different = node->native_are_inputs_different(*pir_A, *pir_B);
+					const bool are_different = node->networked_controller_manager->are_inputs_different(*pir_A, *pir_B);
 					is_similar = !are_different;
 
 				} else if (frames_snapshot[i].similarity == previous_input_similarity) {
@@ -1523,9 +1332,9 @@ void PlayerController::send_frame_input_buffer_to_server() {
 		}
 
 		if (current_input_id == previous_input_id) {
-			SceneSynchronizerDebugger::singleton()->notify_are_inputs_different_result(node, frames_snapshot[i].id, is_similar);
+			SceneSynchronizerDebugger::singleton()->notify_are_inputs_different_result(&node->get_network_interface(), frames_snapshot[i].id, is_similar);
 		} else if (current_input_id == frames_snapshot[i].id) {
-			SceneSynchronizerDebugger::singleton()->notify_are_inputs_different_result(node, previous_input_id, is_similar);
+			SceneSynchronizerDebugger::singleton()->notify_are_inputs_different_result(&node->get_network_interface(), previous_input_id, is_similar);
 		}
 
 		if (is_similar) {
@@ -1534,13 +1343,13 @@ void PlayerController::send_frame_input_buffer_to_server() {
 			// In this way, we don't need to compare these frames again.
 			frames_snapshot[i].similarity = previous_input_id;
 
-			SceneSynchronizerDebugger::singleton()->notify_input_sent_to_server(node, frames_snapshot[i].id, previous_input_id);
+			SceneSynchronizerDebugger::singleton()->notify_input_sent_to_server(&node->get_network_interface(), frames_snapshot[i].id, previous_input_id);
 
 		} else {
 			// This input is different from the previous one, so let's
 			// finalize the previous and start another one.
 
-			SceneSynchronizerDebugger::singleton()->notify_input_sent_to_server(node, frames_snapshot[i].id, frames_snapshot[i].id);
+			SceneSynchronizerDebugger::singleton()->notify_input_sent_to_server(&node->get_network_interface(), frames_snapshot[i].id, frames_snapshot[i].id);
 
 			if (previous_input_id != UINT32_MAX) {
 				// We can finally finalize the previous input
@@ -1592,10 +1401,7 @@ void PlayerController::send_frame_input_buffer_to_server() {
 			ofs);
 
 	const int server_peer_id = 1;
-	node->rpc_id(
-			server_peer_id,
-			SNAME("_rpc_server_send_inputs"),
-			packet_data);
+	node->networked_controller_manager->rpc_send__server_send_inputs(server_peer_id, packet_data);
 }
 
 bool PlayerController::can_accept_new_inputs() const {
@@ -1729,7 +1535,7 @@ void DollController::process(double p_delta) {
 		node->get_inputs_buffer_mut().begin_read();
 		node->get_inputs_buffer_mut().seek(METADATA_SIZE);
 		SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(&node->get_network_interface(), SceneSynchronizerDebugger::READ);
-		node->native_controller_process(
+		node->networked_controller_manager->controller_process(
 				p_delta,
 				node->get_inputs_buffer_mut());
 		SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
@@ -1760,12 +1566,12 @@ void NoNetController::process(double p_delta) {
 	node->get_inputs_buffer_mut().begin_write(0); // No need of meta in this case.
 	SceneSynchronizerDebugger::singleton()->debug_print(&node->get_network_interface(), "Nonet process index: " + itos(frame_id), true);
 	SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(&node->get_network_interface(), SceneSynchronizerDebugger::WRITE);
-	node->native_collect_inputs(p_delta, node->get_inputs_buffer_mut());
+	node->networked_controller_manager->collect_inputs(p_delta, node->get_inputs_buffer_mut());
 	SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
 	node->get_inputs_buffer_mut().dry();
 	node->get_inputs_buffer_mut().begin_read();
 	SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(&node->get_network_interface(), SceneSynchronizerDebugger::READ);
-	node->native_controller_process(p_delta, node->get_inputs_buffer_mut());
+	node->networked_controller_manager->controller_process(p_delta, node->get_inputs_buffer_mut());
 	SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
 	frame_id += 1;
 }
@@ -1773,3 +1579,5 @@ void NoNetController::process(double p_delta) {
 uint32_t NoNetController::get_current_input_id() const {
 	return frame_id;
 }
+
+NS_NAMESPACE_END

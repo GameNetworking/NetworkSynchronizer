@@ -11,11 +11,10 @@
 #include <deque>
 #include <functional>
 
-class NetworkedController;
-struct PlayerController;
-
 NS_NAMESPACE_BEGIN
 
+class NetworkedController;
+struct PlayerController;
 class Synchronizer;
 
 class SynchronizerManager {
@@ -38,6 +37,9 @@ public:
 	virtual void snapshot_apply_custom_data(const Vector<Variant> &p_custom_data) {}
 
 	virtual Node *get_node_or_null(const NodePath &p_path) = 0;
+
+	virtual NetworkedController *extract_network_controller(Node *p_node) = 0;
+	virtual const NetworkedController *extract_network_controller(const Node *p_node) = 0;
 
 public: // ------------------------------------------------------- RPC Interface
 	virtual void rpc_send__state(int p_peer, const Variant &p_snapshot) = 0;

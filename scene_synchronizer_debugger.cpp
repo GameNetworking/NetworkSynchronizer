@@ -593,21 +593,21 @@ void SceneSynchronizerDebugger::databuffer_read(uint32_t p_data_type, uint32_t p
 #endif
 }
 
-void SceneSynchronizerDebugger::notify_input_sent_to_server(Node *p_node, uint32_t p_frame_index, uint32_t p_input_index) {
+void SceneSynchronizerDebugger::notify_input_sent_to_server(NS::NetworkInterface *p_network_interface, uint32_t p_frame_index, uint32_t p_input_index) {
 #ifdef DEBUG_ENABLED
-	gd_debug_print(p_node, "The client sent to server the input `" + itos(p_input_index) + "` for frame:`" + itos(p_frame_index) + "`.", true);
+	debug_print(p_network_interface, "The client sent to server the input `" + itos(p_input_index) + "` for frame:`" + itos(p_frame_index) + "`.", true);
 #endif
 }
 
 void SceneSynchronizerDebugger::notify_are_inputs_different_result(
-		Node *p_node,
+		NS::NetworkInterface *p_network_interface,
 		uint32_t p_other_frame_index,
 		bool p_is_similar) {
 #ifdef DEBUG_ENABLED
 	if (p_is_similar) {
-		gd_debug_print(p_node, "This frame input is SIMILAR to `" + itos(p_other_frame_index) + "`", true);
+		debug_print(p_network_interface, "This frame input is SIMILAR to `" + itos(p_other_frame_index) + "`", true);
 	} else {
-		gd_debug_print(p_node, "This frame input is DIFFERENT to `" + itos(p_other_frame_index) + "`", true);
+		debug_print(p_network_interface, "This frame input is DIFFERENT to `" + itos(p_other_frame_index) + "`", true);
 	}
 	frame_dump__are_inputs_different_results[p_other_frame_index] = p_is_similar;
 #endif

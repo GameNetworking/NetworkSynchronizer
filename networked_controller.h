@@ -1,50 +1,14 @@
-/*************************************************************************/
-/*  networked_controller.h                                               */
-/*************************************************************************/
-/*                       This file is part of:                           */
-/*                           GODOT ENGINE                                */
-/*                      https://godotengine.org                          */
-/*************************************************************************/
-/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
-/*                                                                       */
-/* Permission is hereby granted, free of charge, to any person obtaining */
-/* a copy of this software and associated documentation files (the       */
-/* "Software"), to deal in the Software without restriction, including   */
-/* without limitation the rights to use, copy, modify, merge, publish,   */
-/* distribute, sublicense, and/or sell copies of the Software, and to    */
-/* permit persons to whom the Software is furnished to do so, subject to */
-/* the following conditions:                                             */
-/*                                                                       */
-/* The above copyright notice and this permission notice shall be        */
-/* included in all copies or substantial portions of the Software.       */
-/*                                                                       */
-/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,       */
-/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF    */
-/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.*/
-/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY  */
-/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,  */
-/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
-/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
-/*************************************************************************/
-
-/**
-	@author AndreaCatania
-*/
-
-#include "modules/network_synchronizer/core/event.h"
-#include "scene/main/node.h"
+#pragma once
 
 #include "data_buffer.h"
+#include "modules/network_synchronizer/core/core.h"
+#include "modules/network_synchronizer/core/event.h"
 #include "net_utilities.h"
 #include <deque>
 
-#ifndef NETWORKED_CONTROLLER_H
-#define NETWORKED_CONTROLLER_H
-
-namespace NS {
+NS_NAMESPACE_BEGIN
 class SceneSynchronizer;
-};
+class NetworkInterface;
 
 struct Controller;
 struct ServerController;
@@ -52,8 +16,17 @@ struct PlayerController;
 struct DollController;
 struct NoNetController;
 
-namespace NS {
-class NetworkInterface;
+class NetworkedControllerManager {
+public:
+	virtual void collect_inputs(double p_delta, DataBuffer &r_buffer) = 0;
+	virtual void controller_process(double p_delta, DataBuffer &p_buffer) = 0;
+	virtual bool are_inputs_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B) = 0;
+	virtual uint32_t count_input_size(DataBuffer &p_buffer) = 0;
+
+public: // ---------------------------------------------------------------- RPCs
+	virtual void rpc_send__server_send_inputs(int p_peer_id, const Vector<uint8_t> &p_data) = 0;
+	virtual void rpc_send__set_server_controlled(int p_peer_id, bool p_server_controlled) = 0;
+	virtual void rpc_send__notify_fps_acceleration(int p_peer_id, const Vector<uint8_t> &p_data) = 0;
 };
 
 /// The `NetworkedController` is responsible to sync the `Player` inputs between
@@ -74,9 +47,7 @@ class NetworkInterface;
 // instantiated.
 // The most important part is inside the `PlayerController`, `ServerController`,
 // `DollController`, `NoNetController`.
-class NetworkedController : public Node {
-	GDCLASS(NetworkedController, Node);
-
+class NetworkedController {
 	friend class NS::SceneSynchronizer;
 	friend struct RemotelyControlledController;
 	friend struct ServerController;
@@ -91,14 +62,11 @@ public:
 		CONTROLLER_TYPE_DOLL
 	};
 
-	GDVIRTUAL2(_collect_inputs, real_t, DataBuffer *);
-	GDVIRTUAL2(_controller_process, real_t, DataBuffer *);
-	GDVIRTUAL2R(bool, _are_inputs_different, DataBuffer *, DataBuffer *);
-	GDVIRTUAL1RC(int, _count_input_size, DataBuffer *);
+public:
+	NS::NetworkInterface *network_interface = nullptr;
+	NetworkedControllerManager *networked_controller_manager = nullptr;
 
 private:
-	NS::NetworkInterface *network_interface = nullptr;
-
 	/// When `true`, this controller is controlled by the server: All the clients
 	/// see it as a `Doll`.
 	/// This property is really useful to implement bots (Character controlled by
@@ -182,15 +150,31 @@ private:
 	NS::EventFuncHandler event_handler_state_validated = NS::NullEventHandler;
 	NS::EventFuncHandler event_handler_peer_status_updated = NS::NullEventHandler;
 
-public:
-	static void _bind_methods();
+public: // -------------------------------------------------------------- Events
+	Event<> event_controller_reset;
+	Event<uint32_t /*p_input_id*/> event_input_missed;
+	Event<uint32_t /*p_input_worst_receival_time_ms*/, int /*p_optimal_frame_delay*/, int /*p_current_frame_delay*/, int /*p_distance_to_optimal*/> event_client_speedup_adjusted;
 
 public:
 	NetworkedController();
 	~NetworkedController();
 
-	NS::NetworkInterface &get_network_interface() { return *network_interface; }
-	const NS::NetworkInterface &get_network_interface() const { return *network_interface; }
+public: // -------------------------------------------------------- Manager APIs
+	/// Setup the controller
+	void setup(
+			NetworkInterface &p_network_interface,
+			NetworkedControllerManager &p_controller_manager);
+
+	/// Prepare the controller for destruction.
+	void conclude();
+
+public: // ---------------------------------------------------------------- APIs
+	NS::NetworkInterface &get_network_interface() {
+		return *network_interface;
+	}
+	const NS::NetworkInterface &get_network_interface() const {
+		return *network_interface;
+	}
 
 	void set_server_controlled(bool p_server_controlled);
 	bool get_server_controlled() const;
@@ -230,20 +214,6 @@ public:
 	real_t player_get_pretended_delta() const;
 
 public: // -------------------------------------------------------------- Events
-	virtual void trigger_event__controller_reset();
-	virtual void trigger_event__input_missed(uint32_t p_input_id);
-	virtual void trigger_event__client_speedup_adjusted(
-			uint32_t p_input_worst_receival_time_ms,
-			int p_optimal_frame_delay,
-			int p_current_frame_delay,
-			int p_distance_to_optimal);
-
-	virtual void validate_script_implementation();
-	virtual void native_collect_inputs(double p_delta, DataBuffer &r_buffer);
-	virtual void native_controller_process(double p_delta, DataBuffer &p_buffer);
-	virtual bool native_are_inputs_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B);
-	virtual uint32_t native_count_input_size(DataBuffer &p_buffer);
-
 	bool has_another_instant_to_process_after(int p_i) const;
 	void process(double p_delta);
 
@@ -278,11 +248,11 @@ public:
 	void on_rewind_frame_begin(uint32_t p_input_id, int p_index, int p_count);
 
 	/* On server rpc functions. */
-	void _rpc_server_send_inputs(const Vector<uint8_t> &p_data);
+	void rpc_receive__server_send_inputs(const Vector<uint8_t> &p_data);
 
 	/* On client rpc functions. */
-	void _rpc_set_server_controlled(bool p_server_controlled);
-	void _rpc_notify_fps_acceleration(const Vector<uint8_t> &p_data);
+	void rpc_receive__set_server_controlled(bool p_server_controlled);
+	void rpc_receive__notify_fps_acceleration(const Vector<uint8_t> &p_data);
 
 	void player_set_has_new_input(bool p_has);
 	bool player_has_new_input() const;
@@ -290,7 +260,6 @@ public:
 	bool is_realtime_enabled();
 
 protected:
-	void _notification(int p_what);
 	void notify_controller_reset();
 
 public:
@@ -484,4 +453,4 @@ struct NoNetController : public Controller {
 	virtual uint32_t get_current_input_id() const override;
 };
 
-#endif
+NS_NAMESPACE_END
