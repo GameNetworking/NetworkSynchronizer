@@ -2,7 +2,10 @@
 
 #include "modules/network_synchronizer/godot4/gd_network_interface.h"
 #include "modules/network_synchronizer/scene_synchronizer.h"
+#include "modules/network_synchronizer/scene_synchronizer_debugger.h"
+#include "modules/network_synchronizer/snapshot.h"
 #include "scene/main/multiplayer_api.h"
+#include "scene/main/window.h"
 
 void GdSceneSynchronizer::_bind_methods() {
 	BIND_CONSTANT(NS::SceneSynchronizer::GLOBAL_SYNC_GROUP_ID)
@@ -84,6 +87,8 @@ void GdSceneSynchronizer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("is_client"), &GdSceneSynchronizer::is_client);
 	ClassDB::bind_method(D_METHOD("is_networked"), &GdSceneSynchronizer::is_networked);
 
+	ClassDB::bind_method(D_METHOD("_on_node_removed"), &GdSceneSynchronizer::_on_node_removed);
+
 	ClassDB::bind_method(D_METHOD("_rpc_send_state"), &GdSceneSynchronizer::_rpc_send_state);
 	ClassDB::bind_method(D_METHOD("_rpc_notify_need_full_snapshot"), &GdSceneSynchronizer::_rpc_notify_need_full_snapshot);
 	ClassDB::bind_method(D_METHOD("_rpc_set_network_enabled", "enabled"), &GdSceneSynchronizer::_rpc_set_network_enabled);
@@ -108,20 +113,83 @@ void GdSceneSynchronizer::_bind_methods() {
 
 GdSceneSynchronizer::GdSceneSynchronizer() :
 		Node() {
+	Dictionary rpc_config_reliable;
+	rpc_config_reliable["rpc_mode"] = MultiplayerAPI::RPC_MODE_ANY_PEER;
+	rpc_config_reliable["call_local"] = false;
+	rpc_config_reliable["transfer_mode"] = MultiplayerPeer::TRANSFER_MODE_RELIABLE;
+
+	Dictionary rpc_config_unreliable;
+	rpc_config_unreliable["rpc_mode"] = MultiplayerAPI::RPC_MODE_ANY_PEER;
+	rpc_config_unreliable["call_local"] = false;
+	rpc_config_unreliable["transfer_mode"] = MultiplayerPeer::TRANSFER_MODE_UNRELIABLE;
+
+	rpc_config(SNAME("_rpc_send_state"), rpc_config_reliable);
+	rpc_config(SNAME("_rpc_notify_need_full_snapshot"), rpc_config_reliable);
+	rpc_config(SNAME("_rpc_set_network_enabled"), rpc_config_reliable);
+	rpc_config(SNAME("_rpc_notify_peer_status"), rpc_config_reliable);
+	rpc_config(SNAME("_rpc_send_deferred_sync_data"), rpc_config_unreliable);
+
+	event_handler_sync_started =
+			scene_synchronizer.event_sync_started.bind([this]() -> void {
+				emit_signal("sync_started");
+			});
+
+	event_handler_sync_paused =
+			scene_synchronizer.event_sync_paused.bind([this]() -> void {
+				emit_signal("sync_paused");
+			});
+
+	event_handler_peer_status_updated =
+			scene_synchronizer.event_peer_status_updated.bind([this](Node *p_controlled_node, NetNodeId p_node_data_id, int p_peer, bool p_connected, bool p_enabled) -> void {
+				emit_signal("peer_status_updated", p_controlled_node, p_node_data_id, p_peer, p_connected, p_enabled);
+			});
+
+	event_handler_state_validated =
+			scene_synchronizer.event_state_validated.bind([this](uint32_t p_input_id) -> void {
+				emit_signal("state_validated", p_input_id);
+			});
+
+	event_handler_rewind_frame_begin =
+			scene_synchronizer.event_rewind_frame_begin.bind([this](uint32_t p_input_id, int p_index, int p_count) -> void {
+				emit_signal("rewind_frame_begin", p_input_id, p_index, p_count);
+			});
+
+	event_handler_desync_detected =
+			scene_synchronizer.event_desync_detected.bind([this](uint32_t p_input_id, Node *p_node, const Vector<StringName> &p_var_names, const Vector<Variant> &p_client_values, const Vector<Variant> &p_server_values) -> void {
+				emit_signal("desync_detected", p_input_id, p_node, p_var_names, p_client_values, p_server_values);
+			});
 }
 
 GdSceneSynchronizer::~GdSceneSynchronizer() {
+	scene_synchronizer.event_sync_started.unbind(event_handler_sync_started);
+	event_handler_sync_started = NS::NullEventHandler;
+
+	scene_synchronizer.event_sync_paused.unbind(event_handler_sync_paused);
+	event_handler_sync_paused = NS::NullEventHandler;
+
+	scene_synchronizer.event_peer_status_updated.unbind(event_handler_peer_status_updated);
+	event_handler_peer_status_updated = NS::NullEventHandler;
+
+	scene_synchronizer.event_state_validated.unbind(event_handler_state_validated);
+	event_handler_state_validated = NS::NullEventHandler;
+
+	scene_synchronizer.event_rewind_frame_begin.unbind(event_handler_rewind_frame_begin);
+	event_handler_rewind_frame_begin = NS::NullEventHandler;
+
+	scene_synchronizer.event_desync_detected.unbind(event_handler_desync_detected);
+	event_handler_desync_detected = NS::NullEventHandler;
 }
 
 void GdSceneSynchronizer::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_INTERNAL_PHYSICS_PROCESS: {
-			if (Engine::get_singleton()->is_editor_hint())
+			if (Engine::get_singleton()->is_editor_hint()) {
 				return;
+			}
 
 			if (low_level_peer != get_multiplayer()->get_multiplayer_peer().ptr()) {
 				// The low level peer changed, so we need to refresh the synchronizer.
-				scene_synchronizer.reset_synchronizer_mode();
+				reset_synchronizer_mode();
 			}
 
 			const int lowest_priority_number = INT32_MAX;
@@ -130,22 +198,26 @@ void GdSceneSynchronizer::_notification(int p_what) {
 			scene_synchronizer.process();
 		} break;
 		case NOTIFICATION_ENTER_TREE: {
-			if (Engine::get_singleton()->is_editor_hint())
+			if (Engine::get_singleton()->is_editor_hint()) {
 				return;
+			}
 
 			GdNetworkInterface *ni = memnew(GdNetworkInterface);
 			ni->owner = this;
-			scene_synchronizer.setup(*ni);
+			scene_synchronizer.setup(
+					*ni,
+					*this);
 
 			get_tree()->connect(SNAME("node_removed"), Callable(this, SNAME("_on_node_removed")));
 
 		} break;
 		case NOTIFICATION_EXIT_TREE: {
-			if (Engine::get_singleton()->is_editor_hint())
+			if (Engine::get_singleton()->is_editor_hint()) {
 				return;
+			}
 
 			NS::NetworkInterface &ni = scene_synchronizer.get_network_interface();
-			scene_synchronizer.pre_destroy();
+			scene_synchronizer.conclude();
 			memdelete(&ni);
 
 			get_tree()->disconnect(SNAME("node_removed"), Callable(this, SNAME("_on_node_removed")));
@@ -153,6 +225,87 @@ void GdSceneSynchronizer::_notification(int p_what) {
 	}
 }
 
+void GdSceneSynchronizer::on_init_synchronizer(bool p_was_generating_ids) {
+	// Always runs the SceneSynchronizer last.
+	const int lowest_priority_number = INT32_MAX;
+	set_process_priority(lowest_priority_number);
+	set_physics_process_internal(true);
+	low_level_peer = get_multiplayer()->get_multiplayer_peer().ptr();
+
+	String debugger_mode;
+	if (scene_synchronizer.is_server()) {
+		debugger_mode = "server";
+	} else if (scene_synchronizer.is_client()) {
+		debugger_mode = "client";
+	} else if (scene_synchronizer.is_no_network()) {
+		debugger_mode = "nonet";
+	}
+	SceneSynchronizerDebugger::singleton()->setup_debugger(debugger_mode, 0, get_tree());
+}
+
+void GdSceneSynchronizer::on_uninit_synchronizer() {
+	set_physics_process_internal(false);
+	low_level_peer = nullptr;
+}
+
+void GdSceneSynchronizer::update_nodes_relevancy() {
+	if (GDVIRTUAL_IS_OVERRIDDEN(_update_nodes_relevancy)) {
+		const bool executed = GDVIRTUAL_CALL(_update_nodes_relevancy);
+		if (executed == false) {
+			NET_DEBUG_ERR("The function _update_nodes_relevancy failed!");
+		}
+	}
+}
+
+Node *GdSceneSynchronizer::get_node_or_null(const NodePath &p_path) {
+	if (get_tree() && get_tree()->get_root()) {
+		return get_tree()->get_root()->get_node_or_null(p_path);
+	}
+	return nullptr;
+}
+
+void GdSceneSynchronizer::rpc_send__state(int p_peer, const Variant &p_snapshot) {
+	rpc_id(p_peer, SNAME("_rpc_send_state"), p_snapshot);
+}
+
+void GdSceneSynchronizer::rpc_send__notify_need_full_snapshot(int p_peer) {
+	rpc_id(p_peer, SNAME("_rpc_notify_need_full_snapshot"));
+}
+
+void GdSceneSynchronizer::rpc_send__set_network_enabled(int p_peer, bool p_enabled) {
+	rpc_id(
+			p_peer,
+			SNAME("_rpc_set_network_enabled"),
+			p_enabled);
+}
+
+void GdSceneSynchronizer::rpc_send__notify_peer_status(int p_peer, bool p_enabled) {
+	rpc_id(p_peer, SNAME("_rpc_notify_peer_status"), p_enabled);
+}
+
+void GdSceneSynchronizer::rpc_send__deferred_sync_data(int p_peer, const Vector<uint8_t> &p_data) {
+	rpc_id(p_peer, SNAME("_rpc_send_deferred_sync_data"), p_data);
+}
+
+void GdSceneSynchronizer::_rpc_send_state(const Variant &p_snapshot) {
+	scene_synchronizer.rpc_receive__state(p_snapshot);
+}
+
+void GdSceneSynchronizer::_rpc_notify_need_full_snapshot() {
+	scene_synchronizer.rpc_receive__notify_need_full_snapshot();
+}
+
+void GdSceneSynchronizer::_rpc_set_network_enabled(bool p_enabled) {
+	scene_synchronizer.rpc_receive__set_network_enabled(p_enabled);
+}
+
+void GdSceneSynchronizer::_rpc_notify_peer_status(bool p_enabled) {
+	scene_synchronizer.rpc_receive__notify_peer_status(p_enabled);
+}
+
+void GdSceneSynchronizer::_rpc_send_deferred_sync_data(const Vector<uint8_t> &p_data) {
+	scene_synchronizer.rpc_receive__deferred_sync_data(p_data);
+}
 void GdSceneSynchronizer::set_max_deferred_nodes_per_update(int p_rate) {
 	scene_synchronizer.set_max_deferred_nodes_per_update(p_rate);
 }
@@ -183,17 +336,6 @@ void GdSceneSynchronizer::set_nodes_relevancy_update_time(real_t p_time) {
 
 real_t GdSceneSynchronizer::get_nodes_relevancy_update_time() const {
 	return scene_synchronizer.get_nodes_relevancy_update_time();
-}
-
-void GdSceneSynchronizer::on_init_synchronizer() {
-	// Always runs the SceneSynchronizer last.
-	const int lowest_priority_number = INT32_MAX;
-	owner->set_process_priority(lowest_priority_number);
-	owner->set_physics_process_internal(true);
-}
-
-void GdSceneSynchronizer::on_uninit_synchronizer() {
-	owner->set_physics_process_internal(false);
 }
 
 void GdSceneSynchronizer::reset_synchronizer_mode() {
@@ -388,43 +530,6 @@ bool GdSceneSynchronizer::is_peer_networking_enable(int p_peer) const {
 	return scene_synchronizer.is_peer_networking_enable(p_peer);
 }
 
-void GdSceneSynchronizer::_on_node_removed(Node *p_node) {
-	unregister_node(p_node);
-}
-
-void GdSceneSynchronizer::_rpc_send_state(const Variant &p_snapshot) {
-	ERR_FAIL_COND_MSG(is_client() == false, "Only clients are suposed to receive the server snapshot.");
-	static_cast<ClientSynchronizer *>(synchronizer)->receive_snapshot(p_snapshot);
-}
-
-void GdSceneSynchronizer::_rpc_notify_need_full_snapshot() {
-	ERR_FAIL_COND_MSG(is_server() == false, "Only the server can receive the request to send a full snapshot.");
-
-	const int sender_peer = network_interface->rpc_get_sender();
-	NetUtility::PeerData *pd = peer_data.lookup_ptr(sender_peer);
-	ERR_FAIL_COND(pd == nullptr);
-	pd->need_full_snapshot = true;
-}
-
-void GdSceneSynchronizer::_rpc_set_network_enabled(bool p_enabled) {
-	ERR_FAIL_COND_MSG(is_server() == false, "The peer status is supposed to be received by the server.");
-	set_peer_networking_enable(
-			network_interface->rpc_get_sender(),
-			p_enabled);
-}
-
-void GdSceneSynchronizer::_rpc_notify_peer_status(bool p_enabled) {
-	ERR_FAIL_COND_MSG(is_client() == false, "The peer status is supposed to be received by the client.");
-	static_cast<ClientSynchronizer *>(synchronizer)->set_enabled(p_enabled);
-}
-
-void GdSceneSynchronizer::_rpc_send_deferred_sync_data(const Vector<uint8_t> &p_data) {
-	ERR_FAIL_COND_MSG(is_client() == false, "Only clients are supposed to receive this function call.");
-	ERR_FAIL_COND_MSG(p_data.size() <= 0, "It's not supposed to receive a 0 size data.");
-
-	static_cast<ClientSynchronizer *>(synchronizer)->receive_deferred_sync_data(p_data);
-}
-
 bool GdSceneSynchronizer::is_server() const {
 	return scene_synchronizer.is_server();
 }
@@ -439,4 +544,8 @@ bool GdSceneSynchronizer::is_no_network() const {
 
 bool GdSceneSynchronizer::is_networked() const {
 	return scene_synchronizer.is_networked();
+}
+
+void GdSceneSynchronizer::_on_node_removed(Node *p_node) {
+	unregister_node(p_node);
 }

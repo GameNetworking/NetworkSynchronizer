@@ -260,22 +260,22 @@ bool InputNetworkEncoder::are_different(DataBuffer &p_buffer_A, DataBuffer &p_bu
 					are_equals = Math::is_equal_approx(p_buffer_A.read_unit_real(info.compression_level), p_buffer_B.read_unit_real(info.compression_level), info.comparison_floating_point_precision);
 					break;
 				case DataBuffer::DATA_TYPE_VECTOR2:
-					are_equals = SceneSynchronizer::compare(p_buffer_A.read_vector2(info.compression_level), p_buffer_B.read_vector2(info.compression_level), info.comparison_floating_point_precision);
+					are_equals = NS::SceneSynchronizer::compare(p_buffer_A.read_vector2(info.compression_level), p_buffer_B.read_vector2(info.compression_level), info.comparison_floating_point_precision);
 					break;
 				case DataBuffer::DATA_TYPE_NORMALIZED_VECTOR2:
-					are_equals = SceneSynchronizer::compare(p_buffer_A.read_normalized_vector2(info.compression_level), p_buffer_B.read_normalized_vector2(info.compression_level), info.comparison_floating_point_precision);
+					are_equals = NS::SceneSynchronizer::compare(p_buffer_A.read_normalized_vector2(info.compression_level), p_buffer_B.read_normalized_vector2(info.compression_level), info.comparison_floating_point_precision);
 					break;
 				case DataBuffer::DATA_TYPE_VECTOR3:
-					are_equals = SceneSynchronizer::compare(p_buffer_A.read_vector3(info.compression_level), p_buffer_B.read_vector3(info.compression_level), info.comparison_floating_point_precision);
+					are_equals = NS::SceneSynchronizer::compare(p_buffer_A.read_vector3(info.compression_level), p_buffer_B.read_vector3(info.compression_level), info.comparison_floating_point_precision);
 					break;
 				case DataBuffer::DATA_TYPE_NORMALIZED_VECTOR3:
-					are_equals = SceneSynchronizer::compare(p_buffer_A.read_normalized_vector3(info.compression_level), p_buffer_B.read_normalized_vector3(info.compression_level), info.comparison_floating_point_precision);
+					are_equals = NS::SceneSynchronizer::compare(p_buffer_A.read_normalized_vector3(info.compression_level), p_buffer_B.read_normalized_vector3(info.compression_level), info.comparison_floating_point_precision);
 					break;
 				case DataBuffer::DATA_TYPE_BITS:
 					CRASH_NOW_MSG("Not supported.");
 					break;
 				case DataBuffer::DATA_TYPE_VARIANT:
-					are_equals = SceneSynchronizer::compare(p_buffer_A.read_variant(), p_buffer_B.read_variant(), info.comparison_floating_point_precision);
+					are_equals = NS::SceneSynchronizer::compare(p_buffer_A.read_variant(), p_buffer_B.read_variant(), info.comparison_floating_point_precision);
 					break;
 			};
 		}

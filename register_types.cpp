@@ -37,12 +37,13 @@
 #include "core/config/engine.h"
 #include "core/config/project_settings.h"
 #include "data_buffer.h"
+#include "godot4/gd_scene_synchronizer.h"
 #include "input_network_encoder.h"
 #include "networked_controller.h"
 #include "scene_diff.h"
-#include "scene_synchronizer.h"
 #include "scene_synchronizer_debugger.h"
 
+#include "tests/test_event.h"
 #include "tests/test_scene_synchronizer.h"
 
 void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
@@ -50,7 +51,7 @@ void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
 		GDREGISTER_CLASS(DataBuffer);
 		GDREGISTER_CLASS(SceneDiff);
 		GDREGISTER_CLASS(NetworkedController);
-		GDREGISTER_CLASS(SceneSynchronizer);
+		GDREGISTER_CLASS(GdSceneSynchronizer);
 		GDREGISTER_CLASS(InputNetworkEncoder);
 
 		memnew(SceneSynchronizerDebugger);
@@ -65,6 +66,7 @@ void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
 		GLOBAL_DEF("NetworkSynchronizer/debugger/log_debug_fps_warnings", true);
 	} else if (p_level == MODULE_INITIALIZATION_LEVEL_EDITOR) {
 		//test_scene_synchronizer();
+		test_event();
 	}
 }
 

@@ -83,34 +83,9 @@ bool GdNetworkInterface::is_local_peer_authority_of_this_unit() const {
 	return owner->is_multiplayer_authority();
 }
 
-void GdNetworkInterface::configure_rpc(
-		const StringName &p_func,
-		bool p_call_local,
-		bool p_is_reliable) {
-	Dictionary rpc_config_dic;
-	rpc_config_dic["rpc_mode"] = MultiplayerAPI::RPC_MODE_ANY_PEER;
-	rpc_config_dic["call_local"] = p_call_local;
-
-	if (p_is_reliable) {
-		rpc_config_dic["transfer_mode"] = MultiplayerPeer::TRANSFER_MODE_RELIABLE;
-	} else {
-		rpc_config_dic["transfer_mode"] = MultiplayerPeer::TRANSFER_MODE_UNRELIABLE;
-	}
-
-	owner->rpc_config(p_func, rpc_config_dic);
-}
-
 int GdNetworkInterface::rpc_get_sender() const {
 	if (owner->get_tree() && owner->get_tree()->get_multiplayer().is_valid()) {
 		return owner->get_tree()->get_multiplayer()->get_remote_sender_id();
 	}
 	return 0;
-}
-
-void GdNetworkInterface::rpc_array(
-		int p_peer_id,
-		const StringName &p_method,
-		const Variant **p_arg,
-		int p_argcount) {
-	owner->rpcp(p_peer_id, p_method, p_arg, p_argcount);
 }

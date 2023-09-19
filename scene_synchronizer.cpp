@@ -44,7 +44,6 @@
 #include "modules/network_synchronizer/net_utilities.h"
 #include "modules/network_synchronizer/networked_controller.h"
 #include "modules/network_synchronizer/snapshot.h"
-#include "scene/main/window.h"
 #include "scene_diff.h"
 #include "scene_synchronizer_debugger.h"
 #include <functional>
@@ -63,8 +62,11 @@ SceneSynchronizer::~SceneSynchronizer() {
 	uninit_synchronizer();
 }
 
-void SceneSynchronizer::setup(NetworkInterface &p_network_interface) {
+void SceneSynchronizer::setup(
+		NetworkInterface &p_network_interface,
+		SynchronizerManager &p_synchronizer_interface) {
 	network_interface = &p_network_interface;
+	synchronizer_manager = &p_synchronizer_interface;
 
 	clear();
 	reset_synchronizer_mode();
@@ -81,27 +83,20 @@ void SceneSynchronizer::setup(NetworkInterface &p_network_interface) {
 	for (int peer_id : peer_ids) {
 		on_peer_connected(peer_id);
 	}
-
-	network_interface->configure_rpc(SNAME("_rpc_send_state"), false, true);
-	network_interface->configure_rpc(SNAME("_rpc_notify_need_full_snapshot"), false, true);
-	network_interface->configure_rpc(SNAME("_rpc_set_network_enabled"), false, true);
-	network_interface->configure_rpc(SNAME("_rpc_notify_peer_status"), false, true);
-	network_interface->configure_rpc(SNAME("_rpc_send_deferred_sync_data"), false, false);
 }
 
-void SceneSynchronizer::pre_destroy() {
-	clear_peers();
-
+void SceneSynchronizer::conclude() {
 	network_interface->stop_listening_peer_connection();
 
+	clear_peers();
 	clear();
-
 	uninit_synchronizer();
 
 	// Make sure to reset all the assigned controllers.
 	reset_controllers();
 
 	network_interface = nullptr;
+	synchronizer_manager = nullptr;
 }
 
 void SceneSynchronizer::process() {
@@ -252,7 +247,7 @@ void SceneSynchronizer::register_variable(Node *p_node, const StringName &p_vari
 		bool valid = false;
 		const Variant old_val = p_node->get(p_variable, &valid);
 		if (valid == false) {
-			SceneSynchronizerDebugger::singleton()->debug_error(this, "The variable `" + p_variable + "` on the node `" + p_node->get_path() + "` was not found, make sure the variable exist.");
+			SceneSynchronizerDebugger::singleton()->debug_error(network_interface, "The variable `" + p_variable + "` on the node `" + p_node->get_path() + "` was not found, make sure the variable exist.");
 		}
 		const int var_id = generate_id ? node_data->vars.size() : UINT32_MAX;
 		node_data->vars.push_back(
@@ -458,12 +453,14 @@ void SceneSynchronizer::setup_deferred_sync(Node *p_node, const Callable &p_coll
 	NetUtility::NodeData *node_data = register_node(p_node);
 	node_data->collect_epoch_func = p_collect_epoch_func;
 	node_data->apply_epoch_func = p_apply_epoch_func;
-	SceneSynchronizerDebugger::singleton()->debug_print(this, "Setup deferred sync functions for: `" + p_node->get_path() + "`. Collect epoch, method name: `" + p_collect_epoch_func.get_method() + "`. Apply epoch, method name: `" + p_apply_epoch_func.get_method() + "`.");
+	SceneSynchronizerDebugger::singleton()->debug_print(network_interface, "Setup deferred sync functions for: `" + p_node->get_path() + "`. Collect epoch, method name: `" + p_collect_epoch_func.get_method() + "`. Apply epoch, method name: `" + p_apply_epoch_func.get_method() + "`.");
 }
 
 SyncGroupId SceneSynchronizer::sync_group_create() {
 	ERR_FAIL_COND_V_MSG(!is_server(), NetID_NONE, "This function CAN be used only on the server.");
-	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_create();
+	const SyncGroupId id = static_cast<ServerSynchronizer *>(synchronizer)->sync_group_create();
+	synchronizer_manager->on_sync_group_created(id);
+	return id;
 }
 
 const NetUtility::SyncGroup *SceneSynchronizer::sync_group_get(SyncGroupId p_group_id) const {
@@ -683,8 +680,8 @@ void SceneSynchronizer::apply_scene_changes(const Variant &p_sync_data) {
 			});
 
 	if (success == false) {
-		SceneSynchronizerDebugger::singleton()->debug_error(this, "Scene changes:");
-		SceneSynchronizerDebugger::singleton()->debug_error(this, NetUtility::stringify_fast(p_sync_data));
+		SceneSynchronizerDebugger::singleton()->debug_error(network_interface, "Scene changes:");
+		SceneSynchronizerDebugger::singleton()->debug_error(network_interface, NetUtility::stringify_fast(p_sync_data));
 	}
 
 	change_events_flush();
@@ -733,7 +730,7 @@ void SceneSynchronizer::dirty_peers() {
 void SceneSynchronizer::set_enabled(bool p_enable) {
 	ERR_FAIL_COND_MSG(synchronizer_type == SYNCHRONIZER_TYPE_SERVER, "The server is always enabled.");
 	if (synchronizer_type == SYNCHRONIZER_TYPE_CLIENT) {
-		network_interface->rpc(1, SNAME("_rpc_set_network_enabled"), p_enable);
+		synchronizer_manager->rpc_send__set_network_enabled(1, p_enable);
 		if (p_enable == false) {
 			// If the peer want to disable, we can disable it locally
 			// immediately. When it wants to enable the networking, the server
@@ -783,7 +780,7 @@ void SceneSynchronizer::set_peer_networking_enable(int p_peer, bool p_enable) {
 		dirty_peers();
 
 		// Just notify the peer status.
-		network_interface->rpc(p_peer, SNAME("_rpc_notify_peer_status"), p_enable);
+		synchronizer_manager->rpc_send__notify_peer_status(p_peer, p_enable);
 	} else {
 		ERR_FAIL_COND_MSG(synchronizer_type != SYNCHRONIZER_TYPE_NONETWORK, "At this point no network is expected.");
 		static_cast<NoNetSynchronizer *>(synchronizer)->set_enabled(p_enable);
@@ -809,8 +806,7 @@ bool SceneSynchronizer::is_peer_networking_enable(int p_peer) const {
 void SceneSynchronizer::on_peer_connected(int p_peer) {
 	peer_data.set(p_peer, NetUtility::PeerData());
 
-	Object *nil = nullptr;
-	emit_signal("peer_status_updated", Variant(nil), NetID_NONE, p_peer, true, false);
+	event_peer_status_updated.broadcast(nullptr, NetID_NONE, p_peer, true, false);
 
 	dirty_peers();
 	if (synchronizer) {
@@ -828,7 +824,7 @@ void SceneSynchronizer::on_peer_disconnected(int p_peer) {
 		node = get_node_from_id(id);
 	}
 
-	emit_signal("peer_status_updated", node, id, p_peer, false, false);
+	event_peer_status_updated.broadcast(node, id, p_peer, false, false);
 
 	peer_data.remove(p_peer);
 #ifdef DEBUG_ENABLED
@@ -841,8 +837,6 @@ void SceneSynchronizer::on_peer_disconnected(int p_peer) {
 }
 
 void SceneSynchronizer::init_synchronizer(bool p_was_generating_ids) {
-	low_level_peer = get_multiplayer()->get_multiplayer_peer().ptr();
-
 	if (!network_interface->is_local_peer_networked()) {
 		synchronizer_type = SYNCHRONIZER_TYPE_NONETWORK;
 		synchronizer = memnew(NoNetSynchronizer(this));
@@ -904,11 +898,14 @@ void SceneSynchronizer::init_synchronizer(bool p_was_generating_ids) {
 	reset_controllers();
 
 	process_functions__clear();
-
-	network_interface->on_init_synchronizer();
+	synchronizer_manager->on_init_synchronizer(p_was_generating_ids);
 }
 
 void SceneSynchronizer::uninit_synchronizer() {
+	if (synchronizer_manager) {
+		synchronizer_manager->on_uninit_synchronizer();
+	}
+
 	generate_id = false;
 
 	if (synchronizer) {
@@ -916,9 +913,6 @@ void SceneSynchronizer::uninit_synchronizer() {
 		synchronizer = nullptr;
 		synchronizer_type = SYNCHRONIZER_TYPE_NULL;
 	}
-
-	low_level_peer = nullptr;
-	network_interface->on_uninit_synchronizer();
 }
 
 void SceneSynchronizer::reset_synchronizer_mode() {
@@ -955,12 +949,12 @@ void SceneSynchronizer::notify_controller_control_mode_changed(NetworkedControll
 	reset_controller(find_node_data(controller));
 }
 
-void SceneSynchronizer::_rpc_send_state(const Variant &p_snapshot) {
+void SceneSynchronizer::rpc_receive__state(const Variant &p_snapshot) {
 	ERR_FAIL_COND_MSG(is_client() == false, "Only clients are suposed to receive the server snapshot.");
 	static_cast<ClientSynchronizer *>(synchronizer)->receive_snapshot(p_snapshot);
 }
 
-void SceneSynchronizer::_rpc_notify_need_full_snapshot() {
+void SceneSynchronizer::rpc_receive__notify_need_full_snapshot() {
 	ERR_FAIL_COND_MSG(is_server() == false, "Only the server can receive the request to send a full snapshot.");
 
 	const int sender_peer = network_interface->rpc_get_sender();
@@ -969,19 +963,19 @@ void SceneSynchronizer::_rpc_notify_need_full_snapshot() {
 	pd->need_full_snapshot = true;
 }
 
-void SceneSynchronizer::_rpc_set_network_enabled(bool p_enabled) {
+void SceneSynchronizer::rpc_receive__set_network_enabled(bool p_enabled) {
 	ERR_FAIL_COND_MSG(is_server() == false, "The peer status is supposed to be received by the server.");
 	set_peer_networking_enable(
 			network_interface->rpc_get_sender(),
 			p_enabled);
 }
 
-void SceneSynchronizer::_rpc_notify_peer_status(bool p_enabled) {
+void SceneSynchronizer::rpc_receive__notify_peer_status(bool p_enabled) {
 	ERR_FAIL_COND_MSG(is_client() == false, "The peer status is supposed to be received by the client.");
 	static_cast<ClientSynchronizer *>(synchronizer)->set_enabled(p_enabled);
 }
 
-void SceneSynchronizer::_rpc_send_deferred_sync_data(const Vector<uint8_t> &p_data) {
+void SceneSynchronizer::rpc_receive__deferred_sync_data(const Vector<uint8_t> &p_data) {
 	ERR_FAIL_COND_MSG(is_client() == false, "Only clients are supposed to receive this function call.");
 	ERR_FAIL_COND_MSG(p_data.size() <= 0, "It's not supposed to receive a 0 size data.");
 
@@ -1029,7 +1023,7 @@ void SceneSynchronizer::update_peers() {
 		NetUtility::NodeData *nd = get_node_data(it.value->controller_id);
 		if (nd) {
 			nd->realtime_sync_enabled_on_client = it.value->enabled;
-			emit_signal("peer_status_updated", nd->node, nd->id, *it.key, true, it.value->enabled);
+			event_peer_status_updated.broadcast(nd->node, nd->id, *it.key, true, it.value->enabled);
 		}
 	}
 }
@@ -1187,7 +1181,7 @@ void SceneSynchronizer::add_node_data(NetUtility::NodeData *p_node_data) {
 	//	Now you have the scene with two different nodes but same path.
 	for (uint32_t i = 0; i < node_data.size(); i += 1) {
 		if (node_data[i]->node->get_path() == p_node_data->node->get_path()) {
-			SceneSynchronizerDebugger::singleton()->debug_error(this, "You have two different nodes with the same path: " + p_node_data->node->get_path() + ". This will cause troubles. Fix it.");
+			SceneSynchronizerDebugger::singleton()->debug_error(network_interface, "You have two different nodes with the same path: " + p_node_data->node->get_path() + ". This will cause troubles. Fix it.");
 			break;
 		}
 	}
@@ -1221,9 +1215,13 @@ void SceneSynchronizer::add_node_data(NetUtility::NodeData *p_node_data) {
 	if (synchronizer) {
 		synchronizer->on_node_added(p_node_data);
 	}
+
+	synchronizer_manager->on_add_node_data(p_node_data);
 }
 
 void SceneSynchronizer::drop_node_data(NetUtility::NodeData *p_node_data) {
+	synchronizer_manager->on_drop_node_data(p_node_data);
+
 	if (synchronizer) {
 		synchronizer->on_node_removed(p_node_data);
 	}
@@ -1283,7 +1281,7 @@ void SceneSynchronizer::set_node_data_id(NetUtility::NodeData *p_node_data, NetN
 	if (p_node_data->has_registered_process_functions()) {
 		process_functions__clear();
 	}
-	SceneSynchronizerDebugger::singleton()->debug_print(this, "NetNodeId: " + itos(p_id) + " just assigned to: " + p_node_data->node->get_path());
+	SceneSynchronizerDebugger::singleton()->debug_print(network_interface, "NetNodeId: " + itos(p_id) + " just assigned to: " + p_node_data->node->get_path());
 }
 
 NetworkedController *SceneSynchronizer::fetch_controller_by_peer(int peer) {
@@ -1486,7 +1484,7 @@ void SceneSynchronizer::validate_nodes() {
 
 	// Removes the invalidated `NodeData`.
 	if (null_objects.size()) {
-		SceneSynchronizerDebugger::singleton()->debug_error(this, "At least one node has been removed from the tree without the SceneSynchronizer noticing. This shouldn't happen.");
+		SceneSynchronizerDebugger::singleton()->debug_error(network_interface, "At least one node has been removed from the tree without the SceneSynchronizer noticing. This shouldn't happen.");
 		for (uint32_t i = 0; i < null_objects.size(); i += 1) {
 			drop_node_data(null_objects[i]);
 		}
@@ -1495,12 +1493,7 @@ void SceneSynchronizer::validate_nodes() {
 #endif
 
 void SceneSynchronizer::update_nodes_relevancy() {
-	if (GDVIRTUAL_IS_OVERRIDDEN(_update_nodes_relevancy)) {
-		const bool executed = GDVIRTUAL_CALL(_update_nodes_relevancy);
-		if (executed == false) {
-			NET_DEBUG_ERR("The function _update_nodes_relevancy failed!");
-		}
-	}
+	synchronizer_manager->update_nodes_relevancy();
 
 	const bool log_debug_nodes_relevancy_update = ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/log_debug_nodes_relevancy_update");
 	if (log_debug_nodes_relevancy_update) {
@@ -1540,7 +1533,7 @@ void SceneSynchronizer::process_functions__execute(const double p_delta) {
 		cached_process_functions_valid = true;
 	}
 
-	SceneSynchronizerDebugger::singleton()->debug_print(this, "Process functions START", true);
+	SceneSynchronizerDebugger::singleton()->debug_print(network_interface, "Process functions START", true);
 
 	const Variant var_delta = p_delta;
 	const Variant *fake_array_vars = &var_delta;
@@ -1553,13 +1546,13 @@ void SceneSynchronizer::process_functions__execute(const double p_delta) {
 			const Object *object = cached_process_functions[process_phase][i].get_object();
 			const Node *n = Object::cast_to<const Node>(object);
 			const String name = n ? String(n->get_path()) : "UNKNOWN";
-			SceneSynchronizerDebugger::singleton()->debug_print(this, "|- `" + String(ProcessPhaseName[process_phase]) + "` Func: `" + cached_process_functions[process_phase][i].get_method() + "` NODE: `" + name + "`", true);
+			SceneSynchronizerDebugger::singleton()->debug_print(network_interface, "|- `" + String(ProcessPhaseName[process_phase]) + "` Func: `" + cached_process_functions[process_phase][i].get_method() + "` NODE: `" + name + "`", true);
 #endif
 
 			cached_process_functions[process_phase][i].callp(&fake_array_vars, 1, r, e);
 
 			if (e.error != Callable::CallError::CALL_OK) {
-				SceneSynchronizerDebugger::singleton()->debug_error(this, "|    \\ERROR, function not executed: `" + itos(e.error) + "`", true);
+				SceneSynchronizerDebugger::singleton()->debug_error(network_interface, "|    \\ERROR, function not executed: `" + itos(e.error) + "`", true);
 			}
 		}
 	}
@@ -1660,7 +1653,7 @@ void SceneSynchronizer::reset_controller(NetUtility::NodeData *p_controller_nd) 
 		controller->set_physics_process_internal(false);
 	}
 
-	if (get_tree() == nullptr) {
+	if (!synchronizer_manager) {
 		if (synchronizer) {
 			synchronizer->on_controller_reset(p_controller_nd);
 		}
@@ -1725,7 +1718,6 @@ Synchronizer::Synchronizer(SceneSynchronizer *p_node) :
 
 NoNetSynchronizer::NoNetSynchronizer(SceneSynchronizer *p_node) :
 		Synchronizer(p_node) {
-	SceneSynchronizerDebugger::singleton()->setup_debugger("nonet", 0, scene_synchronizer->get_tree());
 }
 
 void NoNetSynchronizer::clear() {
@@ -1738,7 +1730,7 @@ void NoNetSynchronizer::process() {
 		return;
 	}
 
-	SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "NoNetSynchronizer::process", true);
+	SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "NoNetSynchronizer::process", true);
 
 	const uint32_t frame_index = frame_count;
 	frame_count += 1;
@@ -1767,9 +1759,9 @@ void NoNetSynchronizer::set_enabled(bool p_enabled) {
 	enabled = p_enabled;
 
 	if (enabled) {
-		scene_synchronizer->emit_signal("sync_started");
+		scene_synchronizer->event_sync_started.broadcast();
 	} else {
-		scene_synchronizer->emit_signal("sync_paused");
+		scene_synchronizer->event_sync_paused.broadcast();
 	}
 }
 
@@ -1779,8 +1771,6 @@ bool NoNetSynchronizer::is_enabled() const {
 
 ServerSynchronizer::ServerSynchronizer(SceneSynchronizer *p_node) :
 		Synchronizer(p_node) {
-	SceneSynchronizerDebugger::singleton()->setup_debugger("server", 0, scene_synchronizer->get_tree());
-
 	CRASH_COND(SceneSynchronizer::GLOBAL_SYNC_GROUP_ID != sync_group_create());
 }
 
@@ -1791,7 +1781,7 @@ void ServerSynchronizer::clear() {
 }
 
 void ServerSynchronizer::process() {
-	SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "ServerSynchronizer::process", true);
+	SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "ServerSynchronizer::process", true);
 
 	scene_synchronizer->update_peers();
 
@@ -1984,41 +1974,41 @@ uint64_t ServerSynchronizer::sync_group_get_user_data(SyncGroupId p_group_id) co
 }
 
 void ServerSynchronizer::sync_group_debug_print() {
-	SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "");
-	SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|-----------------------");
-	SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "| Sync groups");
-	SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|-----------------------");
+	SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "");
+	SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|-----------------------");
+	SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "| Sync groups");
+	SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|-----------------------");
 
 	for (int g = 0; g < int(sync_groups.size()); ++g) {
 		NetUtility::SyncGroup &group = sync_groups[g];
 
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "| [Group " + itos(g) + "#]");
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|    Listening peers");
+		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "| [Group " + itos(g) + "#]");
+		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|    Listening peers");
 		for (int peer : group.peers) {
-			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|      |- " + itos(peer));
+			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|      |- " + itos(peer));
 		}
 
 		const LocalVector<NetUtility::SyncGroup::RealtimeNodeInfo> &realtime_node_info = group.get_realtime_sync_nodes();
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|");
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|    [Realtime nodes]");
+		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|");
+		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|    [Realtime nodes]");
 		for (auto info : realtime_node_info) {
 			if (info.nd->node) {
-				SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|      |- " + info.nd->node->get_path());
+				SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|      |- " + info.nd->node->get_path());
 			}
 		}
 
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|");
+		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|");
 
 		const LocalVector<NetUtility::SyncGroup::DeferredNodeInfo> &deferred_node_info = group.get_deferred_sync_nodes();
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|    [Deferred nodes (UR: Update Rate)]");
+		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|    [Deferred nodes (UR: Update Rate)]");
 		for (auto info : deferred_node_info) {
 			if (info.nd->node) {
-				SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|      |- [UR: " + rtos(info.update_rate) + "] " + info.nd->node->get_path());
+				SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|      |- [UR: " + rtos(info.update_rate) + "] " + info.nd->node->get_path());
 			}
 		}
 	}
-	SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|-----------------------");
-	SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "");
+	SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|-----------------------");
+	SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "");
 }
 
 void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
@@ -2091,7 +2081,7 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 				snap.append_array(delta_global_nodes_snapshot);
 			}
 
-			scene_synchronizer->network_interface->rpc(peer_id, SNAME("_rpc_send_state"), snap);
+			scene_synchronizer->synchronizer_manager->rpc_send__state(peer_id, snap);
 
 			if (nd) {
 				NetworkedController *controller = static_cast<NetworkedController *>(nd->node);
@@ -2134,7 +2124,7 @@ Vector<Variant> ServerSynchronizer::generate_snapshot(
 	}
 
 	// Calling this function to allow customize the snapshot per group.
-	scene_synchronizer->snapshot_add_custom_data(&p_group, snapshot_data);
+	scene_synchronizer->synchronizer_manager->snapshot_add_custom_data(&p_group, snapshot_data);
 
 	if (p_group.is_deferred_node_list_changed() || p_force_full_snapshot) {
 		for (int i = 0; i < int(p_group.get_deferred_sync_nodes().size()); ++i) {
@@ -2290,12 +2280,12 @@ void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
 			}
 
 			if (node_info[i].nd->id > UINT16_MAX) {
-				SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "[FATAL] The `process_deferred_sync` found a node with ID `" + itos(node_info[i].nd->id) + "::" + node_info[i].nd->node->get_path() + "` that exceedes the max ID this function can network at the moment. Please report this, we will consider improving this function.");
+				SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "[FATAL] The `process_deferred_sync` found a node with ID `" + itos(node_info[i].nd->id) + "::" + node_info[i].nd->node->get_path() + "` that exceedes the max ID this function can network at the moment. Please report this, we will consider improving this function.");
 				send = false;
 			}
 
 			if (node_info[i].nd->collect_epoch_func.is_null()) {
-				SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "The `process_deferred_sync` found a node `" + itos(node_info[i].nd->id) + "::" + node_info[i].nd->node->get_path() + "` with an invalid function `collect_epoch_func`. Please use `setup_deferred_sync` to correctly initialize this node for deferred sync.");
+				SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_deferred_sync` found a node `" + itos(node_info[i].nd->id) + "::" + node_info[i].nd->node->get_path() + "` with an invalid function `collect_epoch_func`. Please use `setup_deferred_sync` to correctly initialize this node for deferred sync.");
 				send = false;
 			}
 
@@ -2309,12 +2299,12 @@ void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
 				node_info[i].nd->collect_epoch_func.callp(&fake_array_vars, 1, r, e);
 
 				if (e.error != Callable::CallError::CALL_OK) {
-					SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "The `process_deferred_sync` was not able to execute the function `" + node_info[i].nd->collect_epoch_func.get_method() + "` for the node `" + itos(node_info[i].nd->id) + "::" + node_info[i].nd->node->get_path() + "`.");
+					SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_deferred_sync` was not able to execute the function `" + node_info[i].nd->collect_epoch_func.get_method() + "` for the node `" + itos(node_info[i].nd->id) + "::" + node_info[i].nd->node->get_path() + "`.");
 					continue;
 				}
 
 				if (tmp_buffer->total_size() > UINT16_MAX) {
-					SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "The `process_deferred_sync` failed because the method `" + node_info[i].nd->collect_epoch_func.get_method() + "` for the node `" + itos(node_info[i].nd->id) + "::" + node_info[i].nd->node->get_path() + "` collected more than " + itos(UINT16_MAX) + " bits. Please optimize your netcode to send less data.");
+					SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_deferred_sync` failed because the method `" + node_info[i].nd->collect_epoch_func.get_method() + "` for the node `" + itos(node_info[i].nd->id) + "::" + node_info[i].nd->node->get_path() + "` collected more than " + itos(UINT16_MAX) + " bits. Please optimize your netcode to send less data.");
 					continue;
 				}
 
@@ -2340,9 +2330,8 @@ void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
 		if (update_node_count > 0) {
 			global_buffer.dry();
 			for (int i = 0; i < int(group.peers.size()); ++i) {
-				scene_synchronizer->network_interface->rpc(
+				scene_synchronizer->synchronizer_manager->rpc_send__deferred_sync_data(
 						group.peers[i],
-						SNAME("_rpc_send_deferred_sync_data"),
 						global_buffer.get_buffer().get_bytes());
 			}
 		}
@@ -2354,8 +2343,6 @@ void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
 ClientSynchronizer::ClientSynchronizer(SceneSynchronizer *p_node) :
 		Synchronizer(p_node) {
 	clear();
-
-	SceneSynchronizerDebugger::singleton()->setup_debugger("client", 0, scene_synchronizer->get_tree());
 
 	notify_server_full_snapshot_is_needed();
 }
@@ -2373,7 +2360,7 @@ void ClientSynchronizer::clear() {
 }
 
 void ClientSynchronizer::process() {
-	SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "ClientSynchronizer::process", true);
+	SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "ClientSynchronizer::process", true);
 
 	if (unlikely(player_controller_node_data == nullptr || enabled == false)) {
 		// No player controller or disabled so nothing to do.
@@ -2386,7 +2373,7 @@ void ClientSynchronizer::process() {
 #ifdef DEBUG_ENABLED
 	if (unlikely(Engine::get_singleton()->get_frames_per_second() < physics_ticks_per_second)) {
 		const bool silent = !ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/debugger/log_debug_fps_warnings");
-		SceneSynchronizerDebugger::singleton()->debug_warning(scene_synchronizer, "Current FPS is " + itos(Engine::get_singleton()->get_frames_per_second()) + ", but the minimum required FPS is " + itos(physics_ticks_per_second) + ", the client is unable to generate enough inputs for the server.", silent);
+		SceneSynchronizerDebugger::singleton()->debug_warning(&scene_synchronizer->get_network_interface(), "Current FPS is " + itos(Engine::get_singleton()->get_frames_per_second()) + ", but the minimum required FPS is " + itos(physics_ticks_per_second) + ", the client is unable to generate enough inputs for the server.", silent);
 	}
 #endif
 
@@ -2410,11 +2397,11 @@ void ClientSynchronizer::process() {
 	int sub_ticks = player_controller->calculates_sub_ticks(delta, physics_ticks_per_second);
 
 	if (sub_ticks == 0) {
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "No sub ticks: this is not bu a bug; it's the lag compensation algorithm.", true);
+		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "No sub ticks: this is not bu a bug; it's the lag compensation algorithm.", true);
 	}
 
 	while (sub_ticks > 0) {
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "ClientSynchronizer::process::sub_process " + itos(sub_ticks), true);
+		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "ClientSynchronizer::process::sub_process " + itos(sub_ticks), true);
 		SceneSynchronizerDebugger::singleton()->scene_sync_process_start(scene_synchronizer);
 
 		// Process the scene.
@@ -2463,7 +2450,7 @@ void ClientSynchronizer::receive_snapshot(Variant p_snapshot) {
 	// incremental update so the last received data is always needed to fully
 	// reconstruct it.
 
-	SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "The Client received the server snapshot.", true);
+	SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The Client received the server snapshot.", true);
 
 	// Parse server snapshot.
 	const bool success = parse_snapshot(p_snapshot);
@@ -2542,7 +2529,7 @@ void ClientSynchronizer::on_controller_reset(NetUtility::NodeData *p_node_data) 
 
 	if (static_cast<NetworkedController *>(p_node_data->node)->is_player_controller()) {
 		if (player_controller_node_data != nullptr) {
-			SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "Only one player controller is supported, at the moment. Make sure this is the case.");
+			SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "Only one player controller is supported, at the moment. Make sure this is the case.");
 		} else {
 			// Set this player controller as active.
 			player_controller_node_data = p_node_data;
@@ -2580,13 +2567,13 @@ void ClientSynchronizer::store_controllers_snapshot(
 	}
 
 	if (p_snapshot.input_id == UINT32_MAX) {
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "The Client received the server snapshot WITHOUT `input_id`.", true);
+		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The Client received the server snapshot WITHOUT `input_id`.", true);
 		// The controller node is not registered so just assume this snapshot is the most up-to-date.
 		r_snapshot_storage.clear();
 		r_snapshot_storage.push_back(p_snapshot);
 
 	} else {
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "The Client received the server snapshot: " + itos(p_snapshot.input_id), true);
+		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The Client received the server snapshot: " + itos(p_snapshot.input_id), true);
 
 		// Store the snapshot sorted by controller input ID.
 		if (r_snapshot_storage.empty() == false) {
@@ -2625,7 +2612,7 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 
 	if (server_snapshots.back().input_id == UINT32_MAX) {
 		// The server last received snapshot is a no input snapshot. Just assume it's the most up-to-date.
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "The client received a \"no input\" snapshot, so the client is setting it right away assuming is the most updated one.", true);
+		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The client received a \"no input\" snapshot, so the client is setting it right away assuming is the most updated one.", true);
 
 		apply_snapshot(server_snapshots.back(), NetEventFlag::SYNC_RECOVER, nullptr);
 
@@ -2712,7 +2699,9 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 
 	if (need_rewind) {
 		SceneSynchronizerDebugger::singleton()->notify_event(SceneSynchronizerDebugger::FrameEvent::CLIENT_DESYNC_DETECTED);
-		SceneSynchronizerDebugger::singleton()->add_node_message(scene_synchronizer, "Recover input: " + itos(checkable_input_id) + " - Last input: " + itos(player_controller->get_stored_input_id(-1)));
+		SceneSynchronizerDebugger::singleton()->add_node_message(
+				scene_synchronizer->get_network_interface().get_name(),
+				"Recover input: " + itos(checkable_input_id) + " - Last input: " + itos(player_controller->get_stored_input_id(-1)));
 
 		// Sync.
 		__pcr__sync__rewind();
@@ -2796,9 +2785,9 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 			}
 
 			if (rew_node_data->node) {
-				scene_synchronizer->emit_signal("desync_detected", p_input_id, rew_node_data->node, variable_names, client_values, server_values);
+				scene_synchronizer->event_desync_detected.broadcast(p_input_id, rew_node_data->node, variable_names, client_values, server_values);
 			} else {
-				SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "No node associated to `" + itos(net_node_id) + "`, was not possible to generate the event `desync_detected`.");
+				SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "No node associated to `" + itos(net_node_id) + "`, was not possible to generate the event `desync_detected`.");
 			}
 		}
 	}
@@ -2813,9 +2802,9 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 
 	// Prints the comparison info.
 	if (differences_info.size() > 0 && scene_synchronizer->debug_rewindings_enabled) {
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Rewind on frame " + itos(p_input_id) + " is needed because:");
+		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "Rewind on frame " + itos(p_input_id) + " is needed because:");
 		for (int i = 0; i < int(differences_info.size()); i++) {
-			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|- " + differences_info[i]);
+			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|- " + differences_info[i]);
 		}
 	}
 
@@ -2835,9 +2824,9 @@ void ClientSynchronizer::__pcr__sync__rewind() {
 			scene_synchronizer->debug_rewindings_enabled ? &applied_data_info : nullptr);
 
 	if (applied_data_info.size() > 0) {
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Full reset:");
+		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "Full reset:");
 		for (int i = 0; i < int(applied_data_info.size()); i++) {
-			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|- " + applied_data_info[i]);
+			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|- " + applied_data_info[i]);
 		}
 	}
 }
@@ -2847,7 +2836,7 @@ void ClientSynchronizer::__pcr__rewind(
 		const uint32_t p_checkable_input_id,
 		NetworkedController *p_local_controller,
 		PlayerController *p_local_player_controller) {
-	scene_synchronizer->emit_signal("state_validated", p_checkable_input_id);
+	scene_synchronizer->event_state_validated.broadcast(p_checkable_input_id);
 	const int remaining_inputs = p_local_player_controller->get_frames_input_count();
 
 #ifdef DEBUG_ENABLED
@@ -2865,10 +2854,10 @@ void ClientSynchronizer::__pcr__rewind(
 
 		// Step 1 -- Notify the local controller about the instant to process
 		//           on the next process.
-		scene_synchronizer->emit_signal("rewind_frame_begin", p_local_player_controller->get_stored_input_id(i), i, remaining_inputs);
+		scene_synchronizer->event_rewind_frame_begin.broadcast(p_local_player_controller->get_stored_input_id(i), i, remaining_inputs);
 #ifdef DEBUG_ENABLED
 		has_next = p_local_controller->has_another_instant_to_process_after(i);
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Rewind, processed controller: " + p_local_controller->get_path(), !scene_synchronizer->debug_rewindings_enabled);
+		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "Rewind, processed controller: " + p_local_controller->get_path(), !scene_synchronizer->debug_rewindings_enabled);
 #endif
 
 		// Step 2 -- Process the scene.
@@ -2902,9 +2891,9 @@ void ClientSynchronizer::__pcr__sync__no_rewind(const NetUtility::Snapshot &p_no
 			true);
 
 	if (applied_data_info.size() > 0) {
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Partial reset:");
+		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "Partial reset:");
 		for (int i = 0; i < int(applied_data_info.size()); i++) {
-			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|- " + applied_data_info[i]);
+			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|- " + applied_data_info[i]);
 		}
 	}
 
@@ -2917,7 +2906,7 @@ void ClientSynchronizer::__pcr__sync__no_rewind(const NetUtility::Snapshot &p_no
 void ClientSynchronizer::__pcr__no_rewind(
 		const uint32_t p_checkable_input_id,
 		PlayerController *p_player_controller) {
-	scene_synchronizer->emit_signal("state_validated", p_checkable_input_id);
+	scene_synchronizer->event_state_validated.broadcast(p_checkable_input_id);
 }
 
 void ClientSynchronizer::process_paused_controller_recovery(real_t p_delta) {
@@ -2944,9 +2933,9 @@ void ClientSynchronizer::process_paused_controller_recovery(real_t p_delta) {
 	server_snapshots.pop_front();
 
 	if (applied_data_info.size() > 0) {
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "Paused controller recover:");
+		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "Paused controller recover:");
 		for (int i = 0; i < int(applied_data_info.size()); i++) {
-			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "|- " + applied_data_info[i]);
+			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|- " + applied_data_info[i]);
 		}
 	}
 }
@@ -3025,7 +3014,7 @@ bool ClientSynchronizer::parse_sync_data(
 
 	{
 		LocalVector<const Variant *> custom_data;
-		const bool cd_success = scene_synchronizer->snapshot_extract_custom_data(raw_snapshot, snap_data_index, custom_data);
+		const bool cd_success = scene_synchronizer->synchronizer_manager->snapshot_extract_custom_data(raw_snapshot, snap_data_index, custom_data);
 		if (!cd_success) {
 			return false;
 		}
@@ -3079,7 +3068,7 @@ bool ClientSynchronizer::parse_sync_data(
 
 					if (node_path_ptr == nullptr) {
 						// Was not possible lookup the node_path.
-						SceneSynchronizerDebugger::singleton()->debug_warning(scene_synchronizer, "The node with ID `" + itos(net_node_id) + "` is not know by this peer, this is not supposed to happen.");
+						SceneSynchronizerDebugger::singleton()->debug_warning(&scene_synchronizer->get_network_interface(), "The node with ID `" + itos(net_node_id) + "` is not know by this peer, this is not supposed to happen.");
 						notify_server_full_snapshot_is_needed();
 						skip_this_node = true;
 						goto node_lookup_check;
@@ -3088,10 +3077,10 @@ bool ClientSynchronizer::parse_sync_data(
 					}
 				}
 
-				node = scene_synchronizer->get_tree()->get_root()->get_node_or_null(node_path);
+				node = scene_synchronizer->synchronizer_manager->get_node_or_null(node_path);
 				if (node == nullptr) {
 					// The node doesn't exists.
-					SceneSynchronizerDebugger::singleton()->debug_warning(scene_synchronizer, "The node " + node_path + " still doesn't exist.");
+					SceneSynchronizerDebugger::singleton()->debug_warning(&scene_synchronizer->get_network_interface(), "The node " + node_path + " still doesn't exist.");
 					skip_this_node = true;
 					goto node_lookup_check;
 				}
@@ -3103,7 +3092,7 @@ bool ClientSynchronizer::parse_sync_data(
 					scene_synchronizer->set_node_data_id(nd, net_node_id);
 					synchronizer_node_data = nd;
 				} else {
-					SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "[BUG] This node " + node->get_path() + " was not know on this client. Though, was not possible to register it.");
+					SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "[BUG] This node " + node->get_path() + " was not know on this client. Though, was not possible to register it.");
 					skip_this_node = true;
 				}
 			}
@@ -3120,7 +3109,7 @@ bool ClientSynchronizer::parse_sync_data(
 				}
 
 				if (!skip_this_node) {
-					SceneSynchronizerDebugger::singleton()->debug_warning(scene_synchronizer, "This NetNodeId " + itos(net_node_id) + " doesn't exist on this client.");
+					SceneSynchronizerDebugger::singleton()->debug_warning(&scene_synchronizer->get_network_interface(), "This NetNodeId " + itos(net_node_id) + " doesn't exist on this client.");
 				}
 				continue;
 			}
@@ -3179,7 +3168,7 @@ bool ClientSynchronizer::parse_sync_data(
 												Variant(),
 												skip_rewinding,
 												enabled));
-						SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "The variable " + variable_name + " for the node " + synchronizer_node_data->node->get_path() + " was not known on this client. This should never happen, make sure to register the same nodes on the client and server.");
+						SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The variable " + variable_name + " for the node " + synchronizer_node_data->node->get_path() + " was not known on this client. This should never happen, make sure to register the same nodes on the client and server.");
 					}
 
 					if (index != var_id) {
@@ -3187,7 +3176,7 @@ bool ClientSynchronizer::parse_sync_data(
 							// It's not expected because if index is different to
 							// var_id, var_id should have a not yet initialized
 							// variable.
-							SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "This snapshot is corrupted. The var_id, at this point, must have a not yet init variable.");
+							SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "This snapshot is corrupted. The var_id, at this point, must have a not yet init variable.");
 							notify_server_full_snapshot_is_needed();
 							return false;
 						}
@@ -3207,7 +3196,7 @@ bool ClientSynchronizer::parse_sync_data(
 
 				if (var_id >= synchronizer_node_data->vars.size() ||
 						synchronizer_node_data->vars[var_id].id == UINT32_MAX) {
-					SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "The var with ID `" + itos(var_id) + "` is not know by this peer, this is not supposed to happen.");
+					SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The var with ID `" + itos(var_id) + "` is not know by this peer, this is not supposed to happen.");
 
 					notify_server_full_snapshot_is_needed();
 
@@ -3257,7 +3246,7 @@ bool ClientSynchronizer::parse_sync_data(
 				} else {
 					if (is_active) {
 						// This node data doesn't exist but it should be activated.
-						SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "The node_data `" + itos(node_id) + "` was not found on this client but the server marked this as realtime_sync_active node. This is likely a bug, pleasae report.");
+						SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The node_data `" + itos(node_id) + "` was not found on this client but the server marked this as realtime_sync_active node. This is likely a bug, pleasae report.");
 						notify_server_full_snapshot_is_needed();
 					}
 				}
@@ -3282,7 +3271,7 @@ void ClientSynchronizer::set_enabled(bool p_enabled) {
 		// Disabling happens immediately.
 		enabled = false;
 		want_to_enable = false;
-		scene_synchronizer->emit_signal("sync_paused");
+		scene_synchronizer->event_sync_paused.broadcast();
 	}
 }
 
@@ -3292,7 +3281,7 @@ void ClientSynchronizer::receive_deferred_sync_data(const Vector<uint8_t> &p_dat
 
 	int remaining_size = future_epoch_buffer.size() - future_epoch_buffer.get_bit_offset();
 	if (remaining_size < DataBuffer::get_bit_taken(DataBuffer::DATA_TYPE_UINT, DataBuffer::COMPRESSION_LEVEL_1)) {
-		SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "[FATAL] The function `receive_deferred_sync_data` received malformed data.");
+		SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "[FATAL] The function `receive_deferred_sync_data` received malformed data.");
 		// Nothing to fetch.
 		return;
 	}
@@ -3340,7 +3329,7 @@ void ClientSynchronizer::receive_deferred_sync_data(const Vector<uint8_t> &p_dat
 
 		remaining_size = future_epoch_buffer.size() - future_epoch_buffer.get_bit_offset();
 		if (remaining_size < buffer_bit_count) {
-			SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "[FATAL] The function `receive_deferred_sync_data` failed applying the epoch because the received buffer is malformed. The node with ID `" + itos(node_id) + "` reported that the sub buffer size is `" + itos(buffer_bit_count) + "` but the main-buffer doesn't have so many bits.");
+			SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "[FATAL] The function `receive_deferred_sync_data` failed applying the epoch because the received buffer is malformed. The node with ID `" + itos(node_id) + "` reported that the sub buffer size is `" + itos(buffer_bit_count) + "` but the main-buffer doesn't have so many bits.");
 			break;
 		}
 
@@ -3349,7 +3338,7 @@ void ClientSynchronizer::receive_deferred_sync_data(const Vector<uint8_t> &p_dat
 
 		NetUtility::NodeData *nd = scene_synchronizer->get_node_data(node_id, false);
 		if (nd == nullptr) {
-			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "The function `receive_deferred_sync_data` is skipping the node with ID `" + itos(node_id) + "` as it was not found locally.");
+			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The function `receive_deferred_sync_data` is skipping the node with ID `" + itos(node_id) + "` as it was not found locally.");
 			future_epoch_buffer.seek(expected_bit_offset_after_apply);
 			continue;
 		}
@@ -3379,7 +3368,7 @@ void ClientSynchronizer::receive_deferred_sync_data(const Vector<uint8_t> &p_dat
 		stream.past_epoch_buffer.copy(*db);
 
 		if (e.error != Callable::CallError::CALL_OK) {
-			SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "The function `receive_deferred_sync_data` is skipping the node `" + stream.nd->node->get_path() + "` as the function `" + stream.nd->collect_epoch_func.get_method() + "` failed executing.");
+			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The function `receive_deferred_sync_data` is skipping the node `" + stream.nd->node->get_path() + "` as the function `" + stream.nd->collect_epoch_func.get_method() + "` failed executing.");
 			future_epoch_buffer.seek(expected_bit_offset_after_apply);
 			continue;
 		}
@@ -3425,13 +3414,13 @@ void ClientSynchronizer::process_received_deferred_sync_data(real_t p_delta) {
 
 		NetUtility::NodeData *nd = stream.nd;
 		if (nd == nullptr) {
-			SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "The function `process_received_deferred_sync_data` found a null NodeData into the `deferred_sync_array`; this is not supposed to happen.");
+			SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The function `process_received_deferred_sync_data` found a null NodeData into the `deferred_sync_array`; this is not supposed to happen.");
 			continue;
 		}
 
 #ifdef DEBUG_ENABLED
 		if (nd->apply_epoch_func.is_null()) {
-			SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "The function `process_received_deferred_sync_data` skip the node `" + nd->node->get_path() + "` has an invalid apply epoch function named `" + nd->apply_epoch_func.get_method() + "`. Remotely you used the function `setup_deferred_sync` properly, while locally you didn't. Fix it.");
+			SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The function `process_received_deferred_sync_data` skip the node `" + nd->node->get_path() + "` has an invalid apply epoch function named `" + nd->apply_epoch_func.get_method() + "`. Remotely you used the function `setup_deferred_sync` properly, while locally you didn't. Fix it.");
 			continue;
 		}
 #endif
@@ -3451,7 +3440,7 @@ void ClientSynchronizer::process_received_deferred_sync_data(real_t p_delta) {
 		nd->apply_epoch_func.callp(array_vars_ptr, 4, r, e);
 
 		if (e.error != Callable::CallError::CALL_OK) {
-			SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "The `process_received_deferred_sync_data` failed executing the function`" + nd->collect_epoch_func.get_method() + "` for the node `" + nd->node->get_path() + "`.");
+			SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_received_deferred_sync_data` failed executing the function`" + nd->collect_epoch_func.get_method() + "` for the node `" + nd->node->get_path() + "`.");
 			continue;
 		}
 	}
@@ -3470,12 +3459,12 @@ void ClientSynchronizer::remove_node_from_deferred_sync(NetUtility::NodeData *p_
 bool ClientSynchronizer::parse_snapshot(Variant p_snapshot) {
 	if (want_to_enable) {
 		if (enabled) {
-			SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "At this point the client is supposed to be disabled. This is a bug that must be solved.");
+			SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "At this point the client is supposed to be disabled. This is a bug that must be solved.");
 		}
 		// The netwroking is disabled and we can re-enable it.
 		enabled = true;
 		want_to_enable = false;
-		scene_synchronizer->emit_signal("sync_started");
+		scene_synchronizer->event_sync_started.broadcast();
 	}
 
 	need_full_snapshot_notified = false;
@@ -3574,18 +3563,18 @@ bool ClientSynchronizer::parse_snapshot(Variant p_snapshot) {
 			});
 
 	if (success == false) {
-		SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "Snapshot parsing failed.");
-		SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, "Snapshot:", !scene_synchronizer->debug_rewindings_enabled);
-		SceneSynchronizerDebugger::singleton()->debug_error(scene_synchronizer, NetUtility::stringify_fast(p_snapshot), !scene_synchronizer->debug_rewindings_enabled);
+		SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "Snapshot parsing failed.");
+		SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "Snapshot:", !scene_synchronizer->debug_rewindings_enabled);
+		SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), NetUtility::stringify_fast(p_snapshot), !scene_synchronizer->debug_rewindings_enabled);
 		return false;
 	}
 
 	if (unlikely(received_snapshot.input_id == UINT32_MAX && player_controller_node_data != nullptr)) {
 		// We espect that the player_controller is updated by this new snapshot,
 		// so make sure it's done so.
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "[INFO] the player controller (" + player_controller_node_data->node->get_path() + ") was not part of the received snapshot, this happens when the server destroys the peer controller.");
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, "NetUtility::Snapshot:", !scene_synchronizer->debug_rewindings_enabled);
-		SceneSynchronizerDebugger::singleton()->debug_print(scene_synchronizer, NetUtility::stringify_fast(p_snapshot), !scene_synchronizer->debug_rewindings_enabled);
+		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "[INFO] the player controller (" + player_controller_node_data->node->get_path() + ") was not part of the received snapshot, this happens when the server destroys the peer controller.");
+		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "NetUtility::Snapshot:", !scene_synchronizer->debug_rewindings_enabled);
+		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), NetUtility::stringify_fast(p_snapshot), !scene_synchronizer->debug_rewindings_enabled);
 	}
 
 	last_received_snapshot = received_snapshot;
@@ -3601,12 +3590,12 @@ void ClientSynchronizer::notify_server_full_snapshot_is_needed() {
 
 	// Notify the server that a full snapshot is needed.
 	need_full_snapshot_notified = true;
-	scene_synchronizer->network_interface->rpc(1, SNAME("_rpc_notify_need_full_snapshot"));
+	scene_synchronizer->synchronizer_manager->rpc_send__notify_need_full_snapshot(1);
 }
 
 void ClientSynchronizer::update_client_snapshot(NetUtility::Snapshot &p_snapshot) {
 	p_snapshot.custom_data.clear();
-	scene_synchronizer->snapshot_add_custom_data(nullptr, p_snapshot.custom_data);
+	scene_synchronizer->synchronizer_manager->snapshot_add_custom_data(nullptr, p_snapshot.custom_data);
 
 	// Make sure we have room for all the NodeData.
 	p_snapshot.node_vars.resize(scene_synchronizer->organized_node_data.size());
@@ -3697,7 +3686,7 @@ void ClientSynchronizer::apply_snapshot(
 	}
 
 	if (!p_skip_custom_data) {
-		scene_synchronizer->snapshot_apply_custom_data(p_snapshot.custom_data);
+		scene_synchronizer->synchronizer_manager->snapshot_apply_custom_data(p_snapshot.custom_data);
 	}
 
 	scene_synchronizer->change_events_flush();
