@@ -43,7 +43,7 @@
 #include "scene_diff.h"
 #include "scene_synchronizer_debugger.h"
 
-#include "tests/test_event.h"
+#include "tests/test_processor.h"
 #include "tests/test_scene_synchronizer.h"
 
 void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
@@ -66,7 +66,7 @@ void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
 		GLOBAL_DEF("NetworkSynchronizer/debugger/log_debug_fps_warnings", true);
 	} else if (p_level == MODULE_INITIALIZATION_LEVEL_EDITOR) {
 		//test_scene_synchronizer();
-		test_event();
+		NS::test_processor();
 	}
 }
 

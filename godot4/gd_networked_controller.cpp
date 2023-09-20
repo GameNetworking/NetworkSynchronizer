@@ -39,7 +39,7 @@
 #include "core/error/error_macros.h"
 #include "core/io/marshalls.h"
 #include "gd_network_interface.h"
-#include "modules/network_synchronizer/core/event.h"
+#include "modules/network_synchronizer/core/processor.h"
 #include "modules/network_synchronizer/scene_synchronizer_debugger.h"
 #include "scene/main/multiplayer_api.h"
 
@@ -146,9 +146,9 @@ GdNetworkedController::~GdNetworkedController() {
 	networked_controller.event_controller_reset.unbind(event_handler_controller_reset);
 	networked_controller.event_input_missed.unbind(event_handler_input_missed);
 	networked_controller.event_client_speedup_adjusted.unbind(event_handler_client_speedup_adjusted);
-	event_handler_controller_reset = NS::NullEventHandler;
-	event_handler_input_missed = NS::NullEventHandler;
-	event_handler_client_speedup_adjusted = NS::NullEventHandler;
+	event_handler_controller_reset = NS::NullFuncHandler;
+	event_handler_input_missed = NS::NullFuncHandler;
+	event_handler_client_speedup_adjusted = NS::NullFuncHandler;
 }
 
 void GdNetworkedController::_notification(int p_what) {

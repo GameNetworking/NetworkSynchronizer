@@ -1,37 +1,3 @@
-/*************************************************************************/
-/*  networked_controller.cpp                                             */
-/*************************************************************************/
-/*                       This file is part of:                           */
-/*                           GODOT ENGINE                                */
-/*                      https://godotengine.org                          */
-/*************************************************************************/
-/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
-/*                                                                       */
-/* Permission is hereby granted, free of charge, to any person obtaining */
-/* a copy of this software and associated documentation files (the       */
-/* "Software"), to deal in the Software without restriction, including   */
-/* without limitation the rights to use, copy, modify, merge, publish,   */
-/* distribute, sublicense, and/or sell copies of the Software, and to    */
-/* permit persons to whom the Software is furnished to do so, subject to */
-/* the following conditions:                                             */
-/*                                                                       */
-/* The above copyright notice and this permission notice shall be        */
-/* included in all copies or substantial portions of the Software.       */
-/*                                                                       */
-/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,       */
-/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF    */
-/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.*/
-/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY  */
-/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,  */
-/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
-/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
-/*************************************************************************/
-
-/**
-	@author AndreaCatania
-*/
-
 #include "networked_controller.h"
 
 #include "core/config/engine.h"
@@ -40,7 +6,7 @@
 #include "core/io/marshalls.h"
 #include "godot4/gd_network_interface.h"
 #include "modules/network_synchronizer/core/core.h"
-#include "modules/network_synchronizer/core/event.h"
+#include "modules/network_synchronizer/core/processor.h"
 #include "scene/main/multiplayer_api.h"
 #include "scene_synchronizer.h"
 #include "scene_synchronizer_debugger.h"
@@ -277,21 +243,29 @@ void NetworkedController::notify_registered_with_synchronizer(NS::SceneSynchroni
 		scene_synchronizer->event_peer_status_updated.unbind(event_handler_peer_status_updated);
 		scene_synchronizer->event_state_validated.unbind(event_handler_state_validated);
 		scene_synchronizer->event_rewind_frame_begin.unbind(event_handler_rewind_frame_begin);
-		event_handler_rewind_frame_begin = NS::NullEventHandler;
-		event_handler_state_validated = NS::NullEventHandler;
-		event_handler_peer_status_updated = NS::NullEventHandler;
-		scene_synchronizer->unregister_process(this, PROCESSPHASE_PROCESS, callable_mp(this, &NetworkedController::process));
+		event_handler_rewind_frame_begin = NS::NullFuncHandler;
+		event_handler_state_validated = NS::NullFuncHandler;
+		event_handler_peer_status_updated = NS::NullFuncHandler;
+		scene_synchronizer->unregister_process(
+				scene_synchronizer->find_node_data(this),
+				PROCESSPHASE_PROCESS,
+				process_handler_process);
+		process_handler_process = NS::NullFuncHandler;
 	}
 
 	node_id = NetID_NONE;
 	scene_synchronizer = p_synchronizer;
 
 	if (scene_synchronizer) {
-		scene_synchronizer->register_process(this, PROCESSPHASE_PROCESS, callable_mp(this, &NetworkedController::process));
+		process_handler_process =
+				scene_synchronizer->register_process(
+						scene_synchronizer->find_node_data(this),
+						PROCESSPHASE_PROCESS,
+						[this](float p_delta) -> void { process(p_delta); });
 
 		event_handler_peer_status_updated =
-				scene_synchronizer->event_peer_status_updated.bind([this](Node *p_node, NetNodeId p_id, int p_peer_id, bool p_connected, bool p_enabled) -> void {
-					on_peer_status_updated(p_node, p_id, p_peer_id, p_connected, p_enabled);
+				scene_synchronizer->event_peer_status_updated.bind([this](const NetUtility::NodeData *p_node_data, int p_peer_id, bool p_connected, bool p_enabled) -> void {
+					on_peer_status_updated(p_node_data, p_peer_id, p_connected, p_enabled);
 				});
 
 		event_handler_state_validated =
@@ -314,8 +288,8 @@ bool NetworkedController::has_scene_synchronizer() const {
 	return scene_synchronizer;
 }
 
-void NetworkedController::on_peer_status_updated(Node *p_node, NetNodeId p_id, int p_peer_id, bool p_connected, bool p_enabled) {
-	if (p_node == this) {
+void NetworkedController::on_peer_status_updated(const NetUtility::NodeData *p_node_data, int p_peer_id, bool p_connected, bool p_enabled) {
+	if (p_node_data->controller == this) {
 		if (p_connected) {
 			peer_id = p_peer_id;
 		} else {

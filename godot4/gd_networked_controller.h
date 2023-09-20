@@ -35,7 +35,7 @@
 #ifndef GD_NETWORKED_CONTROLLER_H
 #define GD_NETWORKED_CONTROLLER_H
 
-#include "modules/network_synchronizer/core/event.h"
+#include "modules/network_synchronizer/core/processor.h"
 #include "modules/network_synchronizer/networked_controller.h"
 #include "scene/main/node.h"
 
@@ -69,9 +69,9 @@ public:
 private:
 	NS::NetworkedController networked_controller;
 
-	NS::EventFuncHandler event_handler_controller_reset = NS::NullEventHandler;
-	NS::EventFuncHandler event_handler_input_missed = NS::NullEventHandler;
-	NS::EventFuncHandler event_handler_client_speedup_adjusted = NS::NullEventHandler;
+	NS::FuncHandler event_handler_controller_reset = NS::NullFuncHandler;
+	NS::FuncHandler event_handler_input_missed = NS::NullFuncHandler;
+	NS::FuncHandler event_handler_client_speedup_adjusted = NS::NullFuncHandler;
 
 public:
 	static void _bind_methods();
@@ -81,6 +81,9 @@ public:
 	~GdNetworkedController();
 
 	void _notification(int p_what);
+
+	NS::NetworkedController *get_networked_controller() { return &networked_controller; }
+	const NS::NetworkedController *get_networked_controller() const { return &networked_controller; }
 
 	void set_server_controlled(bool p_server_controlled);
 	bool get_server_controlled() const;
