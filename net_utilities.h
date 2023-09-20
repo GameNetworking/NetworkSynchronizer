@@ -38,10 +38,15 @@
 #include "core/config/project_settings.h"
 #include "core/core.h"
 #include "core/math/math_funcs.h"
+#include "core/processor.h"
 #include "core/templates/local_vector.h"
 #include "core/variant/variant.h"
 
 class Node;
+
+namespace NS {
+class NetworkedController;
+};
 
 #ifdef DEBUG_ENABLED
 #define NET_DEBUG_PRINT(msg)                                                                                  \
@@ -309,18 +314,16 @@ struct VarData {
 };
 
 struct NodeData {
-	// ID used to reference this Node in the networked calls.
-	uint32_t id = 0;
+	// ID used to reference this NodeData in the networked calls.
+	NetNodeId id = 0;
 	ObjectID instance_id = ObjectID();
 
 	bool realtime_sync_enabled_on_client = false;
 
-	bool is_controller = false;
-
 	/// The sync variables of this node. The order of this vector matters
 	/// because the index is the `NetVarId`.
 	LocalVector<VarData> vars;
-	LocalVector<Callable> functions[PROCESSPHASE_COUNT];
+	NS::Processor<float> functions[PROCESSPHASE_COUNT];
 
 	// func _collect_epoch_data(buffer: DataBuffer):
 	Callable collect_epoch_func;
@@ -330,6 +333,8 @@ struct NodeData {
 
 	// This is valid to use only inside the process function.
 	Node *node = nullptr;
+	/// Associated controller.
+	NS::NetworkedController *controller = nullptr;
 
 	NodeData() = default;
 

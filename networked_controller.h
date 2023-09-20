@@ -2,7 +2,7 @@
 
 #include "data_buffer.h"
 #include "modules/network_synchronizer/core/core.h"
-#include "modules/network_synchronizer/core/event.h"
+#include "modules/network_synchronizer/core/processor.h"
 #include "net_utilities.h"
 #include <deque>
 
@@ -146,14 +146,16 @@ private:
 
 	NetNodeId node_id = NetID_NONE;
 
-	NS::EventFuncHandler event_handler_rewind_frame_begin = NS::NullEventHandler;
-	NS::EventFuncHandler event_handler_state_validated = NS::NullEventHandler;
-	NS::EventFuncHandler event_handler_peer_status_updated = NS::NullEventHandler;
+	NS::FuncHandler process_handler_process = NS::NullFuncHandler;
+
+	NS::FuncHandler event_handler_rewind_frame_begin = NS::NullFuncHandler;
+	NS::FuncHandler event_handler_state_validated = NS::NullFuncHandler;
+	NS::FuncHandler event_handler_peer_status_updated = NS::NullFuncHandler;
 
 public: // -------------------------------------------------------------- Events
-	Event<> event_controller_reset;
-	Event<uint32_t /*p_input_id*/> event_input_missed;
-	Event<uint32_t /*p_input_worst_receival_time_ms*/, int /*p_optimal_frame_delay*/, int /*p_current_frame_delay*/, int /*p_distance_to_optimal*/> event_client_speedup_adjusted;
+	Processor<> event_controller_reset;
+	Processor<uint32_t /*p_input_id*/> event_input_missed;
+	Processor<uint32_t /*p_input_worst_receival_time_ms*/, int /*p_optimal_frame_delay*/, int /*p_current_frame_delay*/, int /*p_distance_to_optimal*/> event_client_speedup_adjusted;
 
 public:
 	NetworkedController();
@@ -243,7 +245,7 @@ public:
 	NS::SceneSynchronizer *get_scene_synchronizer() const;
 	bool has_scene_synchronizer() const;
 
-	void on_peer_status_updated(Node *p_node, NetNodeId p_id, int p_peer_id, bool p_connected, bool p_enabled);
+	void on_peer_status_updated(const NetUtility::NodeData *p_node_data, int p_peer_id, bool p_connected, bool p_enabled);
 	void on_state_validated(uint32_t p_input_id);
 	void on_rewind_frame_begin(uint32_t p_input_id, int p_index, int p_count);
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "modules/network_synchronizer/core/event.h"
+#include "modules/network_synchronizer/core/processor.h"
 #include "modules/network_synchronizer/scene_synchronizer.h"
 #include "scene/main/node.h"
 
@@ -20,12 +20,12 @@ public:
 	// Just used to detect when the low level peer change.
 	void *low_level_peer = nullptr;
 
-	NS::EventFuncHandler event_handler_sync_started = NS::NullEventHandler;
-	NS::EventFuncHandler event_handler_sync_paused = NS::NullEventHandler;
-	NS::EventFuncHandler event_handler_peer_status_updated = NS::NullEventHandler;
-	NS::EventFuncHandler event_handler_state_validated = NS::NullEventHandler;
-	NS::EventFuncHandler event_handler_rewind_frame_begin = NS::NullEventHandler;
-	NS::EventFuncHandler event_handler_desync_detected = NS::NullEventHandler;
+	NS::FuncHandler event_handler_sync_started = NS::NullFuncHandler;
+	NS::FuncHandler event_handler_sync_paused = NS::NullFuncHandler;
+	NS::FuncHandler event_handler_peer_status_updated = NS::NullFuncHandler;
+	NS::FuncHandler event_handler_state_validated = NS::NullFuncHandler;
+	NS::FuncHandler event_handler_rewind_frame_begin = NS::NullFuncHandler;
+	NS::FuncHandler event_handler_desync_detected = NS::NullFuncHandler;
 
 public:
 	GdSceneSynchronizer();
@@ -57,6 +57,9 @@ public: // ---------------------------------------- Scene Synchronizer Interface
 	virtual void snapshot_apply_custom_data(const Vector<Variant> &p_custom_data) override {}
 
 	virtual Node *get_node_or_null(const NodePath &p_path) override;
+
+	virtual NS::NetworkedController *extract_network_controller(Node *p_node) const override;
+	virtual const NS::NetworkedController *extract_network_controller(const Node *p_node) const override;
 
 public: // ------------------------------------------------------- RPC Interface
 	virtual void rpc_send__state(int p_peer, const Variant &p_snapshot) override;
@@ -104,8 +107,8 @@ public: // ---------------------------------------------------------------- APIs
 	void untrack_variable_changes(Node *p_node, const StringName &p_variable, Object *p_object, const StringName &p_method);
 
 	/// You can use the macro `callable_mp()` to register custom C++ function.
-	void register_process(Node *p_node, ProcessPhase p_phase, const Callable &p_callable);
-	void unregister_process(Node *p_node, ProcessPhase p_phase, const Callable &p_callable);
+	uint64_t register_process(Node *p_node, ProcessPhase p_phase, const Callable &p_callable);
+	void unregister_process(Node *p_node, ProcessPhase p_phase, uint64_t p_handler);
 
 	/// Setup the deferred sync method for this specific node.
 	/// The deferred-sync is different from the realtime-sync because the data

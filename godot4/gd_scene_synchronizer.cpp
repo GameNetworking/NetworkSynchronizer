@@ -1,6 +1,9 @@
 #include "gd_scene_synchronizer.h"
 
+#include "modules/network_synchronizer/core/processor.h"
 #include "modules/network_synchronizer/godot4/gd_network_interface.h"
+#include "modules/network_synchronizer/godot4/gd_networked_controller.h"
+#include "modules/network_synchronizer/net_utilities.h"
 #include "modules/network_synchronizer/scene_synchronizer.h"
 #include "modules/network_synchronizer/scene_synchronizer_debugger.h"
 #include "modules/network_synchronizer/snapshot.h"
@@ -140,8 +143,15 @@ GdSceneSynchronizer::GdSceneSynchronizer() :
 			});
 
 	event_handler_peer_status_updated =
-			scene_synchronizer.event_peer_status_updated.bind([this](Node *p_controlled_node, NetNodeId p_node_data_id, int p_peer, bool p_connected, bool p_enabled) -> void {
-				emit_signal("peer_status_updated", p_controlled_node, p_node_data_id, p_peer, p_connected, p_enabled);
+			scene_synchronizer.event_peer_status_updated.bind([this](const NetUtility::NodeData *p_node_data, int p_peer, bool p_connected, bool p_enabled) -> void {
+				Object *obj_null = nullptr;
+				emit_signal(
+						"peer_status_updated",
+						p_node_data ? p_node_data->node : obj_null,
+						p_node_data ? p_node_data->id : NetID_NONE,
+						p_peer,
+						p_connected,
+						p_enabled);
 			});
 
 	event_handler_state_validated =
@@ -162,22 +172,22 @@ GdSceneSynchronizer::GdSceneSynchronizer() :
 
 GdSceneSynchronizer::~GdSceneSynchronizer() {
 	scene_synchronizer.event_sync_started.unbind(event_handler_sync_started);
-	event_handler_sync_started = NS::NullEventHandler;
+	event_handler_sync_started = NS::NullFuncHandler;
 
 	scene_synchronizer.event_sync_paused.unbind(event_handler_sync_paused);
-	event_handler_sync_paused = NS::NullEventHandler;
+	event_handler_sync_paused = NS::NullFuncHandler;
 
 	scene_synchronizer.event_peer_status_updated.unbind(event_handler_peer_status_updated);
-	event_handler_peer_status_updated = NS::NullEventHandler;
+	event_handler_peer_status_updated = NS::NullFuncHandler;
 
 	scene_synchronizer.event_state_validated.unbind(event_handler_state_validated);
-	event_handler_state_validated = NS::NullEventHandler;
+	event_handler_state_validated = NS::NullFuncHandler;
 
 	scene_synchronizer.event_rewind_frame_begin.unbind(event_handler_rewind_frame_begin);
-	event_handler_rewind_frame_begin = NS::NullEventHandler;
+	event_handler_rewind_frame_begin = NS::NullFuncHandler;
 
 	scene_synchronizer.event_desync_detected.unbind(event_handler_desync_detected);
-	event_handler_desync_detected = NS::NullEventHandler;
+	event_handler_desync_detected = NS::NullFuncHandler;
 }
 
 void GdSceneSynchronizer::_notification(int p_what) {
@@ -260,6 +270,20 @@ void GdSceneSynchronizer::update_nodes_relevancy() {
 Node *GdSceneSynchronizer::get_node_or_null(const NodePath &p_path) {
 	if (get_tree() && get_tree()->get_root()) {
 		return get_tree()->get_root()->get_node_or_null(p_path);
+	}
+	return nullptr;
+}
+
+NS::NetworkedController *GdSceneSynchronizer::extract_network_controller(Node *p_node) const {
+	if (GdNetworkedController *c = Object::cast_to<GdNetworkedController>(p_node)) {
+		return c->get_networked_controller();
+	}
+	return nullptr;
+}
+
+const NS::NetworkedController *GdSceneSynchronizer::extract_network_controller(const Node *p_node) const {
+	if (const GdNetworkedController *c = Object::cast_to<const GdNetworkedController>(p_node)) {
+		return c->get_networked_controller();
 	}
 	return nullptr;
 }
@@ -398,12 +422,24 @@ void GdSceneSynchronizer::untrack_variable_changes(Node *p_node, const StringNam
 	scene_synchronizer.untrack_variable_changes(p_node, p_variable, p_object, p_method);
 }
 
-void GdSceneSynchronizer::register_process(Node *p_node, ProcessPhase p_phase, const Callable &p_func) {
-	scene_synchronizer.register_process(p_node, p_phase, p_func);
+uint64_t GdSceneSynchronizer::register_process(Node *p_node, ProcessPhase p_phase, const Callable &p_func) {
+	NetUtility::NodeData *nd = scene_synchronizer.register_node(p_node);
+	const NS::FuncHandler EFH = scene_synchronizer.register_process(nd, p_phase, [p_func](float p_delta) {
+		Array a;
+		a.push_back(p_delta);
+		p_func.callv(a);
+	});
+	return reinterpret_cast<uint64_t>(EFH);
 }
 
-void GdSceneSynchronizer::unregister_process(Node *p_node, ProcessPhase p_phase, const Callable &p_func) {
-	scene_synchronizer.register_process(p_node, p_phase, p_func);
+void GdSceneSynchronizer::unregister_process(Node *p_node, ProcessPhase p_phase, uint64_t p_handler) {
+	NetUtility::NodeData *nd = scene_synchronizer.find_node_data(p_node);
+	if (nd) {
+		scene_synchronizer.unregister_process(
+				nd,
+				p_phase,
+				reinterpret_cast<NS::FuncHandler>(p_handler));
+	}
 }
 
 void GdSceneSynchronizer::setup_deferred_sync(Node *p_node, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func) {

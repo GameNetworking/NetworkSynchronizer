@@ -5,7 +5,7 @@
 #include "core/templates/local_vector.h"
 #include "core/templates/oa_hash_map.h"
 #include "data_buffer.h"
-#include "modules/network_synchronizer/core/event.h"
+#include "modules/network_synchronizer/core/processor.h"
 #include "net_utilities.h"
 #include "snapshot.h"
 #include <deque>
@@ -38,8 +38,8 @@ public:
 
 	virtual Node *get_node_or_null(const NodePath &p_path) = 0;
 
-	virtual NetworkedController *extract_network_controller(Node *p_node) = 0;
-	virtual const NetworkedController *extract_network_controller(const Node *p_node) = 0;
+	virtual NetworkedController *extract_network_controller(Node *p_node) const = 0;
+	virtual const NetworkedController *extract_network_controller(const Node *p_node) const = 0;
 
 public: // ------------------------------------------------------- RPC Interface
 	virtual void rpc_send__state(int p_peer, const Variant &p_snapshot) = 0;
@@ -164,18 +164,18 @@ private:
 	LocalVector<NetUtility::ChangeListener> event_listener;
 
 	bool cached_process_functions_valid = false;
-	LocalVector<Callable> cached_process_functions[PROCESSPHASE_COUNT];
+	Processor<float> cached_process_functions[PROCESSPHASE_COUNT];
 
 	// Set at runtime by the constructor by reading the project settings.
 	bool debug_rewindings_enabled = false;
 
 public: // -------------------------------------------------------------- Events
-	Event<> event_sync_started;
-	Event<> event_sync_paused;
-	Event<Node * /*p_controlled_node*/, NetNodeId /*p_node_data_id*/, int /*p_peer*/, bool /*p_connected*/, bool /*p_enabled*/> event_peer_status_updated;
-	Event<uint32_t /*p_input_id*/> event_state_validated;
-	Event<uint32_t /*p_input_id*/, int /*p_index*/, int /*p_count*/> event_rewind_frame_begin;
-	Event<uint32_t /*p_input_id*/, Node * /*p_node*/, const Vector<StringName> & /*p_var_names*/, const Vector<Variant> & /*p_client_values*/, const Vector<Variant> & /*p_server_values*/> event_desync_detected;
+	Processor<> event_sync_started;
+	Processor<> event_sync_paused;
+	Processor<const NetUtility::NodeData * /*p_node_data*/, int /*p_peer*/, bool /*p_connected*/, bool /*p_enabled*/> event_peer_status_updated;
+	Processor<uint32_t /*p_input_id*/> event_state_validated;
+	Processor<uint32_t /*p_input_id*/, int /*p_index*/, int /*p_count*/> event_rewind_frame_begin;
+	Processor<uint32_t /*p_input_id*/, Node * /*p_node*/, const Vector<StringName> & /*p_var_names*/, const Vector<Variant> & /*p_client_values*/, const Vector<Variant> & /*p_server_values*/> event_desync_detected;
 
 public:
 	SceneSynchronizer();
@@ -254,8 +254,8 @@ public: // ---------------------------------------------------------------- APIs
 	void untrack_variable_changes(Node *p_node, const StringName &p_variable, Object *p_object, const StringName &p_method);
 
 	/// You can use the macro `callable_mp()` to register custom C++ function.
-	void register_process(Node *p_node, ProcessPhase p_phase, const Callable &p_callable);
-	void unregister_process(Node *p_node, ProcessPhase p_phase, const Callable &p_callable);
+	NS::FuncHandler register_process(NetUtility::NodeData *p_node_data, ProcessPhase p_phase, std::function<void(float)> p_func);
+	void unregister_process(NetUtility::NodeData *p_node_data, ProcessPhase p_phase, NS::FuncHandler p_func_handler);
 
 	/// Setup the deferred sync method for this specific node.
 	/// The deferred-sync is different from the realtime-sync because the data
@@ -342,6 +342,9 @@ public: // ------------------------------------------------------------ INTERNAL
 	/// `NetNodeId` is not yet assigned.
 	NetUtility::NodeData *find_node_data(const Node *p_node);
 	const NetUtility::NodeData *find_node_data(const Node *p_node) const;
+
+	NetUtility::NodeData *find_node_data(const NetworkedController *p_controller);
+	const NetUtility::NodeData *find_node_data(const NetworkedController *p_controller) const;
 
 	/// This function is super fast, but only nodes with a `NetNodeId` assigned
 	/// can be returned.
@@ -625,6 +628,7 @@ private:
 	void __pcr__rewind(
 			real_t p_delta,
 			const uint32_t p_checkable_input_id,
+			Node *p_local_controller_node,
 			NetworkedController *p_controller,
 			PlayerController *p_player_controller);
 
