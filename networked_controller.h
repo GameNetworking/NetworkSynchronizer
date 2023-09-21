@@ -22,11 +22,6 @@ public:
 	virtual void controller_process(double p_delta, DataBuffer &p_buffer) = 0;
 	virtual bool are_inputs_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B) = 0;
 	virtual uint32_t count_input_size(DataBuffer &p_buffer) = 0;
-
-public: // ---------------------------------------------------------------- RPCs
-	virtual void rpc_send__server_send_inputs(int p_peer_id, const Vector<uint8_t> &p_data) = 0;
-	virtual void rpc_send__set_server_controlled(int p_peer_id, bool p_server_controlled) = 0;
-	virtual void rpc_send__notify_fps_acceleration(int p_peer_id, const Vector<uint8_t> &p_data) = 0;
 };
 
 /// The `NetworkedController` is responsible to sync the `Player` inputs between
@@ -51,6 +46,7 @@ class NetworkedController {
 	friend class NS::SceneSynchronizer;
 	friend struct RemotelyControlledController;
 	friend struct ServerController;
+	friend struct PlayerController;
 
 public:
 	enum ControllerType {
@@ -145,6 +141,10 @@ private:
 	int peer_id = -1;
 
 	NetNodeId node_id = NetID_NONE;
+
+	uint8_t rpc_handle_receive_input = -1;
+	uint8_t rpc_handle_set_server_controlled = -1;
+	uint8_t rpc_handle_notify_fps_acceleration = -1;
 
 	NS::PHandler process_handler_process = NS::NullPHandler;
 
@@ -250,11 +250,11 @@ public:
 	void on_rewind_frame_begin(uint32_t p_input_id, int p_index, int p_count);
 
 	/* On server rpc functions. */
-	void rpc_receive__server_send_inputs(const Vector<uint8_t> &p_data);
+	void rpc_receive_inputs(const Vector<uint8_t> &p_data);
 
 	/* On client rpc functions. */
-	void rpc_receive__set_server_controlled(bool p_server_controlled);
-	void rpc_receive__notify_fps_acceleration(const Vector<uint8_t> &p_data);
+	void rpc_set_server_controlled(bool p_server_controlled);
+	void rpc_notify_fps_acceleration(const Vector<uint8_t> &p_data);
 
 	void player_set_has_new_input(bool p_has);
 	bool player_has_new_input() const;

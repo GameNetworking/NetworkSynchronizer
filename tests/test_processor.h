@@ -1,5 +1,5 @@
 #pragma once
 
-namespace NS {
+namespace NS_Test {
 void test_processor();
 };

@@ -126,17 +126,10 @@ public: // ----------------------------------------------------------- Interface
 	virtual bool are_inputs_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B) override;
 	virtual uint32_t count_input_size(DataBuffer &p_buffer) override;
 
-public: // ---------------------------------------------------------------- RPCs
-	virtual void rpc_send__server_send_inputs(int p_peer_id, const Vector<uint8_t> &p_data) override;
-	virtual void rpc_send__set_server_controlled(int p_peer_id, bool p_server_controlled) override;
-	virtual void rpc_send__notify_fps_acceleration(int p_peer_id, const Vector<uint8_t> &p_data) override;
-
-	/* On server rpc functions. */
-	void _rpc_server_send_inputs(const Vector<uint8_t> &p_data);
-
-	/* On client rpc functions. */
-	void _rpc_set_server_controlled(bool p_server_controlled);
-	void _rpc_notify_fps_acceleration(const Vector<uint8_t> &p_data);
+	// This funtion is used to sync data betweend the server and the client.
+	void _rpc_net_sync_reliable(const Vector<Variant> &p_args);
+	// This funtion is used to sync data betweend the server and the client.
+	void _rpc_net_sync_unreliable(const Vector<Variant> &p_args);
 
 public:
 	virtual void validate_script_implementation();

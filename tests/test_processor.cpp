@@ -4,7 +4,7 @@
 #include "core/error/error_macros.h"
 #include "modules/network_synchronizer/core/processor.h"
 
-void NS::test_processor() {
+void NS_Test::test_processor() {
 	NS::Processor<int, int> test_event;
 	CRASH_COND(test_event.size() != 0);
 
@@ -204,7 +204,7 @@ void NS::test_processor() {
 
 		struct TestLambda {
 			int v = 0;
-			NS::PHandler add_lambda(Processor<int, int> &p_processor) {
+			NS::PHandler add_lambda(NS::Processor<int, int> &p_processor) {
 				return p_processor.bind([this](int a, int b) {
 					v = a + b;
 				});

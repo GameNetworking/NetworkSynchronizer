@@ -4,6 +4,7 @@
 #include "core/config/project_settings.h"
 #include "core/error/error_macros.h"
 #include "core/io/marshalls.h"
+#include "core/templates/vector.h"
 #include "godot4/gd_network_interface.h"
 #include "modules/network_synchronizer/core/core.h"
 #include "modules/network_synchronizer/core/processor.h"
@@ -11,6 +12,7 @@
 #include "scene_synchronizer.h"
 #include "scene_synchronizer_debugger.h"
 #include <algorithm>
+#include <functional>
 
 #define METADATA_SIZE 1
 
@@ -36,6 +38,24 @@ void NetworkedController::setup(
 		NetworkedControllerManager &p_controller_manager) {
 	network_interface = &p_network_interface;
 	networked_controller_manager = &p_controller_manager;
+
+	rpc_handle_receive_input =
+			network_interface->rpc_config(
+					std::function<void(const Vector<uint8_t> &)>(std::bind(&NetworkedController::rpc_receive_inputs, this, std::placeholders::_1)),
+					false,
+					false);
+
+	rpc_handle_set_server_controlled =
+			network_interface->rpc_config(
+					std::function<void(bool)>(std::bind(&NetworkedController::rpc_set_server_controlled, this, std::placeholders::_1)),
+					false,
+					false);
+
+	rpc_handle_notify_fps_acceleration =
+			network_interface->rpc_config(
+					std::function<void(const Vector<uint8_t> &)>(std::bind(&NetworkedController::rpc_notify_fps_acceleration, this, std::placeholders::_1)),
+					false,
+					false);
 }
 
 void NetworkedController::conclude() {
@@ -65,7 +85,8 @@ void NetworkedController::set_server_controlled(bool p_server_controlled) {
 
 			// Tell the client to do the switch too.
 			if (network_interface->get_unit_authority() != 1) {
-				networked_controller_manager->rpc_send__set_server_controlled(
+				network_interface->rpc(
+						rpc_handle_set_server_controlled,
 						network_interface->get_unit_authority(),
 						server_controlled);
 			} else {
@@ -318,13 +339,13 @@ void NetworkedController::on_rewind_frame_begin(uint32_t p_input_id, int p_index
 	}
 }
 
-void NetworkedController::rpc_receive__server_send_inputs(const Vector<uint8_t> &p_data) {
+void NetworkedController::rpc_receive_inputs(const Vector<uint8_t> &p_data) {
 	if (controller) {
 		controller->receive_inputs(p_data);
 	}
 }
 
-void NetworkedController::rpc_receive__set_server_controlled(bool p_server_controlled) {
+void NetworkedController::rpc_set_server_controlled(bool p_server_controlled) {
 	ERR_FAIL_COND_MSG(is_player_controller() == false, "This function is supposed to be called on the server.");
 	server_controlled = p_server_controlled;
 
@@ -332,7 +353,7 @@ void NetworkedController::rpc_receive__set_server_controlled(bool p_server_contr
 	scene_synchronizer->notify_controller_control_mode_changed(this);
 }
 
-void NetworkedController::rpc_receive__notify_fps_acceleration(const Vector<uint8_t> &p_data) {
+void NetworkedController::rpc_notify_fps_acceleration(const Vector<uint8_t> &p_data) {
 	ERR_FAIL_COND(is_player_controller() == false);
 	ERR_FAIL_COND(p_data.size() != 1);
 
@@ -900,7 +921,10 @@ bool ServerController::receive_inputs(const Vector<uint8_t> &p_data) {
 
 					node->__input_data_set_first_input_id(data, peer_input_id);
 
-					node->networked_controller_manager->rpc_send__server_send_inputs(peer_id, data);
+					node->network_interface->rpc(
+							node->rpc_handle_receive_input,
+							peer_id,
+							data);
 				}
 			}
 		}
@@ -989,7 +1013,8 @@ void ServerController::adjust_player_tick_rate(double p_delta) {
 				packet_data;
 		packet_data.push_back(compressed_distance);
 
-		node->networked_controller_manager->rpc_send__notify_fps_acceleration(
+		node->network_interface->rpc(
+				node->rpc_handle_notify_fps_acceleration,
 				node->network_interface->get_unit_authority(),
 				packet_data);
 	}
@@ -1378,8 +1403,10 @@ void PlayerController::send_frame_input_buffer_to_server() {
 			cached_packet_data.ptr(),
 			ofs);
 
-	const int server_peer_id = 1;
-	node->networked_controller_manager->rpc_send__server_send_inputs(server_peer_id, packet_data);
+	node->network_interface->rpc(
+			node->rpc_handle_receive_input,
+			node->network_interface->get_server_peer(),
+			packet_data);
 }
 
 bool PlayerController::can_accept_new_inputs() const {

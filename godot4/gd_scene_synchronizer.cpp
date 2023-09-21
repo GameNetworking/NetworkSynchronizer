@@ -116,6 +116,9 @@ void GdSceneSynchronizer::_bind_methods() {
 
 GdSceneSynchronizer::GdSceneSynchronizer() :
 		Node() {
+
+	rpc_id(1, "");
+
 	Dictionary rpc_config_reliable;
 	rpc_config_reliable["rpc_mode"] = MultiplayerAPI::RPC_MODE_ANY_PEER;
 	rpc_config_reliable["call_local"] = false;

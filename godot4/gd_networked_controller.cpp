@@ -94,9 +94,8 @@ void GdNetworkedController::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "max_frames_delay", PROPERTY_HINT_RANGE, "0,100,1"), "set_max_frames_delay", "get_max_frames_delay");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "tick_acceleration", PROPERTY_HINT_RANGE, "0.1,20.0,0.01"), "set_tick_acceleration", "get_tick_acceleration");
 
-	ClassDB::bind_method(D_METHOD("_rpc_server_send_inputs"), &GdNetworkedController::_rpc_server_send_inputs);
-	ClassDB::bind_method(D_METHOD("_rpc_set_server_controlled"), &GdNetworkedController::_rpc_set_server_controlled);
-	ClassDB::bind_method(D_METHOD("_rpc_notify_fps_acceleration"), &GdNetworkedController::_rpc_notify_fps_acceleration);
+	ClassDB::bind_method(D_METHOD("_rpc_net_sync_reliable"), &GdNetworkedController::_rpc_net_sync_reliable);
+	ClassDB::bind_method(D_METHOD("_rpc_net_sync_unreliable"), &GdNetworkedController::_rpc_net_sync_unreliable);
 
 	ADD_SIGNAL(MethodInfo("controller_reset"));
 	ADD_SIGNAL(MethodInfo("input_missed", PropertyInfo(Variant::INT, "missing_input_id")));
@@ -113,9 +112,8 @@ GdNetworkedController::GdNetworkedController() :
 	Dictionary rpc_config_unreliable = rpc_config_reliable;
 	rpc_config_unreliable["transfer_mode"] = MultiplayerPeer::TRANSFER_MODE_UNRELIABLE;
 
-	rpc_config(SNAME("_rpc_server_send_inputs"), rpc_config_unreliable);
-	rpc_config(SNAME("_rpc_set_server_controlled"), rpc_config_reliable);
-	rpc_config(SNAME("_rpc_notify_fps_acceleration"), rpc_config_unreliable);
+	rpc_config(SNAME("_rpc_net_sync_reliable"), rpc_config_reliable);
+	rpc_config(SNAME("_rpc_net_sync_unreliable"), rpc_config_unreliable);
 
 	event_handler_controller_reset =
 			networked_controller.event_controller_reset.bind([this]() -> void {
@@ -363,37 +361,12 @@ uint32_t GdNetworkedController::count_input_size(DataBuffer &p_buffer) {
 	return uint32_t(input_size >= 0 ? input_size : 0);
 }
 
-void GdNetworkedController::rpc_send__server_send_inputs(int p_peer_id, const Vector<uint8_t> &p_data) {
-	rpc_id(
-			p_peer_id,
-			SNAME("_rpc_server_send_inputs"),
-			p_data);
+void GdNetworkedController::_rpc_net_sync_reliable(const Vector<Variant> &p_args) {
+	static_cast<GdNetworkInterface *>(&networked_controller.get_network_interface())->gd_rpc_receive(p_args);
 }
 
-void GdNetworkedController::rpc_send__set_server_controlled(int p_peer_id, bool p_server_controlled) {
-	rpc_id(
-			p_peer_id,
-			SNAME("_rpc_set_server_controlled"),
-			p_server_controlled);
-}
-
-void GdNetworkedController::rpc_send__notify_fps_acceleration(int p_peer_id, const Vector<uint8_t> &p_data) {
-	rpc_id(
-			p_peer_id,
-			SNAME("_rpc_notify_fps_acceleration"),
-			p_data);
-}
-
-void GdNetworkedController::_rpc_server_send_inputs(const Vector<uint8_t> &p_data) {
-	networked_controller.rpc_receive__server_send_inputs(p_data);
-}
-
-void GdNetworkedController::_rpc_set_server_controlled(bool p_server_controlled) {
-	networked_controller.rpc_receive__set_server_controlled(p_server_controlled);
-}
-
-void GdNetworkedController::_rpc_notify_fps_acceleration(const Vector<uint8_t> &p_data) {
-	networked_controller.rpc_receive__notify_fps_acceleration(p_data);
+void GdNetworkedController::_rpc_net_sync_unreliable(const Vector<Variant> &p_args) {
+	static_cast<GdNetworkInterface *>(&networked_controller.get_network_interface())->gd_rpc_receive(p_args);
 }
 
 void GdNetworkedController::validate_script_implementation() {
