@@ -238,19 +238,19 @@ void NetworkedController::set_inputs_buffer(const BitArray &p_new_buffer, uint32
 	inputs_buffer->shrink_to(p_metadata_size_in_bit, p_size_in_bit);
 }
 
-void NetworkedController::notify_registered_with_synchronizer(NS::SceneSynchronizer *p_synchronizer) {
+void NetworkedController::notify_registered_with_synchronizer(NS::SceneSynchronizer *p_synchronizer, NetUtility::NodeData &p_nd) {
 	if (scene_synchronizer) {
 		scene_synchronizer->event_peer_status_updated.unbind(event_handler_peer_status_updated);
 		scene_synchronizer->event_state_validated.unbind(event_handler_state_validated);
 		scene_synchronizer->event_rewind_frame_begin.unbind(event_handler_rewind_frame_begin);
-		event_handler_rewind_frame_begin = NS::NullFuncHandler;
-		event_handler_state_validated = NS::NullFuncHandler;
-		event_handler_peer_status_updated = NS::NullFuncHandler;
+		event_handler_rewind_frame_begin = NS::NullPHandler;
+		event_handler_state_validated = NS::NullPHandler;
+		event_handler_peer_status_updated = NS::NullPHandler;
 		scene_synchronizer->unregister_process(
 				scene_synchronizer->find_node_data(this),
 				PROCESSPHASE_PROCESS,
 				process_handler_process);
-		process_handler_process = NS::NullFuncHandler;
+		process_handler_process = NS::NullPHandler;
 	}
 
 	node_id = NetID_NONE;
@@ -259,7 +259,7 @@ void NetworkedController::notify_registered_with_synchronizer(NS::SceneSynchroni
 	if (scene_synchronizer) {
 		process_handler_process =
 				scene_synchronizer->register_process(
-						scene_synchronizer->find_node_data(this),
+						&p_nd,
 						PROCESSPHASE_PROCESS,
 						[this](float p_delta) -> void { process(p_delta); });
 
@@ -289,6 +289,10 @@ bool NetworkedController::has_scene_synchronizer() const {
 }
 
 void NetworkedController::on_peer_status_updated(const NetUtility::NodeData *p_node_data, int p_peer_id, bool p_connected, bool p_enabled) {
+	if (!p_node_data) {
+		return;
+	}
+
 	if (p_node_data->controller == this) {
 		if (p_connected) {
 			peer_id = p_peer_id;

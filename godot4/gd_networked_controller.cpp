@@ -146,9 +146,9 @@ GdNetworkedController::~GdNetworkedController() {
 	networked_controller.event_controller_reset.unbind(event_handler_controller_reset);
 	networked_controller.event_input_missed.unbind(event_handler_input_missed);
 	networked_controller.event_client_speedup_adjusted.unbind(event_handler_client_speedup_adjusted);
-	event_handler_controller_reset = NS::NullFuncHandler;
-	event_handler_input_missed = NS::NullFuncHandler;
-	event_handler_client_speedup_adjusted = NS::NullFuncHandler;
+	event_handler_controller_reset = NS::NullPHandler;
+	event_handler_input_missed = NS::NullPHandler;
+	event_handler_client_speedup_adjusted = NS::NullPHandler;
 }
 
 void GdNetworkedController::_notification(int p_what) {

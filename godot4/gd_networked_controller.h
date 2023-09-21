@@ -69,9 +69,9 @@ public:
 private:
 	NS::NetworkedController networked_controller;
 
-	NS::FuncHandler event_handler_controller_reset = NS::NullFuncHandler;
-	NS::FuncHandler event_handler_input_missed = NS::NullFuncHandler;
-	NS::FuncHandler event_handler_client_speedup_adjusted = NS::NullFuncHandler;
+	NS::PHandler event_handler_controller_reset = NS::NullPHandler;
+	NS::PHandler event_handler_input_missed = NS::NullPHandler;
+	NS::PHandler event_handler_client_speedup_adjusted = NS::NullPHandler;
 
 public:
 	static void _bind_methods();

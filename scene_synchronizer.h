@@ -254,8 +254,8 @@ public: // ---------------------------------------------------------------- APIs
 	void untrack_variable_changes(Node *p_node, const StringName &p_variable, Object *p_object, const StringName &p_method);
 
 	/// You can use the macro `callable_mp()` to register custom C++ function.
-	NS::FuncHandler register_process(NetUtility::NodeData *p_node_data, ProcessPhase p_phase, std::function<void(float)> p_func);
-	void unregister_process(NetUtility::NodeData *p_node_data, ProcessPhase p_phase, NS::FuncHandler p_func_handler);
+	NS::PHandler register_process(NetUtility::NodeData *p_node_data, ProcessPhase p_phase, std::function<void(float)> p_func);
+	void unregister_process(NetUtility::NodeData *p_node_data, ProcessPhase p_phase, NS::PHandler p_func_handler);
 
 	/// Setup the deferred sync method for this specific node.
 	/// The deferred-sync is different from the realtime-sync because the data
