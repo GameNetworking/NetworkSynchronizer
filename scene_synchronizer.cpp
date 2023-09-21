@@ -185,7 +185,7 @@ NetUtility::NodeData *SceneSynchronizer::register_node(Node *p_node) {
 		SceneSynchronizerDebugger::singleton()->debug_print(network_interface, "New node registered" + (generate_id ? String(" #ID: ") + itos(nd->id) : "") + " : " + p_node->get_path());
 
 		if (nd->controller) {
-			nd->controller->notify_registered_with_synchronizer(this);
+			nd->controller->notify_registered_with_synchronizer(this, *nd);
 		}
 	}
 
@@ -422,18 +422,18 @@ void SceneSynchronizer::untrack_variable_changes(Node *p_node, const StringName 
 	// Don't remove the listener to preserve the order.
 }
 
-NS::FuncHandler SceneSynchronizer::register_process(NetUtility::NodeData *p_node_data, ProcessPhase p_phase, std::function<void(float)> p_func) {
-	ERR_FAIL_COND_V(p_node_data == nullptr, NS::NullFuncHandler);
-	ERR_FAIL_COND_V(!p_func, NS::NullFuncHandler);
+NS::PHandler SceneSynchronizer::register_process(NetUtility::NodeData *p_node_data, ProcessPhase p_phase, std::function<void(float)> p_func) {
+	ERR_FAIL_COND_V(p_node_data == nullptr, NS::NullPHandler);
+	ERR_FAIL_COND_V(!p_func, NS::NullPHandler);
 
-	const NS::FuncHandler EFH = p_node_data->functions[p_phase].bind(p_func);
+	const NS::PHandler EFH = p_node_data->functions[p_phase].bind(p_func);
 
 	process_functions__clear();
 
 	return EFH;
 }
 
-void SceneSynchronizer::unregister_process(NetUtility::NodeData *p_node_data, ProcessPhase p_phase, NS::FuncHandler p_func_handler) {
+void SceneSynchronizer::unregister_process(NetUtility::NodeData *p_node_data, ProcessPhase p_phase, NS::PHandler p_func_handler) {
 	ERR_FAIL_COND(p_node_data == nullptr);
 	p_node_data->functions[p_phase].unbind(p_func_handler);
 	process_functions__clear();
@@ -1221,7 +1221,7 @@ void SceneSynchronizer::drop_node_data(NetUtility::NodeData *p_node_data) {
 
 	if (p_node_data->controller) {
 		// This is a controller, make sure to reset the peers.
-		p_node_data->controller->notify_registered_with_synchronizer(nullptr);
+		p_node_data->controller->notify_registered_with_synchronizer(nullptr, *p_node_data);
 		dirty_peers();
 		node_data_controllers.erase(p_node_data);
 	}
@@ -2836,7 +2836,7 @@ void ClientSynchronizer::__pcr__rewind(
 #ifdef DEBUG_ENABLED
 	// Unreachable because the SceneSynchronizer and the PlayerController
 	// have the same stored data at this point.
-	CRASH_COND(client_snapshots.size() != size_t(remaining_inputs));
+	CRASH_COND_MSG(client_snapshots.size() != size_t(remaining_inputs), "Beware that `client_snapshots.size()` (" + itos(client_snapshots.size()) + ") and `remaining_inputs` (" + itos(remaining_inputs) + ") should be the same.");
 #endif
 
 #ifdef DEBUG_ENABLED

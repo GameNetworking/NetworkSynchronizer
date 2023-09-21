@@ -172,22 +172,22 @@ GdSceneSynchronizer::GdSceneSynchronizer() :
 
 GdSceneSynchronizer::~GdSceneSynchronizer() {
 	scene_synchronizer.event_sync_started.unbind(event_handler_sync_started);
-	event_handler_sync_started = NS::NullFuncHandler;
+	event_handler_sync_started = NS::NullPHandler;
 
 	scene_synchronizer.event_sync_paused.unbind(event_handler_sync_paused);
-	event_handler_sync_paused = NS::NullFuncHandler;
+	event_handler_sync_paused = NS::NullPHandler;
 
 	scene_synchronizer.event_peer_status_updated.unbind(event_handler_peer_status_updated);
-	event_handler_peer_status_updated = NS::NullFuncHandler;
+	event_handler_peer_status_updated = NS::NullPHandler;
 
 	scene_synchronizer.event_state_validated.unbind(event_handler_state_validated);
-	event_handler_state_validated = NS::NullFuncHandler;
+	event_handler_state_validated = NS::NullPHandler;
 
 	scene_synchronizer.event_rewind_frame_begin.unbind(event_handler_rewind_frame_begin);
-	event_handler_rewind_frame_begin = NS::NullFuncHandler;
+	event_handler_rewind_frame_begin = NS::NullPHandler;
 
 	scene_synchronizer.event_desync_detected.unbind(event_handler_desync_detected);
-	event_handler_desync_detected = NS::NullFuncHandler;
+	event_handler_desync_detected = NS::NullPHandler;
 }
 
 void GdSceneSynchronizer::_notification(int p_what) {
@@ -424,12 +424,12 @@ void GdSceneSynchronizer::untrack_variable_changes(Node *p_node, const StringNam
 
 uint64_t GdSceneSynchronizer::register_process(Node *p_node, ProcessPhase p_phase, const Callable &p_func) {
 	NetUtility::NodeData *nd = scene_synchronizer.register_node(p_node);
-	const NS::FuncHandler EFH = scene_synchronizer.register_process(nd, p_phase, [p_func](float p_delta) {
+	const NS::PHandler EFH = scene_synchronizer.register_process(nd, p_phase, [p_func](float p_delta) {
 		Array a;
 		a.push_back(p_delta);
 		p_func.callv(a);
 	});
-	return reinterpret_cast<uint64_t>(EFH);
+	return static_cast<uint64_t>(EFH);
 }
 
 void GdSceneSynchronizer::unregister_process(Node *p_node, ProcessPhase p_phase, uint64_t p_handler) {
@@ -438,7 +438,7 @@ void GdSceneSynchronizer::unregister_process(Node *p_node, ProcessPhase p_phase,
 		scene_synchronizer.unregister_process(
 				nd,
 				p_phase,
-				reinterpret_cast<NS::FuncHandler>(p_handler));
+				static_cast<NS::PHandler>(p_handler));
 	}
 }
 

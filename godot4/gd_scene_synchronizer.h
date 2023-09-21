@@ -20,12 +20,12 @@ public:
 	// Just used to detect when the low level peer change.
 	void *low_level_peer = nullptr;
 
-	NS::FuncHandler event_handler_sync_started = NS::NullFuncHandler;
-	NS::FuncHandler event_handler_sync_paused = NS::NullFuncHandler;
-	NS::FuncHandler event_handler_peer_status_updated = NS::NullFuncHandler;
-	NS::FuncHandler event_handler_state_validated = NS::NullFuncHandler;
-	NS::FuncHandler event_handler_rewind_frame_begin = NS::NullFuncHandler;
-	NS::FuncHandler event_handler_desync_detected = NS::NullFuncHandler;
+	NS::PHandler event_handler_sync_started = NS::NullPHandler;
+	NS::PHandler event_handler_sync_paused = NS::NullPHandler;
+	NS::PHandler event_handler_peer_status_updated = NS::NullPHandler;
+	NS::PHandler event_handler_state_validated = NS::NullPHandler;
+	NS::PHandler event_handler_rewind_frame_begin = NS::NullPHandler;
+	NS::PHandler event_handler_desync_detected = NS::NullPHandler;
 
 public:
 	GdSceneSynchronizer();

@@ -146,11 +146,11 @@ private:
 
 	NetNodeId node_id = NetID_NONE;
 
-	NS::FuncHandler process_handler_process = NS::NullFuncHandler;
+	NS::PHandler process_handler_process = NS::NullPHandler;
 
-	NS::FuncHandler event_handler_rewind_frame_begin = NS::NullFuncHandler;
-	NS::FuncHandler event_handler_state_validated = NS::NullFuncHandler;
-	NS::FuncHandler event_handler_peer_status_updated = NS::NullFuncHandler;
+	NS::PHandler event_handler_rewind_frame_begin = NS::NullPHandler;
+	NS::PHandler event_handler_state_validated = NS::NullPHandler;
+	NS::PHandler event_handler_peer_status_updated = NS::NullPHandler;
 
 public: // -------------------------------------------------------------- Events
 	Processor<> event_controller_reset;
@@ -241,7 +241,7 @@ public: // -------------------------------------------------------------- Events
 public:
 	void set_inputs_buffer(const BitArray &p_new_buffer, uint32_t p_metadata_size_in_bit, uint32_t p_size_in_bit);
 
-	void notify_registered_with_synchronizer(NS::SceneSynchronizer *p_synchronizer);
+	void notify_registered_with_synchronizer(NS::SceneSynchronizer *p_synchronizer, NetUtility::NodeData &p_nd);
 	NS::SceneSynchronizer *get_scene_synchronizer() const;
 	bool has_scene_synchronizer() const;
 
