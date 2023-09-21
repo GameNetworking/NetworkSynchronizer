@@ -6,6 +6,8 @@
 class GdNetworkInterface : public NS::NetworkInterface, public Object {
 public:
 	class Node *owner = nullptr;
+	std::function<void(int /*p_peer*/)> on_peer_connected_callback;
+	std::function<void(int /*p_peer*/)> on_peer_disconnected_callback;
 
 public:
 	GdNetworkInterface();
@@ -13,6 +15,8 @@ public:
 
 public: // ---------------------------------------------------------------- APIs
 	virtual String get_name() const override;
+
+	virtual int get_server_peer() const override { return 1; }
 
 	/// Call this function to start receiving events on peer connection / disconnection.
 	virtual void start_listening_peer_connection(
@@ -47,6 +51,6 @@ public: // ---------------------------------------------------------------- APIs
 	/// Can be used to verify if the local peer is the authority of this unit.
 	virtual bool is_local_peer_authority_of_this_unit() const override;
 
-	/// Should be called always from an rpc function.
-	virtual int rpc_get_sender() const override;
+	virtual void rpc_send(uint8_t p_rpc_id, int p_peer_recipient, const Variant *p_args, int p_count) override;
+	void gd_rpc_receive(const Vector<Variant> &p_args);
 };

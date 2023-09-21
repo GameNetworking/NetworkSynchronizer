@@ -65,8 +65,8 @@ void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
 		GLOBAL_DEF("NetworkSynchronizer/debugger/dump_classes", Array());
 		GLOBAL_DEF("NetworkSynchronizer/debugger/log_debug_fps_warnings", true);
 	} else if (p_level == MODULE_INITIALIZATION_LEVEL_EDITOR) {
-		//test_scene_synchronizer();
-		NS::test_processor();
+		NS_Test::test_processor();
+		NS_Test::test_scene_synchronizer();
 	}
 }
 
