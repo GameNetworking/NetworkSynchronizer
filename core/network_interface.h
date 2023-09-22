@@ -9,7 +9,7 @@
 NS_NAMESPACE_BEGIN
 
 class NetworkInterface {
-protected:
+public:
 	struct RPCInfo {
 		bool is_reliable = false;
 		bool call_local = false;
@@ -76,7 +76,6 @@ public: // ---------------------------------------------------------------- APIs
 				[p_rpc_func](const Variant *p_args, int p_count) {
 					// Unless there is a bug into the rpc mechanism, this is never triggered.
 					CRASH_COND(p_count != sizeof...(ARGS));
-					//internal_call_rpc<ARGS...>(p_rpc_func, p_args);
 					internal_call_rpc(p_rpc_func, (const Variant *)p_args);
 				};
 
@@ -96,6 +95,11 @@ public: // ---------------------------------------------------------------- APIs
 		rpcs_info[p_rpc_id].func(p_args, p_count);
 	}
 
+	const RPCInfo *get_rpc_info(uint8_t p_rpc_id) const {
+		ERR_FAIL_COND_V(p_rpc_id >= rpcs_info.size(), nullptr);
+		return &rpcs_info[p_rpc_id];
+	}
+
 protected:
 	virtual void rpc_send(uint8_t p_rpc_id, int p_peer_recipient, const Variant *p_args, int p_count) = 0;
 
@@ -112,13 +116,13 @@ private: // ------------------------------------------------------- RPC internal
 	template <typename A1, typename A2, typename A3>
 	static void internal_call_rpc(std::function<void(A1, A2, A3)> p_func, const Variant *p_args);
 
-	template <int n, typename A1, typename A2, typename A3, typename A4>
+	template <typename A1, typename A2, typename A3, typename A4>
 	static void internal_call_rpc(std::function<void(A1, A2, A3, A4)> p_func, const Variant *p_args);
 
-	template <int n, typename A1, typename A2, typename A3, typename A4, typename A5>
+	template <typename A1, typename A2, typename A3, typename A4, typename A5>
 	static void internal_call_rpc(std::function<void(A1, A2, A3, A4, A5)> p_func, const Variant *p_args);
 
-	template <int n, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6>
+	template <typename A1, typename A2, typename A3, typename A4, typename A5, typename A6>
 	static void internal_call_rpc(std::function<void(A1, A2, A3, A4, A5, A6)> p_func, const Variant *p_args);
 };
 
@@ -155,17 +159,17 @@ void NetworkInterface::internal_call_rpc(std::function<void(A1, A2, A3)> p_func,
 	p_func(p_args[0], p_args[1], p_args[2]);
 }
 
-template <int n, typename A1, typename A2, typename A3, typename A4>
+template <typename A1, typename A2, typename A3, typename A4>
 void NetworkInterface::internal_call_rpc(std::function<void(A1, A2, A3, A4)> p_func, const Variant *p_args) {
 	p_func(p_args[0], p_args[1], p_args[2], p_args[3]);
 }
 
-template <int n, typename A1, typename A2, typename A3, typename A4, typename A5>
+template <typename A1, typename A2, typename A3, typename A4, typename A5>
 void NetworkInterface::internal_call_rpc(std::function<void(A1, A2, A3, A4, A5)> p_func, const Variant *p_args) {
 	p_func(p_args[0], p_args[1], p_args[2], p_args[3], p_args[4]);
 }
 
-template <int n, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6>
+template <typename A1, typename A2, typename A3, typename A4, typename A5, typename A6>
 void NetworkInterface::internal_call_rpc(std::function<void(A1, A2, A3, A4, A5, A6)> p_func, const Variant *p_args) {
 	p_func(p_args[0], p_args[1], p_args[2], p_args[3], p_args[4], p_args[5]);
 }
