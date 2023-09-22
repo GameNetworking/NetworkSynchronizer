@@ -43,8 +43,11 @@
 #include "scene_diff.h"
 #include "scene_synchronizer_debugger.h"
 
+#ifdef DEBUG_ENABLED
+#include "tests/local_network.h"
 #include "tests/test_processor.h"
 #include "tests/test_scene_synchronizer.h"
+#endif
 
 void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
 	if (p_level == MODULE_INITIALIZATION_LEVEL_SERVERS) {
@@ -65,8 +68,11 @@ void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
 		GLOBAL_DEF("NetworkSynchronizer/debugger/dump_classes", Array());
 		GLOBAL_DEF("NetworkSynchronizer/debugger/log_debug_fps_warnings", true);
 	} else if (p_level == MODULE_INITIALIZATION_LEVEL_EDITOR) {
+#ifdef DEBUG_ENABLED
 		NS_Test::test_processor();
+		NS_Test::test_local_network();
 		NS_Test::test_scene_synchronizer();
+#endif
 	}
 }
 
