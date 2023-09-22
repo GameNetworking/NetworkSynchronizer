@@ -92,11 +92,8 @@ void GdSceneSynchronizer::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("_on_node_removed"), &GdSceneSynchronizer::_on_node_removed);
 
-	ClassDB::bind_method(D_METHOD("_rpc_send_state"), &GdSceneSynchronizer::_rpc_send_state);
-	ClassDB::bind_method(D_METHOD("_rpc_notify_need_full_snapshot"), &GdSceneSynchronizer::_rpc_notify_need_full_snapshot);
-	ClassDB::bind_method(D_METHOD("_rpc_set_network_enabled", "enabled"), &GdSceneSynchronizer::_rpc_set_network_enabled);
-	ClassDB::bind_method(D_METHOD("_rpc_notify_peer_status", "enabled"), &GdSceneSynchronizer::_rpc_notify_peer_status);
-	ClassDB::bind_method(D_METHOD("_rpc_send_deferred_sync_data", "data"), &GdSceneSynchronizer::_rpc_send_deferred_sync_data);
+	ClassDB::bind_method(D_METHOD("_rpc_net_sync_reliable"), &GdSceneSynchronizer::_rpc_net_sync_reliable);
+	ClassDB::bind_method(D_METHOD("_rpc_net_sync_unreliable"), &GdSceneSynchronizer::_rpc_net_sync_unreliable);
 
 	GDVIRTUAL_BIND(_update_nodes_relevancy);
 
@@ -116,7 +113,6 @@ void GdSceneSynchronizer::_bind_methods() {
 
 GdSceneSynchronizer::GdSceneSynchronizer() :
 		Node() {
-
 	rpc_id(1, "");
 
 	Dictionary rpc_config_reliable;
@@ -129,11 +125,8 @@ GdSceneSynchronizer::GdSceneSynchronizer() :
 	rpc_config_unreliable["call_local"] = false;
 	rpc_config_unreliable["transfer_mode"] = MultiplayerPeer::TRANSFER_MODE_UNRELIABLE;
 
-	rpc_config(SNAME("_rpc_send_state"), rpc_config_reliable);
-	rpc_config(SNAME("_rpc_notify_need_full_snapshot"), rpc_config_reliable);
-	rpc_config(SNAME("_rpc_set_network_enabled"), rpc_config_reliable);
-	rpc_config(SNAME("_rpc_notify_peer_status"), rpc_config_reliable);
-	rpc_config(SNAME("_rpc_send_deferred_sync_data"), rpc_config_unreliable);
+	rpc_config(SNAME("_rpc_net_sync_reliable"), rpc_config_reliable);
+	rpc_config(SNAME("_rpc_net_sync_unreliable"), rpc_config_unreliable);
 
 	event_handler_sync_started =
 			scene_synchronizer.event_sync_started.bind([this]() -> void {
@@ -291,48 +284,6 @@ const NS::NetworkedController *GdSceneSynchronizer::extract_network_controller(c
 	return nullptr;
 }
 
-void GdSceneSynchronizer::rpc_send__state(int p_peer, const Variant &p_snapshot) {
-	rpc_id(p_peer, SNAME("_rpc_send_state"), p_snapshot);
-}
-
-void GdSceneSynchronizer::rpc_send__notify_need_full_snapshot(int p_peer) {
-	rpc_id(p_peer, SNAME("_rpc_notify_need_full_snapshot"));
-}
-
-void GdSceneSynchronizer::rpc_send__set_network_enabled(int p_peer, bool p_enabled) {
-	rpc_id(
-			p_peer,
-			SNAME("_rpc_set_network_enabled"),
-			p_enabled);
-}
-
-void GdSceneSynchronizer::rpc_send__notify_peer_status(int p_peer, bool p_enabled) {
-	rpc_id(p_peer, SNAME("_rpc_notify_peer_status"), p_enabled);
-}
-
-void GdSceneSynchronizer::rpc_send__deferred_sync_data(int p_peer, const Vector<uint8_t> &p_data) {
-	rpc_id(p_peer, SNAME("_rpc_send_deferred_sync_data"), p_data);
-}
-
-void GdSceneSynchronizer::_rpc_send_state(const Variant &p_snapshot) {
-	scene_synchronizer.rpc_receive__state(p_snapshot);
-}
-
-void GdSceneSynchronizer::_rpc_notify_need_full_snapshot() {
-	scene_synchronizer.rpc_receive__notify_need_full_snapshot();
-}
-
-void GdSceneSynchronizer::_rpc_set_network_enabled(bool p_enabled) {
-	scene_synchronizer.rpc_receive__set_network_enabled(p_enabled);
-}
-
-void GdSceneSynchronizer::_rpc_notify_peer_status(bool p_enabled) {
-	scene_synchronizer.rpc_receive__notify_peer_status(p_enabled);
-}
-
-void GdSceneSynchronizer::_rpc_send_deferred_sync_data(const Vector<uint8_t> &p_data) {
-	scene_synchronizer.rpc_receive__deferred_sync_data(p_data);
-}
 void GdSceneSynchronizer::set_max_deferred_nodes_per_update(int p_rate) {
 	scene_synchronizer.set_max_deferred_nodes_per_update(p_rate);
 }
@@ -363,6 +314,14 @@ void GdSceneSynchronizer::set_nodes_relevancy_update_time(real_t p_time) {
 
 real_t GdSceneSynchronizer::get_nodes_relevancy_update_time() const {
 	return scene_synchronizer.get_nodes_relevancy_update_time();
+}
+
+void GdSceneSynchronizer::_rpc_net_sync_reliable(const Vector<Variant> &p_args) {
+	static_cast<GdNetworkInterface *>(&scene_synchronizer.get_network_interface())->gd_rpc_receive(p_args);
+}
+
+void GdSceneSynchronizer::_rpc_net_sync_unreliable(const Vector<Variant> &p_args) {
+	static_cast<GdNetworkInterface *>(&scene_synchronizer.get_network_interface())->gd_rpc_receive(p_args);
 }
 
 void GdSceneSynchronizer::reset_synchronizer_mode() {
