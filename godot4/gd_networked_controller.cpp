@@ -79,6 +79,9 @@ void GdNetworkedController::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("is_doll_controller"), &GdNetworkedController::is_doll_controller);
 	ClassDB::bind_method(D_METHOD("is_nonet_controller"), &GdNetworkedController::is_nonet_controller);
 
+	ClassDB::bind_method(D_METHOD("_rpc_net_sync_reliable"), &GdNetworkedController::_rpc_net_sync_reliable);
+	ClassDB::bind_method(D_METHOD("_rpc_net_sync_unreliable"), &GdNetworkedController::_rpc_net_sync_unreliable);
+
 	GDVIRTUAL_BIND(_collect_inputs, "delta", "buffer");
 	GDVIRTUAL_BIND(_controller_process, "delta", "buffer");
 	GDVIRTUAL_BIND(_are_inputs_different, "inputs_A", "inputs_B");
@@ -93,9 +96,6 @@ void GdNetworkedController::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "min_frames_delay", PROPERTY_HINT_RANGE, "0,100,1"), "set_min_frames_delay", "get_min_frames_delay");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "max_frames_delay", PROPERTY_HINT_RANGE, "0,100,1"), "set_max_frames_delay", "get_max_frames_delay");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "tick_acceleration", PROPERTY_HINT_RANGE, "0.1,20.0,0.01"), "set_tick_acceleration", "get_tick_acceleration");
-
-	ClassDB::bind_method(D_METHOD("_rpc_net_sync_reliable"), &GdNetworkedController::_rpc_net_sync_reliable);
-	ClassDB::bind_method(D_METHOD("_rpc_net_sync_unreliable"), &GdNetworkedController::_rpc_net_sync_unreliable);
 
 	ADD_SIGNAL(MethodInfo("controller_reset"));
 	ADD_SIGNAL(MethodInfo("input_missed", PropertyInfo(Variant::INT, "missing_input_id")));

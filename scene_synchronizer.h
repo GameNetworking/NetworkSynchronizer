@@ -40,13 +40,6 @@ public:
 
 	virtual NetworkedController *extract_network_controller(Node *p_node) const = 0;
 	virtual const NetworkedController *extract_network_controller(const Node *p_node) const = 0;
-
-public: // ------------------------------------------------------- RPC Interface
-	virtual void rpc_send__state(int p_peer, const Variant &p_snapshot) = 0;
-	virtual void rpc_send__notify_need_full_snapshot(int p_peer) = 0;
-	virtual void rpc_send__set_network_enabled(int p_peer, bool p_enabled) = 0;
-	virtual void rpc_send__notify_peer_status(int p_peer, bool p_enabled) = 0;
-	virtual void rpc_send__deferred_sync_data(int p_peer, const Vector<uint8_t> &p_data) = 0;
 };
 
 /// # SceneSynchronizer
@@ -131,6 +124,12 @@ public:
 private:
 	class NetworkInterface *network_interface = nullptr;
 	SynchronizerManager *synchronizer_manager = nullptr;
+
+	int rpc_handler_state = -1;
+	int rpc_handler_notify_need_full_snapshot = -1;
+	int rpc_handler_set_network_enabled = -1;
+	int rpc_handler_notify_peer_status = -1;
+	int rpc_handler_deferred_sync_data = -1;
 
 	int max_deferred_nodes_per_update = 30;
 	real_t server_notify_state_interval = 1.0;
@@ -219,11 +218,11 @@ public:
 	bool is_variable_registered(Node *p_node, const StringName &p_variable) const;
 
 public: // ---------------------------------------------------------------- RPCs
-	void rpc_receive__state(const Variant &p_snapshot);
-	void rpc_receive__notify_need_full_snapshot();
-	void rpc_receive__set_network_enabled(bool p_enabled);
-	void rpc_receive__notify_peer_status(bool p_enabled);
-	void rpc_receive__deferred_sync_data(const Vector<uint8_t> &p_data);
+	void rpc_receive_state(const Variant &p_snapshot);
+	void rpc__notify_need_full_snapshot();
+	void rpc_set_network_enabled(bool p_enabled);
+	void rpc_notify_peer_status(bool p_enabled);
+	void rpc_deferred_sync_data(const Vector<uint8_t> &p_data);
 
 public: // ---------------------------------------------------------------- APIs
 	/// Register a new node and returns its `NodeData`.

@@ -75,6 +75,36 @@ void SceneSynchronizer::setup(
 			[this](int p_peer) { on_peer_connected(p_peer); },
 			[this](int p_peer) { on_peer_disconnected(p_peer); });
 
+	rpc_handler_state =
+			network_interface->rpc_config(
+					std::function<void(const Variant &)>(std::bind(&SceneSynchronizer::rpc_receive_state, this, std::placeholders::_1)),
+					true,
+					false);
+
+	rpc_handler_notify_need_full_snapshot =
+			network_interface->rpc_config(
+					std::function<void()>(std::bind(&SceneSynchronizer::rpc__notify_need_full_snapshot, this)),
+					true,
+					false);
+
+	rpc_handler_set_network_enabled =
+			network_interface->rpc_config(
+					std::function<void(bool)>(std::bind(&SceneSynchronizer::rpc_set_network_enabled, this, std::placeholders::_1)),
+					true,
+					false);
+
+	rpc_handler_notify_peer_status =
+			network_interface->rpc_config(
+					std::function<void(bool)>(std::bind(&SceneSynchronizer::rpc_notify_peer_status, this, std::placeholders::_1)),
+					true,
+					false);
+
+	rpc_handler_deferred_sync_data =
+			network_interface->rpc_config(
+					std::function<void(const Vector<uint8_t> &)>(std::bind(&SceneSynchronizer::rpc_deferred_sync_data, this, std::placeholders::_1)),
+					false,
+					false);
+
 	// Make sure to reset all the assigned controllers.
 	reset_controllers();
 
@@ -87,6 +117,7 @@ void SceneSynchronizer::setup(
 
 void SceneSynchronizer::conclude() {
 	network_interface->stop_listening_peer_connection();
+	network_interface->clear();
 
 	clear_peers();
 	clear();
@@ -723,7 +754,7 @@ void SceneSynchronizer::dirty_peers() {
 void SceneSynchronizer::set_enabled(bool p_enable) {
 	ERR_FAIL_COND_MSG(synchronizer_type == SYNCHRONIZER_TYPE_SERVER, "The server is always enabled.");
 	if (synchronizer_type == SYNCHRONIZER_TYPE_CLIENT) {
-		synchronizer_manager->rpc_send__set_network_enabled(1, p_enable);
+		network_interface->rpc(rpc_handler_set_network_enabled, network_interface->get_server_peer(), p_enable);
 		if (p_enable == false) {
 			// If the peer want to disable, we can disable it locally
 			// immediately. When it wants to enable the networking, the server
@@ -773,7 +804,7 @@ void SceneSynchronizer::set_peer_networking_enable(int p_peer, bool p_enable) {
 		dirty_peers();
 
 		// Just notify the peer status.
-		synchronizer_manager->rpc_send__notify_peer_status(p_peer, p_enable);
+		network_interface->rpc(rpc_handler_notify_peer_status, p_peer, p_enable);
 	} else {
 		ERR_FAIL_COND_MSG(synchronizer_type != SYNCHRONIZER_TYPE_NONETWORK, "At this point no network is expected.");
 		static_cast<NoNetSynchronizer *>(synchronizer)->set_enabled(p_enable);
@@ -942,12 +973,12 @@ void SceneSynchronizer::notify_controller_control_mode_changed(NetworkedControll
 	reset_controller(find_node_data(controller));
 }
 
-void SceneSynchronizer::rpc_receive__state(const Variant &p_snapshot) {
+void SceneSynchronizer::rpc_receive_state(const Variant &p_snapshot) {
 	ERR_FAIL_COND_MSG(is_client() == false, "Only clients are suposed to receive the server snapshot.");
 	static_cast<ClientSynchronizer *>(synchronizer)->receive_snapshot(p_snapshot);
 }
 
-void SceneSynchronizer::rpc_receive__notify_need_full_snapshot() {
+void SceneSynchronizer::rpc__notify_need_full_snapshot() {
 	ERR_FAIL_COND_MSG(is_server() == false, "Only the server can receive the request to send a full snapshot.");
 
 	const int sender_peer = network_interface->rpc_get_sender();
@@ -956,19 +987,19 @@ void SceneSynchronizer::rpc_receive__notify_need_full_snapshot() {
 	pd->need_full_snapshot = true;
 }
 
-void SceneSynchronizer::rpc_receive__set_network_enabled(bool p_enabled) {
+void SceneSynchronizer::rpc_set_network_enabled(bool p_enabled) {
 	ERR_FAIL_COND_MSG(is_server() == false, "The peer status is supposed to be received by the server.");
 	set_peer_networking_enable(
 			network_interface->rpc_get_sender(),
 			p_enabled);
 }
 
-void SceneSynchronizer::rpc_receive__notify_peer_status(bool p_enabled) {
+void SceneSynchronizer::rpc_notify_peer_status(bool p_enabled) {
 	ERR_FAIL_COND_MSG(is_client() == false, "The peer status is supposed to be received by the client.");
 	static_cast<ClientSynchronizer *>(synchronizer)->set_enabled(p_enabled);
 }
 
-void SceneSynchronizer::rpc_receive__deferred_sync_data(const Vector<uint8_t> &p_data) {
+void SceneSynchronizer::rpc_deferred_sync_data(const Vector<uint8_t> &p_data) {
 	ERR_FAIL_COND_MSG(is_client() == false, "Only clients are supposed to receive this function call.");
 	ERR_FAIL_COND_MSG(p_data.size() <= 0, "It's not supposed to receive a 0 size data.");
 
@@ -2073,7 +2104,10 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 				snap.append_array(delta_global_nodes_snapshot);
 			}
 
-			scene_synchronizer->synchronizer_manager->rpc_send__state(peer_id, snap);
+			scene_synchronizer->network_interface->rpc(
+					scene_synchronizer->rpc_handler_state,
+					peer_id,
+					snap);
 
 			if (nd) {
 				NetworkedController *controller = nd->controller;
@@ -2322,7 +2356,8 @@ void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
 		if (update_node_count > 0) {
 			global_buffer.dry();
 			for (int i = 0; i < int(group.peers.size()); ++i) {
-				scene_synchronizer->synchronizer_manager->rpc_send__deferred_sync_data(
+				scene_synchronizer->network_interface->rpc(
+						scene_synchronizer->rpc_handler_deferred_sync_data,
 						group.peers[i],
 						global_buffer.get_buffer().get_bytes());
 			}
@@ -3584,7 +3619,9 @@ void ClientSynchronizer::notify_server_full_snapshot_is_needed() {
 
 	// Notify the server that a full snapshot is needed.
 	need_full_snapshot_notified = true;
-	scene_synchronizer->synchronizer_manager->rpc_send__notify_need_full_snapshot(1);
+	scene_synchronizer->network_interface->rpc(
+			scene_synchronizer->rpc_handler_notify_need_full_snapshot,
+			scene_synchronizer->network_interface->get_server_peer());
 }
 
 void ClientSynchronizer::update_client_snapshot(NetUtility::Snapshot &p_snapshot) {

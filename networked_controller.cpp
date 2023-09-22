@@ -48,7 +48,7 @@ void NetworkedController::setup(
 	rpc_handle_set_server_controlled =
 			network_interface->rpc_config(
 					std::function<void(bool)>(std::bind(&NetworkedController::rpc_set_server_controlled, this, std::placeholders::_1)),
-					false,
+					true,
 					false);
 
 	rpc_handle_notify_fps_acceleration =
@@ -59,6 +59,7 @@ void NetworkedController::setup(
 }
 
 void NetworkedController::conclude() {
+	network_interface->clear();
 	network_interface = nullptr;
 	networked_controller_manager = nullptr;
 }

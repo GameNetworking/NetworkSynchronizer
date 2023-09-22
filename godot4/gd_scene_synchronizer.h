@@ -62,17 +62,10 @@ public: // ---------------------------------------- Scene Synchronizer Interface
 	virtual const NS::NetworkedController *extract_network_controller(const Node *p_node) const override;
 
 public: // ------------------------------------------------------- RPC Interface
-	virtual void rpc_send__state(int p_peer, const Variant &p_snapshot) override;
-	virtual void rpc_send__notify_need_full_snapshot(int p_peer) override;
-	virtual void rpc_send__set_network_enabled(int p_peer, bool p_enabled) override;
-	virtual void rpc_send__notify_peer_status(int p_peer, bool p_enabled) override;
-	virtual void rpc_send__deferred_sync_data(int p_peer, const Vector<uint8_t> &p_data) override;
-
-	void _rpc_send_state(const Variant &p_snapshot);
-	void _rpc_notify_need_full_snapshot();
-	void _rpc_set_network_enabled(bool p_enabled);
-	void _rpc_notify_peer_status(bool p_enabled);
-	void _rpc_send_deferred_sync_data(const Vector<uint8_t> &p_data);
+	// This funtion is used to sync data betweend the server and the client.
+	void _rpc_net_sync_reliable(const Vector<Variant> &p_args);
+	// This funtion is used to sync data betweend the server and the client.
+	void _rpc_net_sync_unreliable(const Vector<Variant> &p_args);
 
 public: // ---------------------------------------------------------------- APIs
 	virtual void reset_synchronizer_mode();

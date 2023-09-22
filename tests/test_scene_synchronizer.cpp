@@ -136,21 +136,6 @@ public:
 
 	virtual const NS::NetworkedController *extract_network_controller(const Node *p_node) const override {
 	}
-
-	virtual void rpc_send__state(int p_peer, const Variant &p_snapshot) override {
-	}
-
-	virtual void rpc_send__notify_need_full_snapshot(int p_peer) override {
-	}
-
-	virtual void rpc_send__set_network_enabled(int p_peer, bool p_enabled) override {
-	}
-
-	virtual void rpc_send__notify_peer_status(int p_peer, bool p_enabled) override {
-	}
-
-	virtual void rpc_send__deferred_sync_data(int p_peer, const Vector<uint8_t> &p_data) override {
-	}
 };
 
 void test_scene_processing() {
