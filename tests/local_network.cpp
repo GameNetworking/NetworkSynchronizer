@@ -164,12 +164,11 @@ int LocalNetworkInterface::fetch_local_peer_id() const {
 	return network->get_peer();
 }
 
-Vector<int> LocalNetworkInterface::fetch_connected_peers() const {
-	Vector<int> peers;
+void LocalNetworkInterface::fetch_connected_peers(std::vector<int> &p_connected_peers) const {
+	p_connected_peers.clear();
 	for (const auto &[peer_id, _] : network->get_connected_peers()) {
-		peers.push_back(peer_id);
+		p_connected_peers.push_back(peer_id);
 	}
-	return peers;
 }
 
 int LocalNetworkInterface::get_unit_authority() const {
@@ -203,16 +202,6 @@ void NS_Test::test_local_network() {
 
 	NS::LocalNetwork peer_2;
 	peer_2.network_properties = &network_properties;
-
-	server.start_as_server();
-	peer_1.start_as_client(server);
-	peer_2.start_as_client(server);
-	CRASH_COND(server.get_peer() != 1);
-	CRASH_COND(peer_1.get_peer() == server.get_peer());
-	CRASH_COND(peer_2.get_peer() == server.get_peer());
-	CRASH_COND(peer_1.get_peer() == peer_2.get_peer());
-	CRASH_COND(peer_1.get_peer() == 0);
-	CRASH_COND(peer_2.get_peer() == 0);
 
 	NS::LocalNetworkInterface server_obj_1;
 	server_obj_1.init(server, "object_1");
@@ -267,6 +256,56 @@ void NS_Test::test_local_network() {
 
 	CRASH_COND(rpc_handle_server != rpc_handle_1_obj_1);
 	CRASH_COND(rpc_handle_2_obj_1 != rpc_handle_1_obj_1);
+
+	std::vector<int> server_connection_event;
+	server_obj_1.start_listening_peer_connection(
+			[&server_connection_event](int p_peer) {
+				server_connection_event.push_back(p_peer);
+			},
+			[](int p_peer) {
+			});
+
+	std::vector<int> peer_1_connection_event;
+	peer_1_obj_1.start_listening_peer_connection(
+			[&peer_1_connection_event](int p_peer) {
+				peer_1_connection_event.push_back(p_peer);
+			},
+			[](int p_peer) {
+			});
+
+	std::vector<int> peer_2_connection_event;
+	peer_2_obj_1.start_listening_peer_connection(
+			[&peer_2_connection_event](int p_peer) {
+				peer_2_connection_event.push_back(p_peer);
+			},
+			[](int p_peer) {
+			});
+
+	server.start_as_server();
+	peer_1.start_as_client(server);
+	peer_2.start_as_client(server);
+	CRASH_COND(server.get_peer() != 1);
+	CRASH_COND(peer_1.get_peer() == server.get_peer());
+	CRASH_COND(peer_2.get_peer() == server.get_peer());
+	CRASH_COND(peer_1.get_peer() == peer_2.get_peer());
+	CRASH_COND(peer_1.get_peer() == 0);
+	CRASH_COND(peer_2.get_peer() == 0);
+
+	// Check the events were executed.
+	CRASH_COND(server_connection_event[0] != peer_1.get_peer());
+	CRASH_COND(server_connection_event[1] != peer_2.get_peer());
+	CRASH_COND(peer_1_connection_event[0] != server.get_peer());
+	CRASH_COND(peer_2_connection_event[0] != server.get_peer());
+
+	// Check the connected peers list is valid
+	std::vector<int> connected_peers;
+	server_obj_1.fetch_connected_peers(connected_peers);
+	CRASH_COND(std::find(connected_peers.begin(), connected_peers.end(), peer_1.get_peer()) == connected_peers.end());
+	CRASH_COND(std::find(connected_peers.begin(), connected_peers.end(), peer_2.get_peer()) == connected_peers.end());
+	peer_1_obj_1.fetch_connected_peers(connected_peers);
+	CRASH_COND(std::find(connected_peers.begin(), connected_peers.end(), server.get_peer()) == connected_peers.end());
+	peer_2_obj_1.fetch_connected_peers(connected_peers);
+	CRASH_COND(std::find(connected_peers.begin(), connected_peers.end(), server.get_peer()) == connected_peers.end());
 
 	Vector<uint8_t> vec;
 	vec.push_back(1);
