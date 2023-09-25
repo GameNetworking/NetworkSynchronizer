@@ -41,6 +41,7 @@ void SceneDiff::_bind_methods() {
 }
 
 void SceneDiff::start_tracking_scene_changes(
+		const NS::SceneSynchronizer *p_synchronizer,
 		const LocalVector<NetUtility::NodeData *> &p_nodes) {
 	start_tracking_count += 1;
 	if (start_tracking_count > 1) {
@@ -62,7 +63,7 @@ void SceneDiff::start_tracking_scene_changes(
 		CRASH_COND(p_nodes[i]->id != i);
 		// This is never triggered because when the node is invalid the node data
 		// is destroyed.
-		CRASH_COND(p_nodes[i]->node == nullptr);
+		CRASH_COND(p_nodes[i]->app_object == nullptr);
 #endif
 
 		tracking[i].resize(p_nodes[i]->vars.size());
@@ -72,7 +73,10 @@ void SceneDiff::start_tracking_scene_changes(
 			if (p_nodes[i]->vars[v].enabled && p_nodes[i]->vars[v].id != UINT32_MAX) {
 				// Note: Taking the value using `get` so to take the most updated
 				// value.
-				tracking[i][v] = p_nodes[i]->node->get(p_nodes[i]->vars[v].var.name).duplicate(true);
+				p_synchronizer->get_synchronizer_manager().get_variable(
+						p_nodes[i]->app_object,
+						String(p_nodes[i]->vars[v].var.name).utf8(),
+						tracking[i][v]);
 			} else {
 				tracking[i][v] = Variant();
 			}
@@ -118,9 +122,9 @@ void SceneDiff::stop_tracking_scene_changes(const NS::SceneSynchronizer *p_synch
 		// This is never triggered because we always pass the `organized_node_data`
 		// array.
 		CRASH_COND(nd->id != i);
-		// This is never triggered because when the node is invalid the node data
+		// This is never triggered because when the object is invalid the node data
 		// is destroyed.
-		CRASH_COND(nd->node == nullptr);
+		CRASH_COND(nd->app_object == nullptr);
 #endif
 
 		if (nd->vars.size() != tracking[i].size()) {
@@ -140,8 +144,11 @@ void SceneDiff::stop_tracking_scene_changes(const NS::SceneSynchronizer *p_synch
 			}
 
 			// Take the current variable value.
-			const Variant current_value =
-					nd->node->get(nd->vars[v].var.name);
+			Variant current_value;
+			p_synchronizer->get_synchronizer_manager().get_variable(
+					nd->app_object,
+					String(nd->vars[v].var.name).utf8(),
+					current_value);
 
 			// Compare the current value with the one taken during the start.
 			if (p_synchronizer->compare(

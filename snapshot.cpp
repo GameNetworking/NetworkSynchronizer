@@ -156,7 +156,7 @@ bool NetUtility::Snapshot::compare(
 		bool are_nodes_different = false;
 		if (net_node_id >= uint32_t(p_snap_B.node_vars.size())) {
 			if (r_differences_info) {
-				r_differences_info->push_back("Difference detected: The B snapshot doesn't contain this node: " + rew_node_data->node->get_path());
+				r_differences_info->push_back("Difference detected: The B snapshot doesn't contain this node: " + String(rew_node_data->object_name.c_str()));
 			}
 #ifdef DEBUG_ENABLED
 			is_equal = false;
@@ -175,7 +175,7 @@ bool NetUtility::Snapshot::compare(
 
 			if (are_nodes_different) {
 				if (r_differences_info) {
-					r_differences_info->push_back("Difference detected: The node status on snapshot B is different. NODE: " + rew_node_data->node->get_path());
+					r_differences_info->push_back("Difference detected: The node status on snapshot B is different. NODE: " + String(rew_node_data->object_name.c_str()));
 				}
 #ifdef DEBUG_ENABLED
 				is_equal = false;

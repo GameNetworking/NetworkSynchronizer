@@ -64,7 +64,7 @@ class SceneDiff : public Object {
 public:
 	SceneDiff() = default;
 
-	void start_tracking_scene_changes(const LocalVector<NetUtility::NodeData *> &p_nodes);
+	void start_tracking_scene_changes(const NS::SceneSynchronizer *p_synchronizer, const LocalVector<NetUtility::NodeData *> &p_nodes);
 	void stop_tracking_scene_changes(const NS::SceneSynchronizer *p_synchronizer);
 
 	bool is_tracking_in_progress() const;

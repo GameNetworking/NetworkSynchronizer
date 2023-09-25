@@ -55,13 +55,15 @@ int GdNetworkInterface::fetch_local_peer_id() const {
 	return 0;
 }
 
-Vector<int> GdNetworkInterface::fetch_connected_peers() const {
+void GdNetworkInterface::fetch_connected_peers(std::vector<int> &p_connected_peers) const {
+	p_connected_peers.clear();
 	if (
 			owner->get_tree() &&
 			owner->get_tree()->get_multiplayer().is_valid()) {
-		return owner->get_tree()->get_multiplayer()->get_peer_ids();
+		for (auto peer : owner->get_tree()->get_multiplayer()->get_peer_ids()) {
+			p_connected_peers.push_back(peer);
+		}
 	}
-	return Vector<int>();
 }
 
 int GdNetworkInterface::get_unit_authority() const {
