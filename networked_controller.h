@@ -7,7 +7,7 @@
 #include <deque>
 
 NS_NAMESPACE_BEGIN
-class SceneSynchronizer;
+class SceneSynchronizerBase;
 class NetworkInterface;
 
 struct Controller;
@@ -43,7 +43,7 @@ public:
 // The most important part is inside the `PlayerController`, `ServerController`,
 // `DollController`, `NoNetController`.
 class NetworkedController {
-	friend class NS::SceneSynchronizer;
+	friend class NS::SceneSynchronizerBase;
 	friend struct RemotelyControlledController;
 	friend struct ServerController;
 	friend struct PlayerController;
@@ -133,7 +133,7 @@ private:
 	// `memnew` created Objects.
 	DataBuffer *inputs_buffer = nullptr;
 
-	NS::SceneSynchronizer *scene_synchronizer = nullptr;
+	NS::SceneSynchronizerBase *scene_synchronizer = nullptr;
 
 	bool has_player_new_input = false;
 
@@ -142,9 +142,9 @@ private:
 
 	NetNodeId node_id = NetID_NONE;
 
-	uint8_t rpc_handle_receive_input = -1;
-	uint8_t rpc_handle_set_server_controlled = -1;
-	uint8_t rpc_handle_notify_fps_acceleration = -1;
+	uint8_t rpc_handle_receive_input = UINT8_MAX;
+	uint8_t rpc_handle_set_server_controlled = UINT8_MAX;
+	uint8_t rpc_handle_notify_fps_acceleration = UINT8_MAX;
 
 	NS::PHandler process_handler_process = NS::NullPHandler;
 
@@ -241,8 +241,8 @@ public: // -------------------------------------------------------------- Events
 public:
 	void set_inputs_buffer(const BitArray &p_new_buffer, uint32_t p_metadata_size_in_bit, uint32_t p_size_in_bit);
 
-	void notify_registered_with_synchronizer(NS::SceneSynchronizer *p_synchronizer, NetUtility::NodeData &p_nd);
-	NS::SceneSynchronizer *get_scene_synchronizer() const;
+	void notify_registered_with_synchronizer(NS::SceneSynchronizerBase *p_synchronizer, NetUtility::NodeData &p_nd);
+	NS::SceneSynchronizerBase *get_scene_synchronizer() const;
 	bool has_scene_synchronizer() const;
 
 	void on_peer_status_updated(const NetUtility::NodeData *p_node_data, int p_peer_id, bool p_connected, bool p_enabled);

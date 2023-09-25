@@ -39,15 +39,17 @@ public:
 	virtual void *fetch_app_object(const std::string &p_object_name) = 0;
 	virtual uint64_t get_object_id(const void *p_app_object) const = 0;
 	virtual std::string get_object_name(const void *p_app_object) const = 0;
-	virtual void setup_synchronizer_for(void *p_object) = 0;
-	virtual void set_variable(void *p_object, const char *p_var_name, const Variant &p_val) = 0;
-	virtual bool get_variable(const void *p_object, const char *p_var_name, Variant &p_val) const = 0;
+	virtual void setup_synchronizer_for(void *p_app_object) = 0;
+	virtual void set_variable(void *p_app_object, const char *p_var_name, const Variant &p_val) = 0;
+	virtual bool get_variable(const void *p_app_object, const char *p_var_name, Variant &p_val) const = 0;
 
 	virtual NetworkedController *extract_network_controller(void *p_app_object) const = 0;
 	virtual const NetworkedController *extract_network_controller(const void *p_app_object) const = 0;
 };
 
 /// # SceneSynchronizer
+///
+/// NOTICE: Do not instantiate this class directly, please use `SceneSynchronizer<>` instead.
 ///
 /// The `SceneSynchronizer` is responsible to keep the scene of all peers in sync.
 /// Usually each peer has it istantiated, and depending if it's istantiated in
@@ -108,7 +110,9 @@ public:
 // The server `SceneSynchronizer` code is inside the class `ServerSynchronizer`.
 // The client `SceneSynchronizer` code is inside the class `ClientSynchronizer`.
 // The no networking `SceneSynchronizer` code is inside the class `NoNetSynchronizer`.
-class SceneSynchronizer {
+class SceneSynchronizerBase {
+	template <class C>
+	friend class SceneSynchronizer;
 	friend class Synchronizer;
 	friend class ServerSynchronizer;
 	friend class ClientSynchronizer;
@@ -130,11 +134,11 @@ private:
 	class NetworkInterface *network_interface = nullptr;
 	SynchronizerManager *synchronizer_manager = nullptr;
 
-	int rpc_handler_state = -1;
-	int rpc_handler_notify_need_full_snapshot = -1;
-	int rpc_handler_set_network_enabled = -1;
-	int rpc_handler_notify_peer_status = -1;
-	int rpc_handler_deferred_sync_data = -1;
+	uint8_t rpc_handler_state = UINT8_MAX;
+	uint8_t rpc_handler_notify_need_full_snapshot = UINT8_MAX;
+	uint8_t rpc_handler_set_network_enabled = UINT8_MAX;
+	uint8_t rpc_handler_notify_peer_status = UINT8_MAX;
+	uint8_t rpc_handler_deferred_sync_data = UINT8_MAX;
 
 	int max_deferred_nodes_per_update = 30;
 	real_t server_notify_state_interval = 1.0;
@@ -181,9 +185,13 @@ public: // -------------------------------------------------------------- Events
 	Processor<uint32_t /*p_input_id*/, int /*p_index*/, int /*p_count*/> event_rewind_frame_begin;
 	Processor<uint32_t /*p_input_id*/, void * /*p_app_object*/, const Vector<StringName> & /*p_var_names*/, const Vector<Variant> & /*p_client_values*/, const Vector<Variant> & /*p_server_values*/> event_desync_detected;
 
+private:
+	// This is private so this class can be created only from
+	// `SceneSynchronizer<BaseClass>` and the user is forced to define a base class.
+	SceneSynchronizerBase();
+
 public:
-	SceneSynchronizer();
-	~SceneSynchronizer();
+	~SceneSynchronizerBase();
 
 public: // -------------------------------------------------------- Manager APIs
 	/// Setup the synchronizer
@@ -237,8 +245,8 @@ public: // ---------------------------------------------------------------- RPCs
 	void rpc_deferred_sync_data(const Vector<uint8_t> &p_data);
 
 public: // ---------------------------------------------------------------- APIs
-	/// Register a new node and returns its `NodeData`.
-	NetUtility::NodeData *register_app_object(void *p_app_object);
+		/// Register a new node and returns its `NodeData`.
+	NetUtility::NodeData *__register_app_object(void *p_app_object);
 	void unregister_app_object(void *p_app_object);
 
 	NetNodeId get_app_object_net_id(void *p_app_object) const;
@@ -414,10 +422,10 @@ public:
 
 class Synchronizer {
 protected:
-	SceneSynchronizer *scene_synchronizer;
+	SceneSynchronizerBase *scene_synchronizer;
 
 public:
-	Synchronizer(SceneSynchronizer *p_node);
+	Synchronizer(SceneSynchronizerBase *p_node);
 	virtual ~Synchronizer() = default;
 
 	virtual void clear() = 0;
@@ -433,13 +441,13 @@ public:
 };
 
 class NoNetSynchronizer : public Synchronizer {
-	friend class SceneSynchronizer;
+	friend class SceneSynchronizerBase;
 
 	bool enabled = true;
 	uint32_t frame_count = 0;
 
 public:
-	NoNetSynchronizer(SceneSynchronizer *p_node);
+	NoNetSynchronizer(SceneSynchronizerBase *p_node);
 
 	virtual void clear() override;
 	virtual void process() override;
@@ -449,7 +457,7 @@ public:
 };
 
 class ServerSynchronizer : public Synchronizer {
-	friend class SceneSynchronizer;
+	friend class SceneSynchronizerBase;
 
 	real_t nodes_relevancy_update_timer = 0.0;
 	uint32_t epoch = 0;
@@ -468,7 +476,7 @@ class ServerSynchronizer : public Synchronizer {
 	};
 
 public:
-	ServerSynchronizer(SceneSynchronizer *p_node);
+	ServerSynchronizer(SceneSynchronizerBase *p_node);
 
 	virtual void clear() override;
 	virtual void process() override;
@@ -512,7 +520,7 @@ public:
 };
 
 class ClientSynchronizer : public Synchronizer {
-	friend class SceneSynchronizer;
+	friend class SceneSynchronizerBase;
 
 	NetUtility::NodeData *player_controller_node_data = nullptr;
 	OAHashMap<NetNodeId, std::string> node_paths;
@@ -588,7 +596,7 @@ class ClientSynchronizer : public Synchronizer {
 	LocalVector<DeferredSyncInterpolationData> deferred_sync_array;
 
 public:
-	ClientSynchronizer(SceneSynchronizer *p_node);
+	ClientSynchronizer(SceneSynchronizerBase *p_node);
 
 	virtual void clear() override;
 
@@ -658,6 +666,19 @@ private:
 			int p_flag,
 			LocalVector<String> *r_applied_data_info,
 			bool p_skip_custom_data = false);
+};
+
+/// This is used to make sure we can safely convert any `BaseType` defined by
+// the user to `void*`.
+template <class BaseType>
+class SceneSynchronizer : public SceneSynchronizerBase {
+public:
+	SceneSynchronizer() :
+			SceneSynchronizerBase() {}
+
+	NetUtility::NodeData *register_app_object(BaseType *p_app_object) {
+		return __register_app_object(p_app_object);
+	}
 };
 
 NS_NAMESPACE_END

@@ -41,7 +41,7 @@ void SceneDiff::_bind_methods() {
 }
 
 void SceneDiff::start_tracking_scene_changes(
-		const NS::SceneSynchronizer *p_synchronizer,
+		const NS::SceneSynchronizerBase *p_synchronizer,
 		const LocalVector<NetUtility::NodeData *> &p_nodes) {
 	start_tracking_count += 1;
 	if (start_tracking_count > 1) {
@@ -84,7 +84,7 @@ void SceneDiff::start_tracking_scene_changes(
 	}
 }
 
-void SceneDiff::stop_tracking_scene_changes(const NS::SceneSynchronizer *p_synchronizer) {
+void SceneDiff::stop_tracking_scene_changes(const NS::SceneSynchronizerBase *p_synchronizer) {
 	ERR_FAIL_COND_MSG(
 			start_tracking_count == 0,
 			"The tracking is not yet started on this SceneDiff, so can't be end.");

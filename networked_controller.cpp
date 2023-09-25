@@ -62,6 +62,10 @@ void NetworkedController::conclude() {
 	network_interface->clear();
 	network_interface = nullptr;
 	networked_controller_manager = nullptr;
+
+	rpc_handle_receive_input = UINT8_MAX;
+	rpc_handle_set_server_controlled = UINT8_MAX;
+	rpc_handle_notify_fps_acceleration = UINT8_MAX;
 }
 
 void NetworkedController::set_server_controlled(bool p_server_controlled) {
@@ -260,7 +264,7 @@ void NetworkedController::set_inputs_buffer(const BitArray &p_new_buffer, uint32
 	inputs_buffer->shrink_to(p_metadata_size_in_bit, p_size_in_bit);
 }
 
-void NetworkedController::notify_registered_with_synchronizer(NS::SceneSynchronizer *p_synchronizer, NetUtility::NodeData &p_nd) {
+void NetworkedController::notify_registered_with_synchronizer(NS::SceneSynchronizerBase *p_synchronizer, NetUtility::NodeData &p_nd) {
 	if (scene_synchronizer) {
 		scene_synchronizer->event_peer_status_updated.unbind(event_handler_peer_status_updated);
 		scene_synchronizer->event_state_validated.unbind(event_handler_state_validated);
@@ -302,7 +306,7 @@ void NetworkedController::notify_registered_with_synchronizer(NS::SceneSynchroni
 	}
 }
 
-NS::SceneSynchronizer *NetworkedController::get_scene_synchronizer() const {
+NS::SceneSynchronizerBase *NetworkedController::get_scene_synchronizer() const {
 	return scene_synchronizer;
 }
 

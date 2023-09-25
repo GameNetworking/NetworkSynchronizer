@@ -137,7 +137,7 @@ void LocalNetwork::rpc_receive_internal(int p_peer_sender, const std::shared_ptr
 			p_packet->data.size());
 }
 
-void LocalNetworkInterface::init(LocalNetwork &p_network, const String &p_unique_name) {
+void LocalNetworkInterface::init(LocalNetwork &p_network, const std::string &p_unique_name) {
 	network = &p_network;
 	name = p_unique_name;
 	network->register_object(*this);

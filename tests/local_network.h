@@ -6,6 +6,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <string>
 #include <vector>
 
 NS_NAMESPACE_BEGIN
@@ -69,7 +70,7 @@ private:
 };
 
 class LocalNetworkInterface : public NS::NetworkInterface {
-	String name;
+	std::string name;
 	LocalNetwork *network = nullptr;
 
 public:
@@ -77,10 +78,10 @@ public:
 	NS::PHandler processor_handler_connected = NS::NullPHandler;
 	NS::PHandler processor_handler_disconnected = NS::NullPHandler;
 
-	void init(LocalNetwork &p_network, const String &p_unique_name);
+	void init(LocalNetwork &p_network, const std::string &p_unique_name);
 
 	std::vector<RPCInfo> &get_rpcs_info() { return rpcs_info; }
-	virtual String get_name() const override { return name; }
+	virtual String get_name() const override { return String(name.c_str()); }
 
 	virtual int get_server_peer() const override { return 1; }
 

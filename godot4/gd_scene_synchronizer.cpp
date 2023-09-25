@@ -13,7 +13,7 @@
 #include "scene/main/window.h"
 
 void GdSceneSynchronizer::_bind_methods() {
-	BIND_CONSTANT(NS::SceneSynchronizer::GLOBAL_SYNC_GROUP_ID)
+	BIND_CONSTANT(NS::SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID)
 
 	BIND_ENUM_CONSTANT(CHANGE)
 	BIND_ENUM_CONSTANT(SYNC_RECOVER)
