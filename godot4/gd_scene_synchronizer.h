@@ -15,7 +15,7 @@ public:
 
 	GDVIRTUAL0(_update_nodes_relevancy);
 
-	NS::SceneSynchronizer scene_synchronizer;
+	NS::SceneSynchronizer<Node> scene_synchronizer;
 
 	// Just used to detect when the low level peer change.
 	void *low_level_peer = nullptr;

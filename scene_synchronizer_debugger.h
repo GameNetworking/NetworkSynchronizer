@@ -39,7 +39,7 @@
 #endif
 
 namespace NS {
-class SceneSynchronizer;
+class SceneSynchronizerBase;
 };
 class SceneTree;
 
@@ -152,8 +152,8 @@ public:
 	void write_dump(int p_peer, uint32_t p_frame_index);
 	void start_new_frame();
 
-	void scene_sync_process_start(const NS::SceneSynchronizer *p_scene_sync);
-	void scene_sync_process_end(const NS::SceneSynchronizer *p_scene_sync);
+	void scene_sync_process_start(const NS::SceneSynchronizerBase *p_scene_sync);
+	void scene_sync_process_end(const NS::SceneSynchronizerBase *p_scene_sync);
 
 	void databuffer_operation_begin_record(NS::NetworkInterface *p_network_interface, DataBufferDumpMode p_mode);
 	void databuffer_operation_end_record();
@@ -175,5 +175,5 @@ public:
 	void notify_event(FrameEvent p_event);
 
 private:
-	void dump_tracked_objects(const NS::SceneSynchronizer *p_scene_sync, Dictionary &p_dump);
+	void dump_tracked_objects(const NS::SceneSynchronizerBase *p_scene_sync, Dictionary &p_dump);
 };

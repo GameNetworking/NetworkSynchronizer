@@ -499,7 +499,7 @@ String compression_level_to_string(uint32_t p_type) {
 }
 #endif
 
-void SceneSynchronizerDebugger::scene_sync_process_start(const NS::SceneSynchronizer *p_scene_sync) {
+void SceneSynchronizerDebugger::scene_sync_process_start(const NS::SceneSynchronizerBase *p_scene_sync) {
 #ifdef DEBUG_ENABLED
 	if (!dump_enabled) {
 		return;
@@ -509,7 +509,7 @@ void SceneSynchronizerDebugger::scene_sync_process_start(const NS::SceneSynchron
 #endif
 }
 
-void SceneSynchronizerDebugger::scene_sync_process_end(const NS::SceneSynchronizer *p_scene_sync) {
+void SceneSynchronizerDebugger::scene_sync_process_end(const NS::SceneSynchronizerBase *p_scene_sync) {
 #ifdef DEBUG_ENABLED
 	if (!dump_enabled) {
 		return;
@@ -702,7 +702,7 @@ void SceneSynchronizerDebugger::notify_event(FrameEvent p_event) {
 #endif
 }
 
-void SceneSynchronizerDebugger::dump_tracked_objects(const NS::SceneSynchronizer *p_scene_sync, Dictionary &p_dump) {
+void SceneSynchronizerDebugger::dump_tracked_objects(const NS::SceneSynchronizerBase *p_scene_sync, Dictionary &p_dump) {
 #ifdef DEBUG_ENABLED
 	p_dump.clear();
 

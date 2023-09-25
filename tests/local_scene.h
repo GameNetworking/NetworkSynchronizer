@@ -15,38 +15,34 @@ class LocalSceneObject {
 	class LocalScene *scene_owner = nullptr;
 
 public:
-	std::map<String, Variant> variables;
+	std::string name;
+	std::map<std::string, Variant> variables;
 
 	class LocalScene *get_scene() const;
 
 	virtual void on_scene_entry() {}
+	virtual void setup_synchronizer(class LocalSceneSynchronizer &p_scene_sync) {}
 	virtual void on_scene_exit() {}
 };
 
-class LocalSceneSynchronizer : public SceneSynchronizer, public SynchronizerManager, public LocalSceneObject {
+class LocalSceneSynchronizer : public SceneSynchronizer<LocalSceneObject>, public SynchronizerManager, public LocalSceneObject {
 public:
-	virtual void *fetch_app_object(const std::string &p_object_name) override {}
-	virtual uint64_t get_object_id(const void *p_app_object) const override {}
-	virtual std::string get_object_name(const void *p_app_object) const override {}
-	virtual void setup_synchronizer_for(void *p_object) override {}
-	virtual void set_variable(void *p_object, const char *p_var_name, const Variant &p_val) override {}
-	virtual bool get_variable(const void *p_object, const char *p_var_name, Variant &p_val) const override { return false; }
+	LocalNetworkInterface network_interface;
 
-	virtual NS::NetworkedController *extract_network_controller(void *p_app_object) const override {
-	}
+	LocalSceneSynchronizer();
 
-	virtual const NS::NetworkedController *extract_network_controller(const void *p_app_object) const override {
-	}
-};
+	virtual void on_scene_entry() override;
+	virtual void setup_synchronizer(class LocalSceneSynchronizer &p_scene_sync) override;
+	virtual void on_scene_exit() override;
 
-class LocalNetworkedController : public NetworkedController, public NetworkedControllerManager, public LocalSceneObject {
-public:
-	LocalNetworkedController() {}
-
-	virtual void collect_inputs(double p_delta, DataBuffer &r_buffer) override {}
-	virtual void controller_process(double p_delta, DataBuffer &p_buffer) override {}
-	virtual bool are_inputs_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B) override {}
-	virtual uint32_t count_input_size(DataBuffer &p_buffer) override { return 0; }
+	virtual void *fetch_app_object(const std::string &p_object_name) override;
+	virtual uint64_t get_object_id(const void *p_app_object) const override;
+	virtual std::string get_object_name(const void *p_app_object) const override;
+	virtual void setup_synchronizer_for(void *p_object) override;
+	virtual void set_variable(void *p_object, const char *p_var_name, const Variant &p_val) override;
+	virtual bool get_variable(const void *p_object, const char *p_var_name, Variant &p_val) const override;
+	virtual NS::NetworkedController *extract_network_controller(void *p_app_object) const override;
+	virtual const NS::NetworkedController *extract_network_controller(const void *p_app_object) const override;
 };
 
 class LocalScene {
@@ -54,6 +50,12 @@ class LocalScene {
 	std::map<std::string, std::shared_ptr<LocalSceneObject>> objects;
 
 public:
+	LocalSceneSynchronizer *scene_sync = nullptr;
+
+public:
+	LocalNetwork &get_network() { return network; }
+	const LocalNetwork &get_network() const { return network; }
+
 	// Start the scene as server.
 	void start_as_server();
 
@@ -63,8 +65,8 @@ public:
 	int get_peer() const;
 
 	template <class T>
-	std::shared_ptr<T> add_object(const char *p_object_name, int p_authoritative_peer);
-	std::shared_ptr<LocalSceneObject> fetch_object(const char *p_object_name);
+	std::shared_ptr<T> add_object(const std::string &p_object_name, int p_authoritative_peer);
+	std::shared_ptr<LocalSceneObject> fetch_object(const std::string &p_object_name);
 
 	template <class T>
 	std::shared_ptr<T> fetch_object(const char *p_object_name);
@@ -75,12 +77,13 @@ public:
 };
 
 template <class T>
-std::shared_ptr<T> LocalScene::add_object(const char *p_object_name, int p_authoritative_peer) {
+std::shared_ptr<T> LocalScene::add_object(const std::string &p_object_name, int p_authoritative_peer) {
 	const std::string name = p_object_name;
 	CRASH_COND(objects.find(name) != objects.end());
 	std::shared_ptr<T> object = std::make_shared<T>();
 	objects[name] = object;
 	object->scene_owner = this;
+	object->name = name;
 	object->on_scene_entry();
 	return object;
 }
