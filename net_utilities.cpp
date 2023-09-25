@@ -34,8 +34,6 @@
 
 #include "net_utilities.h"
 
-#include "scene/main/node.h"
-
 const uint32_t NetID_NONE = UINT32_MAX;
 
 // This was needed to optimize the godot stringify for byte arrays.. it was slowing down perfs.
@@ -289,7 +287,7 @@ real_t NetUtility::SyncGroup::get_deferred_update_rate(const NetUtility::NodeDat
 			return deferred_sync_nodes[i].update_rate;
 		}
 	}
-	ERR_PRINT("NodeData " + p_node_data->node->get_path() + " not found into `deferred_sync_nodes`.");
+	ERR_PRINT(String() + "NodeData " + p_node_data->object_name.c_str() + " not found into `deferred_sync_nodes`.");
 	return 0.0;
 }
 

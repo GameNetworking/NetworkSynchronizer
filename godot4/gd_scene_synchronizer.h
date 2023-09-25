@@ -50,16 +50,23 @@ public: // ---------------------------------------- Scene Synchronizer Interface
 	virtual void on_init_synchronizer(bool p_was_generating_ids) override;
 	virtual void on_uninit_synchronizer() override;
 
+	virtual void on_add_node_data(NetUtility::NodeData *p_node_data) override;
+
 	virtual void update_nodes_relevancy() override;
 
 	virtual void snapshot_add_custom_data(const NetUtility::SyncGroup *p_group, Vector<Variant> &r_snapshot_data) override {}
 	virtual bool snapshot_extract_custom_data(const Vector<Variant> &p_snapshot_data, uint32_t p_snap_data_index, LocalVector<const Variant *> &r_out) const override { return true; }
 	virtual void snapshot_apply_custom_data(const Vector<Variant> &p_custom_data) override {}
 
-	virtual Node *get_node_or_null(const NodePath &p_path) override;
+	virtual void *fetch_app_object(const std::string &p_object_name) override;
+	virtual uint64_t get_object_id(const void *p_app_object) const override;
+	virtual std::string get_object_name(const void *p_app_object) const override;
+	virtual void setup_synchronizer_for(void *p_object) override;
+	virtual void set_variable(void *p_object, const char *p_name, const Variant &p_val) override;
+	virtual bool get_variable(const void *p_object, const char *p_name, Variant &p_val) const override;
 
-	virtual NS::NetworkedController *extract_network_controller(Node *p_node) const override;
-	virtual const NS::NetworkedController *extract_network_controller(const Node *p_node) const override;
+	virtual NS::NetworkedController *extract_network_controller(void *p_app_object) const override;
+	virtual const NS::NetworkedController *extract_network_controller(const void *p_app_object) const override;
 
 public: // ------------------------------------------------------- RPC Interface
 	// This funtion is used to sync data betweend the server and the client.

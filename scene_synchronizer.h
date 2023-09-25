@@ -36,10 +36,15 @@ public:
 	virtual bool snapshot_extract_custom_data(const Vector<Variant> &p_snapshot_data, uint32_t p_snap_data_index, LocalVector<const Variant *> &r_out) const { return true; }
 	virtual void snapshot_apply_custom_data(const Vector<Variant> &p_custom_data) {}
 
-	virtual Node *get_node_or_null(const NodePath &p_path) = 0;
+	virtual void *fetch_app_object(const std::string &p_object_name) = 0;
+	virtual uint64_t get_object_id(const void *p_app_object) const = 0;
+	virtual std::string get_object_name(const void *p_app_object) const = 0;
+	virtual void setup_synchronizer_for(void *p_object) = 0;
+	virtual void set_variable(void *p_object, const char *p_var_name, const Variant &p_val) = 0;
+	virtual bool get_variable(const void *p_object, const char *p_var_name, Variant &p_val) const = 0;
 
-	virtual NetworkedController *extract_network_controller(Node *p_node) const = 0;
-	virtual const NetworkedController *extract_network_controller(const Node *p_node) const = 0;
+	virtual NetworkedController *extract_network_controller(void *p_app_object) const = 0;
+	virtual const NetworkedController *extract_network_controller(const void *p_app_object) const = 0;
 };
 
 /// # SceneSynchronizer
@@ -174,7 +179,7 @@ public: // -------------------------------------------------------------- Events
 	Processor<const NetUtility::NodeData * /*p_node_data*/, int /*p_peer*/, bool /*p_connected*/, bool /*p_enabled*/> event_peer_status_updated;
 	Processor<uint32_t /*p_input_id*/> event_state_validated;
 	Processor<uint32_t /*p_input_id*/, int /*p_index*/, int /*p_count*/> event_rewind_frame_begin;
-	Processor<uint32_t /*p_input_id*/, Node * /*p_node*/, const Vector<StringName> & /*p_var_names*/, const Vector<Variant> & /*p_client_values*/, const Vector<Variant> & /*p_server_values*/> event_desync_detected;
+	Processor<uint32_t /*p_input_id*/, void * /*p_app_object*/, const Vector<StringName> & /*p_var_names*/, const Vector<Variant> & /*p_client_values*/, const Vector<Variant> & /*p_server_values*/> event_desync_detected;
 
 public:
 	SceneSynchronizer();
@@ -184,7 +189,7 @@ public: // -------------------------------------------------------- Manager APIs
 	/// Setup the synchronizer
 	void setup(
 			NetworkInterface &p_network_interface,
-			SynchronizerManager &p_synchronizer_interface);
+			SynchronizerManager &p_synchronizer_manager);
 
 	/// Prepare the synchronizer for destruction.
 	void conclude();
@@ -192,8 +197,8 @@ public: // -------------------------------------------------------- Manager APIs
 	/// Process the SceneSync.
 	void process();
 
-	/// Call this function when a networked node is destroyed.
-	void on_node_removed(Node *p_node);
+	/// Call this function when a networked app object is destroyed.
+	void on_app_object_removed(void *p_app_object);
 
 public:
 	NS::NetworkInterface &get_network_interface() {
@@ -201,6 +206,13 @@ public:
 	}
 	const NS::NetworkInterface &get_network_interface() const {
 		return *network_interface;
+	}
+
+	NS::SynchronizerManager &get_synchronizer_manager() {
+		return *synchronizer_manager;
+	}
+	const NS::SynchronizerManager &get_synchronizer_manager() const {
+		return *synchronizer_manager;
 	}
 
 	void set_max_deferred_nodes_per_update(int p_rate);
@@ -215,7 +227,7 @@ public:
 	void set_nodes_relevancy_update_time(real_t p_time);
 	real_t get_nodes_relevancy_update_time() const;
 
-	bool is_variable_registered(Node *p_node, const StringName &p_variable) const;
+	bool is_variable_registered(void *p_app_object, const StringName &p_variable) const;
 
 public: // ---------------------------------------------------------------- RPCs
 	void rpc_receive_state(const Variant &p_snapshot);
@@ -226,31 +238,28 @@ public: // ---------------------------------------------------------------- RPCs
 
 public: // ---------------------------------------------------------------- APIs
 	/// Register a new node and returns its `NodeData`.
-	NetUtility::NodeData *register_node(Node *p_node);
-	void unregister_node(Node *p_node);
+	NetUtility::NodeData *register_app_object(void *p_app_object);
+	void unregister_app_object(void *p_app_object);
 
-	/// Returns the node ID.
-	/// This may return `UINT32_MAX` in various cases:
-	/// - The node is not registered.
-	/// - The client doesn't know the ID yet.
-	uint32_t get_node_id(Node *p_node);
-	Node *get_node_from_id(uint32_t p_id, bool p_expected = true);
-	const Node *get_node_from_id_const(uint32_t p_id, bool p_expected = true) const;
+	NetNodeId get_app_object_net_id(void *p_app_object) const;
 
-	void register_variable(Node *p_node, const StringName &p_variable, const StringName &p_on_change_notify_to = StringName(), NetEventFlag p_flags = NetEventFlag::DEFAULT);
-	void unregister_variable(Node *p_node, const StringName &p_variable);
+	void *get_app_object_from_id(uint32_t p_id, bool p_expected = true);
+	const void *get_app_object_from_id_const(uint32_t p_id, bool p_expected = true) const;
+
+	void register_variable(void *p_app_object, const StringName &p_variable, const StringName &p_on_change_notify_to = StringName(), NetEventFlag p_flags = NetEventFlag::DEFAULT);
+	void unregister_variable(void *p_app_object, const StringName &p_variable);
 
 	/// Returns the variable ID relative to the `Node`.
 	/// This may return `UINT32_MAX` in various cases:
 	/// - The node is not registered.
 	/// - The variable is not registered.
 	/// - The client doesn't know the ID yet.
-	uint32_t get_variable_id(Node *p_node, const StringName &p_variable);
+	uint32_t get_variable_id(void *p_app_object, const StringName &p_variable);
 
-	void set_skip_rewinding(Node *p_node, const StringName &p_variable, bool p_skip_rewinding);
+	void set_skip_rewinding(void *p_app_object, const StringName &p_variable, bool p_skip_rewinding);
 
-	void track_variable_changes(Node *p_node, const StringName &p_variable, Object *p_object, const StringName &p_method, NetEventFlag p_flags = NetEventFlag::DEFAULT);
-	void untrack_variable_changes(Node *p_node, const StringName &p_variable, Object *p_object, const StringName &p_method);
+	void track_variable_changes(void *p_app_object, const StringName &p_variable, Object *p_object, const StringName &p_method, NetEventFlag p_flags = NetEventFlag::DEFAULT);
+	void untrack_variable_changes(void *p_app_object, const StringName &p_variable, Object *p_object, const StringName &p_method);
 
 	/// You can use the macro `callable_mp()` to register custom C++ function.
 	NS::PHandler register_process(NetUtility::NodeData *p_node_data, ProcessPhase p_phase, std::function<void(float)> p_func);
@@ -259,7 +268,7 @@ public: // ---------------------------------------------------------------- APIs
 	/// Setup the deferred sync method for this specific node.
 	/// The deferred-sync is different from the realtime-sync because the data
 	/// is streamed and not simulated.
-	void setup_deferred_sync(Node *p_node, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func);
+	void setup_deferred_sync(void *p_app_object, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func);
 
 	/// Creates a realtime sync group containing a list of nodes.
 	/// The Peers listening to this group will receive the updates only
@@ -339,8 +348,8 @@ public: // ------------------------------------------------------------ INTERNAL
 
 	/// This function is slow, but allow to take the node data even if the
 	/// `NetNodeId` is not yet assigned.
-	NetUtility::NodeData *find_node_data(const Node *p_node);
-	const NetUtility::NodeData *find_node_data(const Node *p_node) const;
+	NetUtility::NodeData *find_node_data(const void *p_app_object);
+	const NetUtility::NodeData *find_node_data(const void *p_app_object) const;
 
 	NetUtility::NodeData *find_node_data(const NetworkedController *p_controller);
 	const NetUtility::NodeData *find_node_data(const NetworkedController *p_controller) const;
@@ -506,7 +515,7 @@ class ClientSynchronizer : public Synchronizer {
 	friend class SceneSynchronizer;
 
 	NetUtility::NodeData *player_controller_node_data = nullptr;
-	OAHashMap<NetNodeId, NodePath> node_paths;
+	OAHashMap<NetNodeId, std::string> node_paths;
 
 	NetUtility::Snapshot last_received_snapshot;
 	std::deque<NetUtility::Snapshot> client_snapshots;
@@ -627,7 +636,7 @@ private:
 	void __pcr__rewind(
 			real_t p_delta,
 			const uint32_t p_checkable_input_id,
-			Node *p_local_controller_node,
+			NetUtility::NodeData *p_local_controller_node,
 			NetworkedController *p_controller,
 			PlayerController *p_player_controller);
 

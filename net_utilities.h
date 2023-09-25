@@ -41,8 +41,7 @@
 #include "core/processor.h"
 #include "core/templates/local_vector.h"
 #include "core/variant/variant.h"
-
-class Node;
+#include <string>
 
 namespace NS {
 class NetworkedController;
@@ -316,7 +315,11 @@ struct VarData {
 struct NodeData {
 	// ID used to reference this NodeData in the networked calls.
 	NetNodeId id = 0;
-	ObjectID instance_id = ObjectID();
+
+	uint64_t instance_id = 0;
+	std::string object_name;
+	// The application object associated to this `NodeData`.
+	void *app_object = nullptr;
 
 	bool realtime_sync_enabled_on_client = false;
 
@@ -331,8 +334,6 @@ struct NodeData {
 	// func _apply_epoch(delta: float, interpolation_alpha: float, past_buffer: DataBuffer, future_buffer: DataBuffer):
 	Callable apply_epoch_func;
 
-	// This is valid to use only inside the process function.
-	Node *node = nullptr;
 	/// Associated controller.
 	NS::NetworkedController *controller = nullptr;
 

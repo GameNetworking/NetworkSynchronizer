@@ -37,7 +37,7 @@ public: // ---------------------------------------------------------------- APIs
 	virtual int fetch_local_peer_id() const override;
 
 	/// Fetch the list with all the connected peers.
-	virtual Vector<int> fetch_connected_peers() const override;
+	virtual void fetch_connected_peers(std::vector<int> &p_connected_peers) const override;
 
 	/// Get the peer id controlling this unit.
 	virtual int get_unit_authority() const override;
