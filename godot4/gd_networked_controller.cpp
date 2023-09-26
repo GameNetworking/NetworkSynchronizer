@@ -172,11 +172,8 @@ void GdNetworkedController::_notification(int p_what) {
 				return;
 			}
 
-			GdNetworkInterface *ni = memnew(GdNetworkInterface);
-			ni->owner = this;
-			networked_controller.setup(
-					*ni,
-					*this);
+			networked_controller.get_network_interface().owner = this;
+			networked_controller.setup(*this);
 
 		} break;
 #ifdef DEBUG_ENABLED
@@ -193,9 +190,7 @@ void GdNetworkedController::_notification(int p_what) {
 				return;
 			}
 
-			NS::NetworkInterface &ni = networked_controller.get_network_interface();
 			networked_controller.conclude();
-			memdelete(&ni);
 		}
 	}
 }

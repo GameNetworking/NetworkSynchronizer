@@ -13,7 +13,7 @@
 
 NS_NAMESPACE_BEGIN
 
-class NetworkedController;
+class NetworkedControllerBase;
 struct PlayerController;
 class Synchronizer;
 
@@ -21,6 +21,10 @@ class SynchronizerManager {
 public:
 	virtual void on_init_synchronizer(bool p_was_generating_ids) {}
 	virtual void on_uninit_synchronizer() {}
+
+#ifdef DEBUG_ENABLED
+	virtual void debug_only_validate_nodes() {}
+#endif
 
 	/// Add node data and generates the `NetNodeId` if allowed.
 	virtual void on_add_node_data(NetUtility::NodeData *p_node_data) {}
@@ -43,8 +47,8 @@ public:
 	virtual void set_variable(void *p_app_object, const char *p_var_name, const Variant &p_val) = 0;
 	virtual bool get_variable(const void *p_app_object, const char *p_var_name, Variant &p_val) const = 0;
 
-	virtual NetworkedController *extract_network_controller(void *p_app_object) const = 0;
-	virtual const NetworkedController *extract_network_controller(const void *p_app_object) const = 0;
+	virtual NetworkedControllerBase *extract_network_controller(void *p_app_object) const = 0;
+	virtual const NetworkedControllerBase *extract_network_controller(const void *p_app_object) const = 0;
 };
 
 /// # SceneSynchronizer
@@ -111,7 +115,7 @@ public:
 // The client `SceneSynchronizer` code is inside the class `ClientSynchronizer`.
 // The no networking `SceneSynchronizer` code is inside the class `NoNetSynchronizer`.
 class SceneSynchronizerBase {
-	template <class C>
+	template <class C, class NI>
 	friend class SceneSynchronizer;
 	friend class Synchronizer;
 	friend class ServerSynchronizer;
@@ -168,7 +172,7 @@ private:
 	// Controller nodes.
 	LocalVector<NetUtility::NodeData *> node_data_controllers;
 
-	int event_flag;
+	int event_flag = 0;
 	LocalVector<NetUtility::ChangeListener> event_listener;
 
 	bool cached_process_functions_valid = false;
@@ -188,7 +192,7 @@ public: // -------------------------------------------------------------- Events
 private:
 	// This is private so this class can be created only from
 	// `SceneSynchronizer<BaseClass>` and the user is forced to define a base class.
-	SceneSynchronizerBase();
+	SceneSynchronizerBase(NetworkInterface *p_network_interface);
 
 public:
 	~SceneSynchronizerBase();
@@ -196,7 +200,6 @@ public:
 public: // -------------------------------------------------------- Manager APIs
 	/// Setup the synchronizer
 	void setup(
-			NetworkInterface &p_network_interface,
 			SynchronizerManager &p_synchronizer_manager);
 
 	/// Prepare the synchronizer for destruction.
@@ -245,17 +248,20 @@ public: // ---------------------------------------------------------------- RPCs
 	void rpc_deferred_sync_data(const Vector<uint8_t> &p_data);
 
 public: // ---------------------------------------------------------------- APIs
-		/// Register a new node and returns its `NodeData`.
+private:
+	/// Register a new node and returns its `NodeData`.
 	NetUtility::NodeData *__register_app_object(void *p_app_object);
-	void unregister_app_object(void *p_app_object);
+	void __unregister_app_object(void *p_app_object);
+	void __register_variable(void *p_app_object, const StringName &p_variable, const StringName &p_on_change_notify_to = StringName(), NetEventFlag p_flags = NetEventFlag::DEFAULT);
+	void __unregister_variable(void *p_app_object, const StringName &p_variable);
 
+public:
 	NetNodeId get_app_object_net_id(void *p_app_object) const;
 
 	void *get_app_object_from_id(uint32_t p_id, bool p_expected = true);
 	const void *get_app_object_from_id_const(uint32_t p_id, bool p_expected = true) const;
 
-	void register_variable(void *p_app_object, const StringName &p_variable, const StringName &p_on_change_notify_to = StringName(), NetEventFlag p_flags = NetEventFlag::DEFAULT);
-	void unregister_variable(void *p_app_object, const StringName &p_variable);
+	const LocalVector<NetUtility::NodeData *> &get_all_node_data() const;
 
 	/// Returns the variable ID relative to the `Node`.
 	/// This may return `UINT32_MAX` in various cases:
@@ -335,7 +341,7 @@ public: // ---------------------------------------------------------------- APIs
 	void reset_synchronizer_mode();
 	void clear();
 
-	void notify_controller_control_mode_changed(NetworkedController *controller);
+	void notify_controller_control_mode_changed(NetworkedControllerBase *controller);
 
 	void update_peers();
 	void clear_peers();
@@ -359,26 +365,22 @@ public: // ------------------------------------------------------------ INTERNAL
 	NetUtility::NodeData *find_node_data(const void *p_app_object);
 	const NetUtility::NodeData *find_node_data(const void *p_app_object) const;
 
-	NetUtility::NodeData *find_node_data(const NetworkedController *p_controller);
-	const NetUtility::NodeData *find_node_data(const NetworkedController *p_controller) const;
+	NetUtility::NodeData *find_node_data(const NetworkedControllerBase *p_controller);
+	const NetUtility::NodeData *find_node_data(const NetworkedControllerBase *p_controller) const;
 
 	/// This function is super fast, but only nodes with a `NetNodeId` assigned
 	/// can be returned.
 	NetUtility::NodeData *get_node_data(NetNodeId p_id, bool p_expected = true);
 	const NetUtility::NodeData *get_node_data(NetNodeId p_id, bool p_expected = true) const;
 
-	NetworkedController *get_controller_for_peer(int p_peer, bool p_expected = true);
-	const NetworkedController *get_controller_for_peer(int p_peer, bool p_expected = true) const;
+	NetworkedControllerBase *get_controller_for_peer(int p_peer, bool p_expected = true);
+	const NetworkedControllerBase *get_controller_for_peer(int p_peer, bool p_expected = true) const;
 
 	/// Returns the latest generated `NetNodeId`.
 	NetNodeId get_biggest_node_id() const;
 
 	void reset_controllers();
 	void reset_controller(NetUtility::NodeData *p_controller);
-
-#ifdef DEBUG_ENABLED
-	void validate_nodes();
-#endif
 
 	real_t get_pretended_delta() const;
 
@@ -393,7 +395,7 @@ public: // ------------------------------------------------------------ INTERNAL
 	/// Set the node data net id.
 	void set_node_data_id(NetUtility::NodeData *p_node_data, NetNodeId p_id);
 
-	NetworkedController *fetch_controller_by_peer(int peer);
+	NetworkedControllerBase *fetch_controller_by_peer(int peer);
 
 public:
 	/// Returns true when the vectors are the same. Uses comparison_float_tolerance member.
@@ -633,7 +635,9 @@ private:
 			const NetUtility::Snapshot &p_snapshot,
 			std::deque<NetUtility::Snapshot> &r_snapshot_storage);
 
-	void process_controllers_recovery(real_t p_delta);
+	void process_simulation(real_t p_delta, real_t p_physics_ticks_per_second);
+
+	void process_received_server_state(real_t p_delta);
 
 	bool __pcr__fetch_recovery_info(
 			const uint32_t p_input_id,
@@ -645,7 +649,7 @@ private:
 			real_t p_delta,
 			const uint32_t p_checkable_input_id,
 			NetUtility::NodeData *p_local_controller_node,
-			NetworkedController *p_controller,
+			NetworkedControllerBase *p_controller,
 			PlayerController *p_player_controller);
 
 	void __pcr__sync__no_rewind(
@@ -670,14 +674,36 @@ private:
 
 /// This is used to make sure we can safely convert any `BaseType` defined by
 // the user to `void*`.
-template <class BaseType>
+template <class BaseType, class NetInterfaceClass>
 class SceneSynchronizer : public SceneSynchronizerBase {
+	NetInterfaceClass custom_network_interface;
+
 public:
 	SceneSynchronizer() :
-			SceneSynchronizerBase() {}
+			SceneSynchronizerBase(&custom_network_interface) {}
+
+	NetInterfaceClass &get_network_interface() {
+		return custom_network_interface;
+	}
+
+	const NetInterfaceClass &get_network_interface() const {
+		return custom_network_interface;
+	}
 
 	NetUtility::NodeData *register_app_object(BaseType *p_app_object) {
 		return __register_app_object(p_app_object);
+	}
+
+	void unregister_app_object(BaseType *p_app_object) {
+		return __unregister_app_object(p_app_object);
+	}
+
+	void register_variable(BaseType *p_app_object, const StringName &p_variable, const StringName &p_on_change_notify_to = StringName(), NetEventFlag p_flags = NetEventFlag::DEFAULT) {
+		__register_variable(p_app_object, p_variable, p_on_change_notify_to, p_flags);
+	}
+
+	void unregister_variable(BaseType *p_app_object, const StringName &p_variable) {
+		__unregister_variable(p_app_object, p_variable);
 	}
 };
 

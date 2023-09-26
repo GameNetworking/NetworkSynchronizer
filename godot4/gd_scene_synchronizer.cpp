@@ -92,8 +92,6 @@ void GdSceneSynchronizer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("is_client"), &GdSceneSynchronizer::is_client);
 	ClassDB::bind_method(D_METHOD("is_networked"), &GdSceneSynchronizer::is_networked);
 
-	ClassDB::bind_method(D_METHOD("_on_node_removed"), &GdSceneSynchronizer::_on_node_removed);
-
 	ClassDB::bind_method(D_METHOD("_rpc_net_sync_reliable"), &GdSceneSynchronizer::_rpc_net_sync_reliable);
 	ClassDB::bind_method(D_METHOD("_rpc_net_sync_unreliable"), &GdSceneSynchronizer::_rpc_net_sync_unreliable);
 
@@ -210,13 +208,10 @@ void GdSceneSynchronizer::_notification(int p_what) {
 				return;
 			}
 
-			GdNetworkInterface *ni = memnew(GdNetworkInterface);
-			ni->owner = this;
-			scene_synchronizer.setup(
-					*ni,
-					*this);
+			scene_synchronizer.get_network_interface().owner = this;
+			scene_synchronizer.setup(*this);
 
-			get_tree()->connect(SNAME("node_removed"), Callable(this, SNAME("_on_node_removed")));
+			get_tree()->connect(SNAME("node_removed"), Callable(this, SNAME("unregister_node")));
 
 		} break;
 		case NOTIFICATION_EXIT_TREE: {
@@ -224,11 +219,9 @@ void GdSceneSynchronizer::_notification(int p_what) {
 				return;
 			}
 
-			NS::NetworkInterface &ni = scene_synchronizer.get_network_interface();
 			scene_synchronizer.conclude();
-			memdelete(&ni);
 
-			get_tree()->disconnect(SNAME("node_removed"), Callable(this, SNAME("_on_node_removed")));
+			get_tree()->disconnect(SNAME("node_removed"), Callable(this, SNAME("unregister_node")));
 		}
 	}
 }
@@ -259,6 +252,29 @@ void GdSceneSynchronizer::on_uninit_synchronizer() {
 void GdSceneSynchronizer::on_add_node_data(NetUtility::NodeData *p_node_data) {
 	SceneSynchronizerDebugger::singleton()->register_class_for_node_to_dump(static_cast<Node *>(p_node_data->app_object));
 }
+
+#ifdef DEBUG_ENABLED
+void GdSceneSynchronizer::debug_only_validate_nodes() {
+	LocalVector<Node *> null_objects;
+	null_objects.reserve(scene_synchronizer.get_all_node_data().size());
+
+	for (uint32_t i = 0; i < scene_synchronizer.get_all_node_data().size(); i += 1) {
+		const NetUtility::NodeData *nd = scene_synchronizer.get_all_node_data()[i];
+		if (ObjectDB::get_instance(ObjectID(nd->instance_id)) == nullptr) {
+			// Mark for removal.
+			null_objects.push_back(static_cast<Node *>(nd->app_object));
+		}
+	}
+
+	// Removes the invalidated `NodeData`.
+	if (null_objects.size()) {
+		SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer.get_network_interface(), "At least one node has been removed from the tree without the SceneSynchronizer noticing. This shouldn't happen.");
+		for (uint32_t i = 0; i < null_objects.size(); i += 1) {
+			scene_synchronizer.unregister_app_object(null_objects[i]);
+		}
+	}
+}
+#endif
 
 void GdSceneSynchronizer::update_nodes_relevancy() {
 	if (GDVIRTUAL_IS_OVERRIDDEN(_update_nodes_relevancy)) {
@@ -308,14 +324,14 @@ bool GdSceneSynchronizer::get_variable(const void *p_object, const char *p_name,
 	return valid;
 }
 
-NS::NetworkedController *GdSceneSynchronizer::extract_network_controller(void *p_app_object) const {
+NS::NetworkedControllerBase *GdSceneSynchronizer::extract_network_controller(void *p_app_object) const {
 	if (GdNetworkedController *c = Object::cast_to<GdNetworkedController>(static_cast<Node *>(p_app_object))) {
 		return c->get_networked_controller();
 	}
 	return nullptr;
 }
 
-const NS::NetworkedController *GdSceneSynchronizer::extract_network_controller(const void *p_app_object) const {
+const NS::NetworkedControllerBase *GdSceneSynchronizer::extract_network_controller(const void *p_app_object) const {
 	if (const GdNetworkedController *c = Object::cast_to<const GdNetworkedController>(static_cast<const Node *>(p_app_object))) {
 		return c->get_networked_controller();
 	}
@@ -580,8 +596,4 @@ bool GdSceneSynchronizer::is_no_network() const {
 
 bool GdSceneSynchronizer::is_networked() const {
 	return scene_synchronizer.is_networked();
-}
-
-void GdSceneSynchronizer::_on_node_removed(Node *p_node) {
-	unregister_node(p_node);
 }

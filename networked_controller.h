@@ -42,8 +42,10 @@ public:
 // instantiated.
 // The most important part is inside the `PlayerController`, `ServerController`,
 // `DollController`, `NoNetController`.
-class NetworkedController {
+class NetworkedControllerBase {
 	friend class NS::SceneSynchronizerBase;
+	template <class NetInterfaceClass>
+	friend class NetworkedController;
 	friend struct RemotelyControlledController;
 	friend struct ServerController;
 	friend struct PlayerController;
@@ -59,7 +61,6 @@ public:
 	};
 
 public:
-	NS::NetworkInterface *network_interface = nullptr;
 	NetworkedControllerManager *networked_controller_manager = nullptr;
 
 private:
@@ -142,6 +143,8 @@ private:
 
 	NetNodeId node_id = NetID_NONE;
 
+	NS::NetworkInterface *network_interface = nullptr;
+
 	uint8_t rpc_handle_receive_input = UINT8_MAX;
 	uint8_t rpc_handle_set_server_controlled = UINT8_MAX;
 	uint8_t rpc_handle_notify_fps_acceleration = UINT8_MAX;
@@ -157,15 +160,15 @@ public: // -------------------------------------------------------------- Events
 	Processor<uint32_t /*p_input_id*/> event_input_missed;
 	Processor<uint32_t /*p_input_worst_receival_time_ms*/, int /*p_optimal_frame_delay*/, int /*p_current_frame_delay*/, int /*p_distance_to_optimal*/> event_client_speedup_adjusted;
 
+private:
+	NetworkedControllerBase(NetworkInterface *p_network_interface);
+
 public:
-	NetworkedController();
-	~NetworkedController();
+	~NetworkedControllerBase();
 
 public: // -------------------------------------------------------- Manager APIs
 	/// Setup the controller
-	void setup(
-			NetworkInterface &p_network_interface,
-			NetworkedControllerManager &p_controller_manager);
+	void setup(NetworkedControllerManager &p_controller_manager);
 
 	/// Prepare the controller for destruction.
 	void conclude();
@@ -295,9 +298,9 @@ struct FrameSnapshot {
 };
 
 struct Controller {
-	NetworkedController *node;
+	NetworkedControllerBase *node;
 
-	Controller(NetworkedController *p_node) :
+	Controller(NetworkedControllerBase *p_node) :
 			node(p_node) {}
 
 	virtual ~Controller() = default;
@@ -321,7 +324,7 @@ struct RemotelyControlledController : public Controller {
 	bool peer_enabled = false;
 
 public:
-	RemotelyControlledController(NetworkedController *p_node);
+	RemotelyControlledController(NetworkedControllerBase *p_node);
 
 	virtual void on_peer_update(bool p_peer_enabled);
 
@@ -347,7 +350,7 @@ struct ServerController : public RemotelyControlledController {
 	NetUtility::StatisticalRingBuffer<int> consecutive_input_watcher;
 
 	ServerController(
-			NetworkedController *p_node,
+			NetworkedControllerBase *p_node,
 			int p_traced_frames);
 
 	virtual void process(double p_delta) override;
@@ -378,7 +381,7 @@ struct ServerController : public RemotelyControlledController {
 
 struct AutonomousServerController : public ServerController {
 	AutonomousServerController(
-			NetworkedController *p_node);
+			NetworkedControllerBase *p_node);
 
 	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;
 	virtual int get_inputs_count() const override;
@@ -399,7 +402,7 @@ struct PlayerController : public Controller {
 	LocalVector<uint8_t> cached_packet_data;
 	int queued_instant_to_process = -1;
 
-	PlayerController(NetworkedController *p_node);
+	PlayerController(NetworkedControllerBase *p_node);
 
 	/// Returns the amount of frames to process for this frame.
 	int calculates_sub_ticks(const double p_delta, const double p_iteration_per_seconds);
@@ -431,7 +434,7 @@ struct PlayerController : public Controller {
 /// After the execution of the inputs, the puppet start to act like the player,
 /// because it wait the player status from the server to correct its motion.
 struct DollController : public RemotelyControlledController {
-	DollController(NetworkedController *p_node);
+	DollController(NetworkedControllerBase *p_node);
 
 	uint32_t last_checked_input = 0;
 	int queued_instant_to_process = -1;
@@ -449,10 +452,27 @@ struct DollController : public RemotelyControlledController {
 struct NoNetController : public Controller {
 	uint32_t frame_id;
 
-	NoNetController(NetworkedController *p_node);
+	NoNetController(NetworkedControllerBase *p_node);
 
 	virtual void process(double p_delta) override;
 	virtual uint32_t get_current_input_id() const override;
+};
+
+template <class NetInterfaceClass>
+class NetworkedController : public NetworkedControllerBase {
+	NetInterfaceClass custom_network_interface;
+
+public:
+	NetworkedController() :
+			NetworkedControllerBase(&custom_network_interface) {}
+
+	NetInterfaceClass &get_network_interface() {
+		return custom_network_interface;
+	}
+
+	const NetInterfaceClass &get_network_interface() const {
+		return custom_network_interface;
+	}
 };
 
 NS_NAMESPACE_END

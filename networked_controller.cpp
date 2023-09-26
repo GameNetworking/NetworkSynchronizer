@@ -18,11 +18,12 @@
 
 NS_NAMESPACE_BEGIN
 
-NetworkedController::NetworkedController() {
+NetworkedControllerBase::NetworkedControllerBase(NetworkInterface *p_network_interface) :
+		network_interface(p_network_interface) {
 	inputs_buffer = memnew(DataBuffer);
 }
 
-NetworkedController::~NetworkedController() {
+NetworkedControllerBase::~NetworkedControllerBase() {
 	memdelete(inputs_buffer);
 	inputs_buffer = nullptr;
 
@@ -31,36 +32,33 @@ NetworkedController::~NetworkedController() {
 		controller = nullptr;
 		controller_type = CONTROLLER_TYPE_NULL;
 	}
+	network_interface = nullptr;
 }
 
-void NetworkedController::setup(
-		NetworkInterface &p_network_interface,
-		NetworkedControllerManager &p_controller_manager) {
-	network_interface = &p_network_interface;
+void NetworkedControllerBase::setup(NetworkedControllerManager &p_controller_manager) {
 	networked_controller_manager = &p_controller_manager;
 
 	rpc_handle_receive_input =
 			network_interface->rpc_config(
-					std::function<void(const Vector<uint8_t> &)>(std::bind(&NetworkedController::rpc_receive_inputs, this, std::placeholders::_1)),
+					std::function<void(const Vector<uint8_t> &)>(std::bind(&NetworkedControllerBase::rpc_receive_inputs, this, std::placeholders::_1)),
 					false,
 					false);
 
 	rpc_handle_set_server_controlled =
 			network_interface->rpc_config(
-					std::function<void(bool)>(std::bind(&NetworkedController::rpc_set_server_controlled, this, std::placeholders::_1)),
+					std::function<void(bool)>(std::bind(&NetworkedControllerBase::rpc_set_server_controlled, this, std::placeholders::_1)),
 					true,
 					false);
 
 	rpc_handle_notify_fps_acceleration =
 			network_interface->rpc_config(
-					std::function<void(const Vector<uint8_t> &)>(std::bind(&NetworkedController::rpc_notify_fps_acceleration, this, std::placeholders::_1)),
+					std::function<void(const Vector<uint8_t> &)>(std::bind(&NetworkedControllerBase::rpc_notify_fps_acceleration, this, std::placeholders::_1)),
 					false,
 					false);
 }
 
-void NetworkedController::conclude() {
+void NetworkedControllerBase::conclude() {
 	network_interface->clear();
-	network_interface = nullptr;
 	networked_controller_manager = nullptr;
 
 	rpc_handle_receive_input = UINT8_MAX;
@@ -68,7 +66,7 @@ void NetworkedController::conclude() {
 	rpc_handle_notify_fps_acceleration = UINT8_MAX;
 }
 
-void NetworkedController::set_server_controlled(bool p_server_controlled) {
+void NetworkedControllerBase::set_server_controlled(bool p_server_controlled) {
 	if (server_controlled == p_server_controlled) {
 		// It's the same, nothing to do.
 		return;
@@ -118,153 +116,153 @@ void NetworkedController::set_server_controlled(bool p_server_controlled) {
 	}
 }
 
-bool NetworkedController::get_server_controlled() const {
+bool NetworkedControllerBase::get_server_controlled() const {
 	return server_controlled;
 }
 
-void NetworkedController::set_player_input_storage_size(int p_size) {
+void NetworkedControllerBase::set_player_input_storage_size(int p_size) {
 	player_input_storage_size = p_size;
 }
 
-int NetworkedController::get_player_input_storage_size() const {
+int NetworkedControllerBase::get_player_input_storage_size() const {
 	return player_input_storage_size;
 }
 
-void NetworkedController::set_max_redundant_inputs(int p_max) {
+void NetworkedControllerBase::set_max_redundant_inputs(int p_max) {
 	max_redundant_inputs = p_max;
 }
 
-int NetworkedController::get_max_redundant_inputs() const {
+int NetworkedControllerBase::get_max_redundant_inputs() const {
 	return max_redundant_inputs;
 }
 
-void NetworkedController::set_tick_speedup_notification_delay(int p_delay) {
+void NetworkedControllerBase::set_tick_speedup_notification_delay(int p_delay) {
 	tick_speedup_notification_delay = p_delay;
 }
 
-int NetworkedController::get_tick_speedup_notification_delay() const {
+int NetworkedControllerBase::get_tick_speedup_notification_delay() const {
 	return tick_speedup_notification_delay;
 }
 
-void NetworkedController::set_network_traced_frames(int p_size) {
+void NetworkedControllerBase::set_network_traced_frames(int p_size) {
 	network_traced_frames = p_size;
 }
 
-int NetworkedController::get_network_traced_frames() const {
+int NetworkedControllerBase::get_network_traced_frames() const {
 	return network_traced_frames;
 }
 
-void NetworkedController::set_min_frames_delay(int p_val) {
+void NetworkedControllerBase::set_min_frames_delay(int p_val) {
 	min_frames_delay = p_val;
 }
 
-int NetworkedController::get_min_frames_delay() const {
+int NetworkedControllerBase::get_min_frames_delay() const {
 	return min_frames_delay;
 }
 
-void NetworkedController::set_max_frames_delay(int p_val) {
+void NetworkedControllerBase::set_max_frames_delay(int p_val) {
 	max_frames_delay = p_val;
 }
 
-int NetworkedController::get_max_frames_delay() const {
+int NetworkedControllerBase::get_max_frames_delay() const {
 	return max_frames_delay;
 }
 
-void NetworkedController::set_tick_acceleration(double p_acceleration) {
+void NetworkedControllerBase::set_tick_acceleration(double p_acceleration) {
 	tick_acceleration = p_acceleration;
 }
 
-double NetworkedController::get_tick_acceleration() const {
+double NetworkedControllerBase::get_tick_acceleration() const {
 	return tick_acceleration;
 }
 
-uint32_t NetworkedController::get_current_input_id() const {
+uint32_t NetworkedControllerBase::get_current_input_id() const {
 	ERR_FAIL_NULL_V(controller, 0);
 	return controller->get_current_input_id();
 }
 
-real_t NetworkedController::player_get_pretended_delta() const {
+real_t NetworkedControllerBase::player_get_pretended_delta() const {
 	ERR_FAIL_COND_V_MSG(is_player_controller() == false, 1.0, "This function can be called only on client.");
 	return get_player_controller()->pretended_delta;
 }
 
-bool NetworkedController::has_another_instant_to_process_after(int p_i) const {
+bool NetworkedControllerBase::has_another_instant_to_process_after(int p_i) const {
 	ERR_FAIL_COND_V_MSG(is_player_controller() == false, false, "Can be executed only on player controllers.");
 	return static_cast<PlayerController *>(controller)->has_another_instant_to_process_after(p_i);
 }
 
-void NetworkedController::process(double p_delta) {
+void NetworkedControllerBase::process(double p_delta) {
 	// This function is called by the `SceneSync` because it's registered as
 	// processing function.
 	controller->process(p_delta);
 }
 
-ServerController *NetworkedController::get_server_controller() {
+ServerController *NetworkedControllerBase::get_server_controller() {
 	ERR_FAIL_COND_V_MSG(is_server_controller() == false, nullptr, "This controller is not a server controller.");
 	return static_cast<ServerController *>(controller);
 }
 
-const ServerController *NetworkedController::get_server_controller() const {
+const ServerController *NetworkedControllerBase::get_server_controller() const {
 	ERR_FAIL_COND_V_MSG(is_server_controller() == false, nullptr, "This controller is not a server controller.");
 	return static_cast<const ServerController *>(controller);
 }
 
-PlayerController *NetworkedController::get_player_controller() {
+PlayerController *NetworkedControllerBase::get_player_controller() {
 	ERR_FAIL_COND_V_MSG(is_player_controller() == false, nullptr, "This controller is not a player controller.");
 	return static_cast<PlayerController *>(controller);
 }
 
-const PlayerController *NetworkedController::get_player_controller() const {
+const PlayerController *NetworkedControllerBase::get_player_controller() const {
 	ERR_FAIL_COND_V_MSG(is_player_controller() == false, nullptr, "This controller is not a player controller.");
 	return static_cast<const PlayerController *>(controller);
 }
 
-DollController *NetworkedController::get_doll_controller() {
+DollController *NetworkedControllerBase::get_doll_controller() {
 	ERR_FAIL_COND_V_MSG(is_doll_controller() == false, nullptr, "This controller is not a doll controller.");
 	return static_cast<DollController *>(controller);
 }
 
-const DollController *NetworkedController::get_doll_controller() const {
+const DollController *NetworkedControllerBase::get_doll_controller() const {
 	ERR_FAIL_COND_V_MSG(is_doll_controller() == false, nullptr, "This controller is not a doll controller.");
 	return static_cast<const DollController *>(controller);
 }
 
-NoNetController *NetworkedController::get_nonet_controller() {
+NoNetController *NetworkedControllerBase::get_nonet_controller() {
 	ERR_FAIL_COND_V_MSG(is_nonet_controller() == false, nullptr, "This controller is not a no net controller.");
 	return static_cast<NoNetController *>(controller);
 }
 
-const NoNetController *NetworkedController::get_nonet_controller() const {
+const NoNetController *NetworkedControllerBase::get_nonet_controller() const {
 	ERR_FAIL_COND_V_MSG(is_nonet_controller() == false, nullptr, "This controller is not a no net controller.");
 	return static_cast<const NoNetController *>(controller);
 }
 
-bool NetworkedController::is_networking_initialized() const {
+bool NetworkedControllerBase::is_networking_initialized() const {
 	return controller_type != CONTROLLER_TYPE_NULL;
 }
 
-bool NetworkedController::is_server_controller() const {
+bool NetworkedControllerBase::is_server_controller() const {
 	return controller_type == CONTROLLER_TYPE_SERVER || controller_type == CONTROLLER_TYPE_AUTONOMOUS_SERVER;
 }
 
-bool NetworkedController::is_player_controller() const {
+bool NetworkedControllerBase::is_player_controller() const {
 	return controller_type == CONTROLLER_TYPE_PLAYER;
 }
 
-bool NetworkedController::is_doll_controller() const {
+bool NetworkedControllerBase::is_doll_controller() const {
 	return controller_type == CONTROLLER_TYPE_DOLL;
 }
 
-bool NetworkedController::is_nonet_controller() const {
+bool NetworkedControllerBase::is_nonet_controller() const {
 	return controller_type == CONTROLLER_TYPE_NONETWORK;
 }
 
-void NetworkedController::set_inputs_buffer(const BitArray &p_new_buffer, uint32_t p_metadata_size_in_bit, uint32_t p_size_in_bit) {
+void NetworkedControllerBase::set_inputs_buffer(const BitArray &p_new_buffer, uint32_t p_metadata_size_in_bit, uint32_t p_size_in_bit) {
 	inputs_buffer->get_buffer_mut().get_bytes_mut() = p_new_buffer.get_bytes();
 	inputs_buffer->shrink_to(p_metadata_size_in_bit, p_size_in_bit);
 }
 
-void NetworkedController::notify_registered_with_synchronizer(NS::SceneSynchronizerBase *p_synchronizer, NetUtility::NodeData &p_nd) {
+void NetworkedControllerBase::notify_registered_with_synchronizer(NS::SceneSynchronizerBase *p_synchronizer, NetUtility::NodeData &p_nd) {
 	if (scene_synchronizer) {
 		scene_synchronizer->event_peer_status_updated.unbind(event_handler_peer_status_updated);
 		scene_synchronizer->event_state_validated.unbind(event_handler_state_validated);
@@ -306,15 +304,15 @@ void NetworkedController::notify_registered_with_synchronizer(NS::SceneSynchroni
 	}
 }
 
-NS::SceneSynchronizerBase *NetworkedController::get_scene_synchronizer() const {
+NS::SceneSynchronizerBase *NetworkedControllerBase::get_scene_synchronizer() const {
 	return scene_synchronizer;
 }
 
-bool NetworkedController::has_scene_synchronizer() const {
+bool NetworkedControllerBase::has_scene_synchronizer() const {
 	return scene_synchronizer;
 }
 
-void NetworkedController::on_peer_status_updated(const NetUtility::NodeData *p_node_data, int p_peer_id, bool p_connected, bool p_enabled) {
+void NetworkedControllerBase::on_peer_status_updated(const NetUtility::NodeData *p_node_data, int p_peer_id, bool p_connected, bool p_enabled) {
 	if (!p_node_data) {
 		return;
 	}
@@ -332,25 +330,25 @@ void NetworkedController::on_peer_status_updated(const NetUtility::NodeData *p_n
 	}
 }
 
-void NetworkedController::on_state_validated(uint32_t p_input_id) {
+void NetworkedControllerBase::on_state_validated(uint32_t p_input_id) {
 	if (controller) {
 		controller->notify_input_checked(p_input_id);
 	}
 }
 
-void NetworkedController::on_rewind_frame_begin(uint32_t p_input_id, int p_index, int p_count) {
+void NetworkedControllerBase::on_rewind_frame_begin(uint32_t p_input_id, int p_index, int p_count) {
 	if (controller && is_realtime_enabled()) {
 		controller->queue_instant_process(p_input_id, p_index, p_count);
 	}
 }
 
-void NetworkedController::rpc_receive_inputs(const Vector<uint8_t> &p_data) {
+void NetworkedControllerBase::rpc_receive_inputs(const Vector<uint8_t> &p_data) {
 	if (controller) {
 		controller->receive_inputs(p_data);
 	}
 }
 
-void NetworkedController::rpc_set_server_controlled(bool p_server_controlled) {
+void NetworkedControllerBase::rpc_set_server_controlled(bool p_server_controlled) {
 	ERR_FAIL_COND_MSG(is_player_controller() == false, "This function is supposed to be called on the server.");
 	server_controlled = p_server_controlled;
 
@@ -358,7 +356,7 @@ void NetworkedController::rpc_set_server_controlled(bool p_server_controlled) {
 	scene_synchronizer->notify_controller_control_mode_changed(this);
 }
 
-void NetworkedController::rpc_notify_fps_acceleration(const Vector<uint8_t> &p_data) {
+void NetworkedControllerBase::rpc_notify_fps_acceleration(const Vector<uint8_t> &p_data) {
 	ERR_FAIL_COND(is_player_controller() == false);
 	ERR_FAIL_COND(p_data.size() != 1);
 
@@ -394,15 +392,15 @@ void NetworkedController::rpc_notify_fps_acceleration(const Vector<uint8_t> &p_d
 #endif
 }
 
-void NetworkedController::player_set_has_new_input(bool p_has) {
+void NetworkedControllerBase::player_set_has_new_input(bool p_has) {
 	has_player_new_input = p_has;
 }
 
-bool NetworkedController::player_has_new_input() const {
+bool NetworkedControllerBase::player_has_new_input() const {
 	return has_player_new_input;
 }
 
-bool NetworkedController::is_realtime_enabled() {
+bool NetworkedControllerBase::is_realtime_enabled() {
 	if (node_id == NetID_NONE) {
 		if (scene_synchronizer) {
 			NetUtility::NodeData *nd = scene_synchronizer->find_node_data(this);
@@ -420,11 +418,11 @@ bool NetworkedController::is_realtime_enabled() {
 	return false;
 }
 
-void NetworkedController::notify_controller_reset() {
+void NetworkedControllerBase::notify_controller_reset() {
 	event_controller_reset.broadcast();
 }
 
-bool NetworkedController::__input_data_parse(
+bool NetworkedControllerBase::__input_data_parse(
 		const Vector<uint8_t> &p_data,
 		void *p_user_pointer,
 		void (*p_input_parse)(void *p_user_pointer, uint32_t p_input_id, int p_input_size_in_bits, const BitArray &p_input)) {
@@ -502,7 +500,7 @@ bool NetworkedController::__input_data_parse(
 	return true;
 }
 
-bool NetworkedController::__input_data_get_first_input_id(
+bool NetworkedControllerBase::__input_data_get_first_input_id(
 		const Vector<uint8_t> &p_data,
 		uint32_t &p_input_id) const {
 	// The first four bytes are reserved for the input_id.
@@ -517,7 +515,7 @@ bool NetworkedController::__input_data_get_first_input_id(
 	return true;
 }
 
-bool NetworkedController::__input_data_set_first_input_id(
+bool NetworkedControllerBase::__input_data_set_first_input_id(
 		Vector<uint8_t> &p_data,
 		uint32_t p_input_id) {
 	// The first four bytes are reserved for the input_id.
@@ -532,7 +530,7 @@ bool NetworkedController::__input_data_set_first_input_id(
 	return true;
 }
 
-RemotelyControlledController::RemotelyControlledController(NetworkedController *p_node) :
+RemotelyControlledController::RemotelyControlledController(NetworkedControllerBase *p_node) :
 		Controller(p_node) {}
 
 void RemotelyControlledController::on_peer_update(bool p_peer_enabled) {
@@ -774,7 +772,7 @@ bool RemotelyControlledController::receive_inputs(const Vector<uint8_t> &p_data)
 	const uint32_t now = OS::get_singleton()->get_ticks_msec();
 	struct SCParseTmpData {
 		RemotelyControlledController *controller;
-		NetworkedController *node_controller;
+		NetworkedControllerBase *node_controller;
 		uint32_t now;
 	} tmp = {
 		this,
@@ -835,7 +833,7 @@ bool RemotelyControlledController::receive_inputs(const Vector<uint8_t> &p_data)
 }
 
 ServerController::ServerController(
-		NetworkedController *p_node,
+		NetworkedControllerBase *p_node,
 		int p_traced_frames) :
 		RemotelyControlledController(p_node),
 		network_watcher(p_traced_frames, 0),
@@ -945,7 +943,7 @@ uint32_t ServerController::convert_input_id_to(int p_other_peer, uint32_t p_inpu
 	const int64_t diff = int64_t(p_input_id) - int64_t(current);
 
 	// Now find the other peer current_input_id to do the conversion.
-	const NetworkedController *controller = node->get_scene_synchronizer()->get_controller_for_peer(p_other_peer, false);
+	const NetworkedControllerBase *controller = node->get_scene_synchronizer()->get_controller_for_peer(p_other_peer, false);
 	if (controller == nullptr || controller->get_current_input_id() == UINT32_MAX) {
 		return UINT32_MAX;
 	}
@@ -1026,7 +1024,7 @@ void ServerController::adjust_player_tick_rate(double p_delta) {
 }
 
 AutonomousServerController::AutonomousServerController(
-		NetworkedController *p_node) :
+		NetworkedControllerBase *p_node) :
 		ServerController(p_node, 1) {
 }
 
@@ -1066,7 +1064,7 @@ void AutonomousServerController::adjust_player_tick_rate(double p_delta) {
 	// Nothing to do, since the inputs are being collected on the server already.
 }
 
-PlayerController::PlayerController(NetworkedController *p_node) :
+PlayerController::PlayerController(NetworkedControllerBase *p_node) :
 		Controller(p_node),
 		current_input_id(UINT32_MAX),
 		input_buffers_counter(0),
@@ -1418,7 +1416,7 @@ bool PlayerController::can_accept_new_inputs() const {
 	return frames_snapshot.size() < static_cast<size_t>(node->get_player_input_storage_size());
 }
 
-DollController::DollController(NetworkedController *p_node) :
+DollController::DollController(NetworkedControllerBase *p_node) :
 		RemotelyControlledController(p_node) {
 }
 
@@ -1426,7 +1424,7 @@ bool DollController::receive_inputs(const Vector<uint8_t> &p_data) {
 	const uint32_t now = OS::get_singleton()->get_ticks_msec();
 	struct SCParseTmpData {
 		DollController *controller;
-		NetworkedController *node_controller;
+		NetworkedControllerBase *node_controller;
 		uint32_t now;
 	} tmp = {
 		this,
@@ -1567,7 +1565,7 @@ void DollController::notify_input_checked(uint32_t p_input_id) {
 	last_checked_input = p_input_id;
 }
 
-NoNetController::NoNetController(NetworkedController *p_node) :
+NoNetController::NoNetController(NetworkedControllerBase *p_node) :
 		Controller(p_node),
 		frame_id(0) {
 }

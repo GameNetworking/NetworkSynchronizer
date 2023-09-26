@@ -44,7 +44,7 @@
 #include <string>
 
 namespace NS {
-class NetworkedController;
+class NetworkedControllerBase;
 };
 
 #ifdef DEBUG_ENABLED
@@ -335,7 +335,7 @@ struct NodeData {
 	Callable apply_epoch_func;
 
 	/// Associated controller.
-	NS::NetworkedController *controller = nullptr;
+	NS::NetworkedControllerBase *controller = nullptr;
 
 	NodeData() = default;
 

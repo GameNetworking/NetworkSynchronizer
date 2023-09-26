@@ -9,8 +9,8 @@ LocalSceneSynchronizer::LocalSceneSynchronizer() {
 }
 
 void LocalSceneSynchronizer::on_scene_entry() {
-	network_interface.init(get_scene()->get_network(), name);
-	setup(network_interface, *this);
+	get_network_interface().init(get_scene()->get_network(), name, authoritative_peer_id);
+	setup(*this);
 	register_app_object(this);
 }
 
@@ -22,9 +22,9 @@ void LocalSceneSynchronizer::on_scene_exit() {
 }
 
 void *LocalSceneSynchronizer::fetch_app_object(const std::string &p_object_name) {
-	std::shared_ptr<LocalSceneObject> lso = get_scene()->fetch_object(p_object_name);
+	LocalSceneObject *lso = get_scene()->fetch_object<LocalSceneObject>(p_object_name.c_str());
 	if (lso) {
-		return lso.get();
+		return lso;
 	}
 }
 
@@ -56,16 +56,18 @@ bool LocalSceneSynchronizer::get_variable(const void *p_app_object, const char *
 		p_val = element->second;
 		return true;
 	} else {
-		return false;
+		// For convenience, this never fails.
+		p_val = Variant();
+		return true;
 	}
 }
 
-NS::NetworkedController *LocalSceneSynchronizer::extract_network_controller(void *p_app_object) const {
-	return dynamic_cast<NS::NetworkedController *>(static_cast<LocalSceneObject *>(p_app_object));
+NS::NetworkedControllerBase *LocalSceneSynchronizer::extract_network_controller(void *p_app_object) const {
+	return dynamic_cast<NS::NetworkedControllerBase *>(static_cast<LocalSceneObject *>(p_app_object));
 }
 
-const NS::NetworkedController *LocalSceneSynchronizer::extract_network_controller(const void *p_app_object) const {
-	return dynamic_cast<const NS::NetworkedController *>(static_cast<const LocalSceneObject *>(p_app_object));
+const NS::NetworkedControllerBase *LocalSceneSynchronizer::extract_network_controller(const void *p_app_object) const {
+	return dynamic_cast<const NS::NetworkedControllerBase *>(static_cast<const LocalSceneObject *>(p_app_object));
 }
 
 LocalScene *LocalSceneObject::get_scene() const {
@@ -84,14 +86,6 @@ int LocalScene::get_peer() const {
 	return network.get_peer();
 }
 
-std::shared_ptr<LocalSceneObject> LocalScene::fetch_object(const std::string &p_object_name) {
-	std::map<std::string, std::shared_ptr<LocalSceneObject>>::iterator obj_it = objects.find(p_object_name);
-	if (obj_it != objects.end()) {
-		return obj_it->second;
-	}
-	return std::shared_ptr<LocalSceneObject>();
-}
-
 void LocalScene::remove_object(const char *p_object_name) {
 	std::map<std::string, std::shared_ptr<LocalSceneObject>>::iterator obj_it = objects.find(p_object_name);
 	if (obj_it != objects.end()) {
@@ -103,8 +97,12 @@ void LocalScene::remove_object(const char *p_object_name) {
 }
 
 void LocalScene::process(float p_delta) {
-	network.process(p_delta);
 	scene_sync->process();
+	// Clear any pending RPC.
+	// NOTE: The network process is executed after the scene_sync so any pending
+	// 			rpc is dispatched right away. When the rpc is sent, it's received
+	// 			right away, so it's not needed to process it before the scene_sync.
+	network.process(p_delta);
 }
 
 NS_NAMESPACE_END
