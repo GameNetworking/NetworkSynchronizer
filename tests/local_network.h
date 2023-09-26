@@ -78,7 +78,7 @@ public:
 	NS::PHandler processor_handler_connected = NS::NullPHandler;
 	NS::PHandler processor_handler_disconnected = NS::NullPHandler;
 
-	void init(LocalNetwork &p_network, const std::string &p_unique_name);
+	void init(LocalNetwork &p_network, const std::string &p_unique_name, int p_authoritative_peer);
 
 	std::vector<RPCInfo> &get_rpcs_info() { return rpcs_info; }
 	virtual String get_name() const override { return String(name.c_str()); }

@@ -36,6 +36,7 @@
 #define GD_NETWORKED_CONTROLLER_H
 
 #include "modules/network_synchronizer/core/processor.h"
+#include "modules/network_synchronizer/godot4/gd_network_interface.h"
 #include "modules/network_synchronizer/networked_controller.h"
 #include "scene/main/node.h"
 
@@ -67,7 +68,7 @@ public:
 	GDVIRTUAL1RC(int, _count_input_size, DataBuffer *);
 
 private:
-	NS::NetworkedController networked_controller;
+	NS::NetworkedController<GdNetworkInterface> networked_controller;
 
 	NS::PHandler event_handler_controller_reset = NS::NullPHandler;
 	NS::PHandler event_handler_input_missed = NS::NullPHandler;
@@ -82,8 +83,8 @@ public:
 
 	void _notification(int p_what);
 
-	NS::NetworkedController *get_networked_controller() { return &networked_controller; }
-	const NS::NetworkedController *get_networked_controller() const { return &networked_controller; }
+	NS::NetworkedControllerBase *get_networked_controller() { return &networked_controller; }
+	const NS::NetworkedControllerBase *get_networked_controller() const { return &networked_controller; }
 
 	void set_server_controlled(bool p_server_controlled);
 	bool get_server_controlled() const;

@@ -20,7 +20,8 @@ NS_NAMESPACE_BEGIN
 
 const SyncGroupId SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID = 0;
 
-SceneSynchronizerBase::SceneSynchronizerBase() {
+SceneSynchronizerBase::SceneSynchronizerBase(NetworkInterface *p_network_interface) :
+		network_interface(p_network_interface) {
 	// Avoid too much useless re-allocations.
 	event_listener.reserve(100);
 }
@@ -28,14 +29,11 @@ SceneSynchronizerBase::SceneSynchronizerBase() {
 SceneSynchronizerBase::~SceneSynchronizerBase() {
 	clear();
 	uninit_synchronizer();
+	network_interface = nullptr;
 }
 
-void SceneSynchronizerBase::setup(
-		NetworkInterface &p_network_interface,
-		SynchronizerManager &p_synchronizer_interface) {
-	network_interface = &p_network_interface;
+void SceneSynchronizerBase::setup(SynchronizerManager &p_synchronizer_interface) {
 	synchronizer_manager = &p_synchronizer_interface;
-
 	network_interface->start_listening_peer_connection(
 			[this](int p_peer) { on_peer_connected(p_peer); },
 			[this](int p_peer) { on_peer_disconnected(p_peer); });
@@ -95,7 +93,6 @@ void SceneSynchronizerBase::conclude() {
 	// Make sure to reset all the assigned controllers.
 	reset_controllers();
 
-	network_interface = nullptr;
 	synchronizer_manager = nullptr;
 
 	rpc_handler_state = UINT8_MAX;
@@ -109,15 +106,16 @@ void SceneSynchronizerBase::process() {
 	PROFILE_NODE
 
 #ifdef DEBUG_ENABLED
-	validate_nodes();
 	CRASH_COND_MSG(synchronizer == nullptr, "Never execute this function unless this synchronizer is ready.");
+
+	synchronizer_manager->debug_only_validate_nodes();
 #endif
 
 	synchronizer->process();
 }
 
 void SceneSynchronizerBase::on_app_object_removed(void *p_app_object) {
-	unregister_app_object(p_app_object);
+	__unregister_app_object(p_app_object);
 }
 
 void SceneSynchronizerBase::set_max_deferred_nodes_per_update(int p_rate) {
@@ -195,7 +193,7 @@ NetUtility::NodeData *SceneSynchronizerBase::__register_app_object(void *p_app_o
 	return nd;
 }
 
-void SceneSynchronizerBase::unregister_app_object(void *p_app_object) {
+void SceneSynchronizerBase::__unregister_app_object(void *p_app_object) {
 	ERR_FAIL_COND(p_app_object == nullptr);
 
 	NetUtility::NodeData *nd = find_node_data(p_app_object);
@@ -207,36 +205,7 @@ void SceneSynchronizerBase::unregister_app_object(void *p_app_object) {
 	drop_node_data(nd);
 }
 
-NetNodeId SceneSynchronizerBase::get_app_object_net_id(void *p_app_object) const {
-	const NetUtility::NodeData *nd = find_node_data(p_app_object);
-	if (nd) {
-		return nd->id;
-	} else {
-		return NetID_NONE;
-	}
-}
-
-void *SceneSynchronizerBase::get_app_object_from_id(uint32_t p_id, bool p_expected) {
-	NetUtility::NodeData *nd = get_node_data(p_id, p_expected);
-	if (p_expected) {
-		ERR_FAIL_COND_V_MSG(nd == nullptr, nullptr, "The ID " + itos(p_id) + " is not assigned to any node.");
-		return nd->app_object;
-	} else {
-		return nd ? nd->app_object : nullptr;
-	}
-}
-
-const void *SceneSynchronizerBase::get_app_object_from_id_const(uint32_t p_id, bool p_expected) const {
-	const NetUtility::NodeData *nd = get_node_data(p_id, p_expected);
-	if (p_expected) {
-		ERR_FAIL_COND_V_MSG(nd == nullptr, nullptr, "The ID " + itos(p_id) + " is not assigned to any node.");
-		return nd->app_object;
-	} else {
-		return nd ? nd->app_object : nullptr;
-	}
-}
-
-void SceneSynchronizerBase::register_variable(void *p_app_object, const StringName &p_variable, const StringName &p_on_change_notify, NetEventFlag p_flags) {
+void SceneSynchronizerBase::__register_variable(void *p_app_object, const StringName &p_variable, const StringName &p_on_change_notify, NetEventFlag p_flags) {
 	ERR_FAIL_COND(p_app_object == nullptr);
 	ERR_FAIL_COND(p_variable == StringName());
 
@@ -287,7 +256,7 @@ void SceneSynchronizerBase::register_variable(void *p_app_object, const StringNa
 	}
 }
 
-void SceneSynchronizerBase::unregister_variable(void *p_app_object, const StringName &p_variable) {
+void SceneSynchronizerBase::__unregister_variable(void *p_app_object, const StringName &p_variable) {
 	ERR_FAIL_COND(p_app_object == nullptr);
 	ERR_FAIL_COND(p_variable == StringName());
 
@@ -313,6 +282,39 @@ void SceneSynchronizerBase::unregister_variable(void *p_app_object, const String
 	}
 
 	nd->vars[index].change_listeners.clear();
+}
+
+NetNodeId SceneSynchronizerBase::get_app_object_net_id(void *p_app_object) const {
+	const NetUtility::NodeData *nd = find_node_data(p_app_object);
+	if (nd) {
+		return nd->id;
+	} else {
+		return NetID_NONE;
+	}
+}
+
+void *SceneSynchronizerBase::get_app_object_from_id(uint32_t p_id, bool p_expected) {
+	NetUtility::NodeData *nd = get_node_data(p_id, p_expected);
+	if (p_expected) {
+		ERR_FAIL_COND_V_MSG(nd == nullptr, nullptr, "The ID " + itos(p_id) + " is not assigned to any node.");
+		return nd->app_object;
+	} else {
+		return nd ? nd->app_object : nullptr;
+	}
+}
+
+const void *SceneSynchronizerBase::get_app_object_from_id_const(uint32_t p_id, bool p_expected) const {
+	const NetUtility::NodeData *nd = get_node_data(p_id, p_expected);
+	if (p_expected) {
+		ERR_FAIL_COND_V_MSG(nd == nullptr, nullptr, "The ID " + itos(p_id) + " is not assigned to any node.");
+		return nd->app_object;
+	} else {
+		return nd ? nd->app_object : nullptr;
+	}
+}
+
+const LocalVector<NetUtility::NodeData *> &SceneSynchronizerBase::get_all_node_data() const {
+	return node_data;
 }
 
 uint32_t SceneSynchronizerBase::get_variable_id(void *p_app_object, const StringName &p_variable) {
@@ -949,7 +951,7 @@ void SceneSynchronizerBase::clear() {
 	process_functions__clear();
 }
 
-void SceneSynchronizerBase::notify_controller_control_mode_changed(NetworkedController *controller) {
+void SceneSynchronizerBase::notify_controller_control_mode_changed(NetworkedControllerBase *controller) {
 	reset_controller(find_node_data(controller));
 }
 
@@ -1015,7 +1017,7 @@ void SceneSynchronizerBase::update_peers() {
 		if (it.value->controller_id == UINT32_MAX) {
 			// The controller_id is not assigned, search it.
 			for (uint32_t i = 0; i < node_data_controllers.size(); i += 1) {
-				const NetworkedController *nc = node_data_controllers[i]->controller;
+				const NetworkedControllerBase *nc = node_data_controllers[i]->controller;
 				if (nc && nc->network_interface->get_unit_authority() == (*it.key)) {
 					// Controller found.
 					it.value->controller_id = node_data_controllers[i]->id;
@@ -1289,7 +1291,7 @@ void SceneSynchronizerBase::set_node_data_id(NetUtility::NodeData *p_node_data, 
 	SceneSynchronizerDebugger::singleton()->debug_print(network_interface, "NetNodeId: " + itos(p_id) + " just assigned to: " + String(p_node_data->object_name.c_str()));
 }
 
-NetworkedController *SceneSynchronizerBase::fetch_controller_by_peer(int peer) {
+NetworkedControllerBase *SceneSynchronizerBase::fetch_controller_by_peer(int peer) {
 	const NetUtility::PeerData *data = peer_data.lookup_ptr(peer);
 	if (data && data->controller_id != UINT32_MAX) {
 		NetUtility::NodeData *nd = get_node_data(data->controller_id);
@@ -1473,28 +1475,6 @@ bool SceneSynchronizerBase::is_networked() const {
 	return is_client() || is_server();
 }
 
-#ifdef DEBUG_ENABLED
-void SceneSynchronizerBase::validate_nodes() {
-	LocalVector<NetUtility::NodeData *> null_objects;
-	null_objects.reserve(node_data.size());
-
-	for (uint32_t i = 0; i < node_data.size(); i += 1) {
-		if (ObjectDB::get_instance(ObjectID(node_data[i]->instance_id)) == nullptr) {
-			// Mark for removal.
-			null_objects.push_back(node_data[i]);
-		}
-	}
-
-	// Removes the invalidated `NodeData`.
-	if (null_objects.size()) {
-		SceneSynchronizerDebugger::singleton()->debug_error(network_interface, "At least one node has been removed from the tree without the SceneSynchronizer noticing. This shouldn't happen.");
-		for (uint32_t i = 0; i < null_objects.size(); i += 1) {
-			drop_node_data(null_objects[i]);
-		}
-	}
-}
-#endif
-
 void SceneSynchronizerBase::update_nodes_relevancy() {
 	synchronizer_manager->update_nodes_relevancy();
 
@@ -1570,7 +1550,7 @@ const NetUtility::NodeData *SceneSynchronizerBase::find_node_data(const void *p_
 	return nullptr;
 }
 
-NetUtility::NodeData *SceneSynchronizerBase::find_node_data(const NetworkedController *p_controller) {
+NetUtility::NodeData *SceneSynchronizerBase::find_node_data(const NetworkedControllerBase *p_controller) {
 	for (NetUtility::NodeData *nd : node_data_controllers) {
 		if (nd == nullptr) {
 			continue;
@@ -1582,7 +1562,7 @@ NetUtility::NodeData *SceneSynchronizerBase::find_node_data(const NetworkedContr
 	return nullptr;
 }
 
-const NetUtility::NodeData *SceneSynchronizerBase::find_node_data(const NetworkedController *p_controller) const {
+const NetUtility::NodeData *SceneSynchronizerBase::find_node_data(const NetworkedControllerBase *p_controller) const {
 	for (const NetUtility::NodeData *nd : node_data_controllers) {
 		if (nd == nullptr) {
 			continue;
@@ -1618,7 +1598,7 @@ const NetUtility::NodeData *SceneSynchronizerBase::get_node_data(NetNodeId p_id,
 	}
 }
 
-NetworkedController *SceneSynchronizerBase::get_controller_for_peer(int p_peer, bool p_expected) {
+NetworkedControllerBase *SceneSynchronizerBase::get_controller_for_peer(int p_peer, bool p_expected) {
 	const NetUtility::PeerData *pd = peer_data.lookup_ptr(p_peer);
 	if (p_expected) {
 		ERR_FAIL_COND_V_MSG(pd == nullptr, nullptr, "The peer is unknown `" + itos(p_peer) + "`.");
@@ -1630,7 +1610,7 @@ NetworkedController *SceneSynchronizerBase::get_controller_for_peer(int p_peer, 
 	return nullptr;
 }
 
-const NetworkedController *SceneSynchronizerBase::get_controller_for_peer(int p_peer, bool p_expected) const {
+const NetworkedControllerBase *SceneSynchronizerBase::get_controller_for_peer(int p_peer, bool p_expected) const {
 	const NetUtility::PeerData *pd = peer_data.lookup_ptr(p_peer);
 	if (p_expected) {
 		ERR_FAIL_COND_V_MSG(pd == nullptr, nullptr, "The peer is unknown `" + itos(p_peer) + "`.");
@@ -1659,13 +1639,13 @@ void SceneSynchronizerBase::reset_controller(NetUtility::NodeData *p_controller_
 	CRASH_COND(p_controller_nd->controller == nullptr);
 #endif
 
-	NetworkedController *controller = p_controller_nd->controller;
+	NetworkedControllerBase *controller = p_controller_nd->controller;
 
 	// Reset the controller type.
 	if (controller->controller != nullptr) {
 		memdelete(controller->controller);
 		controller->controller = nullptr;
-		controller->controller_type = NetworkedController::CONTROLLER_TYPE_NULL;
+		controller->controller_type = NetworkedControllerBase::CONTROLLER_TYPE_NULL;
 	}
 
 	if (!synchronizer_manager) {
@@ -1678,21 +1658,21 @@ void SceneSynchronizerBase::reset_controller(NetUtility::NodeData *p_controller_
 	}
 
 	if (!network_interface->is_local_peer_networked()) {
-		controller->controller_type = NetworkedController::CONTROLLER_TYPE_NONETWORK;
+		controller->controller_type = NetworkedControllerBase::CONTROLLER_TYPE_NONETWORK;
 		controller->controller = memnew(NoNetController(controller));
 	} else if (network_interface->is_local_peer_server()) {
 		if (controller->get_server_controlled()) {
-			controller->controller_type = NetworkedController::CONTROLLER_TYPE_AUTONOMOUS_SERVER;
+			controller->controller_type = NetworkedControllerBase::CONTROLLER_TYPE_AUTONOMOUS_SERVER;
 			controller->controller = memnew(AutonomousServerController(controller));
 		} else {
-			controller->controller_type = NetworkedController::CONTROLLER_TYPE_SERVER;
+			controller->controller_type = NetworkedControllerBase::CONTROLLER_TYPE_SERVER;
 			controller->controller = memnew(ServerController(controller, controller->get_network_traced_frames()));
 		}
 	} else if (controller->network_interface->is_local_peer_authority_of_this_unit() && controller->get_server_controlled() == false) {
-		controller->controller_type = NetworkedController::CONTROLLER_TYPE_PLAYER;
+		controller->controller_type = NetworkedControllerBase::CONTROLLER_TYPE_PLAYER;
 		controller->controller = memnew(PlayerController(controller));
 	} else {
-		controller->controller_type = NetworkedController::CONTROLLER_TYPE_DOLL;
+		controller->controller_type = NetworkedControllerBase::CONTROLLER_TYPE_DOLL;
 		controller->controller = memnew(DollController(controller));
 	}
 
@@ -2072,7 +2052,7 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 
 				// Add the controller input id at the beginning of the snapshot.
 				snap.push_back(true);
-				NetworkedController *controller = nd->controller;
+				NetworkedControllerBase *controller = nd->controller;
 				snap.push_back(controller->get_current_input_id());
 			} else {
 				// No `input_id`.
@@ -2099,7 +2079,7 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 					snap);
 
 			if (nd) {
-				NetworkedController *controller = nd->controller;
+				NetworkedControllerBase *controller = nd->controller;
 				controller->get_server_controller()->notify_send_state();
 			}
 		}
@@ -2378,11 +2358,6 @@ void ClientSynchronizer::clear() {
 void ClientSynchronizer::process() {
 	SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "ClientSynchronizer::process", true);
 
-	if (unlikely(player_controller_node_data == nullptr || enabled == false)) {
-		// No player controller or disabled so nothing to do.
-		return;
-	}
-
 	const double physics_ticks_per_second = Engine::get_singleton()->get_physics_ticks_per_second();
 	const double delta = 1.0 / physics_ticks_per_second;
 
@@ -2393,57 +2368,9 @@ void ClientSynchronizer::process() {
 	}
 #endif
 
-	NetworkedController *controller = player_controller_node_data->controller;
-	PlayerController *player_controller = controller->get_player_controller();
+	process_simulation(delta, physics_ticks_per_second);
 
-	// Reset this here, so even when `sub_ticks` is zero (and it's not
-	// updated due to process is not called), we can still have the corect
-	// data.
-	controller->player_set_has_new_input(false);
-
-	// Due to some lag we may want to speed up the input_packet
-	// generation, for this reason here I'm performing a sub tick.
-	//
-	// keep in mind that we are just pretending that the time
-	// is advancing faster, for this reason we are still using
-	// `delta` to step the controllers_node_data.
-	//
-	// The dolls may want to speed up too, so to consume the inputs faster
-	// and get back in time with the server.
-	int sub_ticks = player_controller->calculates_sub_ticks(delta, physics_ticks_per_second);
-
-	if (sub_ticks == 0) {
-		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "No sub ticks: this is not bu a bug; it's the lag compensation algorithm.", true);
-	}
-
-	while (sub_ticks > 0) {
-		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "ClientSynchronizer::process::sub_process " + itos(sub_ticks), true);
-		SceneSynchronizerDebugger::singleton()->scene_sync_process_start(scene_synchronizer);
-
-		// Process the scene.
-		scene_synchronizer->process_functions__execute(delta);
-
-		scene_synchronizer->detect_and_signal_changed_variables(NetEventFlag::CHANGE);
-
-		if (controller->player_has_new_input()) {
-			store_snapshot();
-		}
-
-		sub_ticks -= 1;
-		SceneSynchronizerDebugger::singleton()->scene_sync_process_end(scene_synchronizer);
-
-#if DEBUG_ENABLED
-		if (sub_ticks > 0) {
-			// This is an intermediate sub tick, so store the dumping.
-			// The last sub frame is not dumped, untile the end of the frame, so we can capture any subsequent message.
-			const int client_peer = scene_synchronizer->network_interface->fetch_local_peer_id();
-			SceneSynchronizerDebugger::singleton()->write_dump(client_peer, player_controller->get_current_input_id());
-			SceneSynchronizerDebugger::singleton()->start_new_frame();
-		}
-#endif
-	}
-
-	process_controllers_recovery(delta);
+	process_received_server_state(delta);
 
 	// Now trigger the END_SYNC event.
 	signal_end_sync_changed_variables_events();
@@ -2451,9 +2378,13 @@ void ClientSynchronizer::process() {
 	process_received_deferred_sync_data(delta);
 
 #if DEBUG_ENABLED
-	const int client_peer = scene_synchronizer->network_interface->fetch_local_peer_id();
-	SceneSynchronizerDebugger::singleton()->write_dump(client_peer, player_controller->get_current_input_id());
-	SceneSynchronizerDebugger::singleton()->start_new_frame();
+	if (player_controller_node_data) {
+		NetworkedControllerBase *controller = player_controller_node_data->controller;
+		PlayerController *player_controller = controller->get_player_controller();
+		const int client_peer = scene_synchronizer->network_interface->fetch_local_peer_id();
+		SceneSynchronizerDebugger::singleton()->write_dump(client_peer, player_controller->get_current_input_id());
+		SceneSynchronizerDebugger::singleton()->start_new_frame();
+	}
 #endif
 }
 
@@ -2556,7 +2487,7 @@ void ClientSynchronizer::on_controller_reset(NetUtility::NodeData *p_node_data) 
 }
 
 void ClientSynchronizer::store_snapshot() {
-	NetworkedController *controller = player_controller_node_data->controller;
+	NetworkedControllerBase *controller = player_controller_node_data->controller;
 
 #ifdef DEBUG_ENABLED
 	if (unlikely(client_snapshots.size() > 0 && controller->get_current_input_id() <= client_snapshots.back().input_id)) {
@@ -2608,7 +2539,68 @@ void ClientSynchronizer::store_controllers_snapshot(
 	}
 }
 
-void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
+void ClientSynchronizer::process_simulation(real_t p_delta, real_t p_physics_ticks_per_second) {
+	if (unlikely(player_controller_node_data == nullptr || enabled == false)) {
+		// No player controller so can't process the simulation.
+		// TODO Remove this constraint?
+
+		// Make sure to fetch changed variable anyway.
+		scene_synchronizer->detect_and_signal_changed_variables(NetEventFlag::CHANGE);
+		return;
+	}
+
+	NetworkedControllerBase *controller = player_controller_node_data->controller;
+	PlayerController *player_controller = controller->get_player_controller();
+
+	// Reset this here, so even when `sub_ticks` is zero (and it's not
+	// updated due to process is not called), we can still have the corect
+	// data.
+	controller->player_set_has_new_input(false);
+
+	// Due to some lag we may want to speed up the input_packet
+	// generation, for this reason here I'm performing a sub tick.
+	//
+	// keep in mind that we are just pretending that the time
+	// is advancing faster, for this reason we are still using
+	// `delta` to step the controllers_node_data.
+	//
+	// The dolls may want to speed up too, so to consume the inputs faster
+	// and get back in time with the server.
+	int sub_ticks = player_controller->calculates_sub_ticks(p_delta, p_physics_ticks_per_second);
+
+	if (sub_ticks == 0) {
+		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "No sub ticks: this is not bu a bug; it's the lag compensation algorithm.", true);
+	}
+
+	while (sub_ticks > 0) {
+		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "ClientSynchronizer::process::sub_process " + itos(sub_ticks), true);
+		SceneSynchronizerDebugger::singleton()->scene_sync_process_start(scene_synchronizer);
+
+		// Process the scene.
+		scene_synchronizer->process_functions__execute(p_delta);
+
+		scene_synchronizer->detect_and_signal_changed_variables(NetEventFlag::CHANGE);
+
+		if (controller->player_has_new_input()) {
+			store_snapshot();
+		}
+
+		sub_ticks -= 1;
+		SceneSynchronizerDebugger::singleton()->scene_sync_process_end(scene_synchronizer);
+
+#if DEBUG_ENABLED
+		if (sub_ticks > 0) {
+			// This is an intermediate sub tick, so store the dumping.
+			// The last sub frame is not dumped, untile the end of the frame, so we can capture any subsequent message.
+			const int client_peer = scene_synchronizer->network_interface->fetch_local_peer_id();
+			SceneSynchronizerDebugger::singleton()->write_dump(client_peer, player_controller->get_current_input_id());
+			SceneSynchronizerDebugger::singleton()->start_new_frame();
+		}
+#endif
+	}
+}
+
+void ClientSynchronizer::process_received_server_state(real_t p_delta) {
 	// The client is responsible to recover only its local controller, while all
 	// the other controllers_node_data (dolls) have their state interpolated. There is
 	// no need to check the correctness of the doll state nor the needs to
@@ -2616,9 +2608,6 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 	//
 	// The scene, (global nodes), are always in sync with the reference frame
 	// of the client.
-
-	NetworkedController *controller = player_controller_node_data->controller;
-	PlayerController *player_controller = controller->get_player_controller();
 
 	// --- Phase one: find the snapshot to check. ---
 	if (server_snapshots.empty()) {
@@ -2636,6 +2625,15 @@ void ClientSynchronizer::process_controllers_recovery(real_t p_delta) {
 		client_snapshots.clear();
 		return;
 	}
+
+	if (!player_controller_node_data) {
+		// There is no player controller, we can't apply any snapshot which
+		// `input_id` is not UINT32_MAX.
+		return;
+	}
+
+	NetworkedControllerBase *controller = player_controller_node_data->controller;
+	PlayerController *player_controller = controller->get_player_controller();
 
 #ifdef DEBUG_ENABLED
 	if (client_snapshots.empty() == false) {
@@ -2848,7 +2846,7 @@ void ClientSynchronizer::__pcr__rewind(
 		real_t p_delta,
 		const uint32_t p_checkable_input_id,
 		NetUtility::NodeData *p_local_controller_node,
-		NetworkedController *p_local_controller,
+		NetworkedControllerBase *p_local_controller,
 		PlayerController *p_local_player_controller) {
 	scene_synchronizer->event_state_validated.broadcast(p_checkable_input_id);
 	const int remaining_inputs = p_local_player_controller->get_frames_input_count();

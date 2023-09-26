@@ -137,9 +137,10 @@ void LocalNetwork::rpc_receive_internal(int p_peer_sender, const std::shared_ptr
 			p_packet->data.size());
 }
 
-void LocalNetworkInterface::init(LocalNetwork &p_network, const std::string &p_unique_name) {
+void LocalNetworkInterface::init(LocalNetwork &p_network, const std::string &p_unique_name, int p_authoritative_peer) {
 	network = &p_network;
 	name = p_unique_name;
+	authoritative_peer_id = p_authoritative_peer;
 	network->register_object(*this);
 }
 
@@ -204,7 +205,7 @@ void NS_Test::test_local_network() {
 	peer_2.network_properties = &network_properties;
 
 	NS::LocalNetworkInterface server_obj_1;
-	server_obj_1.init(server, "object_1");
+	server_obj_1.init(server, "object_1", 0);
 
 	std::vector<int> server_rpc_executed_by;
 	const int rpc_handle_server = server_obj_1.rpc_config(
@@ -223,7 +224,7 @@ void NS_Test::test_local_network() {
 			false);
 
 	NS::LocalNetworkInterface peer_1_obj_1;
-	peer_1_obj_1.init(peer_1, "object_1");
+	peer_1_obj_1.init(peer_1, "object_1", 0);
 
 	std::vector<int> peer_1_rpc_executed_by;
 	const int rpc_handle_1_obj_1 = peer_1_obj_1.rpc_config(
@@ -242,7 +243,7 @@ void NS_Test::test_local_network() {
 			false);
 
 	NS::LocalNetworkInterface peer_2_obj_1;
-	peer_2_obj_1.init(peer_2, "object_1");
+	peer_2_obj_1.init(peer_2, "object_1", 0);
 
 	std::vector<int> peer_2_rpc_executed_by;
 	std::vector<int> peer_2_rpc_b_values_by_exec_order;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "modules/network_synchronizer/core/processor.h"
+#include "modules/network_synchronizer/godot4/gd_network_interface.h"
 #include "modules/network_synchronizer/scene_synchronizer.h"
 #include "scene/main/node.h"
 
@@ -15,7 +16,7 @@ public:
 
 	GDVIRTUAL0(_update_nodes_relevancy);
 
-	NS::SceneSynchronizer<Node> scene_synchronizer;
+	NS::SceneSynchronizer<Node, GdNetworkInterface> scene_synchronizer;
 
 	// Just used to detect when the low level peer change.
 	void *low_level_peer = nullptr;
@@ -50,6 +51,8 @@ public: // ---------------------------------------- Scene Synchronizer Interface
 	virtual void on_init_synchronizer(bool p_was_generating_ids) override;
 	virtual void on_uninit_synchronizer() override;
 
+	virtual void debug_only_validate_nodes() override;
+
 	virtual void on_add_node_data(NetUtility::NodeData *p_node_data) override;
 
 	virtual void update_nodes_relevancy() override;
@@ -65,8 +68,8 @@ public: // ---------------------------------------- Scene Synchronizer Interface
 	virtual void set_variable(void *p_object, const char *p_name, const Variant &p_val) override;
 	virtual bool get_variable(const void *p_object, const char *p_name, Variant &p_val) const override;
 
-	virtual NS::NetworkedController *extract_network_controller(void *p_app_object) const override;
-	virtual const NS::NetworkedController *extract_network_controller(const void *p_app_object) const override;
+	virtual NS::NetworkedControllerBase *extract_network_controller(void *p_app_object) const override;
+	virtual const NS::NetworkedControllerBase *extract_network_controller(const void *p_app_object) const override;
 
 public: // ------------------------------------------------------- RPC Interface
 	// This funtion is used to sync data betweend the server and the client.
@@ -169,7 +172,6 @@ public: // ---------------------------------------------------------------- APIs
 	/// Returns true if network is enabled.
 	bool is_networked() const;
 
-	void _on_node_removed(Node *p_node);
 };
 
 VARIANT_ENUM_CAST(NetEventFlag)
