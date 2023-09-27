@@ -1,39 +1,4 @@
-/*************************************************************************/
-/*  net_utilities.h                                                      */
-/*************************************************************************/
-/*                       This file is part of:                           */
-/*                           GODOT ENGINE                                */
-/*                      https://godotengine.org                          */
-/*************************************************************************/
-/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
-/*                                                                       */
-/* Permission is hereby granted, free of charge, to any person obtaining */
-/* a copy of this software and associated documentation files (the       */
-/* "Software"), to deal in the Software without restriction, including   */
-/* without limitation the rights to use, copy, modify, merge, publish,   */
-/* distribute, sublicense, and/or sell copies of the Software, and to    */
-/* permit persons to whom the Software is furnished to do so, subject to */
-/* the following conditions:                                             */
-/*                                                                       */
-/* The above copyright notice and this permission notice shall be        */
-/* included in all copies or substantial portions of the Software.       */
-/*                                                                       */
-/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,       */
-/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF    */
-/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.*/
-/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY  */
-/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,  */
-/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
-/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
-/*************************************************************************/
-
-/**
-	@author AndreaCatania
-*/
-
-#ifndef NET_UTILITIES_H
-#define NET_UTILITIES_H
+#pragma once
 
 #include "core/config/project_settings.h"
 #include "core/core.h"
@@ -42,6 +7,7 @@
 #include "core/templates/local_vector.h"
 #include "core/variant/variant.h"
 #include <string>
+#include <vector>
 
 namespace NS {
 class NetworkedControllerBase;
@@ -62,7 +28,20 @@ class NetworkedControllerBase;
 #define NET_DEBUG_ERR(msg)
 #endif
 
-extern const uint32_t NetID_NONE;
+NS_NAMESPACE_BEGIN
+
+typedef std::intptr_t ListenerHandle;
+struct ObjectHandle {
+	std::intptr_t intptr;
+	bool operator==(const ObjectHandle &p_o) const { return intptr == p_o.intptr; }
+};
+inline static const ObjectHandle nullobjecthandle = { 0 };
+
+#define ns_find(vec, val) std::find(vec.begin(), vec.end(), val)
+
+NS_NAMESPACE_END
+
+extern const uint32_t ID_NONE;
 typedef uint32_t NetNodeId;
 typedef uint32_t NetVarId;
 typedef uint32_t SyncGroupId;
@@ -264,32 +243,23 @@ void StatisticalRingBuffer<T>::force_recompute_avg_sum() {
 
 /// Specific node listener. Alone this doesn't do much, but allows the
 /// `ChangeListener` to know and keep track of the node events.
-struct NodeChangeListener {
+struct ListeningVariable {
 	struct NodeData *node_data = nullptr;
-	NetVarId var_id = UINT32_MAX;
+	NetVarId var_id = ID_NONE;
 
 	bool old_set = false;
-	Variant old_value;
-
-	bool operator==(const NodeChangeListener &p_other) const;
 };
 
-/// Change listener that rapresents a pair of Object and Method.
 /// This can track the changes of many nodes and variables. It's dispatched
 /// if one or more tracked variable change during the tracked phase, specified
-/// by the flag.
-struct ChangeListener {
-	// TODO use a callable instead??
-	ObjectID object_id = ObjectID();
-	StringName method;
-	uint32_t method_argument_count;
+/// by the `NetEventFlag`.
+struct ChangesListener {
+	std::function<void(const std::vector<Variant> &p_old_vars)> listener_func;
 	NetEventFlag flag;
 
-	LocalVector<NodeChangeListener> watching_vars;
-	LocalVector<Variant> old_values;
+	std::vector<ListeningVariable> watching_vars;
+	std::vector<Variant> old_values;
 	bool emitted = true;
-
-	bool operator==(const ChangeListener &p_other) const;
 };
 
 struct Var {
@@ -302,7 +272,7 @@ struct VarData {
 	Var var;
 	bool skip_rewinding = false;
 	bool enabled = false;
-	Vector<uint32_t> change_listeners;
+	std::vector<ChangesListener *> changes_listeners;
 
 	VarData() = default;
 	VarData(const StringName &p_name);
@@ -316,10 +286,10 @@ struct NodeData {
 	// ID used to reference this NodeData in the networked calls.
 	NetNodeId id = 0;
 
-	uint64_t instance_id = 0;
+	uint64_t instance_id = 0; // TODO remove this?
 	std::string object_name;
-	// The application object associated to this `NodeData`.
-	void *app_object = nullptr;
+	// The local application object handle associated to this `NodeData`.
+	NS::ObjectHandle app_object_handle = NS::nullobjecthandle;
 
 	bool realtime_sync_enabled_on_client = false;
 
@@ -445,5 +415,3 @@ public:
 };
 
 } // namespace NetUtility
-
-#endif

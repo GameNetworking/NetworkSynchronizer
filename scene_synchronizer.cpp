@@ -13,6 +13,7 @@
 #include "modules/network_synchronizer/net_utilities.h"
 #include "modules/network_synchronizer/networked_controller.h"
 #include "modules/network_synchronizer/snapshot.h"
+#include "modules/network_synchronizer/tests/local_scene.h"
 #include "scene_diff.h"
 #include "scene_synchronizer_debugger.h"
 
@@ -23,7 +24,7 @@ const SyncGroupId SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID = 0;
 SceneSynchronizerBase::SceneSynchronizerBase(NetworkInterface *p_network_interface) :
 		network_interface(p_network_interface) {
 	// Avoid too much useless re-allocations.
-	event_listener.reserve(100);
+	changes_listeners.reserve(100);
 }
 
 SceneSynchronizerBase::~SceneSynchronizerBase() {
@@ -114,8 +115,8 @@ void SceneSynchronizerBase::process() {
 	synchronizer->process();
 }
 
-void SceneSynchronizerBase::on_app_object_removed(void *p_app_object) {
-	__unregister_app_object(p_app_object);
+void SceneSynchronizerBase::on_app_object_removed(ObjectHandle p_app_object_handle) {
+	unregister_app_object(p_app_object_handle);
 }
 
 void SceneSynchronizerBase::set_max_deferred_nodes_per_update(int p_rate) {
@@ -150,27 +151,27 @@ real_t SceneSynchronizerBase::get_nodes_relevancy_update_time() const {
 	return nodes_relevancy_update_time;
 }
 
-bool SceneSynchronizerBase::is_variable_registered(void *p_app_object, const StringName &p_variable) const {
-	const NetUtility::NodeData *nd = find_node_data(p_app_object);
+bool SceneSynchronizerBase::is_variable_registered(ObjectHandle p_app_object_handle, const StringName &p_variable) const {
+	const NetUtility::NodeData *nd = find_node_data(p_app_object_handle);
 	if (nd != nullptr) {
 		return nd->vars.find(p_variable) >= 0;
 	}
 	return false;
 }
 
-NetUtility::NodeData *SceneSynchronizerBase::__register_app_object(void *p_app_object) {
-	ERR_FAIL_COND_V(p_app_object == nullptr, nullptr);
+NetUtility::NodeData *SceneSynchronizerBase::register_app_object(ObjectHandle p_app_object_handle) {
+	ERR_FAIL_COND_V(p_app_object_handle == nullobjecthandle, nullptr);
 
-	NetUtility::NodeData *nd = find_node_data(p_app_object);
+	NetUtility::NodeData *nd = find_node_data(p_app_object_handle);
 	if (unlikely(nd == nullptr)) {
 		// TODO consider to put this in a pre-allocated memory buffer.
 		nd = memnew(NetUtility::NodeData);
 		nd->id = UINT32_MAX;
-		nd->instance_id = synchronizer_manager->get_object_id(p_app_object);
-		nd->object_name = synchronizer_manager->get_object_name(p_app_object);
-		nd->app_object = p_app_object;
+		nd->instance_id = synchronizer_manager->get_object_id(p_app_object_handle);
+		nd->object_name = synchronizer_manager->get_object_name(p_app_object_handle);
+		nd->app_object_handle = p_app_object_handle;
 
-		nd->controller = synchronizer_manager->extract_network_controller(p_app_object);
+		nd->controller = synchronizer_manager->extract_network_controller(p_app_object_handle);
 		if (nd->controller) {
 			if (unlikely(nd->controller->has_scene_synchronizer())) {
 				ERR_FAIL_V_MSG(nullptr, "This controller already has a synchronizer. This is a bug!");
@@ -181,7 +182,7 @@ NetUtility::NodeData *SceneSynchronizerBase::__register_app_object(void *p_app_o
 
 		add_node_data(nd);
 
-		synchronizer_manager->setup_synchronizer_for(p_app_object);
+		synchronizer_manager->setup_synchronizer_for(p_app_object_handle);
 
 		SceneSynchronizerDebugger::singleton()->debug_print(network_interface, "New node registered" + (generate_id ? String(" #ID: ") + itos(nd->id) : "") + " : " + nd->object_name.c_str());
 
@@ -193,10 +194,10 @@ NetUtility::NodeData *SceneSynchronizerBase::__register_app_object(void *p_app_o
 	return nd;
 }
 
-void SceneSynchronizerBase::__unregister_app_object(void *p_app_object) {
-	ERR_FAIL_COND(p_app_object == nullptr);
+void SceneSynchronizerBase::unregister_app_object(ObjectHandle p_app_object_handle) {
+	ERR_FAIL_COND(p_app_object_handle == nullobjecthandle);
 
-	NetUtility::NodeData *nd = find_node_data(p_app_object);
+	NetUtility::NodeData *nd = find_node_data(p_app_object_handle);
 	if (unlikely(nd == nullptr)) {
 		// Nothing to do.
 		return;
@@ -205,11 +206,11 @@ void SceneSynchronizerBase::__unregister_app_object(void *p_app_object) {
 	drop_node_data(nd);
 }
 
-void SceneSynchronizerBase::__register_variable(void *p_app_object, const StringName &p_variable, const StringName &p_on_change_notify, NetEventFlag p_flags) {
-	ERR_FAIL_COND(p_app_object == nullptr);
+void SceneSynchronizerBase::register_variable(ObjectHandle p_app_object_handle, const StringName &p_variable) {
+	ERR_FAIL_COND(p_app_object_handle == nullobjecthandle);
 	ERR_FAIL_COND(p_variable == StringName());
 
-	NetUtility::NodeData *node_data = __register_app_object(p_app_object);
+	NetUtility::NodeData *node_data = register_app_object(p_app_object_handle);
 	ERR_FAIL_COND(node_data == nullptr);
 
 	const int index = node_data->vars.find(p_variable);
@@ -217,7 +218,7 @@ void SceneSynchronizerBase::__register_variable(void *p_app_object, const String
 		// The variable is not yet registered.
 		bool valid = false;
 		Variant old_val;
-		valid = synchronizer_manager->get_variable(p_app_object, String(p_variable).utf8(), old_val);
+		valid = synchronizer_manager->get_variable(p_app_object_handle, String(p_variable).utf8(), old_val);
 		if (valid == false) {
 			SceneSynchronizerDebugger::singleton()->debug_error(network_interface, "The variable `" + p_variable + "` on the node `" + String(node_data->object_name.c_str()) + "` was not found, make sure the variable exist.");
 		}
@@ -241,26 +242,16 @@ void SceneSynchronizerBase::__register_variable(void *p_app_object, const String
 	}
 #endif
 
-	if (p_on_change_notify != StringName()) {
-		track_variable_changes(
-				p_app_object,
-				p_variable,
-				// TODO this is an hack for now, but this will cause a crash on UnitTests.
-				static_cast<Object *>(p_app_object),
-				p_on_change_notify,
-				p_flags);
-	}
-
 	if (synchronizer) {
 		synchronizer->on_variable_added(node_data, p_variable);
 	}
 }
 
-void SceneSynchronizerBase::__unregister_variable(void *p_app_object, const StringName &p_variable) {
-	ERR_FAIL_COND(p_app_object == nullptr);
+void SceneSynchronizerBase::unregister_variable(ObjectHandle p_app_object_handle, const StringName &p_variable) {
+	ERR_FAIL_COND(p_app_object_handle == nullobjecthandle);
 	ERR_FAIL_COND(p_variable == StringName());
 
-	NetUtility::NodeData *nd = find_node_data(p_app_object);
+	NetUtility::NodeData *nd = find_node_data(p_app_object_handle);
 	ERR_FAIL_COND(nd == nullptr);
 
 	const int64_t index = nd->vars.find(p_variable);
@@ -271,45 +262,47 @@ void SceneSynchronizerBase::__unregister_variable(void *p_app_object, const Stri
 	// Never remove the variable values, because the order of the vars matters.
 	nd->vars[index].enabled = false;
 
-	for (int i = 0; i < nd->vars[var_id].change_listeners.size(); i += 1) {
-		const uint32_t event_index = nd->vars[var_id].change_listeners[i];
-		// Just erase the tracked variables without removing the listener to
-		// keep the order.
-		NetUtility::NodeChangeListener ncl;
-		ncl.node_data = nd;
-		ncl.var_id = var_id;
-		event_listener[event_index].watching_vars.erase(ncl);
+	// Remove this var from all the changes listeners.
+	for (NetUtility::ChangesListener *cl : nd->vars[var_id].changes_listeners) {
+		for (NetUtility::ListeningVariable lv : cl->watching_vars) {
+			if (lv.node_data == nd && lv.var_id) {
+				// We can't change the var order, so just invalidate this.
+				lv.node_data = nullptr;
+				lv.var_id = ID_NONE;
+			}
+		}
 	}
 
-	nd->vars[index].change_listeners.clear();
+	// So, clear the changes listener list for this var.
+	nd->vars[index].changes_listeners.clear();
 }
 
-NetNodeId SceneSynchronizerBase::get_app_object_net_id(void *p_app_object) const {
-	const NetUtility::NodeData *nd = find_node_data(p_app_object);
+NetNodeId SceneSynchronizerBase::get_app_object_net_id(ObjectHandle p_app_object_handle) const {
+	const NetUtility::NodeData *nd = find_node_data(p_app_object_handle);
 	if (nd) {
 		return nd->id;
 	} else {
-		return NetID_NONE;
+		return ID_NONE;
 	}
 }
 
-void *SceneSynchronizerBase::get_app_object_from_id(uint32_t p_id, bool p_expected) {
+ObjectHandle SceneSynchronizerBase::get_app_object_from_id(uint32_t p_id, bool p_expected) {
 	NetUtility::NodeData *nd = get_node_data(p_id, p_expected);
 	if (p_expected) {
-		ERR_FAIL_COND_V_MSG(nd == nullptr, nullptr, "The ID " + itos(p_id) + " is not assigned to any node.");
-		return nd->app_object;
+		ERR_FAIL_COND_V_MSG(nd == nullptr, nullobjecthandle, "The ID " + itos(p_id) + " is not assigned to any node.");
+		return nd->app_object_handle;
 	} else {
-		return nd ? nd->app_object : nullptr;
+		return nd ? nd->app_object_handle : nullobjecthandle;
 	}
 }
 
-const void *SceneSynchronizerBase::get_app_object_from_id_const(uint32_t p_id, bool p_expected) const {
+ObjectHandle SceneSynchronizerBase::get_app_object_from_id_const(uint32_t p_id, bool p_expected) const {
 	const NetUtility::NodeData *nd = get_node_data(p_id, p_expected);
 	if (p_expected) {
-		ERR_FAIL_COND_V_MSG(nd == nullptr, nullptr, "The ID " + itos(p_id) + " is not assigned to any node.");
-		return nd->app_object;
+		ERR_FAIL_COND_V_MSG(nd == nullptr, nullobjecthandle, "The ID " + itos(p_id) + " is not assigned to any node.");
+		return nd->app_object_handle;
 	} else {
-		return nd ? nd->app_object : nullptr;
+		return nd ? nd->app_object_handle : nullobjecthandle;
 	}
 }
 
@@ -317,11 +310,10 @@ const LocalVector<NetUtility::NodeData *> &SceneSynchronizerBase::get_all_node_d
 	return node_data;
 }
 
-uint32_t SceneSynchronizerBase::get_variable_id(void *p_app_object, const StringName &p_variable) {
-	ERR_FAIL_COND_V(p_app_object == nullptr, UINT32_MAX);
+uint32_t SceneSynchronizerBase::get_variable_id(NetNodeId p_id, const StringName &p_variable) {
 	ERR_FAIL_COND_V(p_variable == StringName(), UINT32_MAX);
 
-	NetUtility::NodeData *nd = find_node_data(p_app_object);
+	NetUtility::NodeData *nd = get_node_data(p_id);
 	ERR_FAIL_COND_V_MSG(nd == nullptr, UINT32_MAX, "This node " + String(nd->object_name.c_str()) + "is not registered.");
 
 	const int64_t index = nd->vars.find(p_variable);
@@ -330,11 +322,8 @@ uint32_t SceneSynchronizerBase::get_variable_id(void *p_app_object, const String
 	return uint32_t(index);
 }
 
-void SceneSynchronizerBase::set_skip_rewinding(void *p_app_object, const StringName &p_variable, bool p_skip_rewinding) {
-	ERR_FAIL_COND(p_app_object == nullptr);
-	ERR_FAIL_COND(p_variable == StringName());
-
-	NetUtility::NodeData *nd = find_node_data(p_app_object);
+void SceneSynchronizerBase::set_skip_rewinding(NetNodeId p_id, const StringName &p_variable, bool p_skip_rewinding) {
+	NetUtility::NodeData *nd = get_node_data(p_id);
 	ERR_FAIL_COND(nd == nullptr);
 
 	const int64_t index = nd->vars.find(p_variable);
@@ -343,95 +332,102 @@ void SceneSynchronizerBase::set_skip_rewinding(void *p_app_object, const StringN
 	nd->vars[index].skip_rewinding = p_skip_rewinding;
 }
 
-void SceneSynchronizerBase::track_variable_changes(void *p_app_object, const StringName &p_variable, Object *p_object, const StringName &p_method, NetEventFlag p_flags) {
-	ERR_FAIL_COND(p_app_object == nullptr);
-	ERR_FAIL_COND(p_variable == StringName());
-	ERR_FAIL_COND(p_method == StringName());
+ListenerHandle SceneSynchronizerBase::track_variable_changes(
+		ObjectHandle p_object_handle,
+		const StringName &p_variable,
+		std::function<void(const std::vector<Variant> &p_old_values)> p_listener_func,
+		NetEventFlag p_flags) {
+	std::vector<ObjectHandle> object_handles;
+	std::vector<StringName> variables;
+	object_handles.push_back(p_object_handle);
+	variables.push_back(p_variable);
+	return track_variables_changes(object_handles, variables, p_listener_func, p_flags);
+}
 
-	NetUtility::NodeData *nd = find_node_data(p_app_object);
-	ERR_FAIL_COND_MSG(nd == nullptr, "You need to register the variable to track its changes.");
+ListenerHandle SceneSynchronizerBase::track_variables_changes(
+		const std::vector<ObjectHandle> &p_object_handles,
+		const std::vector<StringName> &p_variables,
+		std::function<void(const std::vector<Variant> &p_old_values)> p_listener_func,
+		NetEventFlag p_flags) {
+	ERR_FAIL_COND_V_MSG(p_object_handles.size() != p_variables.size(), 0, "object_ids and variables should have the exact same size.");
+	ERR_FAIL_COND_V_MSG(p_object_handles.size() == 0, 0, "object_ids can't be of size 0");
+	ERR_FAIL_COND_V_MSG(p_variables.size() == 0, 0, "object_ids can't be of size 0");
 
-	const int64_t v = nd->vars.find(p_variable);
-	ERR_FAIL_COND_MSG(v == -1, "You need to register the variable to track its changes.");
+	bool is_valid = true;
 
-	const NetVarId var_id = v;
+	// TODO allocate into a buffer instead of using `new`?
+	NetUtility::ChangesListener *listener = new NetUtility::ChangesListener;
+	listener->listener_func = p_listener_func;
+	listener->flag = p_flags;
 
-	int64_t index;
+	listener->watching_vars.resize(p_object_handles.size());
+	listener->old_values.resize(p_object_handles.size());
+	for (int i = 0; i < int(p_object_handles.size()); i++) {
+		ObjectHandle handle = p_object_handles[i];
+		const StringName variable_name = p_variables[i];
 
-	{
-		NetUtility::ChangeListener listener;
-		listener.object_id = p_object->get_instance_id();
-		listener.method = p_method;
-
-		index = event_listener.find(listener);
-
-		if (-1 == index) {
-			// Add it.
-			listener.flag = p_flags;
-			listener.method_argument_count = UINT32_MAX;
-
-			// Search the method and get the argument count.
-			List<MethodInfo> methods;
-			p_object->get_method_list(&methods);
-			for (List<MethodInfo>::Element *e = methods.front(); e != nullptr; e = e->next()) {
-				if (e->get().name != p_method) {
-					continue;
-				}
-
-				listener.method_argument_count = e->get().arguments.size();
-
-				break;
-			}
-			ERR_FAIL_COND_MSG(listener.method_argument_count == UINT32_MAX, "The method " + p_method + " doesn't exist in this node: " + String(nd->object_name.c_str()));
-
-			index = event_listener.size();
-			event_listener.push_back(listener);
-		} else {
-			ERR_FAIL_COND_MSG(event_listener[index].flag != p_flags, "The event listener is already registered with the flag: " + itos(event_listener[index].flag) + ". You can't specify a different one.");
+		NetUtility::NodeData *nd = find_node_data(handle);
+		if (!nd) {
+			ERR_PRINT("The passed ObjectHandle `" + itos(handle.intptr) + "` is not pointing to any valid NodeData. Make sure to register the variable first.");
+			is_valid = false;
+			break;
 		}
+
+		const int64_t v = nd->vars.find(variable_name);
+		if (v <= -1) {
+			ERR_PRINT("The passed variable `" + variable_name + "` doesn't exist under this object `" + String(nd->object_name.c_str()) + "`.");
+			is_valid = false;
+			break;
+		}
+
+		listener->watching_vars[i].node_data = nd;
+		listener->watching_vars[i].var_id = v;
 	}
 
-	NetUtility::NodeChangeListener ncl;
-	ncl.node_data = nd;
-	ncl.var_id = var_id;
+	if (is_valid) {
+		// Now we are sure that everything passed by the user is valid
+		// we can connect the other NodeData to this listener.
+		for (auto wv : listener->watching_vars) {
+			NetUtility::NodeData *nd = wv.node_data;
+			nd->vars[wv.var_id].changes_listeners.push_back(listener);
+		}
 
-	if (event_listener[index].watching_vars.find(ncl) != -1) {
+		changes_listeners.push_back(listener);
+		return reinterpret_cast<ListenerHandle>(static_cast<const NetUtility::ChangesListener *>(listener));
+	} else {
+		delete listener;
+		return reinterpret_cast<ListenerHandle>(nullptr);
+	}
+}
+
+void SceneSynchronizerBase::untrack_variable_changes(ListenerHandle p_handle) {
+	// Find the listener
+
+	const NetUtility::ChangesListener *unsafe_handle = reinterpret_cast<const NetUtility::ChangesListener *>(p_handle);
+	auto it = ns_find(changes_listeners, unsafe_handle);
+	if (it == changes_listeners.end()) {
+		// Nothing to do.
 		return;
 	}
 
-	event_listener[index].watching_vars.push_back(ncl);
-	nd->vars[var_id].change_listeners.push_back(index);
-}
+	NetUtility::ChangesListener *listener = *it;
 
-void SceneSynchronizerBase::untrack_variable_changes(void *p_app_object, const StringName &p_variable, Object *p_object, const StringName &p_method) {
-	ERR_FAIL_COND(p_app_object == nullptr);
-	ERR_FAIL_COND(p_variable == StringName());
-	ERR_FAIL_COND(p_method == StringName());
+	// Before dropping this listener, make sure to clear the NodeData.
+	for (auto &wv : listener->watching_vars) {
+		if (wv.node_data) {
+			if (wv.node_data->vars.size() > wv.var_id) {
+				auto wv_cl_it = ns_find(wv.node_data->vars[wv.var_id].changes_listeners, unsafe_handle);
+				if (wv_cl_it != wv.node_data->vars[wv.var_id].changes_listeners.end()) {
+					wv.node_data->vars[wv.var_id].changes_listeners.erase(wv_cl_it);
+				}
+			}
+		}
+	}
 
-	NetUtility::NodeData *nd = find_node_data(p_app_object);
-	ERR_FAIL_COND_MSG(nd == nullptr, "This not is not registered.");
+	changes_listeners.erase(it);
 
-	const int64_t v = nd->vars.find(p_variable);
-	ERR_FAIL_COND_MSG(v == -1, "This variable is not registered.");
-
-	const NetVarId var_id = v;
-
-	NetUtility::ChangeListener listener;
-	listener.object_id = p_object->get_instance_id();
-	listener.method = p_method;
-
-	const int64_t index = event_listener.find(listener);
-
-	ERR_FAIL_COND_MSG(index == -1, "The variable is not know.");
-
-	NetUtility::NodeChangeListener ncl;
-	ncl.node_data = nd;
-	ncl.var_id = var_id;
-
-	event_listener[index].watching_vars.erase(ncl);
-	nd->vars[var_id].change_listeners.erase(index);
-
-	// Don't remove the listener to preserve the order.
+	// Now it's time to clear the pointer.
+	delete listener;
 }
 
 NS::PHandler SceneSynchronizerBase::register_process(NetUtility::NodeData *p_node_data, ProcessPhase p_phase, std::function<void(float)> p_func) {
@@ -451,18 +447,18 @@ void SceneSynchronizerBase::unregister_process(NetUtility::NodeData *p_node_data
 	process_functions__clear();
 }
 
-void SceneSynchronizerBase::setup_deferred_sync(void *p_app_object, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func) {
-	ERR_FAIL_COND(p_app_object == nullptr);
+void SceneSynchronizerBase::setup_deferred_sync(ObjectHandle p_app_object_handle, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func) {
+	ERR_FAIL_COND(p_app_object_handle == nullobjecthandle);
 	ERR_FAIL_COND(!p_collect_epoch_func.is_valid());
 	ERR_FAIL_COND(!p_apply_epoch_func.is_valid());
-	NetUtility::NodeData *node_data = __register_app_object(p_app_object);
+	NetUtility::NodeData *node_data = register_app_object(p_app_object_handle);
 	node_data->collect_epoch_func = p_collect_epoch_func;
 	node_data->apply_epoch_func = p_apply_epoch_func;
 	SceneSynchronizerDebugger::singleton()->debug_print(network_interface, "Setup deferred sync functions for: `" + String(node_data->object_name.c_str()) + "`. Collect epoch, method name: `" + p_collect_epoch_func.get_method() + "`. Apply epoch, method name: `" + p_apply_epoch_func.get_method() + "`.");
 }
 
 SyncGroupId SceneSynchronizerBase::sync_group_create() {
-	ERR_FAIL_COND_V_MSG(!is_server(), NetID_NONE, "This function CAN be used only on the server.");
+	ERR_FAIL_COND_V_MSG(!is_server(), ID_NONE, "This function CAN be used only on the server.");
 	const SyncGroupId id = static_cast<ServerSynchronizer *>(synchronizer)->sync_group_create();
 	synchronizer_manager->on_sync_group_created(id);
 	return id;
@@ -520,10 +516,10 @@ void SceneSynchronizerBase::sync_group_move_peer_to(int p_peer_id, SyncGroupId p
 }
 
 SyncGroupId SceneSynchronizerBase::sync_group_get_peer_group(int p_peer_id) const {
-	ERR_FAIL_COND_V_MSG(!is_server(), NetID_NONE, "This function CAN be used only on the server.");
+	ERR_FAIL_COND_V_MSG(!is_server(), ID_NONE, "This function CAN be used only on the server.");
 
 	const NetUtility::PeerData *pd = peer_data.lookup_ptr(p_peer_id);
-	ERR_FAIL_COND_V_MSG(pd == nullptr, NetID_NONE, "The PeerData doesn't exist. This looks like a bug. Are you sure the peer_id `" + itos(p_peer_id) + "` exists?");
+	ERR_FAIL_COND_V_MSG(pd == nullptr, ID_NONE, "The PeerData doesn't exist. This looks like a bug. Are you sure the peer_id `" + itos(p_peer_id) + "` exists?");
 
 	return pd->sync_group_id;
 }
@@ -669,7 +665,7 @@ void SceneSynchronizerBase::apply_scene_changes(const Variant &p_sync_data) {
 					// Set the new value.
 					p_node_data->vars[p_var_id].var.value = p_value;
 					scene_sync->synchronizer_manager->set_variable(
-							p_node_data->app_object,
+							p_node_data->app_object_handle,
 							String(p_node_data->vars[p_var_id].var.name).utf8().get_data(),
 							p_value);
 
@@ -780,7 +776,7 @@ void SceneSynchronizerBase::set_peer_networking_enable(int p_peer, bool p_enable
 		if (p_enable) {
 			static_cast<ServerSynchronizer *>(synchronizer)->sync_group_move_peer_to(p_peer, pd->sync_group_id);
 		} else {
-			static_cast<ServerSynchronizer *>(synchronizer)->sync_group_move_peer_to(p_peer, NetID_NONE);
+			static_cast<ServerSynchronizer *>(synchronizer)->sync_group_move_peer_to(p_peer, ID_NONE);
 		}
 
 		dirty_peers();
@@ -823,7 +819,7 @@ void SceneSynchronizerBase::on_peer_connected(int p_peer) {
 void SceneSynchronizerBase::on_peer_disconnected(int p_peer) {
 	// Emit a signal notifying this peer is gone.
 	NetUtility::PeerData *pd = peer_data.lookup_ptr(p_peer);
-	NetNodeId id = NetID_NONE;
+	NetNodeId id = ID_NONE;
 	NetUtility::NodeData *node_data = nullptr;
 	if (pd) {
 		id = pd->controller_id;
@@ -939,10 +935,13 @@ void SceneSynchronizerBase::clear() {
 	node_data.reset();
 	organized_node_data.reset();
 	node_data_controllers.reset();
-	event_listener.reset();
+	for (auto cl : changes_listeners) {
+		delete cl;
+	}
+	changes_listeners.clear();
 
 	// Avoid too much useless re-allocations.
-	event_listener.reserve(100);
+	changes_listeners.reserve(100);
 
 	if (synchronizer) {
 		synchronizer->clear();
@@ -1012,9 +1011,7 @@ void SceneSynchronizerBase::update_peers() {
 				// Invalidate the controller id
 				it.value->controller_id = UINT32_MAX;
 			}
-		}
-
-		if (it.value->controller_id == UINT32_MAX) {
+		} else {
 			// The controller_id is not assigned, search it.
 			for (uint32_t i = 0; i < node_data_controllers.size(); i += 1) {
 				const NetworkedControllerBase *nc = node_data_controllers[i]->controller;
@@ -1026,7 +1023,7 @@ void SceneSynchronizerBase::update_peers() {
 			}
 		}
 
-		NetUtility::NodeData *nd = get_node_data(it.value->controller_id);
+		NetUtility::NodeData *nd = get_node_data(it.value->controller_id, false);
 		if (nd) {
 			nd->realtime_sync_enabled_on_client = it.value->enabled;
 			event_peer_status_updated.broadcast(nd, *it.key, true, it.value->enabled);
@@ -1077,28 +1074,27 @@ void SceneSynchronizerBase::change_events_begin(int p_flag) {
 }
 
 void SceneSynchronizerBase::change_event_add(NetUtility::NodeData *p_node_data, NetVarId p_var_id, const Variant &p_old) {
-	for (int i = 0; i < p_node_data->vars[p_var_id].change_listeners.size(); i += 1) {
-		const uint32_t listener_index = p_node_data->vars[p_var_id].change_listeners[i];
-		NetUtility::ChangeListener &listener = event_listener[listener_index];
-		if ((listener.flag & event_flag) == 0) {
+	for (int i = 0; i < int(p_node_data->vars[p_var_id].changes_listeners.size()); i += 1) {
+		NetUtility::ChangesListener *listener = p_node_data->vars[p_var_id].changes_listeners[i];
+		// This can't be `nullptr` because when the changes listener is dropped
+		// all the pointers are cleared.
+		CRASH_COND(listener == nullptr);
+
+		if ((listener->flag & event_flag) == 0) {
 			// Not listening to this event.
 			continue;
 		}
 
-		listener.emitted = false;
+		listener->emitted = false;
 
-		NetUtility::NodeChangeListener ncl;
-		ncl.node_data = p_node_data;
-		ncl.var_id = p_var_id;
-
-		const int64_t index = listener.watching_vars.find(ncl);
-#ifdef DEBUG_ENABLED
-		// This can't never happen because the `NodeData::change_listeners`
-		// tracks the correct listener.
-		CRASH_COND(index == -1);
-#endif
-		listener.watching_vars[index].old_value = p_old;
-		listener.watching_vars[index].old_set = true;
+		int v = 0;
+		for (auto wv : listener->watching_vars) {
+			if (wv.var_id == p_var_id) {
+				wv.old_set = true;
+				listener->old_values[v] = p_old;
+			}
+			v += 1;
+		}
 	}
 
 	// Notify the synchronizer.
@@ -1112,53 +1108,25 @@ void SceneSynchronizerBase::change_event_add(NetUtility::NodeData *p_node_data, 
 }
 
 void SceneSynchronizerBase::change_events_flush() {
-	LocalVector<Variant> vars;
-	LocalVector<const Variant *> vars_ptr;
-
-	// TODO this can be optimized by storing the changed listener in a separate
-	// vector. This change must be inserted into the `change_event_add`.
-	for (uint32_t listener_i = 0; listener_i < event_listener.size(); listener_i += 1) {
-		NetUtility::ChangeListener &listener = event_listener[listener_i];
+	for (uint32_t listener_i = 0; listener_i < changes_listeners.size(); listener_i += 1) {
+		NetUtility::ChangesListener &listener = *changes_listeners[listener_i];
 		if (listener.emitted) {
+			// Nothing to do.
 			continue;
 		}
 		listener.emitted = true;
 
-		Object *obj = ObjectDB::get_instance(listener.object_id);
-		if (obj == nullptr) {
-			// Setting the flag to 0 so no events trigger this anymore.
-			listener.flag = NetEventFlag::EMPTY;
-			listener.object_id = ObjectID();
-			listener.method = StringName();
-
-			// Make sure this listener is not tracking any variable.
-			for (uint32_t wv = 0; wv < listener.watching_vars.size(); wv += 1) {
-				NetUtility::NodeData *nd = listener.watching_vars[wv].node_data;
-				uint32_t var_id = listener.watching_vars[wv].var_id;
-				nd->vars[var_id].change_listeners.erase(listener_i);
+		for (uint32_t v = 0; v < listener.watching_vars.size(); v += 1) {
+			if (!listener.watching_vars[v].old_set) {
+				// Old is not set, so set the current valud.
+				listener.old_values[v] =
+						listener.watching_vars[v].node_data->vars[listener.watching_vars[v].var_id].var.value;
 			}
-			listener.watching_vars.clear();
-			continue;
+			// Reset this to false.
+			listener.watching_vars[v].old_set = false;
 		}
 
-		// Initialize the arguments
-		ERR_CONTINUE_MSG(listener.method_argument_count > listener.watching_vars.size(), "This method " + listener.method + " has more arguments than the watched variables. This listener is broken.");
-
-		vars.resize(MIN(listener.watching_vars.size(), listener.method_argument_count));
-		vars_ptr.resize(vars.size());
-		for (uint32_t v = 0; v < MIN(listener.watching_vars.size(), listener.method_argument_count); v += 1) {
-			if (listener.watching_vars[v].old_set) {
-				vars[v] = listener.watching_vars[v].old_value;
-				listener.watching_vars[v].old_set = false;
-			} else {
-				// This value is not changed, so just retrive the current one.
-				vars[v] = listener.watching_vars[v].node_data->vars[listener.watching_vars[v].var_id].var.value;
-			}
-			vars_ptr[v] = vars.ptr() + v;
-		}
-
-		Callable::CallError e;
-		obj->callp(listener.method, vars_ptr.ptr(), vars_ptr.size(), e);
+		listener.listener_func(listener.old_values);
 	}
 
 	recover_in_progress = false;
@@ -1248,23 +1216,12 @@ void SceneSynchronizerBase::drop_node_data(NetUtility::NodeData *p_node_data) {
 	}
 
 	// Remove this `NodeData` from any event listener.
-	for (uint32_t i = 0; i < event_listener.size(); i += 1) {
-		while (true) {
-			uint32_t index_to_remove = UINT32_MAX;
-
-			// Search.
-			for (uint32_t v = 0; v < event_listener[i].watching_vars.size(); v += 1) {
-				if (event_listener[i].watching_vars[v].node_data == p_node_data) {
-					index_to_remove = v;
-					break;
-				}
-			}
-
-			if (index_to_remove == UINT32_MAX) {
-				// Nothing more to do.
-				break;
-			} else {
-				event_listener[i].watching_vars.remove_at_unordered(index_to_remove);
+	for (auto cl : changes_listeners) {
+		for (auto wv : cl->watching_vars) {
+			if (wv.node_data == p_node_data) {
+				// We can't remove this entirely, otherwise we change that the user expects.
+				wv.node_data = nullptr;
+				wv.var_id = ID_NONE;
 			}
 		}
 	}
@@ -1526,24 +1483,24 @@ void SceneSynchronizerBase::expand_organized_node_data_vector(uint32_t p_size) {
 	memset(organized_node_data.ptr() + from, 0, sizeof(void *) * p_size);
 }
 
-NetUtility::NodeData *SceneSynchronizerBase::find_node_data(const void *p_app_object) {
+NetUtility::NodeData *SceneSynchronizerBase::find_node_data(ObjectHandle p_app_object_handle) {
 	for (uint32_t i = 0; i < node_data.size(); i += 1) {
 		if (node_data[i] == nullptr) {
 			continue;
 		}
-		if (node_data[i]->app_object == p_app_object) {
+		if (node_data[i]->app_object_handle == p_app_object_handle) {
 			return node_data[i];
 		}
 	}
 	return nullptr;
 }
 
-const NetUtility::NodeData *SceneSynchronizerBase::find_node_data(const void *p_app_object) const {
+const NetUtility::NodeData *SceneSynchronizerBase::find_node_data(ObjectHandle p_app_object_handle) const {
 	for (uint32_t i = 0; i < node_data.size(); i += 1) {
 		if (node_data[i] == nullptr) {
 			continue;
 		}
-		if (node_data[i]->app_object == p_app_object) {
+		if (node_data[i]->app_object_handle == p_app_object_handle) {
 			return node_data[i];
 		}
 	}
@@ -1694,7 +1651,7 @@ void SceneSynchronizerBase::pull_node_changes(NetUtility::NodeData *p_node_data)
 		const Variant old_val = p_node_data->vars[var_id].var.value;
 		Variant new_val;
 		synchronizer_manager->get_variable(
-				p_node_data->app_object,
+				p_node_data->app_object_handle,
 				String(p_node_data->vars[var_id].var.name).utf8(),
 				new_val);
 
@@ -1919,7 +1876,7 @@ void ServerSynchronizer::sync_group_move_peer_to(int p_peer_id, SyncGroupId p_gr
 		sync_groups[i].peers.erase(p_peer_id);
 	}
 
-	if (p_group_id == NetID_NONE) {
+	if (p_group_id == ID_NONE) {
 		// This peer is not listening to anything.
 		return;
 	}
@@ -2045,7 +2002,7 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 
 			Vector<Variant> snap;
 
-			NetUtility::NodeData *nd = scene_synchronizer->get_node_data(peer->controller_id);
+			NetUtility::NodeData *nd = scene_synchronizer->get_node_data(peer->controller_id, false);
 
 			if (nd) {
 				CRASH_COND_MSG(nd->controller == nullptr, "The NodeData fetched is not a controller: `" + String(nd->object_name.c_str()) + "`, this is not supposed to happen.");
@@ -2110,7 +2067,7 @@ Vector<Variant> ServerSynchronizer::generate_snapshot(
 		bit_array.zero();
 		for (uint32_t i = 0; i < relevant_node_data.size(); i += 1) {
 			const NetUtility::NodeData *nd = relevant_node_data[i].nd;
-			CRASH_COND(nd->id == NetID_NONE);
+			CRASH_COND(nd->id == ID_NONE);
 			bit_array.store_bits(nd->id, 1, 1);
 		}
 		snapshot_data.push_back(bit_array.get_bytes());
@@ -2172,7 +2129,7 @@ void ServerSynchronizer::generate_snapshot_node_data(
 	//              the ID; similarly as is for the NODE the array is send only
 	//              the first time.
 
-	if (p_node_data->app_object == nullptr) {
+	if (p_node_data->app_object_handle == nullobjecthandle) {
 		return;
 	}
 
@@ -2799,7 +2756,7 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 				}
 			}
 
-			scene_synchronizer->event_desync_detected.broadcast(p_input_id, rew_node_data->app_object, variable_names, client_values, server_values);
+			scene_synchronizer->event_desync_detected.broadcast(p_input_id, rew_node_data->app_object_handle, variable_names, client_values, server_values);
 		}
 	}
 #else
@@ -3043,7 +3000,7 @@ bool ClientSynchronizer::parse_sync_data(
 			// Node is null so we expect `v` has the node info.
 
 			bool skip_this_node = false;
-			void *app_object = nullptr;
+			ObjectHandle app_object_handle = nullobjecthandle;
 			uint32_t net_node_id = UINT32_MAX;
 			std::string object_name;
 
@@ -3089,8 +3046,8 @@ bool ClientSynchronizer::parse_sync_data(
 					}
 				}
 
-				app_object = scene_synchronizer->synchronizer_manager->fetch_app_object(object_name);
-				if (app_object == nullptr) {
+				app_object_handle = scene_synchronizer->synchronizer_manager->fetch_app_object(object_name);
+				if (app_object_handle == nullobjecthandle) {
 					// The node doesn't exists.
 					SceneSynchronizerDebugger::singleton()->debug_warning(&scene_synchronizer->get_network_interface(), "The node " + String(object_name.c_str()) + " still doesn't exist.");
 					skip_this_node = true;
@@ -3098,7 +3055,7 @@ bool ClientSynchronizer::parse_sync_data(
 				}
 
 				// Register this node, so to make sure the client is tracking it.
-				NetUtility::NodeData *nd = scene_synchronizer->__register_app_object(app_object);
+				NetUtility::NodeData *nd = scene_synchronizer->register_app_object(app_object_handle);
 				if (nd != nullptr) {
 					// Set the node ID.
 					scene_synchronizer->set_node_data_id(nd, net_node_id);
@@ -3686,7 +3643,7 @@ void ClientSynchronizer::apply_snapshot(
 
 			if (!scene_synchronizer->compare(current_val, vars_ptr[v].value)) {
 				scene_synchronizer->synchronizer_manager->set_variable(
-						nd->app_object,
+						nd->app_object_handle,
 						String(vars_ptr[v].name).utf8(),
 						vars_ptr[v].value);
 				scene_synchronizer->change_event_add(

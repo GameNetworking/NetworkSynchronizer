@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/object/object.h"
 #include "modules/network_synchronizer/core/core.h"
 
 #include "core/templates/local_vector.h"
@@ -8,8 +9,10 @@
 #include "modules/network_synchronizer/core/processor.h"
 #include "net_utilities.h"
 #include "snapshot.h"
+#include <cstdint>
 #include <deque>
 #include <functional>
+#include <memory>
 
 NS_NAMESPACE_BEGIN
 
@@ -40,15 +43,15 @@ public:
 	virtual bool snapshot_extract_custom_data(const Vector<Variant> &p_snapshot_data, uint32_t p_snap_data_index, LocalVector<const Variant *> &r_out) const { return true; }
 	virtual void snapshot_apply_custom_data(const Vector<Variant> &p_custom_data) {}
 
-	virtual void *fetch_app_object(const std::string &p_object_name) = 0;
-	virtual uint64_t get_object_id(const void *p_app_object) const = 0;
-	virtual std::string get_object_name(const void *p_app_object) const = 0;
-	virtual void setup_synchronizer_for(void *p_app_object) = 0;
-	virtual void set_variable(void *p_app_object, const char *p_var_name, const Variant &p_val) = 0;
-	virtual bool get_variable(const void *p_app_object, const char *p_var_name, Variant &p_val) const = 0;
+	virtual ObjectHandle fetch_app_object(const std::string &p_object_name) = 0;
+	virtual uint64_t get_object_id(ObjectHandle p_app_object_handle) const = 0;
+	virtual std::string get_object_name(ObjectHandle p_app_object_handle) const = 0;
+	virtual void setup_synchronizer_for(ObjectHandle p_app_object_handle) = 0;
+	virtual void set_variable(ObjectHandle p_app_object_handle, const char *p_var_name, const Variant &p_val) = 0;
+	virtual bool get_variable(ObjectHandle p_app_object_handle, const char *p_var_name, Variant &p_val) const = 0;
 
-	virtual NetworkedControllerBase *extract_network_controller(void *p_app_object) const = 0;
-	virtual const NetworkedControllerBase *extract_network_controller(const void *p_app_object) const = 0;
+	virtual NetworkedControllerBase *extract_network_controller(ObjectHandle p_app_object_handle) = 0;
+	virtual const NetworkedControllerBase *extract_network_controller(ObjectHandle p_app_object_handle) const = 0;
 };
 
 /// # SceneSynchronizer
@@ -173,7 +176,7 @@ private:
 	LocalVector<NetUtility::NodeData *> node_data_controllers;
 
 	int event_flag = 0;
-	LocalVector<NetUtility::ChangeListener> event_listener;
+	std::vector<NetUtility::ChangesListener *> changes_listeners;
 
 	bool cached_process_functions_valid = false;
 	Processor<float> cached_process_functions[PROCESSPHASE_COUNT];
@@ -187,7 +190,7 @@ public: // -------------------------------------------------------------- Events
 	Processor<const NetUtility::NodeData * /*p_node_data*/, int /*p_peer*/, bool /*p_connected*/, bool /*p_enabled*/> event_peer_status_updated;
 	Processor<uint32_t /*p_input_id*/> event_state_validated;
 	Processor<uint32_t /*p_input_id*/, int /*p_index*/, int /*p_count*/> event_rewind_frame_begin;
-	Processor<uint32_t /*p_input_id*/, void * /*p_app_object*/, const Vector<StringName> & /*p_var_names*/, const Vector<Variant> & /*p_client_values*/, const Vector<Variant> & /*p_server_values*/> event_desync_detected;
+	Processor<uint32_t /*p_input_id*/, ObjectHandle /*p_app_object_handle*/, const Vector<StringName> & /*p_var_names*/, const Vector<Variant> & /*p_client_values*/, const Vector<Variant> & /*p_server_values*/> event_desync_detected;
 
 private:
 	// This is private so this class can be created only from
@@ -209,7 +212,7 @@ public: // -------------------------------------------------------- Manager APIs
 	void process();
 
 	/// Call this function when a networked app object is destroyed.
-	void on_app_object_removed(void *p_app_object);
+	void on_app_object_removed(ObjectHandle p_app_object_handle);
 
 public:
 	NS::NetworkInterface &get_network_interface() {
@@ -238,7 +241,7 @@ public:
 	void set_nodes_relevancy_update_time(real_t p_time);
 	real_t get_nodes_relevancy_update_time() const;
 
-	bool is_variable_registered(void *p_app_object, const StringName &p_variable) const;
+	bool is_variable_registered(ObjectHandle p_app_object_handle, const StringName &p_variable) const;
 
 public: // ---------------------------------------------------------------- RPCs
 	void rpc_receive_state(const Variant &p_snapshot);
@@ -248,18 +251,16 @@ public: // ---------------------------------------------------------------- RPCs
 	void rpc_deferred_sync_data(const Vector<uint8_t> &p_data);
 
 public: // ---------------------------------------------------------------- APIs
-private:
 	/// Register a new node and returns its `NodeData`.
-	NetUtility::NodeData *__register_app_object(void *p_app_object);
-	void __unregister_app_object(void *p_app_object);
-	void __register_variable(void *p_app_object, const StringName &p_variable, const StringName &p_on_change_notify_to = StringName(), NetEventFlag p_flags = NetEventFlag::DEFAULT);
-	void __unregister_variable(void *p_app_object, const StringName &p_variable);
+	NetUtility::NodeData *register_app_object(ObjectHandle p_app_object_handle);
+	void unregister_app_object(ObjectHandle p_app_object_handle);
+	void register_variable(ObjectHandle p_app_object, const StringName &p_variable);
+	void unregister_variable(ObjectHandle p_app_object, const StringName &p_variable);
 
-public:
-	NetNodeId get_app_object_net_id(void *p_app_object) const;
+	NetNodeId get_app_object_net_id(ObjectHandle p_app_object_handle) const;
 
-	void *get_app_object_from_id(uint32_t p_id, bool p_expected = true);
-	const void *get_app_object_from_id_const(uint32_t p_id, bool p_expected = true) const;
+	ObjectHandle get_app_object_from_id(uint32_t p_id, bool p_expected = true);
+	ObjectHandle get_app_object_from_id_const(uint32_t p_id, bool p_expected = true) const;
 
 	const LocalVector<NetUtility::NodeData *> &get_all_node_data() const;
 
@@ -268,12 +269,23 @@ public:
 	/// - The node is not registered.
 	/// - The variable is not registered.
 	/// - The client doesn't know the ID yet.
-	uint32_t get_variable_id(void *p_app_object, const StringName &p_variable);
+	uint32_t get_variable_id(NetNodeId p_id, const StringName &p_variable);
 
-	void set_skip_rewinding(void *p_app_object, const StringName &p_variable, bool p_skip_rewinding);
+	void set_skip_rewinding(NetNodeId p_id, const StringName &p_variable, bool p_skip_rewinding);
 
-	void track_variable_changes(void *p_app_object, const StringName &p_variable, Object *p_object, const StringName &p_method, NetEventFlag p_flags = NetEventFlag::DEFAULT);
-	void untrack_variable_changes(void *p_app_object, const StringName &p_variable, Object *p_object, const StringName &p_method);
+	ListenerHandle track_variable_changes(
+			ObjectHandle p_object_handle,
+			const StringName &p_variable,
+			std::function<void(const std::vector<Variant> &p_old_values)> p_listener_func,
+			NetEventFlag p_flags = NetEventFlag::DEFAULT);
+
+	ListenerHandle track_variables_changes(
+			const std::vector<ObjectHandle> &p_object_handles,
+			const std::vector<StringName> &p_variables,
+			std::function<void(const std::vector<Variant> &p_old_values)> p_listener_func,
+			NetEventFlag p_flags = NetEventFlag::DEFAULT);
+
+	void untrack_variable_changes(ListenerHandle p_handle);
 
 	/// You can use the macro `callable_mp()` to register custom C++ function.
 	NS::PHandler register_process(NetUtility::NodeData *p_node_data, ProcessPhase p_phase, std::function<void(float)> p_func);
@@ -282,7 +294,7 @@ public:
 	/// Setup the deferred sync method for this specific node.
 	/// The deferred-sync is different from the realtime-sync because the data
 	/// is streamed and not simulated.
-	void setup_deferred_sync(void *p_app_object, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func);
+	void setup_deferred_sync(ObjectHandle p_app_object_handle, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func);
 
 	/// Creates a realtime sync group containing a list of nodes.
 	/// The Peers listening to this group will receive the updates only
@@ -362,8 +374,8 @@ public: // ------------------------------------------------------------ INTERNAL
 
 	/// This function is slow, but allow to take the node data even if the
 	/// `NetNodeId` is not yet assigned.
-	NetUtility::NodeData *find_node_data(const void *p_app_object);
-	const NetUtility::NodeData *find_node_data(const void *p_app_object) const;
+	NetUtility::NodeData *find_node_data(ObjectHandle p_app_object);
+	const NetUtility::NodeData *find_node_data(ObjectHandle p_app_object) const;
 
 	NetUtility::NodeData *find_node_data(const NetworkedControllerBase *p_controller);
 	const NetUtility::NodeData *find_node_data(const NetworkedControllerBase *p_controller) const;
@@ -557,8 +569,8 @@ class ClientSynchronizer : public Synchronizer {
 		DataBuffer past_epoch_buffer;
 		DataBuffer future_epoch_buffer;
 
-		uint32_t past_epoch = NetID_NONE;
-		uint32_t future_epoch = NetID_NONE;
+		uint32_t past_epoch = ID_NONE;
+		uint32_t future_epoch = ID_NONE;
 		real_t alpha_advacing_per_epoch = 1.0;
 		real_t alpha = 0.0;
 
@@ -690,20 +702,12 @@ public:
 		return custom_network_interface;
 	}
 
-	NetUtility::NodeData *register_app_object(BaseType *p_app_object) {
-		return __register_app_object(p_app_object);
+	static ObjectHandle to_handle(const BaseType *p_app_object) {
+		return { reinterpret_cast<std::intptr_t>(p_app_object) };
 	}
 
-	void unregister_app_object(BaseType *p_app_object) {
-		return __unregister_app_object(p_app_object);
-	}
-
-	void register_variable(BaseType *p_app_object, const StringName &p_variable, const StringName &p_on_change_notify_to = StringName(), NetEventFlag p_flags = NetEventFlag::DEFAULT) {
-		__register_variable(p_app_object, p_variable, p_on_change_notify_to, p_flags);
-	}
-
-	void unregister_variable(BaseType *p_app_object, const StringName &p_variable) {
-		__unregister_variable(p_app_object, p_variable);
+	static BaseType *from_handle(ObjectHandle p_app_object_handle) {
+		return reinterpret_cast<BaseType *>(p_app_object_handle.intptr);
 	}
 };
 

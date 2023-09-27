@@ -34,7 +34,7 @@
 
 #include "net_utilities.h"
 
-const uint32_t NetID_NONE = UINT32_MAX;
+const uint32_t ID_NONE = UINT32_MAX;
 
 // This was needed to optimize the godot stringify for byte arrays.. it was slowing down perfs.
 String NetUtility::stringify_byte_array_fast(const Vector<uint8_t> &p_array) {
@@ -46,10 +46,6 @@ String NetUtility::stringify_byte_array_fast(const Vector<uint8_t> &p_array) {
 
 String NetUtility::stringify_fast(const Variant &p_var) {
 	return p_var.get_type() == Variant::PACKED_BYTE_ARRAY ? stringify_byte_array_fast(p_var) : p_var.stringify();
-}
-
-bool NetUtility::ChangeListener::operator==(const ChangeListener &p_other) const {
-	return object_id == p_other.object_id && method == p_other.method;
 }
 
 NetUtility::VarData::VarData(const StringName &p_name) {
@@ -83,10 +79,6 @@ bool NetUtility::NodeData::has_registered_process_functions() const {
 
 bool NetUtility::NodeData::can_deferred_sync() const {
 	return collect_epoch_func.is_valid() && apply_epoch_func.is_valid();
-}
-
-bool NetUtility::NodeChangeListener::operator==(const NodeChangeListener &p_other) const {
-	return node_data == p_other.node_data && var_id == p_other.var_id;
 }
 
 bool NetUtility::SyncGroup::is_realtime_node_list_changed() const {
