@@ -4,6 +4,8 @@
 #include "core/math/vector3.h"
 #include "core/variant/variant.h"
 #include "local_scene.h"
+#include "modules/network_synchronizer/core/core.h"
+#include "modules/network_synchronizer/net_utilities.h"
 #include "modules/network_synchronizer/tests/local_network.h"
 
 namespace NS_Test {
@@ -22,15 +24,15 @@ public:
 		Variant line_pos = 0.0;
 		variables.insert(std::make_pair("position", line_pos));
 
-		get_scene()->scene_sync->register_app_object(this);
+		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
 	}
 
 	virtual void on_scene_exit() override {
-		get_scene()->scene_sync->on_app_object_removed(this);
+		get_scene()->scene_sync->on_app_object_removed(get_scene()->scene_sync->to_handle(this));
 	}
 
 	virtual void setup_synchronizer(NS::LocalSceneSynchronizer &p_scene_sync) override {
-		p_scene_sync.register_variable(this, "position");
+		p_scene_sync.register_variable(get_scene()->scene_sync->to_handle(this), "position");
 	}
 
 	virtual void collect_inputs(double p_delta, DataBuffer &r_buffer) override {
@@ -99,12 +101,18 @@ void test_client_and_server_initialization() {
 
 class TestSceneObject : public NS::LocalSceneObject {
 public:
+	NetNodeId net_id = ID_NONE;
+
 	virtual void on_scene_entry() override {
-		get_scene()->scene_sync->register_variable(this, "var_1");
+		net_id = get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this))->id;
+	}
+
+	virtual void setup_synchronizer(NS::LocalSceneSynchronizer &p_scene_sync) override {
+		p_scene_sync.register_variable(get_scene()->scene_sync->to_handle(this), "var_1");
 	}
 
 	virtual void on_scene_exit() override {
-		get_scene()->scene_sync->on_app_object_removed(this);
+		get_scene()->scene_sync->on_app_object_removed(get_scene()->scene_sync->to_handle(this));
 	}
 };
 
@@ -126,7 +134,6 @@ void test_state_notify() {
 	peer_2_scene.scene_sync =
 			peer_2_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
 
-	// Add peer 1 controller.
 	server_scene.add_object<TestSceneObject>("obj_1", server_scene.get_peer());
 	peer_1_scene.add_object<TestSceneObject>("obj_1", server_scene.get_peer());
 	peer_2_scene.add_object<TestSceneObject>("obj_1", server_scene.get_peer());
@@ -306,7 +313,138 @@ void test_doll_simulation_rewindings() {
 }
 
 void test_variable_change_event() {
-	// TODO implement this.
+	NS::LocalScene server_scene;
+	server_scene.start_as_server();
+
+	NS::LocalScene peer_1_scene;
+	peer_1_scene.start_as_client(server_scene);
+
+	NS::LocalScene peer_2_scene;
+	peer_2_scene.start_as_client(server_scene);
+
+	// Add the scene sync
+	server_scene.scene_sync =
+			server_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+	peer_1_scene.scene_sync =
+			peer_1_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+	peer_2_scene.scene_sync =
+			peer_2_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+
+	NS::ObjectHandle server_obj_1_oh = server_scene.scene_sync->to_handle(server_scene.add_object<TestSceneObject>("obj_1", server_scene.get_peer()));
+	NS::ObjectHandle p1_obj_1_oh = peer_1_scene.scene_sync->to_handle(peer_1_scene.add_object<TestSceneObject>("obj_1", server_scene.get_peer()));
+	NS::ObjectHandle p2_obj_1_oh = peer_2_scene.scene_sync->to_handle(peer_2_scene.add_object<TestSceneObject>("obj_1", server_scene.get_peer()));
+
+	for (int f = 0; f < 2; f++) {
+		// Test the changed variable for the event `CHANGE` is triggered.
+		{
+			bool is_server_change_event_triggered = false;
+			NS::ListenerHandle server_lh = server_scene.scene_sync->track_variable_changes(
+					server_obj_1_oh, "var_1", [&is_server_change_event_triggered](const std::vector<Variant> &p_old_values) {
+						is_server_change_event_triggered = true;
+					},
+					NetEventFlag::CHANGE);
+
+			bool is_p1_change_event_triggered = false;
+			NS::ListenerHandle p1_lh = peer_1_scene.scene_sync->track_variable_changes(
+					p1_obj_1_oh, "var_1", [&is_p1_change_event_triggered](const std::vector<Variant> &p_old_values) {
+						is_p1_change_event_triggered = true;
+					},
+					NetEventFlag::CHANGE);
+
+			bool is_p2_change_event_triggered = false;
+			NS::ListenerHandle p2_lh = peer_2_scene.scene_sync->track_variable_changes(
+					p2_obj_1_oh, "var_1", [&is_p2_change_event_triggered](const std::vector<Variant> &p_old_values) {
+						is_p2_change_event_triggered = true;
+					},
+					NetEventFlag::CHANGE);
+
+			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 2;
+			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 3;
+			peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 4;
+
+			peer_1_scene.process(delta);
+			peer_2_scene.process(delta);
+
+			CRASH_COND(is_server_change_event_triggered);
+			CRASH_COND(!is_p1_change_event_triggered);
+			CRASH_COND(!is_p2_change_event_triggered);
+
+			// Now check it's triggered on the server too.
+			// NOTE: processing after the clients, so we do not trigger the
+			//       snapshot that would trigger the event.
+			server_scene.process(delta);
+
+			CRASH_COND(!is_server_change_event_triggered);
+
+			// Now reset everything and process again without chaning the values
+			is_server_change_event_triggered = false;
+			is_p1_change_event_triggered = false;
+			is_p2_change_event_triggered = false;
+
+			server_scene.process(delta);
+			peer_1_scene.process(delta);
+			peer_2_scene.process(delta);
+
+			// Make sure the events are not called.
+			CRASH_COND(is_server_change_event_triggered);
+			CRASH_COND(is_p1_change_event_triggered);
+			CRASH_COND(is_p2_change_event_triggered);
+
+			// Now unregister the listeners.
+			server_scene.scene_sync->untrack_variable_changes(server_lh);
+			peer_1_scene.scene_sync->untrack_variable_changes(p1_lh);
+			peer_2_scene.scene_sync->untrack_variable_changes(p2_lh);
+
+			// Reset everything
+			is_server_change_event_triggered = false;
+			is_p1_change_event_triggered = false;
+			is_p2_change_event_triggered = false;
+
+			// Change the values
+			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 30;
+			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 30;
+			peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 30;
+
+			// Process again
+			server_scene.process(delta);
+			peer_1_scene.process(delta);
+			peer_2_scene.process(delta);
+
+			// and make sure the events are not being called.
+			CRASH_COND(is_server_change_event_triggered);
+			CRASH_COND(is_p1_change_event_triggered);
+			CRASH_COND(is_p2_change_event_triggered);
+		}
+
+		if (f == 0) {
+			// Now add the PlayerControllers and test the above mechanism still works.
+			server_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
+			peer_1_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
+			peer_2_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
+
+			// Process two times to make sure all the peers are initialized at thie time.
+			for (int j = 0; j < 2; j++) {
+				server_scene.process(delta);
+				peer_1_scene.process(delta);
+				peer_2_scene.process(delta);
+			}
+
+			print_line(itos(server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id()));
+			print_line(itos(peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id()));
+			print_line(itos(peer_2_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id()));
+			CRASH_COND(server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() != 0);
+			CRASH_COND(peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() != 1);
+			// NOTE: No need to check the peer_2, because it's not an authoritative controller anyway.
+		} else {
+			// Make sure the controllers have been processed at this point.
+			CRASH_COND(server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() == 0);
+			CRASH_COND(server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() == UINT32_MAX);
+			CRASH_COND(peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() == 0);
+			CRASH_COND(peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() == UINT32_MAX);
+
+			// NOTE: No need to check the peer_2, because it's not an authoritative controller anyway.
+		}
+	}
 }
 
 void test_controller_processing() {

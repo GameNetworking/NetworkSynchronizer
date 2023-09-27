@@ -277,7 +277,7 @@ void NetworkedControllerBase::notify_registered_with_synchronizer(NS::SceneSynch
 		process_handler_process = NS::NullPHandler;
 	}
 
-	node_id = NetID_NONE;
+	node_id = ID_NONE;
 	scene_synchronizer = p_synchronizer;
 
 	if (scene_synchronizer) {
@@ -401,7 +401,7 @@ bool NetworkedControllerBase::player_has_new_input() const {
 }
 
 bool NetworkedControllerBase::is_realtime_enabled() {
-	if (node_id == NetID_NONE) {
+	if (node_id == ID_NONE) {
 		if (scene_synchronizer) {
 			NetUtility::NodeData *nd = scene_synchronizer->find_node_data(this);
 			if (nd) {
@@ -409,7 +409,7 @@ bool NetworkedControllerBase::is_realtime_enabled() {
 			}
 		}
 	}
-	if (node_id != NetID_NONE) {
+	if (node_id != ID_NONE) {
 		NetUtility::NodeData *nd = scene_synchronizer->get_node_data(node_id);
 		if (nd) {
 			return nd->realtime_sync_enabled_on_client;

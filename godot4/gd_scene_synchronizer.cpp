@@ -1,5 +1,6 @@
 #include "gd_scene_synchronizer.h"
 
+#include "core/object/object.h"
 #include "core/string/string_name.h"
 #include "modules/network_synchronizer/core/processor.h"
 #include "modules/network_synchronizer/godot4/gd_network_interface.h"
@@ -11,6 +12,7 @@
 #include "scene/main/multiplayer_api.h"
 #include "scene/main/node.h"
 #include "scene/main/window.h"
+#include <vector>
 
 void GdSceneSynchronizer::_bind_methods() {
 	BIND_CONSTANT(NS::SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID)
@@ -50,14 +52,14 @@ void GdSceneSynchronizer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_node_id", "node"), &GdSceneSynchronizer::get_node_id);
 	ClassDB::bind_method(D_METHOD("get_node_from_id", "id", "expected"), &GdSceneSynchronizer::get_node_from_id, DEFVAL(true));
 
-	ClassDB::bind_method(D_METHOD("register_variable", "node", "variable", "on_change_notify", "flags"), &GdSceneSynchronizer::register_variable, DEFVAL(StringName()), DEFVAL(NetEventFlag::DEFAULT));
+	ClassDB::bind_method(D_METHOD("register_variable", "node", "variable"), &GdSceneSynchronizer::register_variable);
 	ClassDB::bind_method(D_METHOD("unregister_variable", "node", "variable"), &GdSceneSynchronizer::unregister_variable);
 	ClassDB::bind_method(D_METHOD("get_variable_id", "node", "variable"), &GdSceneSynchronizer::get_variable_id);
 
 	ClassDB::bind_method(D_METHOD("set_skip_rewinding", "node", "variable", "skip_rewinding"), &GdSceneSynchronizer::set_skip_rewinding);
 
-	ClassDB::bind_method(D_METHOD("track_variable_changes", "node", "variable", "object", "method", "flags"), &GdSceneSynchronizer::track_variable_changes, DEFVAL(NetEventFlag::DEFAULT));
-	ClassDB::bind_method(D_METHOD("untrack_variable_changes", "node", "variable", "object", "method"), &GdSceneSynchronizer::untrack_variable_changes);
+	ClassDB::bind_method(D_METHOD("track_variable_changes", "nodes", "variables", "callable", "flags"), &GdSceneSynchronizer::track_variable_changes, DEFVAL(NetEventFlag::DEFAULT));
+	ClassDB::bind_method(D_METHOD("untrack_variable_changes", "handle"), &GdSceneSynchronizer::untrack_variable_changes);
 
 	ClassDB::bind_method(D_METHOD("register_process", "node", "phase", "function"), &GdSceneSynchronizer::register_process);
 	ClassDB::bind_method(D_METHOD("unregister_process", "node", "phase", "function"), &GdSceneSynchronizer::unregister_process);
@@ -143,8 +145,8 @@ GdSceneSynchronizer::GdSceneSynchronizer() :
 				Object *obj_null = nullptr;
 				emit_signal(
 						"peer_status_updated",
-						p_node_data ? static_cast<Node *>(p_node_data->app_object) : obj_null,
-						p_node_data ? p_node_data->id : NetID_NONE,
+						p_node_data ? GdSceneSynchronizer::SyncClass::from_handle(p_node_data->app_object_handle) : obj_null,
+						p_node_data ? p_node_data->id : ID_NONE,
 						p_peer,
 						p_connected,
 						p_enabled);
@@ -161,8 +163,8 @@ GdSceneSynchronizer::GdSceneSynchronizer() :
 			});
 
 	event_handler_desync_detected =
-			scene_synchronizer.event_desync_detected.bind([this](uint32_t p_input_id, void *p_app_object, const Vector<StringName> &p_var_names, const Vector<Variant> &p_client_values, const Vector<Variant> &p_server_values) -> void {
-				emit_signal("desync_detected", p_input_id, static_cast<Node *>(p_app_object), p_var_names, p_client_values, p_server_values);
+			scene_synchronizer.event_desync_detected.bind([this](uint32_t p_input_id, NS::ObjectHandle p_app_object, const Vector<StringName> &p_var_names, const Vector<Variant> &p_client_values, const Vector<Variant> &p_server_values) -> void {
+				emit_signal("desync_detected", p_input_id, GdSceneSynchronizer::SyncClass::from_handle(p_app_object), p_var_names, p_client_values, p_server_values);
 			});
 }
 
@@ -250,19 +252,19 @@ void GdSceneSynchronizer::on_uninit_synchronizer() {
 }
 
 void GdSceneSynchronizer::on_add_node_data(NetUtility::NodeData *p_node_data) {
-	SceneSynchronizerDebugger::singleton()->register_class_for_node_to_dump(static_cast<Node *>(p_node_data->app_object));
+	SceneSynchronizerDebugger::singleton()->register_class_for_node_to_dump(SyncClass::from_handle(p_node_data->app_object_handle));
 }
 
 #ifdef DEBUG_ENABLED
 void GdSceneSynchronizer::debug_only_validate_nodes() {
-	LocalVector<Node *> null_objects;
+	LocalVector<NS::ObjectHandle> null_objects;
 	null_objects.reserve(scene_synchronizer.get_all_node_data().size());
 
 	for (uint32_t i = 0; i < scene_synchronizer.get_all_node_data().size(); i += 1) {
 		const NetUtility::NodeData *nd = scene_synchronizer.get_all_node_data()[i];
 		if (ObjectDB::get_instance(ObjectID(nd->instance_id)) == nullptr) {
 			// Mark for removal.
-			null_objects.push_back(static_cast<Node *>(nd->app_object));
+			null_objects.push_back(nd->app_object_handle);
 		}
 	}
 
@@ -285,23 +287,23 @@ void GdSceneSynchronizer::update_nodes_relevancy() {
 	}
 }
 
-void *GdSceneSynchronizer::fetch_app_object(const std::string &p_object_name) {
+NS::ObjectHandle GdSceneSynchronizer::fetch_app_object(const std::string &p_object_name) {
 	if (get_tree() && get_tree()->get_root()) {
-		return get_tree()->get_root()->get_node_or_null(NodePath(p_object_name.c_str()));
+		return scene_synchronizer.to_handle(get_tree()->get_root()->get_node_or_null(NodePath(p_object_name.c_str())));
 	}
-	return nullptr;
+	return NS::nullobjecthandle;
 }
 
-uint64_t GdSceneSynchronizer::get_object_id(const void *p_app_object) const {
-	return static_cast<const Node *>(p_app_object)->get_instance_id();
+uint64_t GdSceneSynchronizer::get_object_id(NS::ObjectHandle p_app_object_handle) const {
+	return scene_synchronizer.from_handle(p_app_object_handle)->get_instance_id();
 }
 
-std::string GdSceneSynchronizer::get_object_name(const void *p_app_object) const {
-	return std::string(String(static_cast<const Node *>(p_app_object)->get_path()).utf8());
+std::string GdSceneSynchronizer::get_object_name(NS::ObjectHandle p_app_object_handle) const {
+	return std::string(String(scene_synchronizer.from_handle(p_app_object_handle)->get_path()).utf8());
 }
 
-void GdSceneSynchronizer::setup_synchronizer_for(void *p_object) {
-	Node *node = static_cast<Node *>(p_object);
+void GdSceneSynchronizer::setup_synchronizer_for(NS::ObjectHandle p_app_object_handle) {
+	Node *node = scene_synchronizer.from_handle(p_app_object_handle);
 	if (node->has_method("_setup_synchronizer")) {
 		node->call("_setup_synchronizer");
 	} else {
@@ -309,13 +311,13 @@ void GdSceneSynchronizer::setup_synchronizer_for(void *p_object) {
 	}
 }
 
-void GdSceneSynchronizer::set_variable(void *p_object, const char *p_name, const Variant &p_val) {
-	Node *node = static_cast<Node *>(p_object);
+void GdSceneSynchronizer::set_variable(NS::ObjectHandle p_app_object_handle, const char *p_name, const Variant &p_val) {
+	Node *node = scene_synchronizer.from_handle(p_app_object_handle);
 	node->set(StringName(p_name), p_val);
 }
 
-bool GdSceneSynchronizer::get_variable(const void *p_object, const char *p_name, Variant &p_val) const {
-	const Node *node = static_cast<const Node *>(p_object);
+bool GdSceneSynchronizer::get_variable(NS::ObjectHandle p_app_object_handle, const char *p_name, Variant &p_val) const {
+	const Node *node = scene_synchronizer.from_handle(p_app_object_handle);
 	bool valid = false;
 	p_val = node->get(StringName(p_name), &valid);
 	if (valid) {
@@ -324,15 +326,15 @@ bool GdSceneSynchronizer::get_variable(const void *p_object, const char *p_name,
 	return valid;
 }
 
-NS::NetworkedControllerBase *GdSceneSynchronizer::extract_network_controller(void *p_app_object) const {
-	if (GdNetworkedController *c = Object::cast_to<GdNetworkedController>(static_cast<Node *>(p_app_object))) {
+NS::NetworkedControllerBase *GdSceneSynchronizer::extract_network_controller(NS::ObjectHandle p_app_object_handle) {
+	if (GdNetworkedController *c = Object::cast_to<GdNetworkedController>(scene_synchronizer.from_handle(p_app_object_handle))) {
 		return c->get_networked_controller();
 	}
 	return nullptr;
 }
 
-const NS::NetworkedControllerBase *GdSceneSynchronizer::extract_network_controller(const void *p_app_object) const {
-	if (const GdNetworkedController *c = Object::cast_to<const GdNetworkedController>(static_cast<const Node *>(p_app_object))) {
+const NS::NetworkedControllerBase *GdSceneSynchronizer::extract_network_controller(NS::ObjectHandle p_app_object_handle) const {
+	if (const GdNetworkedController *c = Object::cast_to<const GdNetworkedController>(scene_synchronizer.from_handle(p_app_object_handle))) {
 		return c->get_networked_controller();
 	}
 	return nullptr;
@@ -387,7 +389,7 @@ void GdSceneSynchronizer::clear() {
 }
 
 NetUtility::NodeData *GdSceneSynchronizer::register_node(Node *p_node) {
-	return scene_synchronizer.register_app_object(p_node);
+	return scene_synchronizer.register_app_object(scene_synchronizer.to_handle(p_node));
 }
 
 uint32_t GdSceneSynchronizer::register_node_gdscript(Node *p_node) {
@@ -399,47 +401,85 @@ uint32_t GdSceneSynchronizer::register_node_gdscript(Node *p_node) {
 }
 
 void GdSceneSynchronizer::unregister_node(Node *p_node) {
-	scene_synchronizer.unregister_app_object(p_node);
+	scene_synchronizer.unregister_app_object(scene_synchronizer.to_handle(p_node));
 }
 
 uint32_t GdSceneSynchronizer::get_node_id(Node *p_node) {
-	return scene_synchronizer.get_app_object_net_id(p_node);
+	return scene_synchronizer.get_app_object_net_id(scene_synchronizer.to_handle(p_node));
 }
 
 Node *GdSceneSynchronizer::get_node_from_id(uint32_t p_id, bool p_expected) {
-	return static_cast<Node *>(scene_synchronizer.get_app_object_from_id(p_id, p_expected));
+	return SyncClass::from_handle(scene_synchronizer.get_app_object_from_id(p_id, p_expected));
 }
 
 const Node *GdSceneSynchronizer::get_node_from_id_const(uint32_t p_id, bool p_expected) const {
-	return static_cast<const Node *>(scene_synchronizer.get_app_object_from_id_const(p_id, p_expected));
+	return SyncClass::from_handle(scene_synchronizer.get_app_object_from_id_const(p_id, p_expected));
 }
 
-void GdSceneSynchronizer::register_variable(Node *p_node, const StringName &p_variable, const StringName &p_on_change_notify, NetEventFlag p_flags) {
-	scene_synchronizer.register_variable(p_node, p_variable, p_on_change_notify, p_flags);
+void GdSceneSynchronizer::register_variable(Node *p_node, const StringName &p_variable) {
+	scene_synchronizer.register_variable(scene_synchronizer.to_handle(p_node), p_variable);
 }
 
 void GdSceneSynchronizer::unregister_variable(Node *p_node, const StringName &p_variable) {
-	scene_synchronizer.unregister_variable(p_node, p_variable);
+	scene_synchronizer.unregister_variable(scene_synchronizer.to_handle(p_node), p_variable);
 }
 
 uint32_t GdSceneSynchronizer::get_variable_id(Node *p_node, const StringName &p_variable) {
-	return scene_synchronizer.get_variable_id(p_node, p_variable);
+	NetUtility::NodeData *nd = scene_synchronizer.find_node_data(scene_synchronizer.to_handle(p_node));
+	if (nd) {
+		return scene_synchronizer.get_variable_id(nd->id, p_variable);
+	}
+	return ID_NONE;
 }
 
 void GdSceneSynchronizer::set_skip_rewinding(Node *p_node, const StringName &p_variable, bool p_skip_rewinding) {
-	scene_synchronizer.set_skip_rewinding(p_node, p_variable, p_skip_rewinding);
+	NetUtility::NodeData *nd = scene_synchronizer.find_node_data(scene_synchronizer.to_handle(p_node));
+	if (nd) {
+		scene_synchronizer.set_skip_rewinding(nd->id, p_variable, p_skip_rewinding);
+	}
 }
 
-void GdSceneSynchronizer::track_variable_changes(Node *p_node, const StringName &p_variable, Object *p_object, const StringName &p_method, NetEventFlag p_flags) {
-	scene_synchronizer.track_variable_changes(p_node, p_variable, p_object, p_method);
+uint64_t GdSceneSynchronizer::track_variable_changes(
+		Array p_nodes,
+		Array p_vars,
+		const Callable &p_callable,
+		NetEventFlag p_flags) {
+	ERR_FAIL_COND_V(p_nodes.size() != p_vars.size(), 0);
+	ERR_FAIL_COND_V(p_nodes.size() == 0, 0);
+
+	std::vector<NS::ObjectHandle> objects_handles;
+	std::vector<StringName> var_names;
+
+	for (int i = 0; i < int(p_nodes.size()); i++) {
+		Object *obj = p_nodes[i];
+		Node *node = dynamic_cast<Node *>(obj);
+		NS::ObjectHandle oh = scene_synchronizer.to_handle(node);
+		objects_handles.push_back(oh);
+		var_names.push_back(p_vars[i]);
+	}
+
+	NS::ListenerHandle raw_handle =
+			scene_synchronizer.track_variables_changes(
+					objects_handles,
+					var_names,
+					[p_callable](const std::vector<Variant> &p_old_variables) {
+						Array arguments;
+						for (auto ov : p_old_variables) {
+							arguments.push_back(ov);
+						}
+						p_callable.callv(arguments);
+					},
+					p_flags);
+
+	return static_cast<uint64_t>(raw_handle);
 }
 
-void GdSceneSynchronizer::untrack_variable_changes(Node *p_node, const StringName &p_variable, Object *p_object, const StringName &p_method) {
-	scene_synchronizer.untrack_variable_changes(p_node, p_variable, p_object, p_method);
+void GdSceneSynchronizer::untrack_variable_changes(uint64_t p_handle) {
+	scene_synchronizer.untrack_variable_changes(static_cast<NS::ListenerHandle>(p_handle));
 }
 
 uint64_t GdSceneSynchronizer::register_process(Node *p_node, ProcessPhase p_phase, const Callable &p_func) {
-	NetUtility::NodeData *nd = scene_synchronizer.register_app_object(p_node);
+	NetUtility::NodeData *nd = scene_synchronizer.register_app_object(scene_synchronizer.to_handle(p_node));
 	const NS::PHandler EFH = scene_synchronizer.register_process(nd, p_phase, [p_func](float p_delta) {
 		Array a;
 		a.push_back(p_delta);
@@ -449,7 +489,7 @@ uint64_t GdSceneSynchronizer::register_process(Node *p_node, ProcessPhase p_phas
 }
 
 void GdSceneSynchronizer::unregister_process(Node *p_node, ProcessPhase p_phase, uint64_t p_handler) {
-	NetUtility::NodeData *nd = scene_synchronizer.find_node_data(p_node);
+	NetUtility::NodeData *nd = scene_synchronizer.find_node_data(scene_synchronizer.to_handle(p_node));
 	if (nd) {
 		scene_synchronizer.unregister_process(
 				nd,
@@ -459,7 +499,7 @@ void GdSceneSynchronizer::unregister_process(Node *p_node, ProcessPhase p_phase,
 }
 
 void GdSceneSynchronizer::setup_deferred_sync(Node *p_node, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func) {
-	scene_synchronizer.setup_deferred_sync(p_node, p_collect_epoch_func, p_apply_epoch_func);
+	scene_synchronizer.setup_deferred_sync(scene_synchronizer.to_handle(p_node), p_collect_epoch_func, p_apply_epoch_func);
 }
 
 SyncGroupId GdSceneSynchronizer::sync_group_create() {

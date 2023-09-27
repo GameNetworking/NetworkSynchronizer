@@ -38,14 +38,14 @@ public:
 	/// NOTE: THIS FUNCTION MUST RETURN THE POINTER THAT POINTS TO `BaseType` SPECIFIED IN `SceneSynchronizer<BaseType>`.
 	/// 		If you have a pointer pointing to a parent class, cast it using
 	///			`static_cast` first, or you will cause a segmentation fault.
-	virtual void *fetch_app_object(const std::string &p_object_name) override;
-	virtual uint64_t get_object_id(const void *p_app_object) const override;
-	virtual std::string get_object_name(const void *p_app_object) const override;
-	virtual void setup_synchronizer_for(void *p_object) override;
-	virtual void set_variable(void *p_object, const char *p_var_name, const Variant &p_val) override;
-	virtual bool get_variable(const void *p_object, const char *p_var_name, Variant &p_val) const override;
-	virtual NS::NetworkedControllerBase *extract_network_controller(void *p_app_object) const override;
-	virtual const NS::NetworkedControllerBase *extract_network_controller(const void *p_app_object) const override;
+	virtual ObjectHandle fetch_app_object(const std::string &p_object_name) override;
+	virtual uint64_t get_object_id(ObjectHandle p_app_object_handle) const override;
+	virtual std::string get_object_name(ObjectHandle p_app_object_handle) const override;
+	virtual void setup_synchronizer_for(ObjectHandle p_app_object_handle) override;
+	virtual void set_variable(ObjectHandle p_app_object_handle, const char *p_var_name, const Variant &p_val) override;
+	virtual bool get_variable(ObjectHandle p_app_object_handle, const char *p_var_name, Variant &p_val) const override;
+	virtual NS::NetworkedControllerBase *extract_network_controller(ObjectHandle p_app_object_handle) override;
+	virtual const NS::NetworkedControllerBase *extract_network_controller(ObjectHandle p_app_object_handle) const override;
 };
 
 class LocalScene {

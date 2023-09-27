@@ -34,6 +34,7 @@
 
 #include "scene_diff.h"
 
+#include "modules/network_synchronizer/net_utilities.h"
 #include "scene/main/node.h"
 #include "scene_synchronizer.h"
 
@@ -63,7 +64,7 @@ void SceneDiff::start_tracking_scene_changes(
 		CRASH_COND(p_nodes[i]->id != i);
 		// This is never triggered because when the node is invalid the node data
 		// is destroyed.
-		CRASH_COND(p_nodes[i]->app_object == nullptr);
+		CRASH_COND(p_nodes[i]->app_object_handle == NS::nullobjecthandle);
 #endif
 
 		tracking[i].resize(p_nodes[i]->vars.size());
@@ -74,7 +75,7 @@ void SceneDiff::start_tracking_scene_changes(
 				// Note: Taking the value using `get` so to take the most updated
 				// value.
 				p_synchronizer->get_synchronizer_manager().get_variable(
-						p_nodes[i]->app_object,
+						p_nodes[i]->app_object_handle,
 						String(p_nodes[i]->vars[v].var.name).utf8(),
 						tracking[i][v]);
 			} else {
@@ -124,7 +125,7 @@ void SceneDiff::stop_tracking_scene_changes(const NS::SceneSynchronizerBase *p_s
 		CRASH_COND(nd->id != i);
 		// This is never triggered because when the object is invalid the node data
 		// is destroyed.
-		CRASH_COND(nd->app_object == nullptr);
+		CRASH_COND(nd->app_object_handle == NS::nullobjecthandle);
 #endif
 
 		if (nd->vars.size() != tracking[i].size()) {
@@ -146,7 +147,7 @@ void SceneDiff::stop_tracking_scene_changes(const NS::SceneSynchronizerBase *p_s
 			// Take the current variable value.
 			Variant current_value;
 			p_synchronizer->get_synchronizer_manager().get_variable(
-					nd->app_object,
+					nd->app_object_handle,
 					String(nd->vars[v].var.name).utf8(),
 					current_value);
 

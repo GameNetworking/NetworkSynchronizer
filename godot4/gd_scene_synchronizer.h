@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/object/object.h"
 #include "modules/network_synchronizer/core/processor.h"
 #include "modules/network_synchronizer/godot4/gd_network_interface.h"
 #include "modules/network_synchronizer/scene_synchronizer.h"
@@ -16,7 +17,8 @@ public:
 
 	GDVIRTUAL0(_update_nodes_relevancy);
 
-	NS::SceneSynchronizer<Node, GdNetworkInterface> scene_synchronizer;
+	typedef NS::SceneSynchronizer<Node, GdNetworkInterface> SyncClass;
+	SyncClass scene_synchronizer;
 
 	// Just used to detect when the low level peer change.
 	void *low_level_peer = nullptr;
@@ -61,15 +63,15 @@ public: // ---------------------------------------- Scene Synchronizer Interface
 	virtual bool snapshot_extract_custom_data(const Vector<Variant> &p_snapshot_data, uint32_t p_snap_data_index, LocalVector<const Variant *> &r_out) const override { return true; }
 	virtual void snapshot_apply_custom_data(const Vector<Variant> &p_custom_data) override {}
 
-	virtual void *fetch_app_object(const std::string &p_object_name) override;
-	virtual uint64_t get_object_id(const void *p_app_object) const override;
-	virtual std::string get_object_name(const void *p_app_object) const override;
-	virtual void setup_synchronizer_for(void *p_object) override;
-	virtual void set_variable(void *p_object, const char *p_name, const Variant &p_val) override;
-	virtual bool get_variable(const void *p_object, const char *p_name, Variant &p_val) const override;
+	virtual NS::ObjectHandle fetch_app_object(const std::string &p_object_name) override;
+	virtual uint64_t get_object_id(NS::ObjectHandle p_app_object_handle) const override;
+	virtual std::string get_object_name(NS::ObjectHandle p_app_object_handle) const override;
+	virtual void setup_synchronizer_for(NS::ObjectHandle p_app_object_handle) override;
+	virtual void set_variable(NS::ObjectHandle p_app_object_handle, const char *p_name, const Variant &p_val) override;
+	virtual bool get_variable(NS::ObjectHandle p_app_object_handle, const char *p_name, Variant &p_val) const override;
 
-	virtual NS::NetworkedControllerBase *extract_network_controller(void *p_app_object) const override;
-	virtual const NS::NetworkedControllerBase *extract_network_controller(const void *p_app_object) const override;
+	virtual NS::NetworkedControllerBase *extract_network_controller(NS::ObjectHandle p_app_object_handle) override;
+	virtual const NS::NetworkedControllerBase *extract_network_controller(NS::ObjectHandle p_app_object_handle) const override;
 
 public: // ------------------------------------------------------- RPC Interface
 	// This funtion is used to sync data betweend the server and the client.
@@ -94,7 +96,7 @@ public: // ---------------------------------------------------------------- APIs
 	Node *get_node_from_id(uint32_t p_id, bool p_expected = true);
 	const Node *get_node_from_id_const(uint32_t p_id, bool p_expected = true) const;
 
-	void register_variable(Node *p_node, const StringName &p_variable, const StringName &p_on_change_notify_to = StringName(), NetEventFlag p_flags = NetEventFlag::DEFAULT);
+	void register_variable(Node *p_node, const StringName &p_variable);
 	void unregister_variable(Node *p_node, const StringName &p_variable);
 
 	/// Returns the variable ID relative to the `Node`.
@@ -106,8 +108,8 @@ public: // ---------------------------------------------------------------- APIs
 
 	void set_skip_rewinding(Node *p_node, const StringName &p_variable, bool p_skip_rewinding);
 
-	void track_variable_changes(Node *p_node, const StringName &p_variable, Object *p_object, const StringName &p_method, NetEventFlag p_flags = NetEventFlag::DEFAULT);
-	void untrack_variable_changes(Node *p_node, const StringName &p_variable, Object *p_object, const StringName &p_method);
+	uint64_t track_variable_changes(Array p_nodes, Array p_vars, const Callable &p_callable, NetEventFlag p_flags = NetEventFlag::DEFAULT);
+	void untrack_variable_changes(uint64_t p_handle);
 
 	/// You can use the macro `callable_mp()` to register custom C++ function.
 	uint64_t register_process(Node *p_node, ProcessPhase p_phase, const Callable &p_callable);
@@ -171,7 +173,6 @@ public: // ---------------------------------------------------------------- APIs
 	bool is_no_network() const;
 	/// Returns true if network is enabled.
 	bool is_networked() const;
-
 };
 
 VARIANT_ENUM_CAST(NetEventFlag)

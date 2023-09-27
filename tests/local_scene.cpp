@@ -11,46 +11,46 @@ LocalSceneSynchronizer::LocalSceneSynchronizer() {
 void LocalSceneSynchronizer::on_scene_entry() {
 	get_network_interface().init(get_scene()->get_network(), name, authoritative_peer_id);
 	setup(*this);
-	register_app_object(this);
+	register_app_object(to_handle(this));
 }
 
 void LocalSceneSynchronizer::setup_synchronizer(class LocalSceneSynchronizer &p_scene_sync) {
 }
 
 void LocalSceneSynchronizer::on_scene_exit() {
-	on_app_object_removed(this);
+	on_app_object_removed(to_handle(this));
 }
 
-void *LocalSceneSynchronizer::fetch_app_object(const std::string &p_object_name) {
+ObjectHandle LocalSceneSynchronizer::fetch_app_object(const std::string &p_object_name) {
 	LocalSceneObject *lso = get_scene()->fetch_object<LocalSceneObject>(p_object_name.c_str());
 	if (lso) {
-		return lso;
+		return to_handle(lso);
 	}
 }
 
-uint64_t LocalSceneSynchronizer::get_object_id(const void *p_app_object) const {
+uint64_t LocalSceneSynchronizer::get_object_id(ObjectHandle p_app_object_handle) const {
 	// No Object ID.
 	return 0;
 }
 
-std::string LocalSceneSynchronizer::get_object_name(const void *p_app_object) const {
-	return static_cast<const LocalSceneObject *>(p_app_object)->name;
+std::string LocalSceneSynchronizer::get_object_name(ObjectHandle p_app_object_handle) const {
+	return from_handle(p_app_object_handle)->name;
 }
 
-void LocalSceneSynchronizer::setup_synchronizer_for(void *p_app_object) {
-	static_cast<LocalSceneObject *>(p_app_object)->setup_synchronizer(*get_scene()->scene_sync);
+void LocalSceneSynchronizer::setup_synchronizer_for(ObjectHandle p_app_object_handle) {
+	from_handle(p_app_object_handle)->setup_synchronizer(*get_scene()->scene_sync);
 }
 
-void LocalSceneSynchronizer::set_variable(void *p_app_object, const char *p_var_name, const Variant &p_val) {
-	LocalSceneObject *lso = static_cast<LocalSceneObject *>(p_app_object);
+void LocalSceneSynchronizer::set_variable(ObjectHandle p_app_object_handle, const char *p_var_name, const Variant &p_val) {
+	LocalSceneObject *lso = from_handle(p_app_object_handle);
 	auto element = lso->variables.find(std::string(p_var_name));
 	if (element != lso->variables.end()) {
 		element->second = p_val;
 	}
 }
 
-bool LocalSceneSynchronizer::get_variable(const void *p_app_object, const char *p_var_name, Variant &p_val) const {
-	const LocalSceneObject *lso = static_cast<const LocalSceneObject *>(p_app_object);
+bool LocalSceneSynchronizer::get_variable(const ObjectHandle p_app_object_handle, const char *p_var_name, Variant &p_val) const {
+	const LocalSceneObject *lso = from_handle(p_app_object_handle);
 	auto element = lso->variables.find(std::string(p_var_name));
 	if (element != lso->variables.end()) {
 		p_val = element->second;
@@ -62,12 +62,12 @@ bool LocalSceneSynchronizer::get_variable(const void *p_app_object, const char *
 	}
 }
 
-NS::NetworkedControllerBase *LocalSceneSynchronizer::extract_network_controller(void *p_app_object) const {
-	return dynamic_cast<NS::NetworkedControllerBase *>(static_cast<LocalSceneObject *>(p_app_object));
+NS::NetworkedControllerBase *LocalSceneSynchronizer::extract_network_controller(ObjectHandle p_app_object_handle) {
+	return dynamic_cast<NS::NetworkedControllerBase *>(from_handle(p_app_object_handle));
 }
 
-const NS::NetworkedControllerBase *LocalSceneSynchronizer::extract_network_controller(const void *p_app_object) const {
-	return dynamic_cast<const NS::NetworkedControllerBase *>(static_cast<const LocalSceneObject *>(p_app_object));
+const NS::NetworkedControllerBase *LocalSceneSynchronizer::extract_network_controller(const ObjectHandle p_app_object_handle) const {
+	return dynamic_cast<const NS::NetworkedControllerBase *>(from_handle(p_app_object_handle));
 }
 
 LocalScene *LocalSceneObject::get_scene() const {
