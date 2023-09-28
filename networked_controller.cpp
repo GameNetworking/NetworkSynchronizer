@@ -262,7 +262,7 @@ void NetworkedControllerBase::set_inputs_buffer(const BitArray &p_new_buffer, ui
 	inputs_buffer->shrink_to(p_metadata_size_in_bit, p_size_in_bit);
 }
 
-void NetworkedControllerBase::notify_registered_with_synchronizer(NS::SceneSynchronizerBase *p_synchronizer, NetUtility::ObjectData &p_nd) {
+void NetworkedControllerBase::notify_registered_with_synchronizer(NS::SceneSynchronizerBase *p_synchronizer, NS::ObjectData &p_nd) {
 	if (scene_synchronizer) {
 		scene_synchronizer->event_peer_status_updated.unbind(event_handler_peer_status_updated);
 		scene_synchronizer->event_state_validated.unbind(event_handler_state_validated);
@@ -271,7 +271,7 @@ void NetworkedControllerBase::notify_registered_with_synchronizer(NS::SceneSynch
 		event_handler_state_validated = NS::NullPHandler;
 		event_handler_peer_status_updated = NS::NullPHandler;
 		scene_synchronizer->unregister_process(
-				scene_synchronizer->find_node_data(this),
+				scene_synchronizer->find_object_data(*this),
 				PROCESSPHASE_PROCESS,
 				process_handler_process);
 		process_handler_process = NS::NullPHandler;
@@ -288,8 +288,8 @@ void NetworkedControllerBase::notify_registered_with_synchronizer(NS::SceneSynch
 						[this](float p_delta) -> void { process(p_delta); });
 
 		event_handler_peer_status_updated =
-				scene_synchronizer->event_peer_status_updated.bind([this](const NetUtility::ObjectData *p_node_data, int p_peer_id, bool p_connected, bool p_enabled) -> void {
-					on_peer_status_updated(p_node_data, p_peer_id, p_connected, p_enabled);
+				scene_synchronizer->event_peer_status_updated.bind([this](const NS::ObjectData *p_object_data, int p_peer_id, bool p_connected, bool p_enabled) -> void {
+					on_peer_status_updated(p_object_data, p_peer_id, p_connected, p_enabled);
 				});
 
 		event_handler_state_validated =
@@ -312,12 +312,12 @@ bool NetworkedControllerBase::has_scene_synchronizer() const {
 	return scene_synchronizer;
 }
 
-void NetworkedControllerBase::on_peer_status_updated(const NetUtility::ObjectData *p_node_data, int p_peer_id, bool p_connected, bool p_enabled) {
-	if (!p_node_data) {
+void NetworkedControllerBase::on_peer_status_updated(const NS::ObjectData *p_object_data, int p_peer_id, bool p_connected, bool p_enabled) {
+	if (!p_object_data) {
 		return;
 	}
 
-	if (p_node_data->controller == this) {
+	if (p_object_data->get_controller() == this) {
 		if (p_connected) {
 			peer_id = p_peer_id;
 		} else {
@@ -403,14 +403,14 @@ bool NetworkedControllerBase::player_has_new_input() const {
 bool NetworkedControllerBase::is_realtime_enabled() {
 	if (node_id == ID_NONE) {
 		if (scene_synchronizer) {
-			NetUtility::ObjectData *nd = scene_synchronizer->find_node_data(this);
+			NS::ObjectData *nd = scene_synchronizer->find_object_data(*this);
 			if (nd) {
-				node_id = nd->net_id;
+				node_id = nd->get_net_id();
 			}
 		}
 	}
 	if (node_id != ID_NONE) {
-		NetUtility::ObjectData *nd = scene_synchronizer->get_node_data(node_id);
+		NS::ObjectData *nd = scene_synchronizer->get_node_data(node_id);
 		if (nd) {
 			return nd->realtime_sync_enabled_on_client;
 		}

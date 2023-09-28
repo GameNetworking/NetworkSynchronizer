@@ -55,11 +55,11 @@ public: // ---------------------------------------- Scene Synchronizer Interface
 
 	virtual void debug_only_validate_nodes() override;
 
-	virtual void on_add_node_data(NetUtility::ObjectData *p_node_data) override;
+	virtual void on_add_object_data(NS::ObjectData &p_object_data) override;
 
 	virtual void update_nodes_relevancy() override;
 
-	virtual void snapshot_add_custom_data(const NetUtility::SyncGroup *p_group, Vector<Variant> &r_snapshot_data) override {}
+	virtual void snapshot_add_custom_data(const NS::SyncGroup *p_group, Vector<Variant> &r_snapshot_data) override {}
 	virtual bool snapshot_extract_custom_data(const Vector<Variant> &p_snapshot_data, uint32_t p_snap_data_index, LocalVector<const Variant *> &r_out) const override { return true; }
 	virtual void snapshot_apply_custom_data(const Vector<Variant> &p_custom_data) override {}
 
@@ -84,7 +84,7 @@ public: // ---------------------------------------------------------------- APIs
 	void clear();
 
 	/// Register a new node and returns its `NodeData`.
-	NetUtility::ObjectData *register_node(Node *p_node);
+	NS::ObjectData *register_node(Node *p_node);
 	uint32_t register_node_gdscript(Node *p_node);
 	void unregister_node(Node *p_node);
 
@@ -124,15 +124,15 @@ public: // ---------------------------------------------------------------- APIs
 	/// The Peers listening to this group will receive the updates only
 	/// from the nodes within this group.
 	virtual SyncGroupId sync_group_create();
-	const NetUtility::SyncGroup *sync_group_get(SyncGroupId p_group_id) const;
+	const NS::SyncGroup *sync_group_get(SyncGroupId p_group_id) const;
 
 	void sync_group_add_node_by_id(ObjectNetId p_node_id, SyncGroupId p_group_id, bool p_realtime);
-	void sync_group_add_node(NetUtility::ObjectData *p_node_data, SyncGroupId p_group_id, bool p_realtime);
+	void sync_group_add_node(NS::ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime);
 	void sync_group_remove_node_by_id(ObjectNetId p_node_id, SyncGroupId p_group_id);
-	void sync_group_remove_node(NetUtility::ObjectData *p_node_data, SyncGroupId p_group_id);
+	void sync_group_remove_node(NS::ObjectData *p_object_data, SyncGroupId p_group_id);
 
 	/// Use `std::move()` to transfer `p_new_realtime_nodes` and `p_new_deferred_nodes`.
-	void sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NetUtility::SyncGroup::RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<NetUtility::SyncGroup::DeferredNodeInfo> &&p_new_deferred_nodes);
+	void sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::DeferredNodeInfo> &&p_new_deferred_nodes);
 
 	void sync_group_remove_all_nodes(SyncGroupId p_group_id);
 	void sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id);
@@ -140,9 +140,9 @@ public: // ---------------------------------------------------------------- APIs
 	const LocalVector<int> *sync_group_get_peers(SyncGroupId p_group_id) const;
 
 	void sync_group_set_deferred_update_rate_by_id(ObjectNetId p_node_id, SyncGroupId p_group_id, real_t p_update_rate);
-	void sync_group_set_deferred_update_rate(NetUtility::ObjectData *p_node_data, SyncGroupId p_group_id, real_t p_update_rate);
+	void sync_group_set_deferred_update_rate(NS::ObjectData *p_object_data, SyncGroupId p_group_id, real_t p_update_rate);
 	real_t sync_group_get_deferred_update_rate_by_id(ObjectNetId p_node_id, SyncGroupId p_group_id) const;
-	real_t sync_group_get_deferred_update_rate(const NetUtility::ObjectData *p_node_data, SyncGroupId p_group_id) const;
+	real_t sync_group_get_deferred_update_rate(const NS::ObjectData *p_object_data, SyncGroupId p_group_id) const;
 
 	void sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_ptr);
 	uint64_t sync_group_get_user_data(SyncGroupId p_group_id) const;

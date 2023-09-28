@@ -5,24 +5,13 @@
 #include "core/math/math_funcs.h"
 #include "core/processor.h"
 #include "core/templates/local_vector.h"
-#include "core/variant/variant.h"
 #include <map>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
 extern const uint32_t ID_NONE;
-typedef uint32_t ObjectNetId;
-typedef uint32_t NetVarId;
 typedef uint32_t SyncGroupId;
-
-namespace NS {
-class NetworkedControllerBase;
-};
-
-namespace NetUtility {
-struct ObjectData;
-};
 
 #ifdef DEBUG_ENABLED
 #define NET_DEBUG_PRINT(msg)                                                                                  \
@@ -40,6 +29,8 @@ struct ObjectData;
 #endif
 
 NS_NAMESPACE_BEGIN
+
+class NetworkedControllerBase;
 
 namespace MapFunc {
 
@@ -64,23 +55,10 @@ const V *at(const std::map<K, V> &p_map, const K &p_key) {
 
 #define ns_find(vec, val) std::find(vec.begin(), vec.end(), val)
 
-struct ObjectHandle {
-	std::intptr_t intptr;
-	bool operator==(const ObjectHandle &p_o) const { return intptr == p_o.intptr; }
-};
-inline static const ObjectHandle nullobjecthandle = { 0 };
-
-struct ObjectLocalId {
-	uint32_t id;
-	bool operator==(const ObjectLocalId &p_o) const { return id == p_o.id; }
-
-	static const ObjectLocalId ID_NONE;
-};
-
 /// Specific node listener. Alone this doesn't do much, but allows the
 /// `ChangeListener` to know and keep track of the node events.
 struct ListeningVariable {
-	NetUtility::ObjectData *node_data = nullptr;
+	struct ObjectData *node_data = nullptr;
 	NetVarId var_id = ID_NONE;
 	bool old_set = false;
 };
@@ -111,8 +89,6 @@ struct ListenerHandle {
 };
 inline static const ListenerHandle nulllistenerhandle = { 0 };
 
-NS_NAMESPACE_END
-
 #ifdef TRACY_ENABLE
 
 #include "godot_tracy/profiler.h"
@@ -135,7 +111,6 @@ NS_NAMESPACE_END
 
 #endif
 
-namespace NetUtility {
 // This was needed to optimize the godot stringify for byte arrays.. it was slowing down perfs.
 String stringify_byte_array_fast(const Vector<uint8_t> &p_array);
 String stringify_fast(const Variant &p_var);
@@ -308,58 +283,6 @@ void StatisticalRingBuffer<T>::force_recompute_avg_sum() {
 	}
 }
 
-struct Var {
-	StringName name;
-	Variant value;
-};
-
-struct VarData {
-	NetVarId id = UINT32_MAX;
-	Var var;
-	bool skip_rewinding = false;
-	bool enabled = false;
-	std::vector<NS::ChangesListener *> changes_listeners;
-
-	VarData() = default;
-	VarData(const StringName &p_name);
-	VarData(NetVarId p_id, const StringName &p_name, const Variant &p_val, bool p_skip_rewinding, bool p_enabled);
-
-	bool operator==(const VarData &p_other) const;
-	bool operator<(const VarData &p_other) const;
-};
-
-struct ObjectData {
-	// ID used to reference this NodeData in the networked calls.
-	ObjectNetId net_id = ID_NONE;
-	NS::ObjectLocalId local_id = NS::ObjectLocalId::ID_NONE;
-
-	uint64_t instance_id = 0; // TODO remove this?
-	std::string object_name;
-	// The local application object handle associated to this `NodeData`.
-	NS::ObjectHandle app_object_handle = NS::nullobjecthandle;
-
-	bool realtime_sync_enabled_on_client = false;
-
-	/// The sync variables of this node. The order of this vector matters
-	/// because the index is the `NetVarId`.
-	LocalVector<VarData> vars;
-	NS::Processor<float> functions[PROCESSPHASE_COUNT];
-
-	// func _collect_epoch_data(buffer: DataBuffer):
-	Callable collect_epoch_func;
-
-	// func _apply_epoch(delta: float, interpolation_alpha: float, past_buffer: DataBuffer, future_buffer: DataBuffer):
-	Callable apply_epoch_func;
-
-	/// Associated controller.
-	NS::NetworkedControllerBase *controller = nullptr;
-
-	ObjectData() = default;
-
-	bool has_registered_process_functions() const;
-	bool can_deferred_sync() const;
-};
-
 struct PeerData {
 	ObjectNetId controller_id = UINT32_MAX;
 	// For new peers notify the state as soon as possible.
@@ -381,14 +304,14 @@ public:
 	};
 
 	struct RealtimeNodeInfo {
-		NetUtility::ObjectData *nd = nullptr;
+		struct ObjectData *nd = nullptr;
 		Change change;
 
 		RealtimeNodeInfo() = default;
 		RealtimeNodeInfo(const RealtimeNodeInfo &) = default;
 		RealtimeNodeInfo &operator=(const RealtimeNodeInfo &) = default;
 		RealtimeNodeInfo &operator=(RealtimeNodeInfo &&) = default;
-		RealtimeNodeInfo(NetUtility::ObjectData *p_nd) :
+		RealtimeNodeInfo(struct ObjectData *p_nd) :
 				nd(p_nd) {}
 		bool operator==(const RealtimeNodeInfo &p_other) { return nd == p_other.nd; }
 
@@ -396,7 +319,7 @@ public:
 	};
 
 	struct DeferredNodeInfo {
-		NetUtility::ObjectData *nd = nullptr;
+		struct ObjectData *nd = nullptr;
 
 		/// The node update rate, relative to the godot physics processing rate.
 		/// With the godot physics processing rate set to 60Hz, 0.5 means 30Hz.
@@ -414,7 +337,7 @@ public:
 		DeferredNodeInfo(const DeferredNodeInfo &) = default;
 		DeferredNodeInfo &operator=(const DeferredNodeInfo &) = default;
 		DeferredNodeInfo &operator=(DeferredNodeInfo &&) = default;
-		DeferredNodeInfo(NetUtility::ObjectData *p_nd) :
+		DeferredNodeInfo(struct ObjectData *p_nd) :
 				nd(p_nd) {}
 		bool operator==(const DeferredNodeInfo &p_other) { return nd == p_other.nd; }
 
@@ -440,25 +363,25 @@ public:
 	bool is_realtime_node_list_changed() const;
 	bool is_deferred_node_list_changed() const;
 
-	const LocalVector<NetUtility::SyncGroup::RealtimeNodeInfo> &get_realtime_sync_nodes() const;
-	const LocalVector<NetUtility::SyncGroup::DeferredNodeInfo> &get_deferred_sync_nodes() const;
-	LocalVector<NetUtility::SyncGroup::DeferredNodeInfo> &get_deferred_sync_nodes();
+	const LocalVector<NS::SyncGroup::RealtimeNodeInfo> &get_realtime_sync_nodes() const;
+	const LocalVector<NS::SyncGroup::DeferredNodeInfo> &get_deferred_sync_nodes() const;
+	LocalVector<NS::SyncGroup::DeferredNodeInfo> &get_deferred_sync_nodes();
 
 	void mark_changes_as_notified();
 
 	/// Returns the `index` or `UINT32_MAX` on error.
-	uint32_t add_new_node(ObjectData *p_node_data, bool p_realtime);
-	void remove_node(ObjectData *p_node_data);
+	uint32_t add_new_node(struct ObjectData *p_object_data, bool p_realtime);
+	void remove_node(struct ObjectData *p_object_data);
 	void replace_nodes(LocalVector<RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<DeferredNodeInfo> &&p_new_deferred_nodes);
 	void remove_all_nodes();
 
-	void notify_new_variable(ObjectData *p_node_data, const StringName &p_var_name);
-	void notify_variable_changed(ObjectData *p_node_data, const StringName &p_var_name);
+	void notify_new_variable(struct ObjectData *p_object_data, const StringName &p_var_name);
+	void notify_variable_changed(struct ObjectData *p_object_data, const StringName &p_var_name);
 
-	void set_deferred_update_rate(NetUtility::ObjectData *p_node_data, real_t p_update_rate);
-	real_t get_deferred_update_rate(const NetUtility::ObjectData *p_node_data) const;
+	void set_deferred_update_rate(struct ObjectData *p_object_data, real_t p_update_rate);
+	real_t get_deferred_update_rate(const struct ObjectData *p_object_data) const;
 
 	void sort_deferred_node_by_update_priority();
 };
 
-} // namespace NetUtility
+NS_NAMESPACE_END

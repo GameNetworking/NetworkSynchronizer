@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 #define NS_NAMESPACE_BEGIN \
 	namespace NS {
 
@@ -56,3 +58,24 @@ static const char *ProcessPhaseName[PROCESSPHASE_COUNT] = {
 	"POST PROCESS",
 	"LATE PROCESS"
 };
+
+typedef uint32_t NetVarId;
+typedef uint32_t ObjectNetId;
+
+NS_NAMESPACE_BEGIN
+
+struct ObjectLocalId {
+	uint32_t id;
+	bool operator==(const ObjectLocalId &p_o) const { return id == p_o.id; }
+
+	static const ObjectLocalId ID_NONE;
+};
+
+struct ObjectHandle {
+	std::intptr_t intptr;
+	bool operator==(const ObjectHandle &p_o) const { return intptr == p_o.intptr; }
+
+	static const ObjectHandle NONE;
+};
+
+NS_NAMESPACE_END

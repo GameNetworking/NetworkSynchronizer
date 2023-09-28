@@ -3,7 +3,7 @@
 #include "scene/main/node.h"
 #include "scene_synchronizer.h"
 
-NetUtility::Snapshot::operator String() const {
+NS::Snapshot::operator String() const {
 	String s;
 	s += "Snapshot input ID: " + itos(input_id);
 
@@ -25,13 +25,13 @@ NetUtility::Snapshot::operator String() const {
 
 bool compare_vars(
 		NS::SceneSynchronizerBase &scene_synchronizer,
-		const NetUtility::ObjectData *p_synchronizer_node_data,
-		const Vector<NetUtility::Var> &p_server_vars,
-		const Vector<NetUtility::Var> &p_client_vars,
-		NetUtility::Snapshot *r_no_rewind_recover,
+		const NS::ObjectData *p_synchronizer_node_data,
+		const Vector<NS::Var> &p_server_vars,
+		const Vector<NS::Var> &p_client_vars,
+		NS::Snapshot *r_no_rewind_recover,
 		LocalVector<String> *r_differences_info) {
-	const NetUtility::Var *s_vars = p_server_vars.ptr();
-	const NetUtility::Var *c_vars = p_client_vars.ptr();
+	const NS::Var *s_vars = p_server_vars.ptr();
+	const NS::Var *c_vars = p_client_vars.ptr();
 
 #ifdef DEBUG_ENABLED
 	bool is_equal = true;
@@ -61,10 +61,10 @@ bool compare_vars(
 			if (p_synchronizer_node_data->vars[var_index].skip_rewinding) {
 				// The vars are different, but we don't need to trigger a rewind.
 				if (r_no_rewind_recover) {
-					if (uint32_t(r_no_rewind_recover->node_vars.ptr()[p_synchronizer_node_data->net_id].size()) <= var_index) {
-						r_no_rewind_recover->node_vars.ptrw()[p_synchronizer_node_data->net_id].resize(var_index + 1);
+					if (uint32_t(r_no_rewind_recover->node_vars.ptr()[p_synchronizer_node_data->get_net_id()].size()) <= var_index) {
+						r_no_rewind_recover->node_vars.ptrw()[p_synchronizer_node_data->get_net_id()].resize(var_index + 1);
 					}
-					r_no_rewind_recover->node_vars.ptrw()[p_synchronizer_node_data->net_id].ptrw()[var_index] = s_vars[var_index];
+					r_no_rewind_recover->node_vars.ptrw()[p_synchronizer_node_data->get_net_id()].ptrw()[var_index] = s_vars[var_index];
 					// Sets `input_id` to 0 to signal that this snapshot contains
 					// no-rewind data.
 					r_no_rewind_recover->input_id = 0;
@@ -73,8 +73,8 @@ bool compare_vars(
 				if (r_differences_info) {
 					r_differences_info->push_back(
 							"[NO REWIND] Difference found on var #" + itos(var_index) + " " + p_synchronizer_node_data->vars[var_index].var.name + " " +
-							"Server value: `" + NetUtility::stringify_fast(s_vars[var_index].value) + "` " +
-							"Client value: `" + NetUtility::stringify_fast(c_vars[var_index].value) + "`.    " +
+							"Server value: `" + NS::stringify_fast(s_vars[var_index].value) + "` " +
+							"Client value: `" + NS::stringify_fast(c_vars[var_index].value) + "`.    " +
 							"[Server name: `" + s_vars[var_index].name + "` " +
 							"Client name: `" + c_vars[var_index].name + "`].");
 				}
@@ -83,8 +83,8 @@ bool compare_vars(
 				if (r_differences_info) {
 					r_differences_info->push_back(
 							"Difference found on var #" + itos(var_index) + " " + p_synchronizer_node_data->vars[var_index].var.name + " " +
-							"Server value: `" + NetUtility::stringify_fast(s_vars[var_index].value) + "` " +
-							"Client value: `" + NetUtility::stringify_fast(c_vars[var_index].value) + "`.    " +
+							"Server value: `" + NS::stringify_fast(s_vars[var_index].value) + "` " +
+							"Client value: `" + NS::stringify_fast(c_vars[var_index].value) + "`.    " +
 							"[Server name: `" + s_vars[var_index].name + "` " +
 							"Client name: `" + c_vars[var_index].name + "`].");
 				}
@@ -104,7 +104,7 @@ bool compare_vars(
 #endif
 }
 
-bool NetUtility::Snapshot::compare(
+bool NS::Snapshot::compare(
 		NS::SceneSynchronizerBase &scene_synchronizer,
 		const Snapshot &p_snap_A,
 		const Snapshot &p_snap_B,
@@ -148,7 +148,7 @@ bool NetUtility::Snapshot::compare(
 	}
 
 	for (ObjectNetId net_node_id = 0; net_node_id < uint32_t(p_snap_A.node_vars.size()); net_node_id += 1) {
-		NetUtility::ObjectData *rew_node_data = scene_synchronizer.get_node_data(net_node_id);
+		NS::ObjectData *rew_node_data = scene_synchronizer.get_node_data(net_node_id);
 		if (rew_node_data == nullptr || rew_node_data->realtime_sync_enabled_on_client == false) {
 			continue;
 		}

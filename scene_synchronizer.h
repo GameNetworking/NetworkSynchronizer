@@ -3,9 +3,11 @@
 #include "core/object/object.h"
 #include "modules/network_synchronizer/core/core.h"
 
+#include "core/object_data.h"
 #include "core/templates/local_vector.h"
 #include "core/templates/oa_hash_map.h"
 #include "data_buffer.h"
+#include "modules/network_synchronizer/core/object_data_storage.h"
 #include "modules/network_synchronizer/core/processor.h"
 #include "net_utilities.h"
 #include "snapshot.h"
@@ -31,8 +33,8 @@ public:
 #endif
 
 	/// Add node data and generates the `NetNodeId` if allowed.
-	virtual void on_add_node_data(NetUtility::ObjectData *p_node_data) {}
-	virtual void on_drop_node_data(NetUtility::ObjectData *p_node_data) {}
+	virtual void on_add_object_data(NS::ObjectData &p_object_data) {}
+	virtual void on_drop_object_data(NS::ObjectData &p_object_data) {}
 
 	virtual void on_sync_group_created(SyncGroupId p_group_id) {}
 
@@ -40,7 +42,7 @@ public:
 	/// and it's here that you want to update the node relevancy.
 	virtual void update_nodes_relevancy() {}
 
-	virtual void snapshot_add_custom_data(const NetUtility::SyncGroup *p_group, Vector<Variant> &r_snapshot_data) {}
+	virtual void snapshot_add_custom_data(const NS::SyncGroup *p_group, Vector<Variant> &r_snapshot_data) {}
 	virtual bool snapshot_extract_custom_data(const Vector<Variant> &p_snapshot_data, uint32_t p_snap_data_index, LocalVector<const Variant *> &r_out) const { return true; }
 	virtual void snapshot_apply_custom_data(const Vector<Variant> &p_custom_data) {}
 
@@ -162,19 +164,11 @@ private:
 	bool end_sync = false;
 
 	bool peer_dirty = false;
-	std::map<int, NetUtility::PeerData> peer_data;
+	std::map<int, NS::PeerData> peer_data;
 
 	bool generate_id = false;
 
-	// All possible registered nodes.
-	LocalVector<NetUtility::ObjectData *> node_data;
-
-	// All registered nodes, that have the NetworkNodeId assigned, organized per
-	// NetworkNodeId.
-	LocalVector<NetUtility::ObjectData *> organized_node_data;
-
-	// Controller nodes.
-	LocalVector<NetUtility::ObjectData *> node_data_controllers;
+	ObjectDataStorage objects_data_storage;
 
 	int event_flag = 0;
 	std::vector<ChangesListener *> changes_listeners;
@@ -188,7 +182,7 @@ private:
 public: // -------------------------------------------------------------- Events
 	Processor<> event_sync_started;
 	Processor<> event_sync_paused;
-	Processor<const NetUtility::ObjectData * /*p_node_data*/, int /*p_peer*/, bool /*p_connected*/, bool /*p_enabled*/> event_peer_status_updated;
+	Processor<const NS::ObjectData * /*p_object_data*/, int /*p_peer*/, bool /*p_connected*/, bool /*p_enabled*/> event_peer_status_updated;
 	Processor<uint32_t /*p_input_id*/> event_state_validated;
 	Processor<uint32_t /*p_input_id*/, int /*p_index*/, int /*p_count*/> event_rewind_frame_begin;
 	Processor<uint32_t /*p_input_id*/, ObjectHandle /*p_app_object_handle*/, const Vector<StringName> & /*p_var_names*/, const Vector<Variant> & /*p_client_values*/, const Vector<Variant> & /*p_server_values*/> event_desync_detected;
@@ -253,7 +247,7 @@ public: // ---------------------------------------------------------------- RPCs
 
 public: // ---------------------------------------------------------------- APIs
 	/// Register a new node and returns its `NodeData`.
-	NetUtility::ObjectData *register_app_object(ObjectHandle p_app_object_handle);
+	NS::ObjectData *register_app_object(ObjectHandle p_app_object_handle);
 	void unregister_app_object(ObjectHandle p_app_object_handle);
 	void register_variable(ObjectHandle p_app_object, const StringName &p_variable);
 	void unregister_variable(ObjectHandle p_app_object, const StringName &p_variable);
@@ -263,7 +257,7 @@ public: // ---------------------------------------------------------------- APIs
 	ObjectHandle get_app_object_from_id(uint32_t p_id, bool p_expected = true);
 	ObjectHandle get_app_object_from_id_const(uint32_t p_id, bool p_expected = true) const;
 
-	const LocalVector<NetUtility::ObjectData *> &get_all_node_data() const;
+	const std::vector<ObjectData *> &get_all_object_data() const;
 
 	/// Returns the variable ID relative to the `Node`.
 	/// This may return `UINT32_MAX` in various cases:
@@ -289,8 +283,8 @@ public: // ---------------------------------------------------------------- APIs
 	void untrack_variable_changes(ListenerHandle p_handle);
 
 	/// You can use the macro `callable_mp()` to register custom C++ function.
-	NS::PHandler register_process(NetUtility::ObjectData *p_node_data, ProcessPhase p_phase, std::function<void(float)> p_func);
-	void unregister_process(NetUtility::ObjectData *p_node_data, ProcessPhase p_phase, NS::PHandler p_func_handler);
+	NS::PHandler register_process(NS::ObjectData *p_object_data, ProcessPhase p_phase, std::function<void(float)> p_func);
+	void unregister_process(NS::ObjectData *p_object_data, ProcessPhase p_phase, NS::PHandler p_func_handler);
 
 	/// Setup the deferred sync method for this specific node.
 	/// The deferred-sync is different from the realtime-sync because the data
@@ -301,15 +295,15 @@ public: // ---------------------------------------------------------------- APIs
 	/// The Peers listening to this group will receive the updates only
 	/// from the nodes within this group.
 	SyncGroupId sync_group_create();
-	const NetUtility::SyncGroup *sync_group_get(SyncGroupId p_group_id) const;
+	const NS::SyncGroup *sync_group_get(SyncGroupId p_group_id) const;
 
 	void sync_group_add_node_by_id(ObjectNetId p_node_id, SyncGroupId p_group_id, bool p_realtime);
-	void sync_group_add_node(NetUtility::ObjectData *p_node_data, SyncGroupId p_group_id, bool p_realtime);
+	void sync_group_add_node(NS::ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime);
 	void sync_group_remove_node_by_id(ObjectNetId p_node_id, SyncGroupId p_group_id);
-	void sync_group_remove_node(NetUtility::ObjectData *p_node_data, SyncGroupId p_group_id);
+	void sync_group_remove_node(NS::ObjectData *p_object_data, SyncGroupId p_group_id);
 
 	/// Use `std::move()` to transfer `p_new_realtime_nodes` and `p_new_deferred_nodes`.
-	void sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NetUtility::SyncGroup::RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<NetUtility::SyncGroup::DeferredNodeInfo> &&p_new_deferred_nodes);
+	void sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::DeferredNodeInfo> &&p_new_deferred_nodes);
 
 	void sync_group_remove_all_nodes(SyncGroupId p_group_id);
 	void sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id);
@@ -317,9 +311,9 @@ public: // ---------------------------------------------------------------- APIs
 	const LocalVector<int> *sync_group_get_peers(SyncGroupId p_group_id) const;
 
 	void sync_group_set_deferred_update_rate_by_id(ObjectNetId p_node_id, SyncGroupId p_group_id, real_t p_update_rate);
-	void sync_group_set_deferred_update_rate(NetUtility::ObjectData *p_node_data, SyncGroupId p_group_id, real_t p_update_rate);
+	void sync_group_set_deferred_update_rate(NS::ObjectData *p_object_data, SyncGroupId p_group_id, real_t p_update_rate);
 	real_t sync_group_get_deferred_update_rate_by_id(ObjectNetId p_node_id, SyncGroupId p_group_id) const;
-	real_t sync_group_get_deferred_update_rate(const NetUtility::ObjectData *p_node_data, SyncGroupId p_group_id) const;
+	real_t sync_group_get_deferred_update_rate(const NS::ObjectData *p_object_data, SyncGroupId p_group_id) const;
 
 	void sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_ptr);
 	uint64_t sync_group_get_user_data(SyncGroupId p_group_id) const;
@@ -362,7 +356,7 @@ public: // ---------------------------------------------------------------- APIs
 	void detect_and_signal_changed_variables(int p_flags);
 
 	void change_events_begin(int p_flag);
-	void change_event_add(NetUtility::ObjectData *p_node_data, NetVarId p_var_id, const Variant &p_old);
+	void change_event_add(NS::ObjectData *p_object_data, NetVarId p_var_id, const Variant &p_old);
 	void change_events_flush();
 
 public: // ------------------------------------------------------------ INTERNAL
@@ -371,45 +365,38 @@ public: // ------------------------------------------------------------ INTERNAL
 	void process_functions__clear();
 	void process_functions__execute(const double p_delta);
 
-	void expand_organized_node_data_vector(uint32_t p_size);
+	NS::ObjectData *find_node_data(ObjectHandle p_app_object);
+	const NS::ObjectData *find_node_data(ObjectHandle p_app_object) const;
 
-	/// This function is slow, but allow to take the node data even if the
-	/// `NetNodeId` is not yet assigned.
-	NetUtility::ObjectData *find_node_data(ObjectHandle p_app_object);
-	const NetUtility::ObjectData *find_node_data(ObjectHandle p_app_object) const;
-
-	NetUtility::ObjectData *find_node_data(const NetworkedControllerBase *p_controller);
-	const NetUtility::ObjectData *find_node_data(const NetworkedControllerBase *p_controller) const;
+	NS::ObjectData *find_object_data(NetworkedControllerBase &p_controller);
+	const NS::ObjectData *find_node_data(const NetworkedControllerBase &p_controller) const;
 
 	/// This function is super fast, but only nodes with a `NetNodeId` assigned
 	/// can be returned.
-	NetUtility::ObjectData *get_node_data(ObjectNetId p_id, bool p_expected = true);
-	const NetUtility::ObjectData *get_node_data(ObjectNetId p_id, bool p_expected = true) const;
+	NS::ObjectData *get_node_data(ObjectNetId p_id, bool p_expected = true);
+	const NS::ObjectData *get_node_data(ObjectNetId p_id, bool p_expected = true) const;
 
 	NetworkedControllerBase *get_controller_for_peer(int p_peer, bool p_expected = true);
 	const NetworkedControllerBase *get_controller_for_peer(int p_peer, bool p_expected = true) const;
 
-	NetUtility::PeerData *get_peer_for_controller(const NetworkedControllerBase &p_controller, bool p_expected = true);
-	const NetUtility::PeerData *get_peer_for_controller(const NetworkedControllerBase &p_controller, bool p_expected = true) const;
+	NS::PeerData *get_peer_for_controller(const NetworkedControllerBase &p_controller, bool p_expected = true);
+	const NS::PeerData *get_peer_for_controller(const NetworkedControllerBase &p_controller, bool p_expected = true) const;
 
 	/// Returns the latest generated `NetNodeId`.
 	ObjectNetId get_biggest_node_id() const;
 
 	void reset_controllers();
-	void reset_controller(NetUtility::ObjectData *p_controller);
+	void reset_controller(NS::ObjectData *p_controller);
 
 	real_t get_pretended_delta() const;
 
 	/// Read the node variables and store the value if is different from the
 	/// previous one and emits a signal.
-	void pull_node_changes(NetUtility::ObjectData *p_node_data);
+	void pull_node_changes(NS::ObjectData *p_object_data);
 
-	/// Add node data and generates the `NetNodeId` if allowed.
-	void add_node_data(NetUtility::ObjectData *p_node_data);
-	void drop_node_data(NetUtility::ObjectData *p_node_data);
+	void drop_object_data(NS::ObjectData &p_object_data);
 
-	/// Set the node data net id.
-	void set_node_data_id(NetUtility::ObjectData *p_node_data, ObjectNetId p_id);
+	void notify_object_data_net_id_changed(ObjectData &p_object_data);
 
 	NetworkedControllerBase *fetch_controller_by_peer(int peer);
 
@@ -451,11 +438,11 @@ public:
 	virtual void process() = 0;
 	virtual void on_peer_connected(int p_peer_id) {}
 	virtual void on_peer_disconnected(int p_peer_id) {}
-	virtual void on_node_added(NetUtility::ObjectData *p_node_data) {}
-	virtual void on_node_removed(NetUtility::ObjectData *p_node_data) {}
-	virtual void on_variable_added(NetUtility::ObjectData *p_node_data, const StringName &p_var_name) {}
-	virtual void on_variable_changed(NetUtility::ObjectData *p_node_data, NetVarId p_var_id, const Variant &p_old_value, int p_flag) {}
-	virtual void on_controller_reset(NetUtility::ObjectData *p_node_data) {}
+	virtual void on_object_data_added(NS::ObjectData *p_object_data) {}
+	virtual void on_object_data_removed(NS::ObjectData &p_object_data) {}
+	virtual void on_variable_added(NS::ObjectData *p_object_data, const StringName &p_var_name) {}
+	virtual void on_variable_changed(NS::ObjectData *p_object_data, NetVarId p_var_id, const Variant &p_old_value, int p_flag) {}
+	virtual void on_controller_reset(NS::ObjectData *p_object_data) {}
 };
 
 class NoNetSynchronizer : public Synchronizer {
@@ -480,7 +467,7 @@ class ServerSynchronizer : public Synchronizer {
 	real_t nodes_relevancy_update_timer = 0.0;
 	uint32_t epoch = 0;
 	/// This array contains a map between the peers and the relevant nodes.
-	LocalVector<NetUtility::SyncGroup> sync_groups;
+	LocalVector<NS::SyncGroup> sync_groups;
 
 	enum SnapshotGenerationMode {
 		/// The shanpshot will include The NodeId or NodePath and allthe changed variables.
@@ -500,22 +487,22 @@ public:
 	virtual void process() override;
 	virtual void on_peer_connected(int p_peer_id) override;
 	virtual void on_peer_disconnected(int p_peer_id) override;
-	virtual void on_node_added(NetUtility::ObjectData *p_node_data) override;
-	virtual void on_node_removed(NetUtility::ObjectData *p_node_data) override;
-	virtual void on_variable_added(NetUtility::ObjectData *p_node_data, const StringName &p_var_name) override;
-	virtual void on_variable_changed(NetUtility::ObjectData *p_node_data, NetVarId p_var_id, const Variant &p_old_value, int p_flag) override;
+	virtual void on_object_data_added(NS::ObjectData *p_object_data) override;
+	virtual void on_object_data_removed(NS::ObjectData &p_object_data) override;
+	virtual void on_variable_added(NS::ObjectData *p_object_data, const StringName &p_var_name) override;
+	virtual void on_variable_changed(NS::ObjectData *p_object_data, NetVarId p_var_id, const Variant &p_old_value, int p_flag) override;
 
 	SyncGroupId sync_group_create();
-	const NetUtility::SyncGroup *sync_group_get(SyncGroupId p_group_id) const;
-	void sync_group_add_node(NetUtility::ObjectData *p_node_data, SyncGroupId p_group_id, bool p_realtime);
-	void sync_group_remove_node(NetUtility::ObjectData *p_node_data, SyncGroupId p_group_id);
-	void sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NetUtility::SyncGroup::RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<NetUtility::SyncGroup::DeferredNodeInfo> &&p_new_deferred_nodes);
+	const NS::SyncGroup *sync_group_get(SyncGroupId p_group_id) const;
+	void sync_group_add_node(NS::ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime);
+	void sync_group_remove_node(NS::ObjectData *p_object_data, SyncGroupId p_group_id);
+	void sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::DeferredNodeInfo> &&p_new_deferred_nodes);
 	void sync_group_remove_all_nodes(SyncGroupId p_group_id);
 	void sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id);
 	const LocalVector<int> *sync_group_get_peers(SyncGroupId p_group_id) const;
 
-	void sync_group_set_deferred_update_rate(NetUtility::ObjectData *p_node_data, SyncGroupId p_group_id, real_t p_update_rate);
-	real_t sync_group_get_deferred_update_rate(const NetUtility::ObjectData *p_node_data, SyncGroupId p_group_id) const;
+	void sync_group_set_deferred_update_rate(NS::ObjectData *p_object_data, SyncGroupId p_group_id, real_t p_update_rate);
+	real_t sync_group_get_deferred_update_rate(const NS::ObjectData *p_object_data, SyncGroupId p_group_id) const;
 
 	void sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_ptr);
 	uint64_t sync_group_get_user_data(SyncGroupId p_group_id) const;
@@ -526,12 +513,12 @@ public:
 
 	Vector<Variant> generate_snapshot(
 			bool p_force_full_snapshot,
-			const NetUtility::SyncGroup &p_group) const;
+			const NS::SyncGroup &p_group) const;
 
 	void generate_snapshot_node_data(
-			const NetUtility::ObjectData *p_node_data,
+			const NS::ObjectData *p_object_data,
 			SnapshotGenerationMode p_mode,
-			const NetUtility::SyncGroup::Change &p_change,
+			const NS::SyncGroup::Change &p_change,
 			Vector<Variant> &r_result) const;
 
 	void process_deferred_sync(real_t p_delta);
@@ -540,12 +527,12 @@ public:
 class ClientSynchronizer : public Synchronizer {
 	friend class SceneSynchronizerBase;
 
-	NetUtility::ObjectData *player_controller_node_data = nullptr;
+	NS::ObjectData *player_controller_node_data = nullptr;
 	OAHashMap<ObjectNetId, std::string> node_paths;
 
-	NetUtility::Snapshot last_received_snapshot;
-	std::deque<NetUtility::Snapshot> client_snapshots;
-	std::deque<NetUtility::Snapshot> server_snapshots;
+	NS::Snapshot last_received_snapshot;
+	std::deque<NS::Snapshot> client_snapshots;
+	std::deque<NS::Snapshot> server_snapshots;
 	uint32_t last_checked_input = 0;
 	bool enabled = true;
 	bool want_to_enable = false;
@@ -553,15 +540,15 @@ class ClientSynchronizer : public Synchronizer {
 	bool need_full_snapshot_notified = false;
 
 	struct EndSyncEvent {
-		NetUtility::ObjectData *node_data;
+		NS::ObjectData *node_data;
 		NetVarId var_id;
 		Variant old_value;
 
 		bool operator<(const EndSyncEvent &p_other) const {
-			if (node_data->net_id == p_other.node_data->net_id) {
+			if (node_data->get_net_id() == p_other.node_data->get_net_id()) {
 				return var_id < p_other.var_id;
 			} else {
-				return node_data->net_id < p_other.node_data->net_id;
+				return node_data->get_net_id() < p_other.node_data->get_net_id();
 			}
 		}
 	};
@@ -569,7 +556,7 @@ class ClientSynchronizer : public Synchronizer {
 	RBSet<EndSyncEvent> sync_end_events;
 
 	struct DeferredSyncInterpolationData {
-		NetUtility::ObjectData *nd = nullptr;
+		NS::ObjectData *nd = nullptr;
 		DataBuffer past_epoch_buffer;
 		DataBuffer future_epoch_buffer;
 
@@ -600,10 +587,10 @@ class ClientSynchronizer : public Synchronizer {
 		}
 
 		DeferredSyncInterpolationData(
-				NetUtility::ObjectData *p_nd) :
+				NS::ObjectData *p_nd) :
 				nd(p_nd) {}
 		DeferredSyncInterpolationData(
-				NetUtility::ObjectData *p_nd,
+				NS::ObjectData *p_nd,
 				DataBuffer p_past_epoch_buffer,
 				DataBuffer p_future_epoch_buffer) :
 				nd(p_nd),
@@ -619,37 +606,37 @@ public:
 	virtual void clear() override;
 
 	virtual void process() override;
-	virtual void on_node_added(NetUtility::ObjectData *p_node_data) override;
-	virtual void on_node_removed(NetUtility::ObjectData *p_node_data) override;
-	virtual void on_variable_changed(NetUtility::ObjectData *p_node_data, NetVarId p_var_id, const Variant &p_old_value, int p_flag) override;
+	virtual void on_object_data_added(NS::ObjectData *p_object_data) override;
+	virtual void on_object_data_removed(NS::ObjectData &p_object_data) override;
+	virtual void on_variable_changed(NS::ObjectData *p_object_data, NetVarId p_var_id, const Variant &p_old_value, int p_flag) override;
 	void signal_end_sync_changed_variables_events();
-	virtual void on_controller_reset(NetUtility::ObjectData *p_node_data) override;
+	virtual void on_controller_reset(NS::ObjectData *p_object_data) override;
 
 	void receive_snapshot(Variant p_snapshot);
 	bool parse_sync_data(
 			Variant p_snapshot,
 			void *p_user_pointer,
 			void (*p_custom_data_parse)(void *p_user_pointer, const LocalVector<const Variant *> &p_custom_data),
-			void (*p_node_parse)(void *p_user_pointer, NetUtility::ObjectData *p_node_data),
+			void (*p_node_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
 			void (*p_input_id_parse)(void *p_user_pointer, uint32_t p_input_id),
-			void (*p_controller_parse)(void *p_user_pointer, NetUtility::ObjectData *p_node_data),
-			void (*p_variable_parse)(void *p_user_pointer, NetUtility::ObjectData *p_node_data, NetVarId p_var_id, const Variant &p_value),
-			void (*p_node_activation_parse)(void *p_user_pointer, NetUtility::ObjectData *p_node_data, bool p_is_active));
+			void (*p_controller_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
+			void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, NetVarId p_var_id, const Variant &p_value),
+			void (*p_node_activation_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, bool p_is_active));
 
 	void set_enabled(bool p_enabled);
 
 	void receive_deferred_sync_data(const Vector<uint8_t> &p_data);
 	void process_received_deferred_sync_data(real_t p_delta);
 
-	void remove_node_from_deferred_sync(NetUtility::ObjectData *p_node_data);
+	void remove_node_from_deferred_sync(NS::ObjectData *p_object_data);
 
 private:
 	/// Store node data organized per controller.
 	void store_snapshot();
 
 	void store_controllers_snapshot(
-			const NetUtility::Snapshot &p_snapshot,
-			std::deque<NetUtility::Snapshot> &r_snapshot_storage);
+			const NS::Snapshot &p_snapshot,
+			std::deque<NS::Snapshot> &r_snapshot_storage);
 
 	void process_simulation(real_t p_delta, real_t p_physics_ticks_per_second);
 
@@ -657,19 +644,19 @@ private:
 
 	bool __pcr__fetch_recovery_info(
 			const uint32_t p_input_id,
-			NetUtility::Snapshot &r_no_rewind_recover);
+			NS::Snapshot &r_no_rewind_recover);
 
 	void __pcr__sync__rewind();
 
 	void __pcr__rewind(
 			real_t p_delta,
 			const uint32_t p_checkable_input_id,
-			NetUtility::ObjectData *p_local_controller_node,
+			NS::ObjectData *p_local_controller_node,
 			NetworkedControllerBase *p_controller,
 			PlayerController *p_player_controller);
 
 	void __pcr__sync__no_rewind(
-			const NetUtility::Snapshot &p_postponed_recover);
+			const NS::Snapshot &p_postponed_recover);
 
 	void __pcr__no_rewind(
 			const uint32_t p_checkable_input_id,
@@ -680,9 +667,9 @@ private:
 
 	void notify_server_full_snapshot_is_needed();
 
-	void update_client_snapshot(NetUtility::Snapshot &p_snapshot);
+	void update_client_snapshot(NS::Snapshot &p_snapshot);
 	void apply_snapshot(
-			const NetUtility::Snapshot &p_snapshot,
+			const NS::Snapshot &p_snapshot,
 			int p_flag,
 			LocalVector<String> *r_applied_data_info,
 			bool p_skip_custom_data = false);
