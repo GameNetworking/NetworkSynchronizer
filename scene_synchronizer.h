@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <deque>
 #include <functional>
+#include <map>
 #include <memory>
 
 NS_NAMESPACE_BEGIN
@@ -161,7 +162,7 @@ private:
 	bool end_sync = false;
 
 	bool peer_dirty = false;
-	OAHashMap<int, NetUtility::PeerData> peer_data;
+	std::map<int, NetUtility::PeerData> peer_data;
 
 	bool generate_id = false;
 
@@ -176,7 +177,7 @@ private:
 	LocalVector<NetUtility::NodeData *> node_data_controllers;
 
 	int event_flag = 0;
-	std::vector<NetUtility::ChangesListener *> changes_listeners;
+	std::vector<ChangesListener *> changes_listeners;
 
 	bool cached_process_functions_valid = false;
 	Processor<float> cached_process_functions[PROCESSPHASE_COUNT];
@@ -387,6 +388,9 @@ public: // ------------------------------------------------------------ INTERNAL
 
 	NetworkedControllerBase *get_controller_for_peer(int p_peer, bool p_expected = true);
 	const NetworkedControllerBase *get_controller_for_peer(int p_peer, bool p_expected = true) const;
+
+	NetUtility::PeerData *get_peer_for_controller(const NetworkedControllerBase &p_controller, bool p_expected = true);
+	const NetUtility::PeerData *get_peer_for_controller(const NetworkedControllerBase &p_controller, bool p_expected = true) const;
 
 	/// Returns the latest generated `NetNodeId`.
 	NetNodeId get_biggest_node_id() const;
