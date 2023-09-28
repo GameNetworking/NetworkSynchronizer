@@ -244,11 +244,11 @@ public: // -------------------------------------------------------------- Events
 public:
 	void set_inputs_buffer(const BitArray &p_new_buffer, uint32_t p_metadata_size_in_bit, uint32_t p_size_in_bit);
 
-	void notify_registered_with_synchronizer(NS::SceneSynchronizerBase *p_synchronizer, NetUtility::ObjectData &p_nd);
+	void notify_registered_with_synchronizer(NS::SceneSynchronizerBase *p_synchronizer, NS::ObjectData &p_nd);
 	NS::SceneSynchronizerBase *get_scene_synchronizer() const;
 	bool has_scene_synchronizer() const;
 
-	void on_peer_status_updated(const NetUtility::ObjectData *p_node_data, int p_peer_id, bool p_connected, bool p_enabled);
+	void on_peer_status_updated(const NS::ObjectData *p_object_data, int p_peer_id, bool p_connected, bool p_enabled);
 	void on_state_validated(uint32_t p_input_id);
 	void on_rewind_frame_begin(uint32_t p_input_id, int p_index, int p_count);
 
@@ -346,8 +346,8 @@ struct ServerController : public RemotelyControlledController {
 	uint32_t additional_fps_notif_timer = 0;
 
 	uint32_t previous_frame_received_timestamp = UINT32_MAX;
-	NetUtility::StatisticalRingBuffer<uint32_t> network_watcher;
-	NetUtility::StatisticalRingBuffer<int> consecutive_input_watcher;
+	NS::StatisticalRingBuffer<uint32_t> network_watcher;
+	NS::StatisticalRingBuffer<int> consecutive_input_watcher;
 
 	ServerController(
 			NetworkedControllerBase *p_node,

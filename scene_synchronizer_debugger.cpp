@@ -563,7 +563,7 @@ void SceneSynchronizerDebugger::databuffer_write(uint32_t p_data_type, uint32_t 
 		return;
 	}
 
-	const String val_string = NetUtility::stringify_fast(p_variable);
+	const String val_string = NS::stringify_fast(p_variable);
 
 	frame_dump__data_buffer_writes.push_back(val_string);
 
@@ -583,7 +583,7 @@ void SceneSynchronizerDebugger::databuffer_read(uint32_t p_data_type, uint32_t p
 		return;
 	}
 
-	const String val_string = NetUtility::stringify_fast(p_variable);
+	const String val_string = NS::stringify_fast(p_variable);
 
 	frame_dump__data_buffer_reads.push_back(val_string);
 
@@ -719,7 +719,7 @@ void SceneSynchronizerDebugger::dump_tracked_objects(const NS::SceneSynchronizer
 				prefix = "* ";
 			}
 
-			node_dump[prefix + e->get().name + "::" + type_to_string(e->get().type)] = NetUtility::stringify_fast(tracked_nodes[i].node->get(e->get().name));
+			node_dump[prefix + e->get().name + "::" + type_to_string(e->get().type)] = NS::stringify_fast(tracked_nodes[i].node->get(e->get().name));
 		}
 
 		p_dump[node_path] = node_dump;

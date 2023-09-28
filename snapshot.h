@@ -1,12 +1,10 @@
 #pragma once
 
+#include "core/object_data.h"
 #include "net_utilities.h"
 
 namespace NS {
 class SceneSynchronizerBase;
-};
-
-namespace NetUtility {
 
 struct Snapshot {
 	uint32_t input_id = UINT32_MAX;
@@ -33,4 +31,4 @@ struct Snapshot {
 #endif
 };
 
-}; //namespace NetUtility
+}; //namespace NS
