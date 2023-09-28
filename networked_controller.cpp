@@ -262,7 +262,7 @@ void NetworkedControllerBase::set_inputs_buffer(const BitArray &p_new_buffer, ui
 	inputs_buffer->shrink_to(p_metadata_size_in_bit, p_size_in_bit);
 }
 
-void NetworkedControllerBase::notify_registered_with_synchronizer(NS::SceneSynchronizerBase *p_synchronizer, NetUtility::NodeData &p_nd) {
+void NetworkedControllerBase::notify_registered_with_synchronizer(NS::SceneSynchronizerBase *p_synchronizer, NetUtility::ObjectData &p_nd) {
 	if (scene_synchronizer) {
 		scene_synchronizer->event_peer_status_updated.unbind(event_handler_peer_status_updated);
 		scene_synchronizer->event_state_validated.unbind(event_handler_state_validated);
@@ -288,7 +288,7 @@ void NetworkedControllerBase::notify_registered_with_synchronizer(NS::SceneSynch
 						[this](float p_delta) -> void { process(p_delta); });
 
 		event_handler_peer_status_updated =
-				scene_synchronizer->event_peer_status_updated.bind([this](const NetUtility::NodeData *p_node_data, int p_peer_id, bool p_connected, bool p_enabled) -> void {
+				scene_synchronizer->event_peer_status_updated.bind([this](const NetUtility::ObjectData *p_node_data, int p_peer_id, bool p_connected, bool p_enabled) -> void {
 					on_peer_status_updated(p_node_data, p_peer_id, p_connected, p_enabled);
 				});
 
@@ -312,7 +312,7 @@ bool NetworkedControllerBase::has_scene_synchronizer() const {
 	return scene_synchronizer;
 }
 
-void NetworkedControllerBase::on_peer_status_updated(const NetUtility::NodeData *p_node_data, int p_peer_id, bool p_connected, bool p_enabled) {
+void NetworkedControllerBase::on_peer_status_updated(const NetUtility::ObjectData *p_node_data, int p_peer_id, bool p_connected, bool p_enabled) {
 	if (!p_node_data) {
 		return;
 	}
@@ -403,14 +403,14 @@ bool NetworkedControllerBase::player_has_new_input() const {
 bool NetworkedControllerBase::is_realtime_enabled() {
 	if (node_id == ID_NONE) {
 		if (scene_synchronizer) {
-			NetUtility::NodeData *nd = scene_synchronizer->find_node_data(this);
+			NetUtility::ObjectData *nd = scene_synchronizer->find_node_data(this);
 			if (nd) {
-				node_id = nd->id;
+				node_id = nd->net_id;
 			}
 		}
 	}
 	if (node_id != ID_NONE) {
-		NetUtility::NodeData *nd = scene_synchronizer->get_node_data(node_id);
+		NetUtility::ObjectData *nd = scene_synchronizer->get_node_data(node_id);
 		if (nd) {
 			return nd->realtime_sync_enabled_on_client;
 		}

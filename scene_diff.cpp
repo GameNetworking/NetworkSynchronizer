@@ -43,7 +43,7 @@ void SceneDiff::_bind_methods() {
 
 void SceneDiff::start_tracking_scene_changes(
 		const NS::SceneSynchronizerBase *p_synchronizer,
-		const LocalVector<NetUtility::NodeData *> &p_nodes) {
+		const LocalVector<NetUtility::ObjectData *> &p_nodes) {
 	start_tracking_count += 1;
 	if (start_tracking_count > 1) {
 		// Nothing to do, the tracking is already started.
@@ -61,7 +61,7 @@ void SceneDiff::start_tracking_scene_changes(
 #ifdef DEBUG_ENABLED
 		// This is never triggered because we always pass the `organized_node_data`
 		// array.
-		CRASH_COND(p_nodes[i]->id != i);
+		CRASH_COND(p_nodes[i]->net_id != i);
 		// This is never triggered because when the node is invalid the node data
 		// is destroyed.
 		CRASH_COND(p_nodes[i]->app_object_handle == NS::nullobjecthandle);
@@ -113,8 +113,8 @@ void SceneDiff::stop_tracking_scene_changes(const NS::SceneSynchronizerBase *p_s
 		diff.resize(tracking.size());
 	}
 
-	for (NetNodeId i = 0; i < tracking.size(); i += 1) {
-		const NetUtility::NodeData *nd = p_synchronizer->get_node_data(i);
+	for (ObjectNetId i = 0; i < tracking.size(); i += 1) {
+		const NetUtility::ObjectData *nd = p_synchronizer->get_node_data(i);
 		if (nd == nullptr) {
 			continue;
 		}
@@ -122,7 +122,7 @@ void SceneDiff::stop_tracking_scene_changes(const NS::SceneSynchronizerBase *p_s
 #ifdef DEBUG_ENABLED
 		// This is never triggered because we always pass the `organized_node_data`
 		// array.
-		CRASH_COND(nd->id != i);
+		CRASH_COND(nd->net_id != i);
 		// This is never triggered because when the object is invalid the node data
 		// is destroyed.
 		CRASH_COND(nd->app_object_handle == NS::nullobjecthandle);

@@ -153,21 +153,21 @@ real_t SceneSynchronizerBase::get_nodes_relevancy_update_time() const {
 }
 
 bool SceneSynchronizerBase::is_variable_registered(ObjectHandle p_app_object_handle, const StringName &p_variable) const {
-	const NetUtility::NodeData *nd = find_node_data(p_app_object_handle);
+	const NetUtility::ObjectData *nd = find_node_data(p_app_object_handle);
 	if (nd != nullptr) {
 		return nd->vars.find(p_variable) >= 0;
 	}
 	return false;
 }
 
-NetUtility::NodeData *SceneSynchronizerBase::register_app_object(ObjectHandle p_app_object_handle) {
+NetUtility::ObjectData *SceneSynchronizerBase::register_app_object(ObjectHandle p_app_object_handle) {
 	ERR_FAIL_COND_V(p_app_object_handle == nullobjecthandle, nullptr);
 
-	NetUtility::NodeData *nd = find_node_data(p_app_object_handle);
+	NetUtility::ObjectData *nd = find_node_data(p_app_object_handle);
 	if (unlikely(nd == nullptr)) {
 		// TODO consider to put this in a pre-allocated memory buffer.
-		nd = memnew(NetUtility::NodeData);
-		nd->id = UINT32_MAX;
+		nd = memnew(NetUtility::ObjectData);
+		nd->net_id = UINT32_MAX;
 		nd->instance_id = synchronizer_manager->get_object_id(p_app_object_handle);
 		nd->object_name = synchronizer_manager->get_object_name(p_app_object_handle);
 		nd->app_object_handle = p_app_object_handle;
@@ -185,7 +185,7 @@ NetUtility::NodeData *SceneSynchronizerBase::register_app_object(ObjectHandle p_
 
 		synchronizer_manager->setup_synchronizer_for(p_app_object_handle);
 
-		SceneSynchronizerDebugger::singleton()->debug_print(network_interface, "New node registered" + (generate_id ? String(" #ID: ") + itos(nd->id) : "") + " : " + nd->object_name.c_str());
+		SceneSynchronizerDebugger::singleton()->debug_print(network_interface, "New node registered" + (generate_id ? String(" #ID: ") + itos(nd->net_id) : "") + " : " + nd->object_name.c_str());
 
 		if (nd->controller) {
 			nd->controller->notify_registered_with_synchronizer(this, *nd);
@@ -198,7 +198,7 @@ NetUtility::NodeData *SceneSynchronizerBase::register_app_object(ObjectHandle p_
 void SceneSynchronizerBase::unregister_app_object(ObjectHandle p_app_object_handle) {
 	ERR_FAIL_COND(p_app_object_handle == nullobjecthandle);
 
-	NetUtility::NodeData *nd = find_node_data(p_app_object_handle);
+	NetUtility::ObjectData *nd = find_node_data(p_app_object_handle);
 	if (unlikely(nd == nullptr)) {
 		// Nothing to do.
 		return;
@@ -211,7 +211,7 @@ void SceneSynchronizerBase::register_variable(ObjectHandle p_app_object_handle, 
 	ERR_FAIL_COND(p_app_object_handle == nullobjecthandle);
 	ERR_FAIL_COND(p_variable == StringName());
 
-	NetUtility::NodeData *node_data = register_app_object(p_app_object_handle);
+	NetUtility::ObjectData *node_data = register_app_object(p_app_object_handle);
 	ERR_FAIL_COND(node_data == nullptr);
 
 	const int index = node_data->vars.find(p_variable);
@@ -252,7 +252,7 @@ void SceneSynchronizerBase::unregister_variable(ObjectHandle p_app_object_handle
 	ERR_FAIL_COND(p_app_object_handle == nullobjecthandle);
 	ERR_FAIL_COND(p_variable == StringName());
 
-	NetUtility::NodeData *nd = find_node_data(p_app_object_handle);
+	NetUtility::ObjectData *nd = find_node_data(p_app_object_handle);
 	ERR_FAIL_COND(nd == nullptr);
 
 	const int64_t index = nd->vars.find(p_variable);
@@ -278,17 +278,17 @@ void SceneSynchronizerBase::unregister_variable(ObjectHandle p_app_object_handle
 	nd->vars[index].changes_listeners.clear();
 }
 
-NetNodeId SceneSynchronizerBase::get_app_object_net_id(ObjectHandle p_app_object_handle) const {
-	const NetUtility::NodeData *nd = find_node_data(p_app_object_handle);
+ObjectNetId SceneSynchronizerBase::get_app_object_net_id(ObjectHandle p_app_object_handle) const {
+	const NetUtility::ObjectData *nd = find_node_data(p_app_object_handle);
 	if (nd) {
-		return nd->id;
+		return nd->net_id;
 	} else {
 		return ID_NONE;
 	}
 }
 
 ObjectHandle SceneSynchronizerBase::get_app_object_from_id(uint32_t p_id, bool p_expected) {
-	NetUtility::NodeData *nd = get_node_data(p_id, p_expected);
+	NetUtility::ObjectData *nd = get_node_data(p_id, p_expected);
 	if (p_expected) {
 		ERR_FAIL_COND_V_MSG(nd == nullptr, nullobjecthandle, "The ID " + itos(p_id) + " is not assigned to any node.");
 		return nd->app_object_handle;
@@ -298,7 +298,7 @@ ObjectHandle SceneSynchronizerBase::get_app_object_from_id(uint32_t p_id, bool p
 }
 
 ObjectHandle SceneSynchronizerBase::get_app_object_from_id_const(uint32_t p_id, bool p_expected) const {
-	const NetUtility::NodeData *nd = get_node_data(p_id, p_expected);
+	const NetUtility::ObjectData *nd = get_node_data(p_id, p_expected);
 	if (p_expected) {
 		ERR_FAIL_COND_V_MSG(nd == nullptr, nullobjecthandle, "The ID " + itos(p_id) + " is not assigned to any node.");
 		return nd->app_object_handle;
@@ -307,14 +307,14 @@ ObjectHandle SceneSynchronizerBase::get_app_object_from_id_const(uint32_t p_id, 
 	}
 }
 
-const LocalVector<NetUtility::NodeData *> &SceneSynchronizerBase::get_all_node_data() const {
+const LocalVector<NetUtility::ObjectData *> &SceneSynchronizerBase::get_all_node_data() const {
 	return node_data;
 }
 
-uint32_t SceneSynchronizerBase::get_variable_id(NetNodeId p_id, const StringName &p_variable) {
+uint32_t SceneSynchronizerBase::get_variable_id(ObjectNetId p_id, const StringName &p_variable) {
 	ERR_FAIL_COND_V(p_variable == StringName(), UINT32_MAX);
 
-	NetUtility::NodeData *nd = get_node_data(p_id);
+	NetUtility::ObjectData *nd = get_node_data(p_id);
 	ERR_FAIL_COND_V_MSG(nd == nullptr, UINT32_MAX, "This node " + String(nd->object_name.c_str()) + "is not registered.");
 
 	const int64_t index = nd->vars.find(p_variable);
@@ -323,8 +323,8 @@ uint32_t SceneSynchronizerBase::get_variable_id(NetNodeId p_id, const StringName
 	return uint32_t(index);
 }
 
-void SceneSynchronizerBase::set_skip_rewinding(NetNodeId p_id, const StringName &p_variable, bool p_skip_rewinding) {
-	NetUtility::NodeData *nd = get_node_data(p_id);
+void SceneSynchronizerBase::set_skip_rewinding(ObjectNetId p_id, const StringName &p_variable, bool p_skip_rewinding) {
+	NetUtility::ObjectData *nd = get_node_data(p_id);
 	ERR_FAIL_COND(nd == nullptr);
 
 	const int64_t index = nd->vars.find(p_variable);
@@ -367,7 +367,7 @@ ListenerHandle SceneSynchronizerBase::track_variables_changes(
 		ObjectHandle handle = p_object_handles[i];
 		const StringName variable_name = p_variables[i];
 
-		NetUtility::NodeData *nd = find_node_data(handle);
+		NetUtility::ObjectData *nd = find_node_data(handle);
 		if (!nd) {
 			ERR_PRINT("The passed ObjectHandle `" + itos(handle.intptr) + "` is not pointing to any valid NodeData. Make sure to register the variable first.");
 			is_valid = false;
@@ -389,7 +389,7 @@ ListenerHandle SceneSynchronizerBase::track_variables_changes(
 		// Now we are sure that everything passed by the user is valid
 		// we can connect the other NodeData to this listener.
 		for (auto wv : listener->watching_vars) {
-			NetUtility::NodeData *nd = wv.node_data;
+			NetUtility::ObjectData *nd = wv.node_data;
 			nd->vars[wv.var_id].changes_listeners.push_back(listener);
 		}
 
@@ -431,7 +431,7 @@ void SceneSynchronizerBase::untrack_variable_changes(ListenerHandle p_handle) {
 	delete listener;
 }
 
-NS::PHandler SceneSynchronizerBase::register_process(NetUtility::NodeData *p_node_data, ProcessPhase p_phase, std::function<void(float)> p_func) {
+NS::PHandler SceneSynchronizerBase::register_process(NetUtility::ObjectData *p_node_data, ProcessPhase p_phase, std::function<void(float)> p_func) {
 	ERR_FAIL_COND_V(p_node_data == nullptr, NS::NullPHandler);
 	ERR_FAIL_COND_V(!p_func, NS::NullPHandler);
 
@@ -442,7 +442,7 @@ NS::PHandler SceneSynchronizerBase::register_process(NetUtility::NodeData *p_nod
 	return EFH;
 }
 
-void SceneSynchronizerBase::unregister_process(NetUtility::NodeData *p_node_data, ProcessPhase p_phase, NS::PHandler p_func_handler) {
+void SceneSynchronizerBase::unregister_process(NetUtility::ObjectData *p_node_data, ProcessPhase p_phase, NS::PHandler p_func_handler) {
 	ERR_FAIL_COND(p_node_data == nullptr);
 	p_node_data->functions[p_phase].unbind(p_func_handler);
 	process_functions__clear();
@@ -452,7 +452,7 @@ void SceneSynchronizerBase::setup_deferred_sync(ObjectHandle p_app_object_handle
 	ERR_FAIL_COND(p_app_object_handle == nullobjecthandle);
 	ERR_FAIL_COND(!p_collect_epoch_func.is_valid());
 	ERR_FAIL_COND(!p_apply_epoch_func.is_valid());
-	NetUtility::NodeData *node_data = register_app_object(p_app_object_handle);
+	NetUtility::ObjectData *node_data = register_app_object(p_app_object_handle);
 	node_data->collect_epoch_func = p_collect_epoch_func;
 	node_data->apply_epoch_func = p_apply_epoch_func;
 	SceneSynchronizerDebugger::singleton()->debug_print(network_interface, "Setup deferred sync functions for: `" + String(node_data->object_name.c_str()) + "`. Collect epoch, method name: `" + p_collect_epoch_func.get_method() + "`. Apply epoch, method name: `" + p_apply_epoch_func.get_method() + "`.");
@@ -470,22 +470,22 @@ const NetUtility::SyncGroup *SceneSynchronizerBase::sync_group_get(SyncGroupId p
 	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get(p_group_id);
 }
 
-void SceneSynchronizerBase::sync_group_add_node_by_id(NetNodeId p_node_id, SyncGroupId p_group_id, bool p_realtime) {
-	NetUtility::NodeData *nd = get_node_data(p_node_id);
+void SceneSynchronizerBase::sync_group_add_node_by_id(ObjectNetId p_node_id, SyncGroupId p_group_id, bool p_realtime) {
+	NetUtility::ObjectData *nd = get_node_data(p_node_id);
 	sync_group_add_node(nd, p_group_id, p_realtime);
 }
 
-void SceneSynchronizerBase::sync_group_add_node(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id, bool p_realtime) {
+void SceneSynchronizerBase::sync_group_add_node(NetUtility::ObjectData *p_node_data, SyncGroupId p_group_id, bool p_realtime) {
 	ERR_FAIL_COND_MSG(!is_server(), "This function CAN be used only on the server.");
 	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_add_node(p_node_data, p_group_id, p_realtime);
 }
 
-void SceneSynchronizerBase::sync_group_remove_node_by_id(NetNodeId p_node_id, SyncGroupId p_group_id) {
-	NetUtility::NodeData *nd = get_node_data(p_node_id);
+void SceneSynchronizerBase::sync_group_remove_node_by_id(ObjectNetId p_node_id, SyncGroupId p_group_id) {
+	NetUtility::ObjectData *nd = get_node_data(p_node_id);
 	sync_group_remove_node(nd, p_group_id);
 }
 
-void SceneSynchronizerBase::sync_group_remove_node(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id) {
+void SceneSynchronizerBase::sync_group_remove_node(NetUtility::ObjectData *p_node_data, SyncGroupId p_group_id) {
 	ERR_FAIL_COND_MSG(!is_server(), "This function CAN be used only on the server.");
 	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_remove_node(p_node_data, p_group_id);
 }
@@ -530,22 +530,22 @@ const LocalVector<int> *SceneSynchronizerBase::sync_group_get_peers(SyncGroupId 
 	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get_peers(p_group_id);
 }
 
-void SceneSynchronizerBase::sync_group_set_deferred_update_rate_by_id(NetNodeId p_node_id, SyncGroupId p_group_id, real_t p_update_rate) {
-	NetUtility::NodeData *nd = get_node_data(p_node_id);
+void SceneSynchronizerBase::sync_group_set_deferred_update_rate_by_id(ObjectNetId p_node_id, SyncGroupId p_group_id, real_t p_update_rate) {
+	NetUtility::ObjectData *nd = get_node_data(p_node_id);
 	sync_group_set_deferred_update_rate(nd, p_group_id, p_update_rate);
 }
 
-void SceneSynchronizerBase::sync_group_set_deferred_update_rate(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id, real_t p_update_rate) {
+void SceneSynchronizerBase::sync_group_set_deferred_update_rate(NetUtility::ObjectData *p_node_data, SyncGroupId p_group_id, real_t p_update_rate) {
 	ERR_FAIL_COND_MSG(!is_server(), "This function CAN be used only on the server.");
 	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_set_deferred_update_rate(p_node_data, p_group_id, p_update_rate);
 }
 
-real_t SceneSynchronizerBase::sync_group_get_deferred_update_rate_by_id(NetNodeId p_node_id, SyncGroupId p_group_id) const {
-	const NetUtility::NodeData *nd = get_node_data(p_node_id);
+real_t SceneSynchronizerBase::sync_group_get_deferred_update_rate_by_id(ObjectNetId p_node_id, SyncGroupId p_group_id) const {
+	const NetUtility::ObjectData *nd = get_node_data(p_node_id);
 	return sync_group_get_deferred_update_rate(nd, p_group_id);
 }
 
-real_t SceneSynchronizerBase::sync_group_get_deferred_update_rate(const NetUtility::NodeData *p_node_data, SyncGroupId p_group_id) const {
+real_t SceneSynchronizerBase::sync_group_get_deferred_update_rate(const NetUtility::ObjectData *p_node_data, SyncGroupId p_group_id) const {
 	ERR_FAIL_COND_V_MSG(!is_server(), 0.0, "This function CAN be used only on the server.");
 	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get_deferred_update_rate(p_node_data, p_group_id);
 }
@@ -595,7 +595,7 @@ Variant SceneSynchronizerBase::pop_scene_changes(Object *p_diff_handle) const {
 
 	// Generates a sync_data and returns it.
 	Vector<Variant> ret;
-	for (NetNodeId node_id = 0; node_id < diff->diff.size(); node_id += 1) {
+	for (ObjectNetId node_id = 0; node_id < diff->diff.size(); node_id += 1) {
 		if (diff->diff[node_id].size() == 0) {
 			// Nothing to do.
 			continue;
@@ -647,16 +647,16 @@ void SceneSynchronizerBase::apply_scene_changes(const Variant &p_sync_data) {
 			},
 
 			// Parse the Node:
-			[](void *p_user_pointer, NetUtility::NodeData *p_node_data) {},
+			[](void *p_user_pointer, NetUtility::ObjectData *p_node_data) {},
 
 			// Parse InputID:
 			[](void *p_user_pointer, uint32_t p_input_id) {},
 
 			// Parse controller:
-			[](void *p_user_pointer, NetUtility::NodeData *p_node_data) {},
+			[](void *p_user_pointer, NetUtility::ObjectData *p_node_data) {},
 
 			// Parse variable:
-			[](void *p_user_pointer, NetUtility::NodeData *p_node_data, uint32_t p_var_id, const Variant &p_value) {
+			[](void *p_user_pointer, NetUtility::ObjectData *p_node_data, uint32_t p_var_id, const Variant &p_value) {
 				SceneSynchronizerBase *scene_sync = static_cast<SceneSynchronizerBase *>(p_user_pointer);
 
 				const Variant current_val = p_node_data->vars[p_var_id].var.value;
@@ -679,7 +679,7 @@ void SceneSynchronizerBase::apply_scene_changes(const Variant &p_sync_data) {
 			},
 
 			// Parse node activation:
-			[](void *p_user_pointer, NetUtility::NodeData *p_node_data, bool p_is_active) {
+			[](void *p_user_pointer, NetUtility::ObjectData *p_node_data, bool p_is_active) {
 			});
 
 	if (success == false) {
@@ -820,8 +820,8 @@ void SceneSynchronizerBase::on_peer_connected(int p_peer) {
 void SceneSynchronizerBase::on_peer_disconnected(int p_peer) {
 	// Emit a signal notifying this peer is gone.
 	NetUtility::PeerData *pd = MapFunc::at(peer_data, p_peer);
-	NetNodeId id = ID_NONE;
-	NetUtility::NodeData *node_data = nullptr;
+	ObjectNetId id = ID_NONE;
+	NetUtility::ObjectData *node_data = nullptr;
 	if (pd) {
 		id = pd->controller_id;
 		node_data = get_node_data(id);
@@ -864,10 +864,10 @@ void SceneSynchronizerBase::init_synchronizer(bool p_was_generating_ids) {
 
 			// Handle the node ID.
 			if (generate_id) {
-				node_data[i]->id = i;
+				node_data[i]->net_id = i;
 				organized_node_data[i] = node_data[i];
 			} else {
-				node_data[i]->id = UINT32_MAX;
+				node_data[i]->net_id = UINT32_MAX;
 				organized_node_data[i] = nullptr;
 			}
 
@@ -1001,7 +1001,7 @@ void SceneSynchronizerBase::update_peers() {
 	for (auto &it : peer_data) {
 		// Validate the peer.
 		if (it.second.controller_id != UINT32_MAX) {
-			NetUtility::NodeData *nd = get_node_data(it.second.controller_id);
+			NetUtility::ObjectData *nd = get_node_data(it.second.controller_id);
 			if (nd == nullptr ||
 					nd->controller == nullptr ||
 					nd->controller->network_interface->get_unit_authority() != it.first) {
@@ -1014,13 +1014,13 @@ void SceneSynchronizerBase::update_peers() {
 				const NetworkedControllerBase *nc = node_data_controllers[i]->controller;
 				if (nc && nc->network_interface->get_unit_authority() == it.first) {
 					// Controller found.
-					it.second.controller_id = node_data_controllers[i]->id;
+					it.second.controller_id = node_data_controllers[i]->net_id;
 					break;
 				}
 			}
 		}
 
-		NetUtility::NodeData *nd = get_node_data(it.second.controller_id, false);
+		NetUtility::ObjectData *nd = get_node_data(it.second.controller_id, false);
 		if (nd) {
 			nd->realtime_sync_enabled_on_client = it.second.enabled;
 			event_peer_status_updated.broadcast(nd, it.first, true, it.second.enabled);
@@ -1045,8 +1045,8 @@ void SceneSynchronizerBase::detect_and_signal_changed_variables(int p_flags) {
 		change_events_begin(p_flags);
 	}
 
-	for (NetNodeId i = 0; i < node_data.size(); i += 1) {
-		NetUtility::NodeData *nd = node_data[i];
+	for (ObjectNetId i = 0; i < node_data.size(); i += 1) {
+		NetUtility::ObjectData *nd = node_data[i];
 		CRASH_COND_MSG(nd == nullptr, "This can't happen because we are looping over the `node_data`.");
 		pull_node_changes(nd);
 	}
@@ -1068,7 +1068,7 @@ void SceneSynchronizerBase::change_events_begin(int p_flag) {
 	end_sync = NetEventFlag::END_SYNC & p_flag;
 }
 
-void SceneSynchronizerBase::change_event_add(NetUtility::NodeData *p_node_data, NetVarId p_var_id, const Variant &p_old) {
+void SceneSynchronizerBase::change_event_add(NetUtility::ObjectData *p_node_data, NetVarId p_var_id, const Variant &p_old) {
 	for (int i = 0; i < int(p_node_data->vars[p_var_id].changes_listeners.size()); i += 1) {
 		ChangesListener *listener = p_node_data->vars[p_var_id].changes_listeners[i];
 		// This can't be `nullptr` because when the changes listener is dropped
@@ -1130,13 +1130,13 @@ void SceneSynchronizerBase::change_events_flush() {
 	end_sync = false;
 }
 
-void SceneSynchronizerBase::add_node_data(NetUtility::NodeData *p_node_data) {
+void SceneSynchronizerBase::add_node_data(NetUtility::ObjectData *p_node_data) {
 	if (generate_id) {
 #ifdef DEBUG_ENABLED
 		// When generate_id is true, the id must always be undefined.
-		CRASH_COND(p_node_data->id != UINT32_MAX);
+		CRASH_COND(p_node_data->net_id != UINT32_MAX);
 #endif
-		p_node_data->id = organized_node_data.size();
+		p_node_data->net_id = organized_node_data.size();
 	}
 
 #ifdef DEBUG_ENABLED
@@ -1161,14 +1161,14 @@ void SceneSynchronizerBase::add_node_data(NetUtility::NodeData *p_node_data) {
 	if (generate_id) {
 		organized_node_data.push_back(p_node_data);
 	} else {
-		if (p_node_data->id != UINT32_MAX) {
+		if (p_node_data->net_id != UINT32_MAX) {
 			// This node has an ID, make sure to organize it properly.
 
-			if (organized_node_data.size() <= p_node_data->id) {
-				expand_organized_node_data_vector((p_node_data->id + 1) - organized_node_data.size());
+			if (organized_node_data.size() <= p_node_data->net_id) {
+				expand_organized_node_data_vector((p_node_data->net_id + 1) - organized_node_data.size());
 			}
 
-			organized_node_data[p_node_data->id] = p_node_data;
+			organized_node_data[p_node_data->net_id] = p_node_data;
 		}
 	}
 
@@ -1189,7 +1189,7 @@ void SceneSynchronizerBase::add_node_data(NetUtility::NodeData *p_node_data) {
 	synchronizer_manager->on_add_node_data(p_node_data);
 }
 
-void SceneSynchronizerBase::drop_node_data(NetUtility::NodeData *p_node_data) {
+void SceneSynchronizerBase::drop_node_data(NetUtility::ObjectData *p_node_data) {
 	synchronizer_manager->on_drop_node_data(p_node_data);
 
 	if (synchronizer) {
@@ -1205,9 +1205,9 @@ void SceneSynchronizerBase::drop_node_data(NetUtility::NodeData *p_node_data) {
 
 	node_data.erase(p_node_data);
 
-	if (p_node_data->id < organized_node_data.size()) {
+	if (p_node_data->net_id < organized_node_data.size()) {
 		// Never resize this vector to keep it sort.
-		organized_node_data[p_node_data->id] = nullptr;
+		organized_node_data[p_node_data->net_id] = nullptr;
 	}
 
 	// Remove this `NodeData` from any event listener.
@@ -1228,14 +1228,14 @@ void SceneSynchronizerBase::drop_node_data(NetUtility::NodeData *p_node_data) {
 	memdelete(p_node_data);
 }
 
-void SceneSynchronizerBase::set_node_data_id(NetUtility::NodeData *p_node_data, NetNodeId p_id) {
+void SceneSynchronizerBase::set_node_data_id(NetUtility::ObjectData *p_node_data, ObjectNetId p_id) {
 #ifdef DEBUG_ENABLED
 	CRASH_COND_MSG(generate_id, "This function is not supposed to be called, because this instance is generating the IDs");
 #endif
 	if (organized_node_data.size() <= p_id) {
 		expand_organized_node_data_vector((p_id + 1) - organized_node_data.size());
 	}
-	p_node_data->id = p_id;
+	p_node_data->net_id = p_id;
 	organized_node_data[p_id] = p_node_data;
 	if (p_node_data->has_registered_process_functions()) {
 		process_functions__clear();
@@ -1246,7 +1246,7 @@ void SceneSynchronizerBase::set_node_data_id(NetUtility::NodeData *p_node_data, 
 NetworkedControllerBase *SceneSynchronizerBase::fetch_controller_by_peer(int peer) {
 	const NetUtility::PeerData *data = MapFunc::at(peer_data, peer);
 	if (data && data->controller_id != UINT32_MAX) {
-		NetUtility::NodeData *nd = get_node_data(data->controller_id);
+		NetUtility::ObjectData *nd = get_node_data(data->controller_id);
 		if (nd) {
 			return nd->controller;
 		}
@@ -1449,7 +1449,7 @@ void SceneSynchronizerBase::process_functions__execute(const double p_delta) {
 
 		// Build the cached_process_functions, making sure the node data order is kept.
 		for (uint32_t i = 0; i < organized_node_data.size(); ++i) {
-			NetUtility::NodeData *nd = organized_node_data[i];
+			NetUtility::ObjectData *nd = organized_node_data[i];
 			if (nd == nullptr || (is_client() && nd->realtime_sync_enabled_on_client == false)) {
 				// Nothing to process
 				continue;
@@ -1478,7 +1478,7 @@ void SceneSynchronizerBase::expand_organized_node_data_vector(uint32_t p_size) {
 	memset(organized_node_data.ptr() + from, 0, sizeof(void *) * p_size);
 }
 
-NetUtility::NodeData *SceneSynchronizerBase::find_node_data(ObjectHandle p_app_object_handle) {
+NetUtility::ObjectData *SceneSynchronizerBase::find_node_data(ObjectHandle p_app_object_handle) {
 	for (uint32_t i = 0; i < node_data.size(); i += 1) {
 		if (node_data[i] == nullptr) {
 			continue;
@@ -1490,7 +1490,7 @@ NetUtility::NodeData *SceneSynchronizerBase::find_node_data(ObjectHandle p_app_o
 	return nullptr;
 }
 
-const NetUtility::NodeData *SceneSynchronizerBase::find_node_data(ObjectHandle p_app_object_handle) const {
+const NetUtility::ObjectData *SceneSynchronizerBase::find_node_data(ObjectHandle p_app_object_handle) const {
 	for (uint32_t i = 0; i < node_data.size(); i += 1) {
 		if (node_data[i] == nullptr) {
 			continue;
@@ -1502,8 +1502,8 @@ const NetUtility::NodeData *SceneSynchronizerBase::find_node_data(ObjectHandle p
 	return nullptr;
 }
 
-NetUtility::NodeData *SceneSynchronizerBase::find_node_data(const NetworkedControllerBase *p_controller) {
-	for (NetUtility::NodeData *nd : node_data_controllers) {
+NetUtility::ObjectData *SceneSynchronizerBase::find_node_data(const NetworkedControllerBase *p_controller) {
+	for (NetUtility::ObjectData *nd : node_data_controllers) {
 		if (nd == nullptr) {
 			continue;
 		}
@@ -1514,8 +1514,8 @@ NetUtility::NodeData *SceneSynchronizerBase::find_node_data(const NetworkedContr
 	return nullptr;
 }
 
-const NetUtility::NodeData *SceneSynchronizerBase::find_node_data(const NetworkedControllerBase *p_controller) const {
-	for (const NetUtility::NodeData *nd : node_data_controllers) {
+const NetUtility::ObjectData *SceneSynchronizerBase::find_node_data(const NetworkedControllerBase *p_controller) const {
+	for (const NetUtility::ObjectData *nd : node_data_controllers) {
 		if (nd == nullptr) {
 			continue;
 		}
@@ -1526,7 +1526,7 @@ const NetUtility::NodeData *SceneSynchronizerBase::find_node_data(const Networke
 	return nullptr;
 }
 
-NetUtility::NodeData *SceneSynchronizerBase::get_node_data(NetNodeId p_id, bool p_expected) {
+NetUtility::ObjectData *SceneSynchronizerBase::get_node_data(ObjectNetId p_id, bool p_expected) {
 	if (p_expected) {
 		ERR_FAIL_UNSIGNED_INDEX_V(p_id, organized_node_data.size(), nullptr);
 		return organized_node_data[p_id];
@@ -1538,7 +1538,7 @@ NetUtility::NodeData *SceneSynchronizerBase::get_node_data(NetNodeId p_id, bool 
 	}
 }
 
-const NetUtility::NodeData *SceneSynchronizerBase::get_node_data(NetNodeId p_id, bool p_expected) const {
+const NetUtility::ObjectData *SceneSynchronizerBase::get_node_data(ObjectNetId p_id, bool p_expected) const {
 	if (p_expected) {
 		ERR_FAIL_UNSIGNED_INDEX_V(p_id, organized_node_data.size(), nullptr);
 		return organized_node_data[p_id];
@@ -1555,7 +1555,7 @@ NetworkedControllerBase *SceneSynchronizerBase::get_controller_for_peer(int p_pe
 	if (p_expected) {
 		ERR_FAIL_COND_V_MSG(pd == nullptr, nullptr, "The peer is unknown `" + itos(p_peer) + "`.");
 	}
-	NetUtility::NodeData *nd = get_node_data(pd->controller_id, p_expected);
+	NetUtility::ObjectData *nd = get_node_data(pd->controller_id, p_expected);
 	if (nd) {
 		return nd->controller;
 	}
@@ -1567,7 +1567,7 @@ const NetworkedControllerBase *SceneSynchronizerBase::get_controller_for_peer(in
 	if (p_expected) {
 		ERR_FAIL_COND_V_MSG(pd == nullptr, nullptr, "The peer is unknown `" + itos(p_peer) + "`.");
 	}
-	const NetUtility::NodeData *nd = get_node_data(pd->controller_id, p_expected);
+	const NetUtility::ObjectData *nd = get_node_data(pd->controller_id, p_expected);
 	if (nd) {
 		return nd->controller;
 	}
@@ -1598,7 +1598,7 @@ const NetUtility::PeerData *SceneSynchronizerBase::get_peer_for_controller(const
 	return nullptr;
 }
 
-NetNodeId SceneSynchronizerBase::get_biggest_node_id() const {
+ObjectNetId SceneSynchronizerBase::get_biggest_node_id() const {
 	return organized_node_data.size() == 0 ? UINT32_MAX : organized_node_data.size() - 1;
 }
 
@@ -1608,7 +1608,7 @@ void SceneSynchronizerBase::reset_controllers() {
 	}
 }
 
-void SceneSynchronizerBase::reset_controller(NetUtility::NodeData *p_controller_nd) {
+void SceneSynchronizerBase::reset_controller(NetUtility::ObjectData *p_controller_nd) {
 #ifdef DEBUG_ENABLED
 	// This can't happen because the callers make sure the `NodeData` is a
 	// controller.
@@ -1661,7 +1661,7 @@ void SceneSynchronizerBase::reset_controller(NetUtility::NodeData *p_controller_
 	}
 }
 
-void SceneSynchronizerBase::pull_node_changes(NetUtility::NodeData *p_node_data) {
+void SceneSynchronizerBase::pull_node_changes(NetUtility::ObjectData *p_node_data) {
 	for (NetVarId var_id = 0; var_id < p_node_data->vars.size(); var_id += 1) {
 		if (p_node_data->vars[var_id].enabled == false) {
 			continue;
@@ -1787,7 +1787,7 @@ void ServerSynchronizer::process() {
 			continue;
 		}
 
-		const NetUtility::NodeData *nd = scene_synchronizer->get_node_data(peer_it.second.controller_id);
+		const NetUtility::ObjectData *nd = scene_synchronizer->get_node_data(peer_it.second.controller_id);
 		const uint32_t current_input_id = nd->controller->get_server_controller()->get_current_input_id();
 		SceneSynchronizerDebugger::singleton()->write_dump(peer_it.first, current_input_id);
 	}
@@ -1805,12 +1805,12 @@ void ServerSynchronizer::on_peer_disconnected(int p_peer_id) {
 	}
 }
 
-void ServerSynchronizer::on_node_added(NetUtility::NodeData *p_node_data) {
+void ServerSynchronizer::on_node_added(NetUtility::ObjectData *p_node_data) {
 #ifdef DEBUG_ENABLED
 	// Can't happen on server
 	CRASH_COND(scene_synchronizer->is_recovered());
 	// On server the ID is always known.
-	CRASH_COND(p_node_data->id == UINT32_MAX);
+	CRASH_COND(p_node_data->net_id == UINT32_MAX);
 #endif
 
 	sync_groups[SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID].add_new_node(p_node_data, true);
@@ -1826,19 +1826,19 @@ void ServerSynchronizer::on_node_added(NetUtility::NodeData *p_node_data) {
 	}
 }
 
-void ServerSynchronizer::on_node_removed(NetUtility::NodeData *p_node_data) {
+void ServerSynchronizer::on_node_removed(NetUtility::ObjectData *p_node_data) {
 	// Make sure to remove this `NodeData` from any sync group.
 	for (uint32_t i = 0; i < sync_groups.size(); ++i) {
 		sync_groups[i].remove_node(p_node_data);
 	}
 }
 
-void ServerSynchronizer::on_variable_added(NetUtility::NodeData *p_node_data, const StringName &p_var_name) {
+void ServerSynchronizer::on_variable_added(NetUtility::ObjectData *p_node_data, const StringName &p_var_name) {
 #ifdef DEBUG_ENABLED
 	// Can't happen on server
 	CRASH_COND(scene_synchronizer->is_recovered());
 	// On server the ID is always known.
-	CRASH_COND(p_node_data->id == UINT32_MAX);
+	CRASH_COND(p_node_data->net_id == UINT32_MAX);
 #endif
 
 	for (uint32_t g = 0; g < sync_groups.size(); ++g) {
@@ -1846,12 +1846,12 @@ void ServerSynchronizer::on_variable_added(NetUtility::NodeData *p_node_data, co
 	}
 }
 
-void ServerSynchronizer::on_variable_changed(NetUtility::NodeData *p_node_data, NetVarId p_var_id, const Variant &p_old_value, int p_flag) {
+void ServerSynchronizer::on_variable_changed(NetUtility::ObjectData *p_node_data, NetVarId p_var_id, const Variant &p_old_value, int p_flag) {
 #ifdef DEBUG_ENABLED
 	// Can't happen on server
 	CRASH_COND(scene_synchronizer->is_recovered());
 	// On server the ID is always known.
-	CRASH_COND(p_node_data->id == UINT32_MAX);
+	CRASH_COND(p_node_data->net_id == UINT32_MAX);
 #endif
 
 	for (uint32_t g = 0; g < sync_groups.size(); ++g) {
@@ -1870,14 +1870,14 @@ const NetUtility::SyncGroup *ServerSynchronizer::sync_group_get(SyncGroupId p_gr
 	return &sync_groups[p_group_id];
 }
 
-void ServerSynchronizer::sync_group_add_node(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id, bool p_realtime) {
+void ServerSynchronizer::sync_group_add_node(NetUtility::ObjectData *p_node_data, SyncGroupId p_group_id, bool p_realtime) {
 	ERR_FAIL_COND(p_node_data == nullptr);
 	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
 	ERR_FAIL_COND_MSG(p_group_id == SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID, "You can't change this SyncGroup in any way. Create a new one.");
 	sync_groups[p_group_id].add_new_node(p_node_data, p_realtime);
 }
 
-void ServerSynchronizer::sync_group_remove_node(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id) {
+void ServerSynchronizer::sync_group_remove_node(NetUtility::ObjectData *p_node_data, SyncGroupId p_group_id) {
 	ERR_FAIL_COND(p_node_data == nullptr);
 	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
 	ERR_FAIL_COND_MSG(p_group_id == SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID, "You can't change this SyncGroup in any way. Create a new one.");
@@ -1917,7 +1917,7 @@ void ServerSynchronizer::sync_group_move_peer_to(int p_peer_id, SyncGroupId p_gr
 	pd->need_full_snapshot = true;
 
 	// Make sure the controller is added into this group.
-	NetUtility::NodeData *nd = scene_synchronizer->get_node_data(pd->controller_id, false);
+	NetUtility::ObjectData *nd = scene_synchronizer->get_node_data(pd->controller_id, false);
 	if (nd) {
 		sync_group_add_node(nd, p_group_id, true);
 	}
@@ -1928,14 +1928,14 @@ const LocalVector<int> *ServerSynchronizer::sync_group_get_peers(SyncGroupId p_g
 	return &sync_groups[p_group_id].peers;
 }
 
-void ServerSynchronizer::sync_group_set_deferred_update_rate(NetUtility::NodeData *p_node_data, SyncGroupId p_group_id, real_t p_update_rate) {
+void ServerSynchronizer::sync_group_set_deferred_update_rate(NetUtility::ObjectData *p_node_data, SyncGroupId p_group_id, real_t p_update_rate) {
 	ERR_FAIL_COND(p_node_data == nullptr);
 	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
 	ERR_FAIL_COND_MSG(p_group_id == SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID, "You can't change this SyncGroup in any way. Create a new one.");
 	sync_groups[p_group_id].set_deferred_update_rate(p_node_data, p_update_rate);
 }
 
-real_t ServerSynchronizer::sync_group_get_deferred_update_rate(const NetUtility::NodeData *p_node_data, SyncGroupId p_group_id) const {
+real_t ServerSynchronizer::sync_group_get_deferred_update_rate(const NetUtility::ObjectData *p_node_data, SyncGroupId p_group_id) const {
 	ERR_FAIL_COND_V(p_node_data == nullptr, 0.0);
 	ERR_FAIL_COND_V_MSG(p_group_id >= sync_groups.size(), 0.0, "The group id `" + itos(p_group_id) + "` doesn't exist.");
 	ERR_FAIL_COND_V_MSG(p_group_id == SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID, 0.0, "You can't change this SyncGroup in any way. Create a new one.");
@@ -2028,7 +2028,7 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 
 			Vector<Variant> snap;
 
-			NetUtility::NodeData *nd = scene_synchronizer->get_node_data(peer->controller_id, false);
+			NetUtility::ObjectData *nd = scene_synchronizer->get_node_data(peer->controller_id, false);
 
 			if (nd) {
 				CRASH_COND_MSG(nd->controller == nullptr, "The NodeData fetched is not a controller: `" + String(nd->object_name.c_str()) + "`, this is not supposed to happen.");
@@ -2092,9 +2092,9 @@ Vector<Variant> ServerSynchronizer::generate_snapshot(
 		bit_array.resize_in_bits(scene_synchronizer->organized_node_data.size());
 		bit_array.zero();
 		for (uint32_t i = 0; i < relevant_node_data.size(); i += 1) {
-			const NetUtility::NodeData *nd = relevant_node_data[i].nd;
-			CRASH_COND(nd->id == ID_NONE);
-			bit_array.store_bits(nd->id, 1, 1);
+			const NetUtility::ObjectData *nd = relevant_node_data[i].nd;
+			CRASH_COND(nd->net_id == ID_NONE);
+			bit_array.store_bits(nd->net_id, 1, 1);
 		}
 		snapshot_data.push_back(bit_array.get_bytes());
 	} else {
@@ -2120,7 +2120,7 @@ Vector<Variant> ServerSynchronizer::generate_snapshot(
 
 	// Then, generate the snapshot for the relevant nodes.
 	for (uint32_t i = 0; i < relevant_node_data.size(); i += 1) {
-		const NetUtility::NodeData *node_data = relevant_node_data[i].nd;
+		const NetUtility::ObjectData *node_data = relevant_node_data[i].nd;
 
 		if (node_data != nullptr) {
 			generate_snapshot_node_data(
@@ -2135,7 +2135,7 @@ Vector<Variant> ServerSynchronizer::generate_snapshot(
 }
 
 void ServerSynchronizer::generate_snapshot_node_data(
-		const NetUtility::NodeData *p_node_data,
+		const NetUtility::ObjectData *p_node_data,
 		SnapshotGenerationMode p_mode,
 		const NetUtility::SyncGroup::Change &p_change,
 		Vector<Variant> &r_snapshot_data) const {
@@ -2173,12 +2173,12 @@ void ServerSynchronizer::generate_snapshot_node_data(
 	if (force_using_node_path || unknown) {
 		Vector<Variant> _snap_node_data;
 		_snap_node_data.resize(2);
-		_snap_node_data.write[0] = p_node_data->id;
+		_snap_node_data.write[0] = p_node_data->net_id;
 		_snap_node_data.write[1] = p_node_data->object_name.c_str();
 		snap_node_data = _snap_node_data;
 	} else {
 		// This node is already known on clients, just set the node ID.
-		snap_node_data = p_node_data->id;
+		snap_node_data = p_node_data->net_id;
 	}
 
 	if ((node_has_changes && skip_snapshot_variables == false) || force_snapshot_node_path || unknown) {
@@ -2257,13 +2257,13 @@ void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
 				send = false;
 			}
 
-			if (node_info[i].nd->id > UINT16_MAX) {
-				SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "[FATAL] The `process_deferred_sync` found a node with ID `" + itos(node_info[i].nd->id) + "::" + node_info[i].nd->object_name.c_str() + "` that exceedes the max ID this function can network at the moment. Please report this, we will consider improving this function.");
+			if (node_info[i].nd->net_id > UINT16_MAX) {
+				SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "[FATAL] The `process_deferred_sync` found a node with ID `" + itos(node_info[i].nd->net_id) + "::" + node_info[i].nd->object_name.c_str() + "` that exceedes the max ID this function can network at the moment. Please report this, we will consider improving this function.");
 				send = false;
 			}
 
 			if (node_info[i].nd->collect_epoch_func.is_null()) {
-				SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_deferred_sync` found a node `" + itos(node_info[i].nd->id) + "::" + node_info[i].nd->object_name.c_str() + "` with an invalid function `collect_epoch_func`. Please use `setup_deferred_sync` to correctly initialize this node for deferred sync.");
+				SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_deferred_sync` found a node `" + itos(node_info[i].nd->net_id) + "::" + node_info[i].nd->object_name.c_str() + "` with an invalid function `collect_epoch_func`. Please use `setup_deferred_sync` to correctly initialize this node for deferred sync.");
 				send = false;
 			}
 
@@ -2277,23 +2277,23 @@ void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
 				node_info[i].nd->collect_epoch_func.callp(&fake_array_vars, 1, r, e);
 
 				if (e.error != Callable::CallError::CALL_OK) {
-					SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_deferred_sync` was not able to execute the function `" + node_info[i].nd->collect_epoch_func.get_method() + "` for the node `" + itos(node_info[i].nd->id) + "::" + node_info[i].nd->object_name.c_str() + "`.");
+					SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_deferred_sync` was not able to execute the function `" + node_info[i].nd->collect_epoch_func.get_method() + "` for the node `" + itos(node_info[i].nd->net_id) + "::" + node_info[i].nd->object_name.c_str() + "`.");
 					continue;
 				}
 
 				if (tmp_buffer->total_size() > UINT16_MAX) {
-					SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_deferred_sync` failed because the method `" + node_info[i].nd->collect_epoch_func.get_method() + "` for the node `" + itos(node_info[i].nd->id) + "::" + node_info[i].nd->object_name.c_str() + "` collected more than " + itos(UINT16_MAX) + " bits. Please optimize your netcode to send less data.");
+					SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_deferred_sync` failed because the method `" + node_info[i].nd->collect_epoch_func.get_method() + "` for the node `" + itos(node_info[i].nd->net_id) + "::" + node_info[i].nd->object_name.c_str() + "` collected more than " + itos(UINT16_MAX) + " bits. Please optimize your netcode to send less data.");
 					continue;
 				}
 
 				++update_node_count;
 
-				if (node_info[i].nd->id > UINT8_MAX) {
+				if (node_info[i].nd->net_id > UINT8_MAX) {
 					global_buffer.add_bool(true);
-					global_buffer.add_uint(node_info[i].nd->id, DataBuffer::COMPRESSION_LEVEL_2);
+					global_buffer.add_uint(node_info[i].nd->net_id, DataBuffer::COMPRESSION_LEVEL_2);
 				} else {
 					global_buffer.add_bool(false);
-					global_buffer.add_uint(node_info[i].nd->id, DataBuffer::COMPRESSION_LEVEL_3);
+					global_buffer.add_uint(node_info[i].nd->net_id, DataBuffer::COMPRESSION_LEVEL_3);
 				}
 
 				// Collapse the two DataBuffer.
@@ -2396,24 +2396,24 @@ void ClientSynchronizer::receive_snapshot(Variant p_snapshot) {
 			server_snapshots);
 }
 
-void ClientSynchronizer::on_node_added(NetUtility::NodeData *p_node_data) {
+void ClientSynchronizer::on_node_added(NetUtility::ObjectData *p_node_data) {
 }
 
-void ClientSynchronizer::on_node_removed(NetUtility::NodeData *p_node_data) {
+void ClientSynchronizer::on_node_removed(NetUtility::ObjectData *p_node_data) {
 	if (player_controller_node_data == p_node_data) {
 		player_controller_node_data = nullptr;
 		server_snapshots.clear();
 		client_snapshots.clear();
 	}
 
-	if (p_node_data->id < uint32_t(last_received_snapshot.node_vars.size())) {
-		last_received_snapshot.node_vars.ptrw()[p_node_data->id].clear();
+	if (p_node_data->net_id < uint32_t(last_received_snapshot.node_vars.size())) {
+		last_received_snapshot.node_vars.ptrw()[p_node_data->net_id].clear();
 	}
 
 	remove_node_from_deferred_sync(p_node_data);
 }
 
-void ClientSynchronizer::on_variable_changed(NetUtility::NodeData *p_node_data, NetVarId p_var_id, const Variant &p_old_value, int p_flag) {
+void ClientSynchronizer::on_variable_changed(NetUtility::ObjectData *p_node_data, NetVarId p_var_id, const Variant &p_old_value, int p_flag) {
 	if (p_flag & NetEventFlag::SYNC) {
 		sync_end_events.insert(
 				EndSyncEvent{
@@ -2445,7 +2445,7 @@ void ClientSynchronizer::signal_end_sync_changed_variables_events() {
 	scene_synchronizer->change_events_flush();
 }
 
-void ClientSynchronizer::on_controller_reset(NetUtility::NodeData *p_node_data) {
+void ClientSynchronizer::on_controller_reset(NetUtility::ObjectData *p_node_data) {
 #ifdef DEBUG_ENABLED
 	CRASH_COND(p_node_data->controller == nullptr);
 #endif
@@ -2734,7 +2734,7 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 	LocalVector<String> differences_info;
 
 #ifdef DEBUG_ENABLED
-	LocalVector<NetNodeId> different_node_data;
+	LocalVector<ObjectNetId> different_node_data;
 	const bool is_equal = NetUtility::Snapshot::compare(
 			*scene_synchronizer,
 			server_snapshots.front(),
@@ -2754,8 +2754,8 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 				int i = 0;
 				i < int(different_node_data.size());
 				i += 1) {
-			const NetNodeId net_node_id = different_node_data[i];
-			NetUtility::NodeData *rew_node_data = scene_synchronizer->get_node_data(net_node_id);
+			const ObjectNetId net_node_id = different_node_data[i];
+			NetUtility::ObjectData *rew_node_data = scene_synchronizer->get_node_data(net_node_id);
 
 			const Vector<NetUtility::Var> &server_node_vars = uint32_t(server_snapshots.front().node_vars.size()) <= net_node_id ? const_empty_vector : server_snapshots.front().node_vars[net_node_id];
 			const Vector<NetUtility::Var> &client_node_vars = uint32_t(client_snapshots.front().node_vars.size()) <= net_node_id ? const_empty_vector : client_snapshots.front().node_vars[net_node_id];
@@ -2828,7 +2828,7 @@ void ClientSynchronizer::__pcr__sync__rewind() {
 void ClientSynchronizer::__pcr__rewind(
 		real_t p_delta,
 		const uint32_t p_checkable_input_id,
-		NetUtility::NodeData *p_local_controller_node,
+		NetUtility::ObjectData *p_local_controller_node,
 		NetworkedControllerBase *p_local_controller,
 		PlayerController *p_local_player_controller) {
 	scene_synchronizer->event_state_validated.broadcast(p_checkable_input_id);
@@ -2939,11 +2939,11 @@ bool ClientSynchronizer::parse_sync_data(
 		Variant p_sync_data,
 		void *p_user_pointer,
 		void (*p_custom_data_parse)(void *p_user_pointer, const LocalVector<const Variant *> &p_custom_data),
-		void (*p_node_parse)(void *p_user_pointer, NetUtility::NodeData *p_node_data),
+		void (*p_node_parse)(void *p_user_pointer, NetUtility::ObjectData *p_node_data),
 		void (*p_input_id_parse)(void *p_user_pointer, uint32_t p_input_id),
-		void (*p_controller_parse)(void *p_user_pointer, NetUtility::NodeData *p_node_data),
-		void (*p_variable_parse)(void *p_user_pointer, NetUtility::NodeData *p_node_data, uint32_t p_var_id, const Variant &p_value),
-		void (*p_node_activation_parse)(void *p_user_pointer, NetUtility::NodeData *p_node_data, bool p_is_active)) {
+		void (*p_controller_parse)(void *p_user_pointer, NetUtility::ObjectData *p_node_data),
+		void (*p_variable_parse)(void *p_user_pointer, NetUtility::ObjectData *p_node_data, uint32_t p_var_id, const Variant &p_value),
+		void (*p_node_activation_parse)(void *p_user_pointer, NetUtility::ObjectData *p_node_data, bool p_is_active)) {
 	// The sync data is an array that contains the scene informations.
 	// It's used for several things, for this reason this function allows to
 	// customize the parsing.
@@ -3017,7 +3017,7 @@ bool ClientSynchronizer::parse_sync_data(
 		p_custom_data_parse(p_user_pointer, custom_data);
 	}
 
-	NetUtility::NodeData *synchronizer_node_data = nullptr;
+	NetUtility::ObjectData *synchronizer_node_data = nullptr;
 	uint32_t var_id = UINT32_MAX;
 
 	for (; snap_data_index < raw_snapshot.size(); snap_data_index += 1) {
@@ -3047,7 +3047,7 @@ bool ClientSynchronizer::parse_sync_data(
 			} else if (v.get_type() == Variant::INT) {
 				// Node info are in short form.
 				net_node_id = v;
-				NetUtility::NodeData *nd = scene_synchronizer->get_node_data(net_node_id);
+				NetUtility::ObjectData *nd = scene_synchronizer->get_node_data(net_node_id);
 				if (nd != nullptr) {
 					synchronizer_node_data = nd;
 					goto node_lookup_out;
@@ -3081,7 +3081,7 @@ bool ClientSynchronizer::parse_sync_data(
 				}
 
 				// Register this node, so to make sure the client is tracking it.
-				NetUtility::NodeData *nd = scene_synchronizer->register_app_object(app_object_handle);
+				NetUtility::ObjectData *nd = scene_synchronizer->register_app_object(app_object_handle);
 				if (nd != nullptr) {
 					// Set the node ID.
 					scene_synchronizer->set_node_data_id(nd, net_node_id);
@@ -3114,7 +3114,7 @@ bool ClientSynchronizer::parse_sync_data(
 #ifdef DEBUG_ENABLED
 			// At this point the ID is never UINT32_MAX thanks to the above
 			// mechanism.
-			CRASH_COND(synchronizer_node_data->id == UINT32_MAX);
+			CRASH_COND(synchronizer_node_data->net_id == UINT32_MAX);
 #endif
 
 			p_node_parse(p_user_pointer, synchronizer_node_data);
@@ -3167,7 +3167,7 @@ bool ClientSynchronizer::parse_sync_data(
 					}
 
 					if (index != var_id) {
-						if (synchronizer_node_data[var_id].id != UINT32_MAX) {
+						if (synchronizer_node_data[var_id].net_id != UINT32_MAX) {
 							// It's not expected because if index is different to
 							// var_id, var_id should have a not yet initialized
 							// variable.
@@ -3224,7 +3224,7 @@ bool ClientSynchronizer::parse_sync_data(
 	// node is active or not.
 	{
 		const uint8_t *active_node_list_byte_array_ptr = active_node_list_byte_array.ptr();
-		NetNodeId node_id = 0;
+		ObjectNetId node_id = 0;
 		for (int j = 0; j < active_node_list_byte_array.size(); ++j) {
 			const uint8_t bit = active_node_list_byte_array_ptr[j];
 			for (int offset = 0; offset < 8; ++offset) {
@@ -3235,7 +3235,7 @@ bool ClientSynchronizer::parse_sync_data(
 				}
 				const int bit_mask = 1 << offset;
 				const bool is_active = (bit & bit_mask) > 0;
-				NetUtility::NodeData *nd = scene_synchronizer->get_node_data(node_id, false);
+				NetUtility::ObjectData *nd = scene_synchronizer->get_node_data(node_id, false);
 				if (nd) {
 					p_node_activation_parse(p_user_pointer, nd, is_active);
 				} else {
@@ -3298,7 +3298,7 @@ void ClientSynchronizer::receive_deferred_sync_data(const Vector<uint8_t> &p_dat
 		}
 
 		// Fetch the `node_id`.
-		NetNodeId node_id;
+		ObjectNetId node_id;
 		if (future_epoch_buffer.read_bool()) {
 			remaining_size = future_epoch_buffer.size() - future_epoch_buffer.get_bit_offset();
 			if (remaining_size < future_epoch_buffer.get_uint_size(DataBuffer::COMPRESSION_LEVEL_2)) {
@@ -3331,7 +3331,7 @@ void ClientSynchronizer::receive_deferred_sync_data(const Vector<uint8_t> &p_dat
 		const int current_offset = future_epoch_buffer.get_bit_offset();
 		const int expected_bit_offset_after_apply = current_offset + buffer_bit_count;
 
-		NetUtility::NodeData *nd = scene_synchronizer->get_node_data(node_id, false);
+		NetUtility::ObjectData *nd = scene_synchronizer->get_node_data(node_id, false);
 		if (nd == nullptr) {
 			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The function `receive_deferred_sync_data` is skipping the node with ID `" + itos(node_id) + "` as it was not found locally.");
 			future_epoch_buffer.seek(expected_bit_offset_after_apply);
@@ -3407,7 +3407,7 @@ void ClientSynchronizer::process_received_deferred_sync_data(real_t p_delta) {
 			continue;
 		}
 
-		NetUtility::NodeData *nd = stream.nd;
+		NetUtility::ObjectData *nd = stream.nd;
 		if (nd == nullptr) {
 			SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The function `process_received_deferred_sync_data` found a null NodeData into the `deferred_sync_array`; this is not supposed to happen.");
 			continue;
@@ -3444,7 +3444,7 @@ void ClientSynchronizer::process_received_deferred_sync_data(real_t p_delta) {
 	memdelete(db2);
 }
 
-void ClientSynchronizer::remove_node_from_deferred_sync(NetUtility::NodeData *p_node_data) {
+void ClientSynchronizer::remove_node_from_deferred_sync(NetUtility::ObjectData *p_node_data) {
 	const int64_t index = deferred_sync_array.find(p_node_data);
 	if (index >= 0) {
 		deferred_sync_array.remove_at_unordered(index);
@@ -3469,7 +3469,7 @@ bool ClientSynchronizer::parse_snapshot(Variant p_snapshot) {
 
 	struct ParseData {
 		NetUtility::Snapshot &snapshot;
-		NetUtility::NodeData *player_controller_node_data;
+		NetUtility::ObjectData *player_controller_node_data;
 		SceneSynchronizerBase *scene_synchronizer;
 		ClientSynchronizer *client_synchronizer;
 	};
@@ -3502,17 +3502,17 @@ bool ClientSynchronizer::parse_snapshot(Variant p_snapshot) {
 			},
 
 			// Parse node:
-			[](void *p_user_pointer, NetUtility::NodeData *p_node_data) {
+			[](void *p_user_pointer, NetUtility::ObjectData *p_node_data) {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
 
 #ifdef DEBUG_ENABLED
 				// This function should never receive undefined IDs.
-				CRASH_COND(p_node_data->id == UINT32_MAX);
+				CRASH_COND(p_node_data->net_id == UINT32_MAX);
 #endif
 
 				// Make sure this node is part of the server node too.
-				if (uint32_t(pd->snapshot.node_vars.size()) <= p_node_data->id) {
-					pd->snapshot.node_vars.resize(p_node_data->id + 1);
+				if (uint32_t(pd->snapshot.node_vars.size()) <= p_node_data->net_id) {
+					pd->snapshot.node_vars.resize(p_node_data->net_id + 1);
 				}
 			},
 
@@ -3526,23 +3526,23 @@ bool ClientSynchronizer::parse_snapshot(Variant p_snapshot) {
 			},
 
 			// Parse controller:
-			[](void *p_user_pointer, NetUtility::NodeData *p_node_data) {},
+			[](void *p_user_pointer, NetUtility::ObjectData *p_node_data) {},
 
 			// Parse variable:
-			[](void *p_user_pointer, NetUtility::NodeData *p_node_data, uint32_t p_var_id, const Variant &p_value) {
+			[](void *p_user_pointer, NetUtility::ObjectData *p_node_data, uint32_t p_var_id, const Variant &p_value) {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
 
-				if (p_node_data->vars.size() != uint32_t(pd->snapshot.node_vars[p_node_data->id].size())) {
+				if (p_node_data->vars.size() != uint32_t(pd->snapshot.node_vars[p_node_data->net_id].size())) {
 					// The parser may have added a variable, so make sure to resize the vars array.
-					pd->snapshot.node_vars.write[p_node_data->id].resize(p_node_data->vars.size());
+					pd->snapshot.node_vars.write[p_node_data->net_id].resize(p_node_data->vars.size());
 				}
 
-				pd->snapshot.node_vars.write[p_node_data->id].write[p_var_id].name = p_node_data->vars[p_var_id].var.name;
-				pd->snapshot.node_vars.write[p_node_data->id].write[p_var_id].value = p_value.duplicate(true);
+				pd->snapshot.node_vars.write[p_node_data->net_id].write[p_var_id].name = p_node_data->vars[p_var_id].var.name;
+				pd->snapshot.node_vars.write[p_node_data->net_id].write[p_var_id].value = p_value.duplicate(true);
 			},
 
 			// Parse node activation:
-			[](void *p_user_pointer, NetUtility::NodeData *p_node_data, bool p_is_active) {
+			[](void *p_user_pointer, NetUtility::ObjectData *p_node_data, bool p_is_active) {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
 				if (p_node_data->realtime_sync_enabled_on_client != p_is_active) {
 					p_node_data->realtime_sync_enabled_on_client = p_is_active;
@@ -3598,20 +3598,20 @@ void ClientSynchronizer::update_client_snapshot(NetUtility::Snapshot &p_snapshot
 	p_snapshot.node_vars.resize(scene_synchronizer->organized_node_data.size());
 
 	// Fetch the data.
-	for (NetNodeId net_node_id = 0; net_node_id < NetNodeId(scene_synchronizer->organized_node_data.size()); net_node_id += 1) {
-		NetUtility::NodeData *nd = scene_synchronizer->organized_node_data[net_node_id];
+	for (ObjectNetId net_node_id = 0; net_node_id < ObjectNetId(scene_synchronizer->organized_node_data.size()); net_node_id += 1) {
+		NetUtility::ObjectData *nd = scene_synchronizer->organized_node_data[net_node_id];
 		if (nd == nullptr || nd->realtime_sync_enabled_on_client == false) {
 			continue;
 		}
 
 		// Make sure this ID is valid.
-		ERR_FAIL_COND_MSG(nd->id == UINT32_MAX, "[BUG] It's not expected that the client has an uninitialized NetNodeId into the `organized_node_data` ");
+		ERR_FAIL_COND_MSG(nd->net_id == UINT32_MAX, "[BUG] It's not expected that the client has an uninitialized NetNodeId into the `organized_node_data` ");
 
 #ifdef DEBUG_ENABLED
-		CRASH_COND_MSG(nd->id >= uint32_t(p_snapshot.node_vars.size()), "This array was resized above, this can't be triggered.");
+		CRASH_COND_MSG(nd->net_id >= uint32_t(p_snapshot.node_vars.size()), "This array was resized above, this can't be triggered.");
 #endif
 
-		Vector<NetUtility::Var> *snap_node_vars = p_snapshot.node_vars.ptrw() + nd->id;
+		Vector<NetUtility::Var> *snap_node_vars = p_snapshot.node_vars.ptrw() + nd->net_id;
 		snap_node_vars->resize(nd->vars.size());
 
 		NetUtility::Var *snap_node_vars_ptr = snap_node_vars->ptrw();
@@ -3635,7 +3635,7 @@ void ClientSynchronizer::apply_snapshot(
 	scene_synchronizer->change_events_begin(p_flag);
 
 	for (int net_node_id = 0; net_node_id < p_snapshot.node_vars.size(); net_node_id += 1) {
-		NetUtility::NodeData *nd = scene_synchronizer->get_node_data(net_node_id);
+		NetUtility::ObjectData *nd = scene_synchronizer->get_node_data(net_node_id);
 
 		if (nd == nullptr) {
 			// This can happen, and it's totally expected, because the server
