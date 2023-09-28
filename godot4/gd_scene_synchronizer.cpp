@@ -471,11 +471,11 @@ uint64_t GdSceneSynchronizer::track_variable_changes(
 					},
 					p_flags);
 
-	return static_cast<uint64_t>(raw_handle);
+	return static_cast<uint64_t>(raw_handle.intptr);
 }
 
 void GdSceneSynchronizer::untrack_variable_changes(uint64_t p_handle) {
-	scene_synchronizer.untrack_variable_changes(static_cast<NS::ListenerHandle>(p_handle));
+	scene_synchronizer.untrack_variable_changes({ static_cast<std::intptr_t>(p_handle) });
 }
 
 uint64_t GdSceneSynchronizer::register_process(Node *p_node, ProcessPhase p_phase, const Callable &p_func) {

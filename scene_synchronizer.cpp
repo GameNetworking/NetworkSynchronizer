@@ -16,6 +16,7 @@
 #include "modules/network_synchronizer/tests/local_scene.h"
 #include "scene_diff.h"
 #include "scene_synchronizer_debugger.h"
+#include <stdexcept>
 
 NS_NAMESPACE_BEGIN
 
@@ -263,8 +264,8 @@ void SceneSynchronizerBase::unregister_variable(ObjectHandle p_app_object_handle
 	nd->vars[index].enabled = false;
 
 	// Remove this var from all the changes listeners.
-	for (NetUtility::ChangesListener *cl : nd->vars[var_id].changes_listeners) {
-		for (NetUtility::ListeningVariable lv : cl->watching_vars) {
+	for (ChangesListener *cl : nd->vars[var_id].changes_listeners) {
+		for (ListeningVariable lv : cl->watching_vars) {
 			if (lv.node_data == nd && lv.var_id) {
 				// We can't change the var order, so just invalidate this.
 				lv.node_data = nullptr;
@@ -349,14 +350,14 @@ ListenerHandle SceneSynchronizerBase::track_variables_changes(
 		const std::vector<StringName> &p_variables,
 		std::function<void(const std::vector<Variant> &p_old_values)> p_listener_func,
 		NetEventFlag p_flags) {
-	ERR_FAIL_COND_V_MSG(p_object_handles.size() != p_variables.size(), 0, "object_ids and variables should have the exact same size.");
-	ERR_FAIL_COND_V_MSG(p_object_handles.size() == 0, 0, "object_ids can't be of size 0");
-	ERR_FAIL_COND_V_MSG(p_variables.size() == 0, 0, "object_ids can't be of size 0");
+	ERR_FAIL_COND_V_MSG(p_object_handles.size() != p_variables.size(), nulllistenerhandle, "object_ids and variables should have the exact same size.");
+	ERR_FAIL_COND_V_MSG(p_object_handles.size() == 0, nulllistenerhandle, "object_ids can't be of size 0");
+	ERR_FAIL_COND_V_MSG(p_variables.size() == 0, nulllistenerhandle, "object_ids can't be of size 0");
 
 	bool is_valid = true;
 
 	// TODO allocate into a buffer instead of using `new`?
-	NetUtility::ChangesListener *listener = new NetUtility::ChangesListener;
+	ChangesListener *listener = new ChangesListener;
 	listener->listener_func = p_listener_func;
 	listener->flag = p_flags;
 
@@ -393,24 +394,24 @@ ListenerHandle SceneSynchronizerBase::track_variables_changes(
 		}
 
 		changes_listeners.push_back(listener);
-		return reinterpret_cast<ListenerHandle>(static_cast<const NetUtility::ChangesListener *>(listener));
+		return ListenerHandle::to_handle(listener);
 	} else {
 		delete listener;
-		return reinterpret_cast<ListenerHandle>(nullptr);
+		return nulllistenerhandle;
 	}
 }
 
 void SceneSynchronizerBase::untrack_variable_changes(ListenerHandle p_handle) {
 	// Find the listener
 
-	const NetUtility::ChangesListener *unsafe_handle = reinterpret_cast<const NetUtility::ChangesListener *>(p_handle);
+	const ChangesListener *unsafe_handle = ListenerHandle::from_handle(p_handle);
 	auto it = ns_find(changes_listeners, unsafe_handle);
 	if (it == changes_listeners.end()) {
 		// Nothing to do.
 		return;
 	}
 
-	NetUtility::ChangesListener *listener = *it;
+	ChangesListener *listener = *it;
 
 	// Before dropping this listener, make sure to clear the NodeData.
 	for (auto &wv : listener->watching_vars) {
@@ -502,7 +503,7 @@ void SceneSynchronizerBase::sync_group_remove_all_nodes(SyncGroupId p_group_id) 
 void SceneSynchronizerBase::sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id) {
 	ERR_FAIL_COND_MSG(!is_server(), "This function CAN be used only on the server.");
 
-	NetUtility::PeerData *pd = peer_data.lookup_ptr(p_peer_id);
+	NetUtility::PeerData *pd = MapFunc::at(peer_data, p_peer_id);
 	ERR_FAIL_COND_MSG(pd == nullptr, "The PeerData doesn't exist. This looks like a bug. Are you sure the peer_id `" + itos(p_peer_id) + "` exists?");
 
 	if (pd->sync_group_id == p_group_id) {
@@ -518,7 +519,7 @@ void SceneSynchronizerBase::sync_group_move_peer_to(int p_peer_id, SyncGroupId p
 SyncGroupId SceneSynchronizerBase::sync_group_get_peer_group(int p_peer_id) const {
 	ERR_FAIL_COND_V_MSG(!is_server(), ID_NONE, "This function CAN be used only on the server.");
 
-	const NetUtility::PeerData *pd = peer_data.lookup_ptr(p_peer_id);
+	const NetUtility::PeerData *pd = MapFunc::at(peer_data, p_peer_id);
 	ERR_FAIL_COND_V_MSG(pd == nullptr, ID_NONE, "The PeerData doesn't exist. This looks like a bug. Are you sure the peer_id `" + itos(p_peer_id) + "` exists?");
 
 	return pd->sync_group_id;
@@ -760,7 +761,7 @@ void SceneSynchronizerBase::set_peer_networking_enable(int p_peer, bool p_enable
 	if (synchronizer_type == SYNCHRONIZER_TYPE_SERVER) {
 		ERR_FAIL_COND_MSG(p_peer == 1, "Disable the server is not possible.");
 
-		NetUtility::PeerData *pd = peer_data.lookup_ptr(p_peer);
+		NetUtility::PeerData *pd = MapFunc::at(peer_data, p_peer);
 		ERR_FAIL_COND_MSG(pd == nullptr, "The peer: " + itos(p_peer) + " is not know. [bug]");
 
 		if (pd->enabled == p_enable) {
@@ -796,7 +797,7 @@ bool SceneSynchronizerBase::is_peer_networking_enable(int p_peer) const {
 			return true;
 		}
 
-		const NetUtility::PeerData *pd = peer_data.lookup_ptr(p_peer);
+		const NetUtility::PeerData *pd = MapFunc::at(peer_data, p_peer);
 		ERR_FAIL_COND_V_MSG(pd == nullptr, false, "The peer: " + itos(p_peer) + " is not know. [bug]");
 		return pd->enabled;
 	} else {
@@ -806,7 +807,7 @@ bool SceneSynchronizerBase::is_peer_networking_enable(int p_peer) const {
 }
 
 void SceneSynchronizerBase::on_peer_connected(int p_peer) {
-	peer_data.set(p_peer, NetUtility::PeerData());
+	peer_data.insert(std::pair(p_peer, NetUtility::PeerData()));
 
 	event_peer_status_updated.broadcast(nullptr, p_peer, true, false);
 
@@ -818,7 +819,7 @@ void SceneSynchronizerBase::on_peer_connected(int p_peer) {
 
 void SceneSynchronizerBase::on_peer_disconnected(int p_peer) {
 	// Emit a signal notifying this peer is gone.
-	NetUtility::PeerData *pd = peer_data.lookup_ptr(p_peer);
+	NetUtility::PeerData *pd = MapFunc::at(peer_data, p_peer);
 	NetNodeId id = ID_NONE;
 	NetUtility::NodeData *node_data = nullptr;
 	if (pd) {
@@ -828,9 +829,10 @@ void SceneSynchronizerBase::on_peer_disconnected(int p_peer) {
 
 	event_peer_status_updated.broadcast(node_data, p_peer, false, false);
 
-	peer_data.remove(p_peer);
+	peer_data.erase(p_peer);
+
 #ifdef DEBUG_ENABLED
-	CRASH_COND_MSG(peer_data.has(p_peer), "The peer was just removed. This can't be triggered.");
+	CRASH_COND_MSG(peer_data.count(p_peer) > 0, "The peer was just removed. This can't be triggered.");
 #endif
 
 	if (synchronizer) {
@@ -889,11 +891,8 @@ void SceneSynchronizerBase::init_synchronizer(bool p_was_generating_ids) {
 	}
 
 	// Notify the presence all available peers
-	for (
-			OAHashMap<int, NetUtility::PeerData>::Iterator peer_it = peer_data.iter();
-			peer_it.valid;
-			peer_it = peer_data.next_iter(peer_it)) {
-		synchronizer->on_peer_connected(*peer_it.key);
+	for (auto &peer_it : peer_data) {
+		synchronizer->on_peer_connected(peer_it.first);
 	}
 
 	// Reset the controllers.
@@ -963,7 +962,7 @@ void SceneSynchronizerBase::rpc__notify_need_full_snapshot() {
 	ERR_FAIL_COND_MSG(is_server() == false, "Only the server can receive the request to send a full snapshot.");
 
 	const int sender_peer = network_interface->rpc_get_sender();
-	NetUtility::PeerData *pd = peer_data.lookup_ptr(sender_peer);
+	NetUtility::PeerData *pd = MapFunc::at(peer_data, sender_peer);
 	ERR_FAIL_COND(pd == nullptr);
 	pd->need_full_snapshot = true;
 }
@@ -999,48 +998,44 @@ void SceneSynchronizerBase::update_peers() {
 
 	peer_dirty = false;
 
-	for (OAHashMap<int, NetUtility::PeerData>::Iterator it = peer_data.iter();
-			it.valid;
-			it = peer_data.next_iter(it)) {
+	for (auto &it : peer_data) {
 		// Validate the peer.
-		if (it.value->controller_id != UINT32_MAX) {
-			NetUtility::NodeData *nd = get_node_data(it.value->controller_id);
+		if (it.second.controller_id != UINT32_MAX) {
+			NetUtility::NodeData *nd = get_node_data(it.second.controller_id);
 			if (nd == nullptr ||
 					nd->controller == nullptr ||
-					nd->controller->network_interface->get_unit_authority() != (*it.key)) {
+					nd->controller->network_interface->get_unit_authority() != it.first) {
 				// Invalidate the controller id
-				it.value->controller_id = UINT32_MAX;
+				it.second.controller_id = UINT32_MAX;
 			}
 		} else {
 			// The controller_id is not assigned, search it.
 			for (uint32_t i = 0; i < node_data_controllers.size(); i += 1) {
 				const NetworkedControllerBase *nc = node_data_controllers[i]->controller;
-				if (nc && nc->network_interface->get_unit_authority() == (*it.key)) {
+				if (nc && nc->network_interface->get_unit_authority() == it.first) {
 					// Controller found.
-					it.value->controller_id = node_data_controllers[i]->id;
+					it.second.controller_id = node_data_controllers[i]->id;
 					break;
 				}
 			}
 		}
 
-		NetUtility::NodeData *nd = get_node_data(it.value->controller_id, false);
+		NetUtility::NodeData *nd = get_node_data(it.second.controller_id, false);
 		if (nd) {
-			nd->realtime_sync_enabled_on_client = it.value->enabled;
-			event_peer_status_updated.broadcast(nd, *it.key, true, it.value->enabled);
+			nd->realtime_sync_enabled_on_client = it.second.enabled;
+			event_peer_status_updated.broadcast(nd, it.first, true, it.second.enabled);
 		}
 	}
 }
 
 void SceneSynchronizerBase::clear_peers() {
 	// Copy, so we can safely remove the peers from `peer_data`.
-	OAHashMap<int, NetUtility::PeerData> peer_data_tmp = peer_data;
-	for (OAHashMap<int, NetUtility::PeerData>::Iterator it = peer_data_tmp.iter();
-			it.valid;
-			it = peer_data_tmp.next_iter(it)) {
-		on_peer_disconnected(*it.key);
+	std::map<int, NetUtility::PeerData> peer_data_tmp = peer_data;
+	for (auto &it : peer_data_tmp) {
+		on_peer_disconnected(it.first);
 	}
 
-	CRASH_COND_MSG(!peer_data.is_empty(), "The above loop should have cleared this peer_data by calling `_on_peer_disconnected` for all the peers.");
+	CRASH_COND_MSG(!peer_data.empty(), "The above loop should have cleared this peer_data by calling `_on_peer_disconnected` for all the peers.");
 }
 
 void SceneSynchronizerBase::detect_and_signal_changed_variables(int p_flags) {
@@ -1075,7 +1070,7 @@ void SceneSynchronizerBase::change_events_begin(int p_flag) {
 
 void SceneSynchronizerBase::change_event_add(NetUtility::NodeData *p_node_data, NetVarId p_var_id, const Variant &p_old) {
 	for (int i = 0; i < int(p_node_data->vars[p_var_id].changes_listeners.size()); i += 1) {
-		NetUtility::ChangesListener *listener = p_node_data->vars[p_var_id].changes_listeners[i];
+		ChangesListener *listener = p_node_data->vars[p_var_id].changes_listeners[i];
 		// This can't be `nullptr` because when the changes listener is dropped
 		// all the pointers are cleared.
 		CRASH_COND(listener == nullptr);
@@ -1109,7 +1104,7 @@ void SceneSynchronizerBase::change_event_add(NetUtility::NodeData *p_node_data, 
 
 void SceneSynchronizerBase::change_events_flush() {
 	for (uint32_t listener_i = 0; listener_i < changes_listeners.size(); listener_i += 1) {
-		NetUtility::ChangesListener &listener = *changes_listeners[listener_i];
+		ChangesListener &listener = *changes_listeners[listener_i];
 		if (listener.emitted) {
 			// Nothing to do.
 			continue;
@@ -1249,7 +1244,7 @@ void SceneSynchronizerBase::set_node_data_id(NetUtility::NodeData *p_node_data, 
 }
 
 NetworkedControllerBase *SceneSynchronizerBase::fetch_controller_by_peer(int peer) {
-	const NetUtility::PeerData *data = peer_data.lookup_ptr(peer);
+	const NetUtility::PeerData *data = MapFunc::at(peer_data, peer);
 	if (data && data->controller_id != UINT32_MAX) {
 		NetUtility::NodeData *nd = get_node_data(data->controller_id);
 		if (nd) {
@@ -1556,7 +1551,7 @@ const NetUtility::NodeData *SceneSynchronizerBase::get_node_data(NetNodeId p_id,
 }
 
 NetworkedControllerBase *SceneSynchronizerBase::get_controller_for_peer(int p_peer, bool p_expected) {
-	const NetUtility::PeerData *pd = peer_data.lookup_ptr(p_peer);
+	const NetUtility::PeerData *pd = MapFunc::at(peer_data, p_peer);
 	if (p_expected) {
 		ERR_FAIL_COND_V_MSG(pd == nullptr, nullptr, "The peer is unknown `" + itos(p_peer) + "`.");
 	}
@@ -1568,13 +1563,37 @@ NetworkedControllerBase *SceneSynchronizerBase::get_controller_for_peer(int p_pe
 }
 
 const NetworkedControllerBase *SceneSynchronizerBase::get_controller_for_peer(int p_peer, bool p_expected) const {
-	const NetUtility::PeerData *pd = peer_data.lookup_ptr(p_peer);
+	const NetUtility::PeerData *pd = MapFunc::at(peer_data, p_peer);
 	if (p_expected) {
 		ERR_FAIL_COND_V_MSG(pd == nullptr, nullptr, "The peer is unknown `" + itos(p_peer) + "`.");
 	}
 	const NetUtility::NodeData *nd = get_node_data(pd->controller_id, p_expected);
 	if (nd) {
 		return nd->controller;
+	}
+	return nullptr;
+}
+
+NetUtility::PeerData *SceneSynchronizerBase::get_peer_for_controller(const NetworkedControllerBase &p_controller, bool p_expected) {
+	for (auto &it : peer_data) {
+		if (it.first == p_controller.network_interface->get_unit_authority()) {
+			return &(it.second);
+		}
+	}
+	if (p_expected) {
+		ERR_PRINT("The controller was not associated to a peer.");
+	}
+	return nullptr;
+}
+
+const NetUtility::PeerData *SceneSynchronizerBase::get_peer_for_controller(const NetworkedControllerBase &p_controller, bool p_expected) const {
+	for (auto &it : peer_data) {
+		if (it.first == p_controller.network_interface->get_unit_authority()) {
+			return &(it.second);
+		}
+	}
+	if (p_expected) {
+		ERR_PRINT("The controller was not associated to a peer.");
 	}
 	return nullptr;
 }
@@ -1763,17 +1782,14 @@ void ServerSynchronizer::process() {
 
 #if DEBUG_ENABLED
 	// Write the debug dump for each peer.
-	for (
-			OAHashMap<int, NetUtility::PeerData>::Iterator peer_it = scene_synchronizer->peer_data.iter();
-			peer_it.valid;
-			peer_it = scene_synchronizer->peer_data.next_iter(peer_it)) {
-		if (unlikely(peer_it.value->controller_id == UINT32_MAX)) {
+	for (auto &peer_it : scene_synchronizer->peer_data) {
+		if (unlikely(peer_it.second.controller_id == UINT32_MAX)) {
 			continue;
 		}
 
-		const NetUtility::NodeData *nd = scene_synchronizer->get_node_data(peer_it.value->controller_id);
+		const NetUtility::NodeData *nd = scene_synchronizer->get_node_data(peer_it.second.controller_id);
 		const uint32_t current_input_id = nd->controller->get_server_controller()->get_current_input_id();
-		SceneSynchronizerDebugger::singleton()->write_dump(*(peer_it.key), current_input_id);
+		SceneSynchronizerDebugger::singleton()->write_dump(peer_it.first, current_input_id);
 	}
 	SceneSynchronizerDebugger::singleton()->start_new_frame();
 #endif
@@ -1798,6 +1814,16 @@ void ServerSynchronizer::on_node_added(NetUtility::NodeData *p_node_data) {
 #endif
 
 	sync_groups[SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID].add_new_node(p_node_data, true);
+
+	if (p_node_data->controller) {
+		// It was added a new NodeData with a controller, make sure to mark
+		// its peer as `need_full_snapshot` ASAP.
+		NetUtility::PeerData *pd = scene_synchronizer->get_peer_for_controller(*p_node_data->controller);
+		if (pd) {
+			pd->force_notify_snapshot = true;
+			pd->need_full_snapshot = true;
+		}
+	}
 }
 
 void ServerSynchronizer::on_node_removed(NetUtility::NodeData *p_node_data) {
@@ -1885,7 +1911,7 @@ void ServerSynchronizer::sync_group_move_peer_to(int p_peer_id, SyncGroupId p_gr
 	sync_groups[p_group_id].peers.push_back(p_peer_id);
 
 	// Also mark the peer as need full snapshot, as it's into a new group now.
-	NetUtility::PeerData *pd = scene_synchronizer->peer_data.lookup_ptr(p_peer_id);
+	NetUtility::PeerData *pd = MapFunc::at(scene_synchronizer->peer_data, p_peer_id);
 	ERR_FAIL_COND(pd == nullptr);
 	pd->force_notify_snapshot = true;
 	pd->need_full_snapshot = true;
@@ -1961,7 +1987,7 @@ void ServerSynchronizer::sync_group_debug_print() {
 }
 
 void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
-	if (scene_synchronizer->peer_data.is_empty()) {
+	if (scene_synchronizer->peer_data.empty()) {
 		// No one is listening.
 		return;
 	}
@@ -1987,7 +2013,7 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 
 		for (int pi = 0; pi < int(group.peers.size()); ++pi) {
 			const int peer_id = group.peers[pi];
-			NetUtility::PeerData *peer = scene_synchronizer->peer_data.lookup_ptr(peer_id);
+			NetUtility::PeerData *peer = MapFunc::at(scene_synchronizer->peer_data, peer_id);
 			if (peer == nullptr) {
 				ERR_PRINT("The `process_snapshot_notificator` failed to lookup the peer_id `" + itos(peer_id) + "`. Was it removed but never cleared from sync_groups. Report this error, as this is a bug.");
 				continue;

@@ -6,11 +6,22 @@
 #include "core/processor.h"
 #include "core/templates/local_vector.h"
 #include "core/variant/variant.h"
+#include <map>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
+extern const uint32_t ID_NONE;
+typedef uint32_t NetNodeId;
+typedef uint32_t NetVarId;
+typedef uint32_t SyncGroupId;
+
 namespace NS {
 class NetworkedControllerBase;
+};
+
+namespace NetUtility {
+struct NodeData;
 };
 
 #ifdef DEBUG_ENABLED
@@ -30,7 +41,27 @@ class NetworkedControllerBase;
 
 NS_NAMESPACE_BEGIN
 
-typedef std::intptr_t ListenerHandle;
+namespace MapFunc {
+
+template <class K, class V>
+V *at(std::map<K, V> &p_map, const K &p_key) {
+	try {
+		return &p_map.at(p_key);
+	} catch (std::out_of_range &e) {
+		return nullptr;
+	}
+}
+
+template <class K, class V>
+const V *at(const std::map<K, V> &p_map, const K &p_key) {
+	try {
+		return &p_map.at(p_key);
+	} catch (std::out_of_range &e) {
+		return nullptr;
+	}
+}
+}; //namespace MapFunc
+
 struct ObjectHandle {
 	std::intptr_t intptr;
 	bool operator==(const ObjectHandle &p_o) const { return intptr == p_o.intptr; }
@@ -39,12 +70,41 @@ inline static const ObjectHandle nullobjecthandle = { 0 };
 
 #define ns_find(vec, val) std::find(vec.begin(), vec.end(), val)
 
-NS_NAMESPACE_END
+/// Specific node listener. Alone this doesn't do much, but allows the
+/// `ChangeListener` to know and keep track of the node events.
+struct ListeningVariable {
+	NetUtility::NodeData *node_data = nullptr;
+	NetVarId var_id = ID_NONE;
+	bool old_set = false;
+};
 
-extern const uint32_t ID_NONE;
-typedef uint32_t NetNodeId;
-typedef uint32_t NetVarId;
-typedef uint32_t SyncGroupId;
+/// This can track the changes of many nodes and variables. It's dispatched
+/// if one or more tracked variable change during the tracked phase, specified
+/// by the `NetEventFlag`.
+struct ChangesListener {
+	std::function<void(const std::vector<Variant> &p_old_vars)> listener_func;
+	NetEventFlag flag;
+
+	std::vector<ListeningVariable> watching_vars;
+	std::vector<Variant> old_values;
+	bool emitted = true;
+};
+
+struct ListenerHandle {
+	std::intptr_t intptr;
+	bool operator==(const ListenerHandle &p_o) const { return intptr == p_o.intptr; }
+
+	static const ChangesListener *from_handle(ListenerHandle p_handle) {
+		return reinterpret_cast<const ChangesListener *>(p_handle.intptr);
+	}
+
+	static ListenerHandle to_handle(const ChangesListener *p_listener) {
+		return { reinterpret_cast<std::intptr_t>(p_listener) };
+	}
+};
+inline static const ListenerHandle nulllistenerhandle = { 0 };
+
+NS_NAMESPACE_END
 
 #ifdef TRACY_ENABLE
 
@@ -241,27 +301,6 @@ void StatisticalRingBuffer<T>::force_recompute_avg_sum() {
 	}
 }
 
-/// Specific node listener. Alone this doesn't do much, but allows the
-/// `ChangeListener` to know and keep track of the node events.
-struct ListeningVariable {
-	struct NodeData *node_data = nullptr;
-	NetVarId var_id = ID_NONE;
-
-	bool old_set = false;
-};
-
-/// This can track the changes of many nodes and variables. It's dispatched
-/// if one or more tracked variable change during the tracked phase, specified
-/// by the `NetEventFlag`.
-struct ChangesListener {
-	std::function<void(const std::vector<Variant> &p_old_vars)> listener_func;
-	NetEventFlag flag;
-
-	std::vector<ListeningVariable> watching_vars;
-	std::vector<Variant> old_values;
-	bool emitted = true;
-};
-
 struct Var {
 	StringName name;
 	Variant value;
@@ -272,7 +311,7 @@ struct VarData {
 	Var var;
 	bool skip_rewinding = false;
 	bool enabled = false;
-	std::vector<ChangesListener *> changes_listeners;
+	std::vector<NS::ChangesListener *> changes_listeners;
 
 	VarData() = default;
 	VarData(const StringName &p_name);
