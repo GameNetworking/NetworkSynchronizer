@@ -25,7 +25,7 @@ NetUtility::Snapshot::operator String() const {
 
 bool compare_vars(
 		NS::SceneSynchronizerBase &scene_synchronizer,
-		const NetUtility::NodeData *p_synchronizer_node_data,
+		const NetUtility::ObjectData *p_synchronizer_node_data,
 		const Vector<NetUtility::Var> &p_server_vars,
 		const Vector<NetUtility::Var> &p_client_vars,
 		NetUtility::Snapshot *r_no_rewind_recover,
@@ -61,10 +61,10 @@ bool compare_vars(
 			if (p_synchronizer_node_data->vars[var_index].skip_rewinding) {
 				// The vars are different, but we don't need to trigger a rewind.
 				if (r_no_rewind_recover) {
-					if (uint32_t(r_no_rewind_recover->node_vars.ptr()[p_synchronizer_node_data->id].size()) <= var_index) {
-						r_no_rewind_recover->node_vars.ptrw()[p_synchronizer_node_data->id].resize(var_index + 1);
+					if (uint32_t(r_no_rewind_recover->node_vars.ptr()[p_synchronizer_node_data->net_id].size()) <= var_index) {
+						r_no_rewind_recover->node_vars.ptrw()[p_synchronizer_node_data->net_id].resize(var_index + 1);
 					}
-					r_no_rewind_recover->node_vars.ptrw()[p_synchronizer_node_data->id].ptrw()[var_index] = s_vars[var_index];
+					r_no_rewind_recover->node_vars.ptrw()[p_synchronizer_node_data->net_id].ptrw()[var_index] = s_vars[var_index];
 					// Sets `input_id` to 0 to signal that this snapshot contains
 					// no-rewind data.
 					r_no_rewind_recover->input_id = 0;
@@ -112,7 +112,7 @@ bool NetUtility::Snapshot::compare(
 		LocalVector<String> *r_differences_info
 #ifdef DEBUG_ENABLED
 		,
-		LocalVector<NetNodeId> *r_different_node_data
+		LocalVector<ObjectNetId> *r_different_node_data
 #endif
 ) {
 #ifdef DEBUG_ENABLED
@@ -147,8 +147,8 @@ bool NetUtility::Snapshot::compare(
 		r_no_rewind_recover->node_vars.resize(MAX(p_snap_A.node_vars.size(), p_snap_B.node_vars.size()));
 	}
 
-	for (NetNodeId net_node_id = 0; net_node_id < uint32_t(p_snap_A.node_vars.size()); net_node_id += 1) {
-		NetUtility::NodeData *rew_node_data = scene_synchronizer.get_node_data(net_node_id);
+	for (ObjectNetId net_node_id = 0; net_node_id < uint32_t(p_snap_A.node_vars.size()); net_node_id += 1) {
+		NetUtility::ObjectData *rew_node_data = scene_synchronizer.get_node_data(net_node_id);
 		if (rew_node_data == nullptr || rew_node_data->realtime_sync_enabled_on_client == false) {
 			continue;
 		}

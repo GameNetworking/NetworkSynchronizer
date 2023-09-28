@@ -141,7 +141,7 @@ private:
 	// Peer controlling this controller.
 	int peer_id = -1;
 
-	NetNodeId node_id = ID_NONE;
+	ObjectNetId node_id = ID_NONE;
 
 	NS::NetworkInterface *network_interface = nullptr;
 
@@ -244,11 +244,11 @@ public: // -------------------------------------------------------------- Events
 public:
 	void set_inputs_buffer(const BitArray &p_new_buffer, uint32_t p_metadata_size_in_bit, uint32_t p_size_in_bit);
 
-	void notify_registered_with_synchronizer(NS::SceneSynchronizerBase *p_synchronizer, NetUtility::NodeData &p_nd);
+	void notify_registered_with_synchronizer(NS::SceneSynchronizerBase *p_synchronizer, NetUtility::ObjectData &p_nd);
 	NS::SceneSynchronizerBase *get_scene_synchronizer() const;
 	bool has_scene_synchronizer() const;
 
-	void on_peer_status_updated(const NetUtility::NodeData *p_node_data, int p_peer_id, bool p_connected, bool p_enabled);
+	void on_peer_status_updated(const NetUtility::ObjectData *p_node_data, int p_peer_id, bool p_connected, bool p_enabled);
 	void on_state_validated(uint32_t p_input_id);
 	void on_rewind_frame_begin(uint32_t p_input_id, int p_index, int p_count);
 

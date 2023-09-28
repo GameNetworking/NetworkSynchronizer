@@ -101,10 +101,10 @@ void test_client_and_server_initialization() {
 
 class TestSceneObject : public NS::LocalSceneObject {
 public:
-	NetNodeId net_id = ID_NONE;
+	ObjectNetId net_id = ID_NONE;
 
 	virtual void on_scene_entry() override {
-		net_id = get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this))->id;
+		net_id = get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this))->net_id;
 	}
 
 	virtual void setup_synchronizer(NS::LocalSceneSynchronizer &p_scene_sync) override {
@@ -378,8 +378,6 @@ void test_variable_change_event() {
 	NS::ObjectHandle p1_obj_1_oh = peer_1_scene.scene_sync->to_handle(peer_1_scene.add_object<TestSceneObject>("obj_1", server_scene.get_peer()));
 	NS::ObjectHandle p2_obj_1_oh = peer_2_scene.scene_sync->to_handle(peer_2_scene.add_object<TestSceneObject>("obj_1", server_scene.get_peer()));
 
-	server_scene.scene_sync->set_server_notify_state_interval(0.0);
-
 	for (int f = 0; f < 2; f++) {
 		// Test the changed variable for the event `CHANGE` is triggered.
 		{
@@ -428,9 +426,11 @@ void test_variable_change_event() {
 			is_p1_change_event_triggered = false;
 			is_p2_change_event_triggered = false;
 
-			server_scene.process(delta);
-			peer_1_scene.process(delta);
-			peer_2_scene.process(delta);
+			for (int i = 0; i < 4; i++) {
+				server_scene.process(delta);
+				peer_1_scene.process(delta);
+				peer_2_scene.process(delta);
+			}
 
 			// Make sure the events are not called.
 			CRASH_COND(is_server_change_event_triggered);
@@ -453,14 +453,138 @@ void test_variable_change_event() {
 			peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 30;
 
 			// Process again
-			server_scene.process(delta);
-			peer_1_scene.process(delta);
-			peer_2_scene.process(delta);
+			for (int i = 0; i < 4; i++) {
+				server_scene.process(delta);
+				peer_1_scene.process(delta);
+				peer_2_scene.process(delta);
+			}
 
 			// and make sure the events are not being called.
 			CRASH_COND(is_server_change_event_triggered);
 			CRASH_COND(is_p1_change_event_triggered);
 			CRASH_COND(is_p2_change_event_triggered);
+		}
+
+		// Test the change event is triggered for the event `SYNC_RECONVER`
+		{
+			// Unify the state across all the peers
+			server_scene.scene_sync->set_server_notify_state_interval(0.0);
+
+			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 0;
+			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 0;
+			peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 0;
+
+			for (int i = 0; i < 4; i++) {
+				server_scene.process(delta);
+				peer_1_scene.process(delta);
+				peer_2_scene.process(delta);
+			}
+
+			bool is_server_change_event_triggered = false;
+			bool is_p1_change_event_triggered = false;
+			bool is_p2_change_event_triggered = false;
+
+			NS::ListenerHandle server_lh = server_scene.scene_sync->track_variable_changes(
+					server_obj_1_oh, "var_1", [&is_server_change_event_triggered](const std::vector<Variant> &p_old_values) {
+						is_server_change_event_triggered = true;
+					},
+					NetEventFlag::SYNC_RECOVER);
+
+			NS::ListenerHandle p1_lh = peer_1_scene.scene_sync->track_variable_changes(
+					p1_obj_1_oh, "var_1", [&is_p1_change_event_triggered](const std::vector<Variant> &p_old_values) {
+						is_p1_change_event_triggered = true;
+					},
+					NetEventFlag::SYNC_RECOVER);
+
+			NS::ListenerHandle p2_lh = peer_2_scene.scene_sync->track_variable_changes(
+					p2_obj_1_oh, "var_1", [&is_p2_change_event_triggered](const std::vector<Variant> &p_old_values) {
+						is_p2_change_event_triggered = true;
+					},
+					NetEventFlag::SYNC_RECOVER);
+
+			// Change the value on the server.
+			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 1;
+
+			for (int i = 0; i < 4; i++) {
+				server_scene.process(delta);
+				peer_1_scene.process(delta);
+				peer_2_scene.process(delta);
+			}
+
+			// Make sure the event on the server was not triggered
+			CRASH_COND(is_server_change_event_triggered);
+			// But it was on the peers.
+			CRASH_COND(!is_p1_change_event_triggered);
+			CRASH_COND(!is_p2_change_event_triggered);
+
+			// Now unregister the listeners.
+			server_scene.scene_sync->untrack_variable_changes(server_lh);
+			peer_1_scene.scene_sync->untrack_variable_changes(p1_lh);
+			peer_2_scene.scene_sync->untrack_variable_changes(p2_lh);
+		}
+
+		// Test the change event is triggered for the event `SYNC_RESET`
+		{
+			// Unify the state across all the peers
+			server_scene.scene_sync->set_server_notify_state_interval(0.0);
+
+			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 0;
+			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 0;
+			peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 0;
+
+			for (int i = 0; i < 4; i++) {
+				server_scene.process(delta);
+				peer_1_scene.process(delta);
+				peer_2_scene.process(delta);
+			}
+
+			bool is_server_change_event_triggered = false;
+			bool is_p1_change_event_triggered = false;
+			bool is_p2_change_event_triggered = false;
+
+			NS::ListenerHandle server_lh = server_scene.scene_sync->track_variable_changes(
+					server_obj_1_oh, "var_1", [&is_server_change_event_triggered, &server_scene](const std::vector<Variant> &p_old_values) {
+						is_server_change_event_triggered = true;
+						CRASH_COND(!server_scene.scene_sync->is_resetted());
+					},
+					NetEventFlag::SYNC_RESET);
+
+			NS::ListenerHandle p1_lh = peer_1_scene.scene_sync->track_variable_changes(
+					p1_obj_1_oh, "var_1", [&is_p1_change_event_triggered, &peer_1_scene](const std::vector<Variant> &p_old_values) {
+						is_p1_change_event_triggered = true;
+						CRASH_COND(!peer_1_scene.scene_sync->is_resetted());
+					},
+					NetEventFlag::SYNC_RESET);
+
+			NS::ListenerHandle p2_lh = peer_2_scene.scene_sync->track_variable_changes(
+					p2_obj_1_oh, "var_1", [&is_p2_change_event_triggered, &peer_2_scene](const std::vector<Variant> &p_old_values) {
+						is_p2_change_event_triggered = true;
+						CRASH_COND(!peer_2_scene.scene_sync->is_resetted());
+					},
+					NetEventFlag::SYNC_RESET);
+
+			// Mark the parameter as skip rewinding first.
+			//server_scene.scene_sync->set_skip_rewinding(NetNodeId p_id, const StringName &p_variable, bool p_skip_rewinding)
+
+			// Change the value on the server.
+			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 1;
+
+			for (int i = 0; i < 4; i++) {
+				server_scene.process(delta);
+				peer_1_scene.process(delta);
+				peer_2_scene.process(delta);
+			}
+
+			// Make sure the event on the server was not triggered
+			CRASH_COND(is_server_change_event_triggered);
+			// But it was on the peers.
+			CRASH_COND(!is_p1_change_event_triggered);
+			CRASH_COND(!is_p2_change_event_triggered);
+
+			// Now unregister the listeners.
+			server_scene.scene_sync->untrack_variable_changes(server_lh);
+			peer_1_scene.scene_sync->untrack_variable_changes(p1_lh);
+			peer_2_scene.scene_sync->untrack_variable_changes(p2_lh);
 		}
 
 		if (f == 0) {

@@ -12,7 +12,7 @@
 #include <vector>
 
 extern const uint32_t ID_NONE;
-typedef uint32_t NetNodeId;
+typedef uint32_t ObjectNetId;
 typedef uint32_t NetVarId;
 typedef uint32_t SyncGroupId;
 
@@ -21,7 +21,7 @@ class NetworkedControllerBase;
 };
 
 namespace NetUtility {
-struct NodeData;
+struct ObjectData;
 };
 
 #ifdef DEBUG_ENABLED
@@ -62,18 +62,25 @@ const V *at(const std::map<K, V> &p_map, const K &p_key) {
 }
 }; //namespace MapFunc
 
+#define ns_find(vec, val) std::find(vec.begin(), vec.end(), val)
+
 struct ObjectHandle {
 	std::intptr_t intptr;
 	bool operator==(const ObjectHandle &p_o) const { return intptr == p_o.intptr; }
 };
 inline static const ObjectHandle nullobjecthandle = { 0 };
 
-#define ns_find(vec, val) std::find(vec.begin(), vec.end(), val)
+struct ObjectLocalId {
+	uint32_t id;
+	bool operator==(const ObjectLocalId &p_o) const { return id == p_o.id; }
+
+	static const ObjectLocalId ID_NONE;
+};
 
 /// Specific node listener. Alone this doesn't do much, but allows the
 /// `ChangeListener` to know and keep track of the node events.
 struct ListeningVariable {
-	NetUtility::NodeData *node_data = nullptr;
+	NetUtility::ObjectData *node_data = nullptr;
 	NetVarId var_id = ID_NONE;
 	bool old_set = false;
 };
@@ -321,9 +328,10 @@ struct VarData {
 	bool operator<(const VarData &p_other) const;
 };
 
-struct NodeData {
+struct ObjectData {
 	// ID used to reference this NodeData in the networked calls.
-	NetNodeId id = 0;
+	ObjectNetId net_id = ID_NONE;
+	NS::ObjectLocalId local_id = NS::ObjectLocalId::ID_NONE;
 
 	uint64_t instance_id = 0; // TODO remove this?
 	std::string object_name;
@@ -346,14 +354,14 @@ struct NodeData {
 	/// Associated controller.
 	NS::NetworkedControllerBase *controller = nullptr;
 
-	NodeData() = default;
+	ObjectData() = default;
 
 	bool has_registered_process_functions() const;
 	bool can_deferred_sync() const;
 };
 
 struct PeerData {
-	NetNodeId controller_id = UINT32_MAX;
+	ObjectNetId controller_id = UINT32_MAX;
 	// For new peers notify the state as soon as possible.
 	bool force_notify_snapshot = true;
 	// For new peers a full snapshot is needed.
@@ -373,14 +381,14 @@ public:
 	};
 
 	struct RealtimeNodeInfo {
-		NetUtility::NodeData *nd = nullptr;
+		NetUtility::ObjectData *nd = nullptr;
 		Change change;
 
 		RealtimeNodeInfo() = default;
 		RealtimeNodeInfo(const RealtimeNodeInfo &) = default;
 		RealtimeNodeInfo &operator=(const RealtimeNodeInfo &) = default;
 		RealtimeNodeInfo &operator=(RealtimeNodeInfo &&) = default;
-		RealtimeNodeInfo(NetUtility::NodeData *p_nd) :
+		RealtimeNodeInfo(NetUtility::ObjectData *p_nd) :
 				nd(p_nd) {}
 		bool operator==(const RealtimeNodeInfo &p_other) { return nd == p_other.nd; }
 
@@ -388,7 +396,7 @@ public:
 	};
 
 	struct DeferredNodeInfo {
-		NetUtility::NodeData *nd = nullptr;
+		NetUtility::ObjectData *nd = nullptr;
 
 		/// The node update rate, relative to the godot physics processing rate.
 		/// With the godot physics processing rate set to 60Hz, 0.5 means 30Hz.
@@ -406,7 +414,7 @@ public:
 		DeferredNodeInfo(const DeferredNodeInfo &) = default;
 		DeferredNodeInfo &operator=(const DeferredNodeInfo &) = default;
 		DeferredNodeInfo &operator=(DeferredNodeInfo &&) = default;
-		DeferredNodeInfo(NetUtility::NodeData *p_nd) :
+		DeferredNodeInfo(NetUtility::ObjectData *p_nd) :
 				nd(p_nd) {}
 		bool operator==(const DeferredNodeInfo &p_other) { return nd == p_other.nd; }
 
@@ -439,16 +447,16 @@ public:
 	void mark_changes_as_notified();
 
 	/// Returns the `index` or `UINT32_MAX` on error.
-	uint32_t add_new_node(NodeData *p_node_data, bool p_realtime);
-	void remove_node(NodeData *p_node_data);
+	uint32_t add_new_node(ObjectData *p_node_data, bool p_realtime);
+	void remove_node(ObjectData *p_node_data);
 	void replace_nodes(LocalVector<RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<DeferredNodeInfo> &&p_new_deferred_nodes);
 	void remove_all_nodes();
 
-	void notify_new_variable(NodeData *p_node_data, const StringName &p_var_name);
-	void notify_variable_changed(NodeData *p_node_data, const StringName &p_var_name);
+	void notify_new_variable(ObjectData *p_node_data, const StringName &p_var_name);
+	void notify_variable_changed(ObjectData *p_node_data, const StringName &p_var_name);
 
-	void set_deferred_update_rate(NetUtility::NodeData *p_node_data, real_t p_update_rate);
-	real_t get_deferred_update_rate(const NetUtility::NodeData *p_node_data) const;
+	void set_deferred_update_rate(NetUtility::ObjectData *p_node_data, real_t p_update_rate);
+	real_t get_deferred_update_rate(const NetUtility::ObjectData *p_node_data) const;
 
 	void sort_deferred_node_by_update_priority();
 };

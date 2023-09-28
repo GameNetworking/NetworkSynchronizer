@@ -35,6 +35,7 @@
 #include "net_utilities.h"
 
 const uint32_t ID_NONE = UINT32_MAX;
+const NS::ObjectLocalId NS::ObjectLocalId::ID_NONE = { UINT32_MAX };
 
 // This was needed to optimize the godot stringify for byte arrays.. it was slowing down perfs.
 String NetUtility::stringify_byte_array_fast(const Vector<uint8_t> &p_array) {
@@ -68,7 +69,7 @@ bool NetUtility::VarData::operator<(const VarData &p_other) const {
 	return id < p_other.id;
 }
 
-bool NetUtility::NodeData::has_registered_process_functions() const {
+bool NetUtility::ObjectData::has_registered_process_functions() const {
 	for (int process_phase = PROCESSPHASE_EARLY; process_phase < PROCESSPHASE_COUNT; ++process_phase) {
 		if (functions[process_phase].size() > 0) {
 			return true;
@@ -77,7 +78,7 @@ bool NetUtility::NodeData::has_registered_process_functions() const {
 	return false;
 }
 
-bool NetUtility::NodeData::can_deferred_sync() const {
+bool NetUtility::ObjectData::can_deferred_sync() const {
 	return collect_epoch_func.is_valid() && apply_epoch_func.is_valid();
 }
 
@@ -114,7 +115,7 @@ void NetUtility::SyncGroup::mark_changes_as_notified() {
 	deferred_sync_nodes_list_changed = false;
 }
 
-uint32_t NetUtility::SyncGroup::add_new_node(NodeData *p_node_data, bool p_realtime) {
+uint32_t NetUtility::SyncGroup::add_new_node(ObjectData *p_node_data, bool p_realtime) {
 	if (p_realtime) {
 		// Make sure the node is not contained into the deferred sync.
 		const int dsn_index = deferred_sync_nodes.find(p_node_data);
@@ -163,7 +164,7 @@ uint32_t NetUtility::SyncGroup::add_new_node(NodeData *p_node_data, bool p_realt
 	}
 }
 
-void NetUtility::SyncGroup::remove_node(NodeData *p_node_data) {
+void NetUtility::SyncGroup::remove_node(ObjectData *p_node_data) {
 	{
 		const int index = realtime_sync_nodes.find(p_node_data);
 		if (index >= 0) {
@@ -213,7 +214,7 @@ void replace_nodes_impl(
 
 	// Add the missing nodes now.
 	for (int i = 0; i < int(p_nodes_to_add.size()); i++) {
-		NetUtility::NodeData *nd = p_nodes_to_add[i].nd;
+		NetUtility::ObjectData *nd = p_nodes_to_add[i].nd;
 
 #ifdef DEBUG_ENABLED
 		CRASH_COND_MSG(r_sync_group_nodes.find(nd) != -1, "[FATAL] This is impossible to trigger, because the above loop cleaned this.");
@@ -252,7 +253,7 @@ void NetUtility::SyncGroup::remove_all_nodes() {
 	}
 }
 
-void NetUtility::SyncGroup::notify_new_variable(NodeData *p_node_data, const StringName &p_var_name) {
+void NetUtility::SyncGroup::notify_new_variable(ObjectData *p_node_data, const StringName &p_var_name) {
 	int index = realtime_sync_nodes.find(p_node_data);
 	if (index >= 0) {
 		realtime_sync_nodes[index].change.vars.insert(p_var_name);
@@ -260,20 +261,20 @@ void NetUtility::SyncGroup::notify_new_variable(NodeData *p_node_data, const Str
 	}
 }
 
-void NetUtility::SyncGroup::notify_variable_changed(NodeData *p_node_data, const StringName &p_var_name) {
+void NetUtility::SyncGroup::notify_variable_changed(ObjectData *p_node_data, const StringName &p_var_name) {
 	int index = realtime_sync_nodes.find(p_node_data);
 	if (index >= 0) {
 		realtime_sync_nodes[index].change.vars.insert(p_var_name);
 	}
 }
 
-void NetUtility::SyncGroup::set_deferred_update_rate(NetUtility::NodeData *p_node_data, real_t p_update_rate) {
+void NetUtility::SyncGroup::set_deferred_update_rate(NetUtility::ObjectData *p_node_data, real_t p_update_rate) {
 	const int index = deferred_sync_nodes.find(p_node_data);
 	ERR_FAIL_COND(index < 0);
 	deferred_sync_nodes[index].update_rate = p_update_rate;
 }
 
-real_t NetUtility::SyncGroup::get_deferred_update_rate(const NetUtility::NodeData *p_node_data) const {
+real_t NetUtility::SyncGroup::get_deferred_update_rate(const NetUtility::ObjectData *p_node_data) const {
 	for (int i = 0; i < int(deferred_sync_nodes.size()); ++i) {
 		if (deferred_sync_nodes[i].nd == p_node_data) {
 			return deferred_sync_nodes[i].update_rate;

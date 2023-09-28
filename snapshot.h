@@ -27,7 +27,7 @@ struct Snapshot {
 			LocalVector<String> *r_differences_info
 #ifdef DEBUG_ENABLED
 			,
-			LocalVector<NetNodeId> *r_different_node_data);
+			LocalVector<ObjectNetId> *r_different_node_data);
 #else
 	);
 #endif
