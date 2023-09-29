@@ -34,6 +34,7 @@
 
 #include "scene_diff.h"
 
+#include "modules/network_synchronizer/core/core.h"
 #include "modules/network_synchronizer/net_utilities.h"
 #include "scene/main/node.h"
 #include "scene_synchronizer.h"
@@ -61,7 +62,7 @@ void SceneDiff::start_tracking_scene_changes(
 #ifdef DEBUG_ENABLED
 		// This is never triggered because we always pass the `organized_node_data`
 		// array.
-		CRASH_COND(p_nodes[i]->get_net_id() != i);
+		CRASH_COND(p_nodes[i]->get_net_id().id != i);
 		// This is never triggered because when the node is invalid the node data
 		// is destroyed.
 		CRASH_COND(p_nodes[i]->app_object_handle == NS::ObjectHandle::NONE);
@@ -71,7 +72,7 @@ void SceneDiff::start_tracking_scene_changes(
 
 		for (uint32_t v = 0; v < p_nodes[i]->vars.size(); v += 1) {
 			// Take the current variable value and store it.
-			if (p_nodes[i]->vars[v].enabled && p_nodes[i]->vars[v].id != UINT32_MAX) {
+			if (p_nodes[i]->vars[v].enabled && p_nodes[i]->vars[v].id != NS::VarId::NONE) {
 				// Note: Taking the value using `get` so to take the most updated
 				// value.
 				p_synchronizer->get_synchronizer_manager().get_variable(
@@ -96,13 +97,13 @@ void SceneDiff::stop_tracking_scene_changes(const NS::SceneSynchronizerBase *p_s
 		return;
 	}
 
-	if (p_synchronizer->get_biggest_node_id() == UINT32_MAX) {
+	if (p_synchronizer->get_biggest_node_id() == NS::ObjectNetId::NONE) {
 		// No nodes to track.
 		tracking.clear();
 		return;
 	}
 
-	if (tracking.size() > (p_synchronizer->get_biggest_node_id() + 1)) {
+	if (tracking.size() > (p_synchronizer->get_biggest_node_id().id + 1)) {
 		NET_DEBUG_ERR("[BUG] The tracked nodes are exceeding the sync nodes. Probably the sync is different or it has reset?");
 		tracking.clear();
 		return;
@@ -113,8 +114,8 @@ void SceneDiff::stop_tracking_scene_changes(const NS::SceneSynchronizerBase *p_s
 		diff.resize(tracking.size());
 	}
 
-	for (ObjectNetId i = 0; i < tracking.size(); i += 1) {
-		const NS::ObjectData *nd = p_synchronizer->get_node_data(i);
+	for (NS::ObjectNetId i = { 0 }; i < NS::ObjectNetId{ tracking.size() }; i += 1) {
+		const NS::ObjectData *nd = p_synchronizer->get_node_data({ i });
 		if (nd == nullptr) {
 			continue;
 		}
@@ -128,19 +129,19 @@ void SceneDiff::stop_tracking_scene_changes(const NS::SceneSynchronizerBase *p_s
 		CRASH_COND(nd->app_object_handle == NS::ObjectHandle::NONE);
 #endif
 
-		if (nd->vars.size() != tracking[i].size()) {
+		if (nd->vars.size() != tracking[i.id].size()) {
 			// These two arrays are different because the node was null
 			// during the start. So we can assume we are not tracking it.
 			continue;
 		}
 
-		if (diff[i].size() < tracking[i].size()) {
+		if (diff[i.id].size() < tracking[i.id].size()) {
 			// Make sure the diff has room to store the variable info.
-			diff[i].resize(tracking[i].size());
+			diff[i.id].resize(tracking[i.id].size());
 		}
 
-		for (uint32_t v = 0; v < tracking[i].size(); v += 1) {
-			if (nd->vars[v].id == UINT32_MAX || nd->vars[v].enabled == false) {
+		for (uint32_t v = 0; v < tracking[i.id].size(); v += 1) {
+			if (nd->vars[v].id == NS::VarId::NONE || nd->vars[v].enabled == false) {
 				continue;
 			}
 
@@ -153,10 +154,10 @@ void SceneDiff::stop_tracking_scene_changes(const NS::SceneSynchronizerBase *p_s
 
 			// Compare the current value with the one taken during the start.
 			if (p_synchronizer->compare(
-						tracking[i][v],
+						tracking[i.id][v],
 						current_value) == false) {
-				diff[i][v].is_different = true;
-				diff[i][v].value = current_value;
+				diff[i.id][v].is_different = true;
+				diff[i.id][v].value = current_value;
 			}
 		}
 	}

@@ -15,7 +15,7 @@ struct Var {
 };
 
 struct VarData {
-	NetVarId id = UINT32_MAX;
+	VarId id = VarId::NONE;
 	Var var;
 	bool skip_rewinding = false;
 	bool enabled = false;
@@ -23,7 +23,7 @@ struct VarData {
 
 	VarData() = default;
 	VarData(const StringName &p_name);
-	VarData(NetVarId p_id, const StringName &p_name, const Variant &p_val, bool p_skip_rewinding, bool p_enabled);
+	VarData(VarId p_id, const StringName &p_name, const Variant &p_val, bool p_skip_rewinding, bool p_enabled);
 
 	bool operator==(const VarData &p_other) const;
 	bool operator<(const VarData &p_other) const;
@@ -39,8 +39,8 @@ private:
 
 private:
 	// ID used to reference this NodeData in the networked calls.
-	ObjectNetId net_id = UINT32_MAX;
-	ObjectLocalId local_id = ObjectLocalId::ID_NONE;
+	ObjectNetId net_id = ObjectNetId::NONE;
+	ObjectLocalId local_id = ObjectLocalId::NONE;
 
 	/// Associated controller.
 	class NetworkedControllerBase *controller = nullptr;
@@ -54,7 +54,7 @@ public:
 	bool realtime_sync_enabled_on_client = false;
 
 	/// The sync variables of this node. The order of this vector matters
-	/// because the index is the `NetVarId`.
+	/// because the index is the `VarId`.
 	LocalVector<VarData> vars;
 	NS::Processor<float> functions[PROCESSPHASE_COUNT];
 

@@ -59,23 +59,39 @@ static const char *ProcessPhaseName[PROCESSPHASE_COUNT] = {
 	"LATE PROCESS"
 };
 
-typedef uint32_t NetVarId;
-typedef uint32_t ObjectNetId;
-
 NS_NAMESPACE_BEGIN
 
-struct ObjectLocalId {
-	uint32_t id;
-	bool operator==(const ObjectLocalId &p_o) const { return id == p_o.id; }
+template <typename T, typename IdType, IdType NoneVal>
+struct IdMaker {
+	IdType id;
+	bool operator==(const T &p_o) const { return id == p_o.id; }
+	bool operator!=(const T &p_o) const { return !(operator==(p_o)); }
+	bool operator<(const T &p_o) const { return id < p_o.id; }
+	bool operator<=(const T &p_o) const { return operator<(p_o) || operator==(p_o); }
+	bool operator>=(const T &p_o) const { return (!operator<(p_o)); }
+	bool operator>(const T &p_o) const { return (!operator<(p_o)) && operator!=(p_o); }
+	T operator+(const T &p_o) const { return { id + p_o.id }; }
+	T operator+(int p_id) const { return { id + p_id }; }
+	T operator+(uint32_t p_id) const { return { id + p_id }; }
+	T &operator+=(const T &p_o) {
+		id += p_o.id;
+		return *static_cast<T *>(this);
+	}
+	T &operator+=(uint32_t p_id) {
+		id += p_id;
+		return *static_cast<T *>(this);
+	}
+	T &operator+=(int p_id) {
+		id += p_id;
+		return *static_cast<T *>(this);
+	}
 
-	static const ObjectLocalId ID_NONE;
+	inline static const T NONE = { NoneVal };
 };
 
-struct ObjectHandle {
-	std::intptr_t intptr;
-	bool operator==(const ObjectHandle &p_o) const { return intptr == p_o.intptr; }
-
-	static const ObjectHandle NONE;
-};
+struct VarId : public IdMaker<VarId, uint32_t, UINT32_MAX> {};
+struct ObjectNetId : public IdMaker<ObjectNetId, uint32_t, UINT32_MAX> {};
+struct ObjectLocalId : public IdMaker<ObjectLocalId, uint32_t, UINT32_MAX> {};
+struct ObjectHandle : public IdMaker<ObjectHandle, std::intptr_t, 0> {};
 
 NS_NAMESPACE_END

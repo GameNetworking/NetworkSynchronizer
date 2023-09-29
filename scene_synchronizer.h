@@ -254,8 +254,8 @@ public: // ---------------------------------------------------------------- APIs
 
 	ObjectNetId get_app_object_net_id(ObjectHandle p_app_object_handle) const;
 
-	ObjectHandle get_app_object_from_id(uint32_t p_id, bool p_expected = true);
-	ObjectHandle get_app_object_from_id_const(uint32_t p_id, bool p_expected = true) const;
+	ObjectHandle get_app_object_from_id(ObjectNetId p_id, bool p_expected = true);
+	ObjectHandle get_app_object_from_id_const(ObjectNetId p_id, bool p_expected = true) const;
 
 	const std::vector<ObjectData *> &get_all_object_data() const;
 
@@ -264,7 +264,7 @@ public: // ---------------------------------------------------------------- APIs
 	/// - The node is not registered.
 	/// - The variable is not registered.
 	/// - The client doesn't know the ID yet.
-	uint32_t get_variable_id(ObjectNetId p_id, const StringName &p_variable);
+	VarId get_variable_id(ObjectNetId p_id, const StringName &p_variable);
 
 	void set_skip_rewinding(ObjectNetId p_id, const StringName &p_variable, bool p_skip_rewinding);
 
@@ -356,7 +356,7 @@ public: // ---------------------------------------------------------------- APIs
 	void detect_and_signal_changed_variables(int p_flags);
 
 	void change_events_begin(int p_flag);
-	void change_event_add(NS::ObjectData *p_object_data, NetVarId p_var_id, const Variant &p_old);
+	void change_event_add(NS::ObjectData *p_object_data, VarId p_var_id, const Variant &p_old);
 	void change_events_flush();
 
 public: // ------------------------------------------------------------ INTERNAL
@@ -441,7 +441,7 @@ public:
 	virtual void on_object_data_added(NS::ObjectData *p_object_data) {}
 	virtual void on_object_data_removed(NS::ObjectData &p_object_data) {}
 	virtual void on_variable_added(NS::ObjectData *p_object_data, const StringName &p_var_name) {}
-	virtual void on_variable_changed(NS::ObjectData *p_object_data, NetVarId p_var_id, const Variant &p_old_value, int p_flag) {}
+	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const Variant &p_old_value, int p_flag) {}
 	virtual void on_controller_reset(NS::ObjectData *p_object_data) {}
 };
 
@@ -490,7 +490,7 @@ public:
 	virtual void on_object_data_added(NS::ObjectData *p_object_data) override;
 	virtual void on_object_data_removed(NS::ObjectData &p_object_data) override;
 	virtual void on_variable_added(NS::ObjectData *p_object_data, const StringName &p_var_name) override;
-	virtual void on_variable_changed(NS::ObjectData *p_object_data, NetVarId p_var_id, const Variant &p_old_value, int p_flag) override;
+	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const Variant &p_old_value, int p_flag) override;
 
 	SyncGroupId sync_group_create();
 	const NS::SyncGroup *sync_group_get(SyncGroupId p_group_id) const;
@@ -528,7 +528,7 @@ class ClientSynchronizer : public Synchronizer {
 	friend class SceneSynchronizerBase;
 
 	NS::ObjectData *player_controller_node_data = nullptr;
-	OAHashMap<ObjectNetId, std::string> node_paths;
+	std::map<ObjectNetId, std::string> objects_names;
 
 	NS::Snapshot last_received_snapshot;
 	std::deque<NS::Snapshot> client_snapshots;
@@ -541,14 +541,14 @@ class ClientSynchronizer : public Synchronizer {
 
 	struct EndSyncEvent {
 		NS::ObjectData *node_data;
-		NetVarId var_id;
+		VarId var_id;
 		Variant old_value;
 
 		bool operator<(const EndSyncEvent &p_other) const {
 			if (node_data->get_net_id() == p_other.node_data->get_net_id()) {
 				return var_id < p_other.var_id;
 			} else {
-				return node_data->get_net_id() < p_other.node_data->get_net_id();
+				return node_data->get_net_id().id < p_other.node_data->get_net_id().id;
 			}
 		}
 	};
@@ -560,8 +560,8 @@ class ClientSynchronizer : public Synchronizer {
 		DataBuffer past_epoch_buffer;
 		DataBuffer future_epoch_buffer;
 
-		uint32_t past_epoch = ID_NONE;
-		uint32_t future_epoch = ID_NONE;
+		uint32_t past_epoch = UINT32_MAX;
+		uint32_t future_epoch = UINT32_MAX;
 		real_t alpha_advacing_per_epoch = 1.0;
 		real_t alpha = 0.0;
 
@@ -608,7 +608,7 @@ public:
 	virtual void process() override;
 	virtual void on_object_data_added(NS::ObjectData *p_object_data) override;
 	virtual void on_object_data_removed(NS::ObjectData &p_object_data) override;
-	virtual void on_variable_changed(NS::ObjectData *p_object_data, NetVarId p_var_id, const Variant &p_old_value, int p_flag) override;
+	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const Variant &p_old_value, int p_flag) override;
 	void signal_end_sync_changed_variables_events();
 	virtual void on_controller_reset(NS::ObjectData *p_object_data) override;
 
@@ -620,7 +620,7 @@ public:
 			void (*p_node_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
 			void (*p_input_id_parse)(void *p_user_pointer, uint32_t p_input_id),
 			void (*p_controller_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
-			void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, NetVarId p_var_id, const Variant &p_value),
+			void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, const Variant &p_value),
 			void (*p_node_activation_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, bool p_is_active));
 
 	void set_enabled(bool p_enabled);
@@ -698,7 +698,7 @@ public:
 	}
 
 	static BaseType *from_handle(ObjectHandle p_app_object_handle) {
-		return reinterpret_cast<BaseType *>(p_app_object_handle.intptr);
+		return reinterpret_cast<BaseType *>(p_app_object_handle.id);
 	}
 };
 

@@ -35,8 +35,6 @@
 #include "net_utilities.h"
 #include "core/object_data.h"
 
-const uint32_t ID_NONE = UINT32_MAX;
-
 // This was needed to optimize the godot stringify for byte arrays.. it was slowing down perfs.
 String NS::stringify_byte_array_fast(const Vector<uint8_t> &p_array) {
 	CharString str;
