@@ -36,7 +36,7 @@ ObjectNetId ObjectData::get_net_id() const {
 	return net_id;
 }
 
-ObjectLocalId ObjectData::get_local_id(ObjectLocalId p_id) {
+ObjectLocalId ObjectData::get_local_id() const {
 	return local_id;
 }
 

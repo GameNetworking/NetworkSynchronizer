@@ -141,7 +141,7 @@ private:
 	// Peer controlling this controller.
 	int peer_id = -1;
 
-	ObjectNetId node_id = ObjectNetId::NONE;
+	ObjectNetId net_id = ObjectNetId::NONE;
 
 	NS::NetworkInterface *network_interface = nullptr;
 

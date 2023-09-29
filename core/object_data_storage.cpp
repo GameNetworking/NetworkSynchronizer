@@ -103,46 +103,22 @@ void ObjectDataStorage::object_set_net_id(ObjectData &p_object_data, ObjectNetId
 	sync.notify_object_data_net_id_changed(p_object_data);
 }
 
-NS::ObjectData *ObjectDataStorage::find_object_data(ObjectHandle p_handle) {
-	for (uint32_t i = 0; i < objects_data.size(); i += 1) {
-		if (objects_data[i] == nullptr) {
-			continue;
-		}
-		if (objects_data[i]->app_object_handle == p_handle) {
-			return objects_data[i];
+ObjectLocalId ObjectDataStorage::find_object_local_id(ObjectHandle p_handle) const {
+	for (auto od : objects_data) {
+		if (od && od->app_object_handle == p_handle) {
+			return od->local_id;
 		}
 	}
-	return nullptr;
+	return ObjectLocalId::NONE;
 }
 
-const NS::ObjectData *ObjectDataStorage::find_object_data(ObjectHandle p_handle) const {
-	for (uint32_t i = 0; i < objects_data.size(); i += 1) {
-		if (objects_data[i] == nullptr) {
-			continue;
-		}
-		if (objects_data[i]->app_object_handle == p_handle) {
-			return objects_data[i];
-		}
-	}
-	return nullptr;
-}
-
-ObjectData *ObjectDataStorage::find_object_data(NetworkedControllerBase &p_controller) {
+ObjectLocalId ObjectDataStorage::find_object_local_id(const NetworkedControllerBase &p_controller) const {
 	for (auto od : objects_data_controllers) {
 		if (od->controller == (&p_controller)) {
-			return od;
+			return od->local_id;
 		}
 	}
-	return nullptr;
-}
-
-const ObjectData *ObjectDataStorage::find_object_data(const NetworkedControllerBase &p_controller) const {
-	for (auto od : objects_data_controllers) {
-		if (od->controller == (&p_controller)) {
-			return od;
-		}
-	}
-	return nullptr;
+	return ObjectLocalId::NONE;
 }
 
 NS::ObjectData *ObjectDataStorage::get_object_data(ObjectNetId p_net_id, bool p_expected) {
@@ -171,9 +147,9 @@ const NS::ObjectData *ObjectDataStorage::get_object_data(ObjectNetId p_net_id, b
 
 NS::ObjectData *ObjectDataStorage::get_object_data(ObjectLocalId p_handle, bool p_expected) {
 	if (p_expected) {
-		ERR_FAIL_UNSIGNED_INDEX_V(p_handle.id, objects_data_organized_by_netid.size(), nullptr);
+		ERR_FAIL_UNSIGNED_INDEX_V(p_handle.id, objects_data.size(), nullptr);
 	} else {
-		if (objects_data_organized_by_netid.size() <= p_handle.id) {
+		if (p_handle.id < 0 || objects_data.size() <= p_handle.id) {
 			return nullptr;
 		}
 	}
@@ -183,9 +159,9 @@ NS::ObjectData *ObjectDataStorage::get_object_data(ObjectLocalId p_handle, bool 
 
 const NS::ObjectData *ObjectDataStorage::get_object_data(ObjectLocalId p_handle, bool p_expected) const {
 	if (p_expected) {
-		ERR_FAIL_UNSIGNED_INDEX_V(p_handle.id, objects_data_organized_by_netid.size(), nullptr);
+		ERR_FAIL_UNSIGNED_INDEX_V(p_handle.id, objects_data.size(), nullptr);
 	} else {
-		if (objects_data_organized_by_netid.size() <= p_handle.id) {
+		if (p_handle.id < 0 || objects_data.size() <= p_handle.id) {
 			return nullptr;
 		}
 	}

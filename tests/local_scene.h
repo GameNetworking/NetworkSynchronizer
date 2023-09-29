@@ -23,8 +23,10 @@ public:
 	class LocalScene *get_scene() const;
 
 	virtual void on_scene_entry() {}
-	virtual void setup_synchronizer(class LocalSceneSynchronizer &p_scene_sync) {}
+	virtual void setup_synchronizer(class LocalSceneSynchronizer &p_scene_sync, ObjectLocalId p_id) {}
 	virtual void on_scene_exit() {}
+
+	NS::ObjectLocalId find_local_id() const;
 };
 
 class LocalSceneSynchronizer : public SceneSynchronizer<LocalSceneObject, LocalNetworkInterface>, public SynchronizerManager, public LocalSceneObject {
@@ -32,7 +34,7 @@ public:
 	LocalSceneSynchronizer();
 
 	virtual void on_scene_entry() override;
-	virtual void setup_synchronizer(class LocalSceneSynchronizer &p_scene_sync) override;
+	virtual void setup_synchronizer(class LocalSceneSynchronizer &p_scene_sync, ObjectLocalId p_id) override;
 	virtual void on_scene_exit() override;
 
 	/// NOTE: THIS FUNCTION MUST RETURN THE POINTER THAT POINTS TO `BaseType` SPECIFIED IN `SceneSynchronizer<BaseType>`.
@@ -41,7 +43,7 @@ public:
 	virtual ObjectHandle fetch_app_object(const std::string &p_object_name) override;
 	virtual uint64_t get_object_id(ObjectHandle p_app_object_handle) const override;
 	virtual std::string get_object_name(ObjectHandle p_app_object_handle) const override;
-	virtual void setup_synchronizer_for(ObjectHandle p_app_object_handle) override;
+	virtual void setup_synchronizer_for(ObjectHandle p_app_object_handle, ObjectLocalId p_id) override;
 	virtual void set_variable(ObjectHandle p_app_object_handle, const char *p_var_name, const Variant &p_val) override;
 	virtual bool get_variable(ObjectHandle p_app_object_handle, const char *p_var_name, Variant &p_val) const override;
 	virtual NS::NetworkedControllerBase *extract_network_controller(ObjectHandle p_app_object_handle) override;

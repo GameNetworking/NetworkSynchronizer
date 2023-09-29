@@ -271,19 +271,19 @@ void NetworkedControllerBase::notify_registered_with_synchronizer(NS::SceneSynch
 		event_handler_state_validated = NS::NullPHandler;
 		event_handler_peer_status_updated = NS::NullPHandler;
 		scene_synchronizer->unregister_process(
-				scene_synchronizer->find_object_data(*this),
+				scene_synchronizer->find_object_local_id(*this),
 				PROCESSPHASE_PROCESS,
 				process_handler_process);
 		process_handler_process = NS::NullPHandler;
 	}
 
-	node_id = ObjectNetId::NONE;
+	net_id = ObjectNetId::NONE;
 	scene_synchronizer = p_synchronizer;
 
 	if (scene_synchronizer) {
 		process_handler_process =
 				scene_synchronizer->register_process(
-						&p_nd,
+						p_nd.get_local_id(),
 						PROCESSPHASE_PROCESS,
 						[this](float p_delta) -> void { process(p_delta); });
 
@@ -401,16 +401,16 @@ bool NetworkedControllerBase::player_has_new_input() const {
 }
 
 bool NetworkedControllerBase::is_realtime_enabled() {
-	if (node_id == ObjectNetId::NONE) {
+	if (net_id == ObjectNetId::NONE) {
 		if (scene_synchronizer) {
-			NS::ObjectData *nd = scene_synchronizer->find_object_data(*this);
-			if (nd) {
-				node_id = nd->get_net_id();
+			const ObjectLocalId lid = scene_synchronizer->find_object_local_id(*this);
+			if (lid != ObjectLocalId::NONE) {
+				net_id = scene_synchronizer->get_object_data(lid)->get_net_id();
 			}
 		}
 	}
-	if (node_id != ObjectNetId::NONE) {
-		NS::ObjectData *nd = scene_synchronizer->get_node_data(node_id);
+	if (net_id != ObjectNetId::NONE) {
+		NS::ObjectData *nd = scene_synchronizer->get_object_data(net_id);
 		if (nd) {
 			return nd->realtime_sync_enabled_on_client;
 		}

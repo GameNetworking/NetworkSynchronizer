@@ -5,6 +5,13 @@
 
 NS_NAMESPACE_BEGIN
 
+NS::ObjectLocalId LocalSceneObject::find_local_id() const {
+	if (get_scene()) {
+		return get_scene()->scene_sync->find_object_local_id(get_scene()->scene_sync->to_handle(this));
+	}
+	return NS::ObjectLocalId::NONE;
+}
+
 LocalSceneSynchronizer::LocalSceneSynchronizer() {
 }
 
@@ -14,7 +21,7 @@ void LocalSceneSynchronizer::on_scene_entry() {
 	register_app_object(to_handle(this));
 }
 
-void LocalSceneSynchronizer::setup_synchronizer(class LocalSceneSynchronizer &p_scene_sync) {
+void LocalSceneSynchronizer::setup_synchronizer(class LocalSceneSynchronizer &p_scene_sync, ObjectLocalId p_id) {
 }
 
 void LocalSceneSynchronizer::on_scene_exit() {
@@ -37,8 +44,8 @@ std::string LocalSceneSynchronizer::get_object_name(ObjectHandle p_app_object_ha
 	return from_handle(p_app_object_handle)->name;
 }
 
-void LocalSceneSynchronizer::setup_synchronizer_for(ObjectHandle p_app_object_handle) {
-	from_handle(p_app_object_handle)->setup_synchronizer(*get_scene()->scene_sync);
+void LocalSceneSynchronizer::setup_synchronizer_for(ObjectHandle p_app_object_handle, ObjectLocalId p_id) {
+	from_handle(p_app_object_handle)->setup_synchronizer(*get_scene()->scene_sync, p_id);
 }
 
 void LocalSceneSynchronizer::set_variable(ObjectHandle p_app_object_handle, const char *p_var_name, const Variant &p_val) {

@@ -2,6 +2,7 @@
 
 #include "core/object/object.h"
 #include "core/string/string_name.h"
+#include "modules/network_synchronizer/core/core.h"
 #include "modules/network_synchronizer/core/processor.h"
 #include "modules/network_synchronizer/godot4/gd_network_interface.h"
 #include "modules/network_synchronizer/godot4/gd_networked_controller.h"
@@ -274,7 +275,7 @@ void GdSceneSynchronizer::debug_only_validate_nodes() {
 	if (null_objects.size()) {
 		SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer.get_network_interface(), "At least one node has been removed from the tree without the SceneSynchronizer noticing. This shouldn't happen.");
 		for (uint32_t i = 0; i < null_objects.size(); i += 1) {
-			scene_synchronizer.unregister_app_object(null_objects[i]);
+			scene_synchronizer.on_app_object_removed(null_objects[i]);
 		}
 	}
 }
@@ -304,10 +305,10 @@ std::string GdSceneSynchronizer::get_object_name(NS::ObjectHandle p_app_object_h
 	return std::string(String(scene_synchronizer.from_handle(p_app_object_handle)->get_path()).utf8());
 }
 
-void GdSceneSynchronizer::setup_synchronizer_for(NS::ObjectHandle p_app_object_handle) {
+void GdSceneSynchronizer::setup_synchronizer_for(NS::ObjectHandle p_app_object_handle, NS::ObjectLocalId p_id) {
 	Node *node = scene_synchronizer.from_handle(p_app_object_handle);
 	if (node->has_method("_setup_synchronizer")) {
-		node->call("_setup_synchronizer");
+		node->call("_setup_synchronizer", p_id.id);
 	} else {
 		SceneSynchronizerDebugger::singleton()->debug_error(nullptr, "[ERROR] The registered node `" + node->get_path() + "` doesn't override the method `_setup_synchronizer`, which is called by the SceneSynchronizer to know the node sync properties. Pleaes implement it.");
 	}
@@ -390,20 +391,19 @@ void GdSceneSynchronizer::clear() {
 	scene_synchronizer.clear();
 }
 
-NS::ObjectData *GdSceneSynchronizer::register_node(Node *p_node) {
-	return scene_synchronizer.register_app_object(scene_synchronizer.to_handle(p_node));
+NS::ObjectLocalId GdSceneSynchronizer::register_node(Node *p_node) {
+	NS::ObjectLocalId id;
+	scene_synchronizer.register_app_object(scene_synchronizer.to_handle(p_node), &id);
+	return id;
 }
 
 uint32_t GdSceneSynchronizer::register_node_gdscript(Node *p_node) {
-	NS::ObjectData *nd = register_node(p_node);
-	if (unlikely(nd == nullptr)) {
-		return UINT32_MAX;
-	}
-	return nd->get_net_id().id;
+	const NS::ObjectLocalId id = register_node(p_node);
+	return id.id;
 }
 
 void GdSceneSynchronizer::unregister_node(Node *p_node) {
-	scene_synchronizer.unregister_app_object(scene_synchronizer.to_handle(p_node));
+	scene_synchronizer.unregister_app_object(scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node)));
 }
 
 uint32_t GdSceneSynchronizer::get_node_id(Node *p_node) {
@@ -419,25 +419,25 @@ const Node *GdSceneSynchronizer::get_node_from_id_const(uint32_t p_id, bool p_ex
 }
 
 void GdSceneSynchronizer::register_variable(Node *p_node, const StringName &p_variable) {
-	scene_synchronizer.register_variable(scene_synchronizer.to_handle(p_node), p_variable);
+	scene_synchronizer.register_variable(scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node)), p_variable);
 }
 
 void GdSceneSynchronizer::unregister_variable(Node *p_node, const StringName &p_variable) {
-	scene_synchronizer.unregister_variable(scene_synchronizer.to_handle(p_node), p_variable);
+	scene_synchronizer.unregister_variable(scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node)), p_variable);
 }
 
 uint32_t GdSceneSynchronizer::get_variable_id(Node *p_node, const StringName &p_variable) {
-	NS::ObjectData *nd = scene_synchronizer.find_node_data(scene_synchronizer.to_handle(p_node));
-	if (nd) {
-		return scene_synchronizer.get_variable_id(nd->get_net_id(), p_variable).id;
+	NS::ObjectLocalId id = scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node));
+	if (id != NS::ObjectLocalId::NONE) {
+		return scene_synchronizer.get_variable_id(id, p_variable).id;
 	}
 	return NS::VarId::NONE.id;
 }
 
 void GdSceneSynchronizer::set_skip_rewinding(Node *p_node, const StringName &p_variable, bool p_skip_rewinding) {
-	NS::ObjectData *nd = scene_synchronizer.find_node_data(scene_synchronizer.to_handle(p_node));
-	if (nd) {
-		scene_synchronizer.set_skip_rewinding(nd->get_net_id(), p_variable, p_skip_rewinding);
+	NS::ObjectLocalId id = scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node));
+	if (id != NS::ObjectLocalId::NONE) {
+		scene_synchronizer.set_skip_rewinding(id, p_variable, p_skip_rewinding);
 	}
 }
 
@@ -449,20 +449,20 @@ uint64_t GdSceneSynchronizer::track_variable_changes(
 	ERR_FAIL_COND_V(p_nodes.size() != p_vars.size(), 0);
 	ERR_FAIL_COND_V(p_nodes.size() == 0, 0);
 
-	std::vector<NS::ObjectHandle> objects_handles;
+	std::vector<NS::ObjectLocalId> objects_ids;
 	std::vector<StringName> var_names;
 
 	for (int i = 0; i < int(p_nodes.size()); i++) {
 		Object *obj = p_nodes[i];
 		Node *node = dynamic_cast<Node *>(obj);
-		NS::ObjectHandle oh = scene_synchronizer.to_handle(node);
-		objects_handles.push_back(oh);
+		NS::ObjectLocalId lid = scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(node));
+		objects_ids.push_back(lid);
 		var_names.push_back(p_vars[i]);
 	}
 
 	NS::ListenerHandle raw_handle =
 			scene_synchronizer.track_variables_changes(
-					objects_handles,
+					objects_ids,
 					var_names,
 					[p_callable](const std::vector<Variant> &p_old_variables) {
 						Array arguments;
@@ -481,8 +481,9 @@ void GdSceneSynchronizer::untrack_variable_changes(uint64_t p_handle) {
 }
 
 uint64_t GdSceneSynchronizer::register_process(Node *p_node, ProcessPhase p_phase, const Callable &p_func) {
-	NS::ObjectData *nd = scene_synchronizer.register_app_object(scene_synchronizer.to_handle(p_node));
-	const NS::PHandler EFH = scene_synchronizer.register_process(nd, p_phase, [p_func](float p_delta) {
+	NS::ObjectLocalId id;
+	scene_synchronizer.register_app_object(scene_synchronizer.to_handle(p_node), &id);
+	const NS::PHandler EFH = scene_synchronizer.register_process(id, p_phase, [p_func](float p_delta) {
 		Array a;
 		a.push_back(p_delta);
 		p_func.callv(a);
@@ -491,17 +492,16 @@ uint64_t GdSceneSynchronizer::register_process(Node *p_node, ProcessPhase p_phas
 }
 
 void GdSceneSynchronizer::unregister_process(Node *p_node, ProcessPhase p_phase, uint64_t p_handler) {
-	NS::ObjectData *nd = scene_synchronizer.find_node_data(scene_synchronizer.to_handle(p_node));
-	if (nd) {
-		scene_synchronizer.unregister_process(
-				nd,
-				p_phase,
-				static_cast<NS::PHandler>(p_handler));
-	}
+	NS::ObjectLocalId id = scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node));
+
+	scene_synchronizer.unregister_process(
+			id,
+			p_phase,
+			static_cast<NS::PHandler>(p_handler));
 }
 
 void GdSceneSynchronizer::setup_deferred_sync(Node *p_node, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func) {
-	scene_synchronizer.setup_deferred_sync(scene_synchronizer.to_handle(p_node), p_collect_epoch_func, p_apply_epoch_func);
+	scene_synchronizer.setup_deferred_sync(scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node)), p_collect_epoch_func, p_apply_epoch_func);
 }
 
 SyncGroupId GdSceneSynchronizer::sync_group_create() {
@@ -549,19 +549,19 @@ const LocalVector<int> *GdSceneSynchronizer::sync_group_get_peers(SyncGroupId p_
 }
 
 void GdSceneSynchronizer::sync_group_set_deferred_update_rate_by_id(uint32_t p_net_id, SyncGroupId p_group_id, real_t p_update_rate) {
-	scene_synchronizer.sync_group_set_deferred_update_rate_by_id({ p_net_id }, p_group_id, p_update_rate);
+	scene_synchronizer.sync_group_set_deferred_update_rate(NS::ObjectNetId{ p_net_id }, p_group_id, p_update_rate);
 }
 
 void GdSceneSynchronizer::sync_group_set_deferred_update_rate(NS::ObjectData *p_object_data, SyncGroupId p_group_id, real_t p_update_rate) {
-	scene_synchronizer.sync_group_set_deferred_update_rate(p_object_data, p_group_id, p_update_rate);
+	scene_synchronizer.sync_group_set_deferred_update_rate(p_object_data->get_local_id(), p_group_id, p_update_rate);
 }
 
 real_t GdSceneSynchronizer::sync_group_get_deferred_update_rate_by_id(uint32_t p_net_id, SyncGroupId p_group_id) const {
-	return scene_synchronizer.sync_group_get_deferred_update_rate_by_id({ p_net_id }, p_group_id);
+	return scene_synchronizer.sync_group_get_deferred_update_rate(NS::ObjectNetId{ p_net_id }, p_group_id);
 }
 
 real_t GdSceneSynchronizer::sync_group_get_deferred_update_rate(const NS::ObjectData *p_object_data, SyncGroupId p_group_id) const {
-	return scene_synchronizer.sync_group_get_deferred_update_rate(p_object_data, p_group_id);
+	return scene_synchronizer.sync_group_get_deferred_update_rate(p_object_data->get_local_id(), p_group_id);
 }
 
 void GdSceneSynchronizer::sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_data) {
