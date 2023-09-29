@@ -33,6 +33,7 @@ ObjectHandle LocalSceneSynchronizer::fetch_app_object(const std::string &p_objec
 	if (lso) {
 		return to_handle(lso);
 	}
+	return ObjectHandle::NONE;
 }
 
 uint64_t LocalSceneSynchronizer::get_object_id(ObjectHandle p_app_object_handle) const {
