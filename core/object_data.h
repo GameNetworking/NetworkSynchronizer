@@ -68,7 +68,7 @@ public:
 	void set_net_id(ObjectNetId p_id);
 	ObjectNetId get_net_id() const;
 
-	ObjectLocalId get_local_id(ObjectLocalId p_id);
+	ObjectLocalId get_local_id() const;
 
 	bool has_registered_process_functions() const;
 	bool can_deferred_sync() const;

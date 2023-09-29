@@ -66,7 +66,7 @@ public: // ---------------------------------------- Scene Synchronizer Interface
 	virtual NS::ObjectHandle fetch_app_object(const std::string &p_object_name) override;
 	virtual uint64_t get_object_id(NS::ObjectHandle p_app_object_handle) const override;
 	virtual std::string get_object_name(NS::ObjectHandle p_app_object_handle) const override;
-	virtual void setup_synchronizer_for(NS::ObjectHandle p_app_object_handle) override;
+	virtual void setup_synchronizer_for(NS::ObjectHandle p_app_object_handle, NS::ObjectLocalId p_id) override;
 	virtual void set_variable(NS::ObjectHandle p_app_object_handle, const char *p_name, const Variant &p_val) override;
 	virtual bool get_variable(NS::ObjectHandle p_app_object_handle, const char *p_name, Variant &p_val) const override;
 
@@ -84,7 +84,7 @@ public: // ---------------------------------------------------------------- APIs
 	void clear();
 
 	/// Register a new node and returns its `NodeData`.
-	NS::ObjectData *register_node(Node *p_node);
+	NS::ObjectLocalId register_node(Node *p_node);
 	uint32_t register_node_gdscript(Node *p_node);
 	void unregister_node(Node *p_node);
 

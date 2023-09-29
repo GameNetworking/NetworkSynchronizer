@@ -30,11 +30,8 @@ public:
 
 	void object_set_net_id(ObjectData &p_object_data, ObjectNetId p_new_id);
 
-	ObjectData *find_object_data(ObjectHandle p_handle);
-	const ObjectData *find_object_data(ObjectHandle p_handle) const;
-
-	ObjectData *find_object_data(class NetworkedControllerBase &p_controller);
-	const ObjectData *find_object_data(const class NetworkedControllerBase &p_controller) const;
+	ObjectLocalId find_object_local_id(ObjectHandle p_handle) const;
+	ObjectLocalId find_object_local_id(const class NetworkedControllerBase &p_controller) const;
 
 	ObjectData *get_object_data(ObjectNetId p_net_id, bool p_expected = true);
 	const ObjectData *get_object_data(ObjectNetId p_net_id, bool p_expected = true) const;

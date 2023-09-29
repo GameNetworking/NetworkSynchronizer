@@ -36,6 +36,8 @@ const float delta = 1.0 / 60.0;
 
 class LocalNetworkedController : public NS::NetworkedController<NS::LocalNetworkInterface>, public NS::NetworkedControllerManager, public NS::LocalSceneObject {
 public:
+	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
+
 	LocalNetworkedController() {}
 
 	virtual void on_scene_entry() override {
@@ -50,11 +52,12 @@ public:
 	}
 
 	virtual void on_scene_exit() override {
-		get_scene()->scene_sync->on_app_object_removed(get_scene()->scene_sync->to_handle(this));
+		get_scene()->scene_sync->unregister_app_object(local_id);
 	}
 
-	virtual void setup_synchronizer(NS::LocalSceneSynchronizer &p_scene_sync) override {
-		p_scene_sync.register_variable(get_scene()->scene_sync->to_handle(this), "position");
+	virtual void setup_synchronizer(NS::LocalSceneSynchronizer &p_scene_sync, NS::ObjectLocalId p_id) override {
+		local_id = p_id;
+		p_scene_sync.register_variable(p_id, "position");
 	}
 
 	virtual void collect_inputs(double p_delta, DataBuffer &r_buffer) override {
@@ -123,14 +126,15 @@ void test_client_and_server_initialization() {
 
 class TestSceneObject : public NS::LocalSceneObject {
 public:
-	NS::ObjectNetId net_id = NS::ObjectNetId::NONE;
+	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
 
 	virtual void on_scene_entry() override {
-		net_id = get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this))->get_net_id();
+		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
 	}
 
-	virtual void setup_synchronizer(NS::LocalSceneSynchronizer &p_scene_sync) override {
-		p_scene_sync.register_variable(get_scene()->scene_sync->to_handle(this), "var_1");
+	virtual void setup_synchronizer(NS::LocalSceneSynchronizer &p_scene_sync, NS::ObjectLocalId p_id) override {
+		local_id = p_id;
+		p_scene_sync.register_variable(p_id, "var_1");
 	}
 
 	virtual void on_scene_exit() override {
@@ -393,9 +397,9 @@ void test_variable_change_event() {
 	peer_2_scene.scene_sync =
 			peer_2_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
 
-	NS::ObjectHandle server_obj_1_oh = server_scene.scene_sync->to_handle(server_scene.add_object<TestSceneObject>("obj_1", server_scene.get_peer()));
-	NS::ObjectHandle p1_obj_1_oh = peer_1_scene.scene_sync->to_handle(peer_1_scene.add_object<TestSceneObject>("obj_1", server_scene.get_peer()));
-	NS::ObjectHandle p2_obj_1_oh = peer_2_scene.scene_sync->to_handle(peer_2_scene.add_object<TestSceneObject>("obj_1", server_scene.get_peer()));
+	NS::ObjectLocalId server_obj_1_oh = server_scene.add_object<TestSceneObject>("obj_1", server_scene.get_peer())->find_local_id();
+	NS::ObjectLocalId p1_obj_1_oh = peer_1_scene.add_object<TestSceneObject>("obj_1", server_scene.get_peer())->find_local_id();
+	NS::ObjectLocalId p2_obj_1_oh = peer_2_scene.add_object<TestSceneObject>("obj_1", server_scene.get_peer())->find_local_id();
 
 	for (int f = 0; f < 2; f++) {
 		// Test the changed variable for the event `CHANGE` is triggered.
@@ -583,7 +587,9 @@ void test_variable_change_event() {
 					NetEventFlag::SYNC_RESET);
 
 			// Mark the parameter as skip rewinding first.
-			//server_scene.scene_sync->set_skip_rewinding(NetNodeId p_id, const StringName &p_variable, bool p_skip_rewinding)
+			server_scene.scene_sync->set_skip_rewinding(server_obj_1_oh, "var_1", true);
+			peer_1_scene.scene_sync->set_skip_rewinding(p1_obj_1_oh, "var_1", true);
+			peer_2_scene.scene_sync->set_skip_rewinding(p2_obj_1_oh, "var_1", true);
 
 			// Change the value on the server.
 			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 1;
@@ -594,9 +600,27 @@ void test_variable_change_event() {
 				peer_2_scene.process(delta);
 			}
 
-			// Make sure the event on the server was not triggered
+			// Make sure the event was not triggered on anyone since we are
+			// skipping the rewinding.
 			CRASH_COND(is_server_change_event_triggered);
-			// But it was on the peers.
+			CRASH_COND(is_p1_change_event_triggered);
+			CRASH_COND(is_p2_change_event_triggered);
+
+			// Now set the var as rewinding.
+			server_scene.scene_sync->set_skip_rewinding(server_obj_1_oh, "var_1", false);
+			peer_1_scene.scene_sync->set_skip_rewinding(p1_obj_1_oh, "var_1", false);
+			peer_2_scene.scene_sync->set_skip_rewinding(p2_obj_1_oh, "var_1", false);
+
+			// Change the value on the server.
+			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 10;
+
+			for (int i = 0; i < 4; i++) {
+				server_scene.process(delta);
+				peer_1_scene.process(delta);
+				peer_2_scene.process(delta);
+			}
+
+			// Make sure the event was triggered now.
 			CRASH_COND(!is_p1_change_event_triggered);
 			CRASH_COND(!is_p2_change_event_triggered);
 

@@ -115,7 +115,7 @@ void SceneDiff::stop_tracking_scene_changes(const NS::SceneSynchronizerBase *p_s
 	}
 
 	for (NS::ObjectNetId i = { 0 }; i < NS::ObjectNetId{ tracking.size() }; i += 1) {
-		const NS::ObjectData *nd = p_synchronizer->get_node_data({ i });
+		const NS::ObjectData *nd = p_synchronizer->get_object_data({ i });
 		if (nd == nullptr) {
 			continue;
 		}

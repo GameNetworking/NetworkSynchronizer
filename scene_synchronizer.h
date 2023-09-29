@@ -49,7 +49,7 @@ public:
 	virtual ObjectHandle fetch_app_object(const std::string &p_object_name) = 0;
 	virtual uint64_t get_object_id(ObjectHandle p_app_object_handle) const = 0;
 	virtual std::string get_object_name(ObjectHandle p_app_object_handle) const = 0;
-	virtual void setup_synchronizer_for(ObjectHandle p_app_object_handle) = 0;
+	virtual void setup_synchronizer_for(ObjectHandle p_app_object_handle, ObjectLocalId p_id) = 0;
 	virtual void set_variable(ObjectHandle p_app_object_handle, const char *p_var_name, const Variant &p_val) = 0;
 	virtual bool get_variable(ObjectHandle p_app_object_handle, const char *p_var_name, Variant &p_val) const = 0;
 
@@ -236,7 +236,7 @@ public:
 	void set_nodes_relevancy_update_time(real_t p_time);
 	real_t get_nodes_relevancy_update_time() const;
 
-	bool is_variable_registered(ObjectHandle p_app_object_handle, const StringName &p_variable) const;
+	bool is_variable_registered(ObjectLocalId p_id, const StringName &p_variable) const;
 
 public: // ---------------------------------------------------------------- RPCs
 	void rpc_receive_state(const Variant &p_snapshot);
@@ -247,10 +247,10 @@ public: // ---------------------------------------------------------------- RPCs
 
 public: // ---------------------------------------------------------------- APIs
 	/// Register a new node and returns its `NodeData`.
-	NS::ObjectData *register_app_object(ObjectHandle p_app_object_handle);
-	void unregister_app_object(ObjectHandle p_app_object_handle);
-	void register_variable(ObjectHandle p_app_object, const StringName &p_variable);
-	void unregister_variable(ObjectHandle p_app_object, const StringName &p_variable);
+	void register_app_object(ObjectHandle p_app_object_handle, ObjectLocalId *out_id = nullptr);
+	void unregister_app_object(ObjectLocalId p_id);
+	void register_variable(ObjectLocalId p_id, const StringName &p_variable);
+	void unregister_variable(ObjectLocalId p_id, const StringName &p_variable);
 
 	ObjectNetId get_app_object_net_id(ObjectHandle p_app_object_handle) const;
 
@@ -264,18 +264,18 @@ public: // ---------------------------------------------------------------- APIs
 	/// - The node is not registered.
 	/// - The variable is not registered.
 	/// - The client doesn't know the ID yet.
-	VarId get_variable_id(ObjectNetId p_id, const StringName &p_variable);
+	VarId get_variable_id(ObjectLocalId p_id, const StringName &p_variable);
 
-	void set_skip_rewinding(ObjectNetId p_id, const StringName &p_variable, bool p_skip_rewinding);
+	void set_skip_rewinding(ObjectLocalId p_id, const StringName &p_variable, bool p_skip_rewinding);
 
 	ListenerHandle track_variable_changes(
-			ObjectHandle p_object_handle,
+			ObjectLocalId p_id,
 			const StringName &p_variable,
 			std::function<void(const std::vector<Variant> &p_old_values)> p_listener_func,
 			NetEventFlag p_flags = NetEventFlag::DEFAULT);
 
 	ListenerHandle track_variables_changes(
-			const std::vector<ObjectHandle> &p_object_handles,
+			const std::vector<ObjectLocalId> &p_object_ids,
 			const std::vector<StringName> &p_variables,
 			std::function<void(const std::vector<Variant> &p_old_values)> p_listener_func,
 			NetEventFlag p_flags = NetEventFlag::DEFAULT);
@@ -283,13 +283,13 @@ public: // ---------------------------------------------------------------- APIs
 	void untrack_variable_changes(ListenerHandle p_handle);
 
 	/// You can use the macro `callable_mp()` to register custom C++ function.
-	NS::PHandler register_process(NS::ObjectData *p_object_data, ProcessPhase p_phase, std::function<void(float)> p_func);
-	void unregister_process(NS::ObjectData *p_object_data, ProcessPhase p_phase, NS::PHandler p_func_handler);
+	NS::PHandler register_process(ObjectLocalId p_id, ProcessPhase p_phase, std::function<void(float)> p_func);
+	void unregister_process(ObjectLocalId p_id, ProcessPhase p_phase, NS::PHandler p_func_handler);
 
 	/// Setup the deferred sync method for this specific node.
 	/// The deferred-sync is different from the realtime-sync because the data
 	/// is streamed and not simulated.
-	void setup_deferred_sync(ObjectHandle p_app_object_handle, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func);
+	void setup_deferred_sync(ObjectLocalId p_id, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func);
 
 	/// Creates a realtime sync group containing a list of nodes.
 	/// The Peers listening to this group will receive the updates only
@@ -310,10 +310,10 @@ public: // ---------------------------------------------------------------- APIs
 	SyncGroupId sync_group_get_peer_group(int p_peer_id) const;
 	const LocalVector<int> *sync_group_get_peers(SyncGroupId p_group_id) const;
 
-	void sync_group_set_deferred_update_rate_by_id(ObjectNetId p_node_id, SyncGroupId p_group_id, real_t p_update_rate);
-	void sync_group_set_deferred_update_rate(NS::ObjectData *p_object_data, SyncGroupId p_group_id, real_t p_update_rate);
-	real_t sync_group_get_deferred_update_rate_by_id(ObjectNetId p_node_id, SyncGroupId p_group_id) const;
-	real_t sync_group_get_deferred_update_rate(const NS::ObjectData *p_object_data, SyncGroupId p_group_id) const;
+	void sync_group_set_deferred_update_rate(ObjectLocalId p_node_id, SyncGroupId p_group_id, real_t p_update_rate);
+	void sync_group_set_deferred_update_rate(ObjectNetId p_node_id, SyncGroupId p_group_id, real_t p_update_rate);
+	real_t sync_group_get_deferred_update_rate(ObjectLocalId p_node_id, SyncGroupId p_group_id) const;
+	real_t sync_group_get_deferred_update_rate(ObjectNetId p_node_id, SyncGroupId p_group_id) const;
 
 	void sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_ptr);
 	uint64_t sync_group_get_user_data(SyncGroupId p_group_id) const;
@@ -365,22 +365,20 @@ public: // ------------------------------------------------------------ INTERNAL
 	void process_functions__clear();
 	void process_functions__execute(const double p_delta);
 
-	NS::ObjectData *find_node_data(ObjectHandle p_app_object);
-	const NS::ObjectData *find_node_data(ObjectHandle p_app_object) const;
+	ObjectLocalId find_object_local_id(ObjectHandle p_app_object) const;
+	ObjectLocalId find_object_local_id(const NetworkedControllerBase &p_controller) const;
 
-	NS::ObjectData *find_object_data(NetworkedControllerBase &p_controller);
-	const NS::ObjectData *find_node_data(const NetworkedControllerBase &p_controller) const;
+	ObjectData *get_object_data(ObjectLocalId p_id, bool p_expected = true);
+	const ObjectData *get_object_data(ObjectLocalId p_id, bool p_expected = true) const;
 
-	/// This function is super fast, but only nodes with a `NetNodeId` assigned
-	/// can be returned.
-	NS::ObjectData *get_node_data(ObjectNetId p_id, bool p_expected = true);
-	const NS::ObjectData *get_node_data(ObjectNetId p_id, bool p_expected = true) const;
+	ObjectData *get_object_data(ObjectNetId p_id, bool p_expected = true);
+	const ObjectData *get_object_data(ObjectNetId p_id, bool p_expected = true) const;
 
 	NetworkedControllerBase *get_controller_for_peer(int p_peer, bool p_expected = true);
 	const NetworkedControllerBase *get_controller_for_peer(int p_peer, bool p_expected = true) const;
 
-	NS::PeerData *get_peer_for_controller(const NetworkedControllerBase &p_controller, bool p_expected = true);
-	const NS::PeerData *get_peer_for_controller(const NetworkedControllerBase &p_controller, bool p_expected = true) const;
+	PeerData *get_peer_for_controller(const NetworkedControllerBase &p_controller, bool p_expected = true);
+	const PeerData *get_peer_for_controller(const NetworkedControllerBase &p_controller, bool p_expected = true) const;
 
 	/// Returns the latest generated `NetNodeId`.
 	ObjectNetId get_biggest_node_id() const;

@@ -148,7 +148,7 @@ bool NS::Snapshot::compare(
 	}
 
 	for (ObjectNetId net_node_id = { 0 }; net_node_id < ObjectNetId{ uint32_t(p_snap_A.node_vars.size()) }; net_node_id += 1) {
-		NS::ObjectData *rew_node_data = scene_synchronizer.get_node_data(net_node_id);
+		NS::ObjectData *rew_node_data = scene_synchronizer.get_object_data(net_node_id);
 		if (rew_node_data == nullptr || rew_node_data->realtime_sync_enabled_on_client == false) {
 			continue;
 		}
