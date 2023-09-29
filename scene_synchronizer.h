@@ -25,6 +25,8 @@ class Synchronizer;
 
 class SynchronizerManager {
 public:
+	virtual ~SynchronizerManager() {}
+
 	virtual void on_init_synchronizer(bool p_was_generating_ids) {}
 	virtual void on_uninit_synchronizer() {}
 

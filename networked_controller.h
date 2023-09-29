@@ -18,6 +18,8 @@ struct NoNetController;
 
 class NetworkedControllerManager {
 public:
+	virtual ~NetworkedControllerManager() {}
+
 	virtual void collect_inputs(double p_delta, DataBuffer &r_buffer) = 0;
 	virtual void controller_process(double p_delta, DataBuffer &p_buffer) = 0;
 	virtual bool are_inputs_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B) = 0;

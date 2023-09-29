@@ -715,7 +715,7 @@ void SceneSynchronizerDebugger::dump_tracked_objects(const NS::SceneSynchronizer
 		for (List<PropertyInfo>::Element *e = tracked_nodes[i].properties->front(); e; e = e->next()) {
 			String prefix;
 			// TODO the below cast is an unsafe cast. Please refactor this.
-			if (p_scene_sync->is_variable_registered({ reinterpret_cast<std::intptr_t>(tracked_nodes[i].node) }, e->get().name)) {
+			if (p_scene_sync->is_variable_registered(p_scene_sync->find_object_local_id({ reinterpret_cast<std::intptr_t>(tracked_nodes[i].node) }), e->get().name)) {
 				prefix = "* ";
 			}
 
