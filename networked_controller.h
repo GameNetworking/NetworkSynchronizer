@@ -392,7 +392,7 @@ struct AutonomousServerController : public ServerController {
 struct PlayerController : public Controller {
 	uint32_t current_input_id;
 	uint32_t input_buffers_counter;
-	double time_bank;
+	double time_bank = 0.0;
 	double acceleration_fps_speed = 0.0;
 	double acceleration_fps_timer = 1.0;
 	bool streaming_paused = false;

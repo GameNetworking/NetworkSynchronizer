@@ -1068,7 +1068,6 @@ PlayerController::PlayerController(NetworkedControllerBase *p_node) :
 		Controller(p_node),
 		current_input_id(UINT32_MAX),
 		input_buffers_counter(0),
-		time_bank(0.0),
 		acceleration_fps_timer(0.0) {
 }
 
