@@ -46,7 +46,6 @@ public:
 			position += p_delta * one_meter;
 			variables["position"] = position;
 		}
-		print_line("process");
 	}
 
 	virtual bool are_inputs_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B) override {
@@ -175,7 +174,9 @@ void test_state_notify() {
 
 			// Process for 0.5 second + delta
 			float time = 0.0;
+			int h = 0;
 			for (; time <= 0.5 + delta + 0.001; time += delta) {
+				h++;
 				// NOTE: Processing the controller so the server receives the input right after.
 				server_scene.process(delta);
 				peer_1_scene.process(delta);
@@ -224,7 +225,6 @@ void test_state_notify() {
 			} else {
 				// Note: the +1 is needed because the change is recored on the snapshot
 				// the scene sync is going to created on the next "process".
-				const uint32_t server_change_made_on_frame = 1 + server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id();
 				const uint32_t change_made_on_frame = 1 + peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id();
 
 				// When the local controller is set, the client scene sync compares the
@@ -237,33 +237,27 @@ void test_state_notify() {
 
 				// For the above reason we have to process the scenes multiple times,
 				// before seeing the value correctly applied.
-				// Process 1
-				server_scene.process(delta);
-				peer_1_scene.process(delta);
-				peer_2_scene.process(delta);
-
-				// However, since the `peer_2` doesn't have the local controller
-				// the server snapshot is expected to be applied right away.
-				CRASH_COND(int(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"]) != 3);
-
-				// Exactly we need to process the scene three times.
-				// Process 2
-				server_scene.process(delta);
-				peer_1_scene.process(delta);
-				peer_2_scene.process(delta);
-
 				// The reason is that the client scene sync creates the snapshot
 				// right before the `process` function terminates: meaning that
 				// the change made above is registered on the "next" frame.
 				// So, the server have to be processed three times to catch the client.
-				// Process 3
-				server_scene.process(delta);
-				peer_1_scene.process(delta);
-				peer_2_scene.process(delta);
+				for (int h = 0; h < 10; h++) {
+					server_scene.process(delta);
+					peer_1_scene.process(delta);
+					peer_2_scene.process(delta);
+
+					// However, since the `peer_2` doesn't have the local controller
+					// the server snapshot is expected to be applied right away.
+					CRASH_COND(int(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"]) != 3);
+
+					if (change_made_on_frame == server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id()) {
+						// Break as soon as the server reaches the same snapshot.
+						break;
+					}
+				}
 
 				// Make sure the server is indeed at the same frame on which the
 				// client made the change.
-				print_line("CMF: " + itos(change_made_on_frame) + " -- S: " + itos(server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id()));
 				CRASH_COND(change_made_on_frame != server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id());
 
 				// and now is time to check for the `peer_1`.
