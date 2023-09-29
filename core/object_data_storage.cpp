@@ -2,6 +2,8 @@
 
 #include "core/error/error_macros.h"
 #include "core/os/memory.h"
+#include "modules/network_synchronizer/core/core.h"
+#include "modules/network_synchronizer/core/object_data.h"
 #include "modules/network_synchronizer/net_utilities.h"
 #include "modules/network_synchronizer/scene_synchronizer.h"
 
@@ -51,9 +53,9 @@ void ObjectDataStorage::deallocate_object_data(ObjectData &p_object_data) {
 	CRASH_COND(objects_data[local_id.id] != (&p_object_data));
 	objects_data[local_id.id] = nullptr;
 
-	if (objects_data_organized_by_netid.size() > net_id) {
-		CRASH_COND(objects_data_organized_by_netid[net_id] != (&p_object_data));
-		objects_data_organized_by_netid[net_id] = nullptr;
+	if (objects_data_organized_by_netid.size() > net_id.id) {
+		CRASH_COND(objects_data_organized_by_netid[net_id.id] != (&p_object_data));
+		objects_data_organized_by_netid[net_id.id] = nullptr;
 	}
 
 	// Clear the controller pointer.
@@ -72,31 +74,31 @@ void ObjectDataStorage::object_set_net_id(ObjectData &p_object_data, ObjectNetId
 		return;
 	}
 
-	if (objects_data_organized_by_netid.size() > p_object_data.net_id) {
-		objects_data_organized_by_netid[p_object_data.net_id] = nullptr;
+	if (objects_data_organized_by_netid.size() > p_object_data.net_id.id) {
+		objects_data_organized_by_netid[p_object_data.net_id.id] = nullptr;
 	}
 
-	p_object_data.net_id = ID_NONE;
+	p_object_data.net_id = ObjectNetId::NONE;
 
-	if (p_new_id == ID_NONE) {
+	if (p_new_id == ObjectNetId::NONE) {
 		sync.notify_object_data_net_id_changed(p_object_data);
 		return;
 	}
 
-	if (objects_data_organized_by_netid.size() > p_new_id) {
-		if (objects_data_organized_by_netid[p_new_id] && objects_data_organized_by_netid[p_new_id] != (&p_object_data)) {
-			ERR_PRINT("[NET] The object `" + String(p_object_data.object_name.c_str()) + "` was associated with to a new NetId that was used by `" + String(objects_data_organized_by_netid[p_new_id]->object_name.c_str()) + "`. THIS IS NOT SUPPOSED TO HAPPEN.");
+	if (objects_data_organized_by_netid.size() > p_new_id.id) {
+		if (objects_data_organized_by_netid[p_new_id.id] && objects_data_organized_by_netid[p_new_id.id] != (&p_object_data)) {
+			ERR_PRINT("[NET] The object `" + String(p_object_data.object_name.c_str()) + "` was associated with to a new NetId that was used by `" + String(objects_data_organized_by_netid[p_new_id.id]->object_name.c_str()) + "`. THIS IS NOT SUPPOSED TO HAPPEN.");
 		}
 	} else {
 		// Expand the array
-		const uint32_t new_size = p_new_id + 1;
+		const uint32_t new_size = p_new_id.id + 1;
 		const uint32_t old_size = objects_data_organized_by_netid.size();
 		objects_data_organized_by_netid.resize(new_size);
 		// Set the new pointers to nullptr.
 		memset(objects_data_organized_by_netid.data() + old_size, 0, sizeof(void *) * (new_size - old_size));
 	}
 
-	objects_data_organized_by_netid[p_new_id] = &p_object_data;
+	objects_data_organized_by_netid[p_new_id.id] = &p_object_data;
 	p_object_data.net_id = p_new_id;
 	sync.notify_object_data_net_id_changed(p_object_data);
 }
@@ -145,26 +147,26 @@ const ObjectData *ObjectDataStorage::find_object_data(const NetworkedControllerB
 
 NS::ObjectData *ObjectDataStorage::get_object_data(ObjectNetId p_net_id, bool p_expected) {
 	if (p_expected) {
-		ERR_FAIL_UNSIGNED_INDEX_V(p_net_id, objects_data_organized_by_netid.size(), nullptr);
+		ERR_FAIL_UNSIGNED_INDEX_V(p_net_id.id, objects_data_organized_by_netid.size(), nullptr);
 	} else {
-		if (objects_data_organized_by_netid.size() <= p_net_id) {
+		if (objects_data_organized_by_netid.size() <= p_net_id.id) {
 			return nullptr;
 		}
 	}
 
-	return objects_data_organized_by_netid[p_net_id];
+	return objects_data_organized_by_netid[p_net_id.id];
 }
 
 const NS::ObjectData *ObjectDataStorage::get_object_data(ObjectNetId p_net_id, bool p_expected) const {
 	if (p_expected) {
-		ERR_FAIL_UNSIGNED_INDEX_V(p_net_id, objects_data_organized_by_netid.size(), nullptr);
+		ERR_FAIL_UNSIGNED_INDEX_V(p_net_id.id, objects_data_organized_by_netid.size(), nullptr);
 	} else {
-		if (objects_data_organized_by_netid.size() <= p_net_id) {
+		if (objects_data_organized_by_netid.size() <= p_net_id.id) {
 			return nullptr;
 		}
 	}
 
-	return objects_data_organized_by_netid[p_net_id];
+	return objects_data_organized_by_netid[p_net_id.id];
 }
 
 NS::ObjectData *ObjectDataStorage::get_object_data(ObjectLocalId p_handle, bool p_expected) {
@@ -208,17 +210,17 @@ const std::vector<ObjectData *> &ObjectDataStorage::get_sorted_objects_data() co
 }
 
 ObjectNetId ObjectDataStorage::generate_net_id() const {
-	int i = 0;
+	uint32_t i = 0;
 	for (auto od : objects_data_organized_by_netid) {
 		if (!od) {
 			// This position is empty, can be used as NetId.
-			return i;
+			return { i };
 		}
 		i++;
 	}
 
 	// Create a new NetId.
-	return objects_data_organized_by_netid.size();
+	return { uint32_t(objects_data_organized_by_netid.size()) };
 }
 
 bool ObjectDataStorage::is_empty() const {

@@ -61,10 +61,10 @@ bool compare_vars(
 			if (p_synchronizer_node_data->vars[var_index].skip_rewinding) {
 				// The vars are different, but we don't need to trigger a rewind.
 				if (r_no_rewind_recover) {
-					if (uint32_t(r_no_rewind_recover->node_vars.ptr()[p_synchronizer_node_data->get_net_id()].size()) <= var_index) {
-						r_no_rewind_recover->node_vars.ptrw()[p_synchronizer_node_data->get_net_id()].resize(var_index + 1);
+					if (uint32_t(r_no_rewind_recover->node_vars.ptr()[p_synchronizer_node_data->get_net_id().id].size()) <= var_index) {
+						r_no_rewind_recover->node_vars.ptrw()[p_synchronizer_node_data->get_net_id().id].resize(var_index + 1);
 					}
-					r_no_rewind_recover->node_vars.ptrw()[p_synchronizer_node_data->get_net_id()].ptrw()[var_index] = s_vars[var_index];
+					r_no_rewind_recover->node_vars.ptrw()[p_synchronizer_node_data->get_net_id().id].ptrw()[var_index] = s_vars[var_index];
 					// Sets `input_id` to 0 to signal that this snapshot contains
 					// no-rewind data.
 					r_no_rewind_recover->input_id = 0;
@@ -147,14 +147,14 @@ bool NS::Snapshot::compare(
 		r_no_rewind_recover->node_vars.resize(MAX(p_snap_A.node_vars.size(), p_snap_B.node_vars.size()));
 	}
 
-	for (ObjectNetId net_node_id = 0; net_node_id < uint32_t(p_snap_A.node_vars.size()); net_node_id += 1) {
+	for (ObjectNetId net_node_id = { 0 }; net_node_id < ObjectNetId{ uint32_t(p_snap_A.node_vars.size()) }; net_node_id += 1) {
 		NS::ObjectData *rew_node_data = scene_synchronizer.get_node_data(net_node_id);
 		if (rew_node_data == nullptr || rew_node_data->realtime_sync_enabled_on_client == false) {
 			continue;
 		}
 
 		bool are_nodes_different = false;
-		if (net_node_id >= uint32_t(p_snap_B.node_vars.size())) {
+		if (net_node_id >= ObjectNetId{ uint32_t(p_snap_B.node_vars.size()) }) {
 			if (r_differences_info) {
 				r_differences_info->push_back("Difference detected: The B snapshot doesn't contain this node: " + String(rew_node_data->object_name.c_str()));
 			}
@@ -168,8 +168,8 @@ bool NS::Snapshot::compare(
 			are_nodes_different = !compare_vars(
 					scene_synchronizer,
 					rew_node_data,
-					p_snap_A.node_vars[net_node_id],
-					p_snap_B.node_vars[net_node_id],
+					p_snap_A.node_vars[net_node_id.id],
+					p_snap_B.node_vars[net_node_id.id],
 					r_no_rewind_recover,
 					r_differences_info);
 

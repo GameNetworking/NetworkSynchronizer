@@ -10,6 +10,28 @@
 
 namespace NS_Test {
 
+void test_ids() {
+	NS::VarId var_id_0 = { 0 };
+	NS::VarId var_id_0_2 = { 0 };
+	NS::VarId var_id_1 = { 1 };
+
+	CRASH_COND(var_id_0 != var_id_0_2);
+	CRASH_COND(var_id_0 == var_id_1);
+	CRASH_COND(var_id_0 > var_id_1);
+	CRASH_COND(var_id_0 >= var_id_1);
+	CRASH_COND(var_id_1 < var_id_0);
+	CRASH_COND(var_id_1 <= var_id_0);
+
+	NS::VarId var_id_2 = var_id_1 + 1;
+	CRASH_COND(var_id_2.id != 2);
+
+	NS::VarId var_id_3 = var_id_0;
+	var_id_3 += var_id_1;
+	var_id_3 += int(1);
+	var_id_3 += uint32_t(1);
+	CRASH_COND(var_id_3.id != 3);
+}
+
 const float delta = 1.0 / 60.0;
 
 class LocalNetworkedController : public NS::NetworkedController<NS::LocalNetworkInterface>, public NS::NetworkedControllerManager, public NS::LocalSceneObject {
@@ -101,7 +123,7 @@ void test_client_and_server_initialization() {
 
 class TestSceneObject : public NS::LocalSceneObject {
 public:
-	ObjectNetId net_id = ID_NONE;
+	NS::ObjectNetId net_id = NS::ObjectNetId::NONE;
 
 	virtual void on_scene_entry() override {
 		net_id = get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this))->get_net_id();
@@ -621,6 +643,7 @@ void test_streaming() {
 }
 
 void test_scene_synchronizer() {
+	test_ids();
 	test_client_and_server_initialization();
 	test_state_notify();
 	test_processing_with_late_controller_registration();

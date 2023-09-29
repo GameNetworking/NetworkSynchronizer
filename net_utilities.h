@@ -10,7 +10,6 @@
 #include <string>
 #include <vector>
 
-extern const uint32_t ID_NONE;
 typedef uint32_t SyncGroupId;
 
 #ifdef DEBUG_ENABLED
@@ -59,7 +58,7 @@ const V *at(const std::map<K, V> &p_map, const K &p_key) {
 /// `ChangeListener` to know and keep track of the node events.
 struct ListeningVariable {
 	struct ObjectData *node_data = nullptr;
-	NetVarId var_id = ID_NONE;
+	VarId var_id = VarId::NONE;
 	bool old_set = false;
 };
 
@@ -76,11 +75,11 @@ struct ChangesListener {
 };
 
 struct ListenerHandle {
-	std::intptr_t intptr;
-	bool operator==(const ListenerHandle &p_o) const { return intptr == p_o.intptr; }
+	std::intptr_t id;
+	bool operator==(const ListenerHandle &p_o) const { return id == p_o.id; }
 
 	static const ChangesListener *from_handle(ListenerHandle p_handle) {
-		return reinterpret_cast<const ChangesListener *>(p_handle.intptr);
+		return reinterpret_cast<const ChangesListener *>(p_handle.id);
 	}
 
 	static ListenerHandle to_handle(const ChangesListener *p_listener) {
@@ -284,7 +283,7 @@ void StatisticalRingBuffer<T>::force_recompute_avg_sum() {
 }
 
 struct PeerData {
-	ObjectNetId controller_id = UINT32_MAX;
+	ObjectNetId controller_id = ObjectNetId::NONE;
 	// For new peers notify the state as soon as possible.
 	bool force_notify_snapshot = true;
 	// For new peers a full snapshot is needed.
