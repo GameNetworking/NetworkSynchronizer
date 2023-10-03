@@ -3,6 +3,7 @@
 #include "modules/network_synchronizer/core/core.h"
 #include "modules/network_synchronizer/core/network_interface.h"
 #include "modules/network_synchronizer/core/processor.h"
+#include "modules/network_synchronizer/data_buffer.h"
 #include <functional>
 #include <map>
 #include <memory>
@@ -29,8 +30,7 @@ struct PendingPacket {
 	float delay = 0.0;
 	int peer_recipient = -1;
 	String object_name;
-	int rpc_id = -1;
-	std::vector<Variant> data;
+	DataBuffer data_buffer;
 };
 
 class LocalNetwork {
@@ -60,7 +60,7 @@ public:
 
 	void register_object(LocalNetworkInterface &p_interface);
 
-	void rpc_send(String p_object_name, uint8_t p_rpc_id, int p_peer_recipient, const Variant *p_args, int p_count);
+	void rpc_send(String p_object_name, int p_peer_recipient, bool p_reliable, DataBuffer &&p_data_buffer);
 
 	void process(float p_delta);
 
@@ -108,7 +108,10 @@ public:
 	/// Can be used to verify if the local peer is the server.
 	virtual bool is_local_peer_server() const override;
 
-	virtual void rpc_send(uint8_t p_rpc_id, int p_peer_recipient, const Variant *p_args, int p_count) override;
+	virtual void encode(DataBuffer &r_buffer, const NS::VarData &p_val) const override;
+	virtual void decode(NS::VarData &r_val, DataBuffer &p_buffer) const override;
+
+	virtual void rpc_send(int p_peer_recipient, bool p_reliable, DataBuffer &&p_data_buffer) override;
 };
 
 NS_NAMESPACE_END

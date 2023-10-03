@@ -166,6 +166,8 @@ public:
 	DataBuffer(const DataBuffer &p_other);
 	DataBuffer(const BitArray &p_buffer);
 
+	//DataBuffer &operator=(DataBuffer &&p_other);
+
 	void copy(const DataBuffer &p_other);
 	void copy(const BitArray &p_buffer);
 
@@ -309,8 +311,8 @@ public:
 	Variant read_variant();
 
 	/// Add bits
-	void add_bits(const Vector<uint8_t> &p_data, int p_bit_count);
-	Vector<uint8_t> read_bits(int p_bit_count);
+	void add_bits(const uint8_t *p_data, int p_bit_count);
+	void read_bits(uint8_t *r_data, int p_bit_count);
 
 	/// Puts all the bytes to 0.
 	void zero();

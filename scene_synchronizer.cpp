@@ -2223,7 +2223,7 @@ void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
 
 				// Collapse the two DataBuffer.
 				global_buffer.add_uint(uint32_t(tmp_buffer->total_size()), DataBuffer::COMPRESSION_LEVEL_2);
-				global_buffer.add_bits(tmp_buffer->get_buffer().get_bytes(), tmp_buffer->total_size());
+				global_buffer.add_bits(tmp_buffer->get_buffer().get_bytes().ptr(), tmp_buffer->total_size());
 
 			} else {
 				node_info[i]._update_priority += node_info[i].update_rate;
@@ -3266,7 +3266,9 @@ void ClientSynchronizer::receive_deferred_sync_data(const Vector<uint8_t> &p_dat
 			continue;
 		}
 
-		Vector<uint8_t> future_buffer_data = future_epoch_buffer.read_bits(buffer_bit_count);
+		Vector<uint8_t> future_buffer_data;
+		future_buffer_data.resize(Math::ceil(float(buffer_bit_count) / 8.0));
+		future_epoch_buffer.read_bits(future_buffer_data.ptrw(), buffer_bit_count);
 		CRASH_COND_MSG(future_epoch_buffer.get_bit_offset() != expected_bit_offset_after_apply, "At this point the buffer is expected to be exactly at this bit.");
 
 		int64_t index = deferred_sync_array.find(nd);

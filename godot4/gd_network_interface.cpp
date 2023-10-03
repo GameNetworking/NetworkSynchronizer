@@ -87,43 +87,30 @@ bool GdNetworkInterface::is_local_peer_authority_of_this_unit() const {
 	return owner->is_multiplayer_authority();
 }
 
-void GdNetworkInterface::encode(const NS::VarData &p_val, DataBuffer &r_buffer) const {
+void GdNetworkInterface::encode(DataBuffer &r_buffer, const NS::VarData &p_val) const {
 	// TODO
 	CRASH_NOW();
 }
 
-void GdNetworkInterface::decode(const DataBuffer &p_buffer, NS::VarData &r_val) const {
+void GdNetworkInterface::decode(NS::VarData &r_val, DataBuffer &p_buffer) const {
 	// TODO
 	CRASH_NOW();
 }
 
-void GdNetworkInterface::rpc_send(uint8_t p_rpc_id, int p_peer_recipient, const Variant *p_args, int p_count) {
-	ERR_FAIL_COND(rpcs_info.size() <= p_rpc_id);
-	if (rpcs_info[p_rpc_id].call_local) {
-		rpc_last_sender = get_unit_authority();
-		rpcs_info[p_rpc_id].func(p_args, p_count);
-	}
+void GdNetworkInterface::rpc_send(int p_peer_recipient, bool p_reliable, DataBuffer &&p_buffer) {
+	const Vector<uint8_t> &buffer = p_buffer.get_buffer().get_bytes();
 
-	// TODO at some point here we should use the DataBuffer instead.
-	Vector<Variant> args;
-	args.resize(p_count + 1);
-	args.write[0] = p_rpc_id;
-	for (int i = 0; i < p_count; i++) {
-		args.write[i + 1] = p_args[i];
-	}
-
-	if (rpcs_info[p_rpc_id].is_reliable) {
-		owner->rpc_id(p_peer_recipient, SNAME("_rpc_net_sync_reliable"), args);
+	if (p_reliable) {
+		owner->rpc_id(p_peer_recipient, SNAME("_rpc_net_sync_reliable"), buffer);
 	} else {
-		owner->rpc_id(p_peer_recipient, SNAME("_rpc_net_sync_unreliable"), args);
+		owner->rpc_id(p_peer_recipient, SNAME("_rpc_net_sync_unreliable"), buffer);
 	}
 }
 
-void GdNetworkInterface::gd_rpc_receive(const Vector<Variant> &p_args) {
-	ERR_FAIL_COND(p_args.size() < 1);
+void GdNetworkInterface::gd_rpc_receive(const Vector<uint8_t> &p_buffer) {
+	DataBuffer db(p_buffer);
+	db.begin_read();
 	rpc_receive(
-			p_args[0],
 			owner->get_multiplayer()->get_remote_sender_id(),
-			p_args.size() == 1 ? nullptr : p_args.ptr() + 1,
-			p_args.size() - 1);
+			db);
 }

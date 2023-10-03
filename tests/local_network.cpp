@@ -51,16 +51,14 @@ void LocalNetwork::register_object(LocalNetworkInterface &p_interface) {
 	registered_objects.insert(std::make_pair(p_interface.get_name(), &p_interface));
 }
 
-void LocalNetwork::rpc_send(String p_object_name, uint8_t p_rpc_id, int p_peer_recipient, const Variant *p_args, int p_count) {
+void LocalNetwork::rpc_send(String p_object_name, int p_peer_recipient, bool p_reliable, DataBuffer &&p_data_buffer) {
 	auto object_map_it = registered_objects.find(p_object_name);
 	CRASH_COND(object_map_it == registered_objects.end());
 
 	LocalNetworkInterface *object_net_interface = object_map_it->second;
 	CRASH_COND(object_net_interface == nullptr);
-	const NS::NetworkInterface::RPCInfo *rpc_info = object_net_interface->get_rpc_info(p_rpc_id);
-	CRASH_COND(rpc_info == nullptr);
 
-	if (!rpc_info->is_reliable && network_properties && network_properties->packet_loss > frand()) {
+	if (!p_reliable && network_properties && network_properties->packet_loss > frand()) {
 		// Simulating packet loss by dropping this packet right away.
 		return;
 	}
@@ -69,7 +67,7 @@ void LocalNetwork::rpc_send(String p_object_name, uint8_t p_rpc_id, int p_peer_r
 
 	if (network_properties) {
 		packet->delay = network_properties->rtt_seconds;
-		if (!rpc_info->is_reliable && network_properties->reorder > frand()) {
+		if (!p_reliable && network_properties->reorder > frand()) {
 			const float reorder_delay = 0.5;
 			packet->delay += reorder_delay * ((frand() - 0.5) / 0.5);
 		}
@@ -79,12 +77,9 @@ void LocalNetwork::rpc_send(String p_object_name, uint8_t p_rpc_id, int p_peer_r
 
 	packet->peer_recipient = p_peer_recipient;
 	packet->object_name = p_object_name;
-	packet->rpc_id = p_rpc_id;
+	// packet->data_buffer = std::move(p_data_buffer); // TODO use move here.
+	packet->data_buffer.copy(std::move(p_data_buffer));
 
-	packet->data.resize(p_count);
-	for (int i = 0; i < p_count; i++) {
-		packet->data[i] = p_args[i].duplicate(true);
-	}
 	sending_packets.push_back(packet);
 }
 
@@ -113,14 +108,6 @@ void LocalNetwork::rpc_send_internal(const std::shared_ptr<PendingPacket> &p_pac
 	LocalNetworkInterface *object_net_interface = object_map_it->second;
 	CRASH_COND(object_net_interface == nullptr);
 
-	if (object_net_interface->get_rpc_info(p_packet->rpc_id)->call_local) {
-		object_net_interface->rpc_receive(
-				p_packet->rpc_id,
-				get_peer(),
-				p_packet->data.data(),
-				p_packet->data.size());
-	}
-
 	recipient->second->rpc_receive_internal(this_peer, p_packet);
 }
 
@@ -132,10 +119,8 @@ void LocalNetwork::rpc_receive_internal(int p_peer_sender, const std::shared_ptr
 	CRASH_COND(object_net_interface == nullptr);
 
 	object_net_interface->rpc_receive(
-			p_packet->rpc_id,
 			p_peer_sender,
-			p_packet->data.data(),
-			p_packet->data.size());
+			p_packet->data_buffer);
 }
 
 void LocalNetworkInterface::init(LocalNetwork &p_network, const std::string &p_unique_name, int p_authoritative_peer) {
@@ -185,9 +170,31 @@ bool LocalNetworkInterface::is_local_peer_server() const {
 	return network->get_peer() == 1;
 }
 
-void LocalNetworkInterface::rpc_send(uint8_t p_rpc_id, int p_peer_recipient, const Variant *p_args, int p_count) {
+void LocalNetworkInterface::encode(DataBuffer &r_buffer, const NS::VarData &p_val) const {
+	r_buffer.add_bits(reinterpret_cast<const uint8_t *>(&p_val.data), sizeof(p_val.data) * 8);
+	if (p_val.shared_buffer) {
+		r_buffer.add_bool(true);
+
+		r_buffer.add_int(p_val.shared_buffer->get_size(), DataBuffer::COMPRESSION_LEVEL_1);
+		r_buffer.add_bits(p_val.shared_buffer->data, p_val.shared_buffer->get_size() * 8);
+
+	} else {
+		r_buffer.add_bool(false);
+	}
+}
+
+void LocalNetworkInterface::decode(NS::VarData &r_val, DataBuffer &p_buffer) const {
+	p_buffer.read_bits(reinterpret_cast<uint8_t *>(&r_val.data), sizeof(r_val.data) * 8);
+
+	if (p_buffer.read_bool()) {
+		r_val.shared_buffer = std::make_shared<NS::Buffer>(p_buffer.read_int(DataBuffer::COMPRESSION_LEVEL_1));
+		p_buffer.read_bits(r_val.shared_buffer->data, r_val.shared_buffer->get_size() * 8);
+	}
+}
+
+void LocalNetworkInterface::rpc_send(int p_peer_recipient, bool p_reliable, DataBuffer &&p_data_buffer) {
 	ERR_FAIL_COND(!network);
-	network->rpc_send(get_name(), p_rpc_id, p_peer_recipient, p_args, p_count);
+	network->rpc_send(get_name(), p_peer_recipient, p_reliable, std::move(p_data_buffer));
 }
 
 NS_NAMESPACE_END
