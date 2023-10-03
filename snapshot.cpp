@@ -26,12 +26,12 @@ NS::Snapshot::operator String() const {
 bool compare_vars(
 		NS::SceneSynchronizerBase &scene_synchronizer,
 		const NS::ObjectData *p_synchronizer_node_data,
-		const Vector<NS::Var> &p_server_vars,
-		const Vector<NS::Var> &p_client_vars,
+		const Vector<NS::NameAndVar> &p_server_vars,
+		const Vector<NS::NameAndVar> &p_client_vars,
 		NS::Snapshot *r_no_rewind_recover,
 		LocalVector<String> *r_differences_info) {
-	const NS::Var *s_vars = p_server_vars.ptr();
-	const NS::Var *c_vars = p_client_vars.ptr();
+	const NS::NameAndVar *s_vars = p_server_vars.ptr();
+	const NS::NameAndVar *c_vars = p_client_vars.ptr();
 
 #ifdef DEBUG_ENABLED
 	bool is_equal = true;

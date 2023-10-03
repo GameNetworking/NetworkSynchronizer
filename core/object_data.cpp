@@ -4,11 +4,11 @@
 
 NS_NAMESPACE_BEGIN
 
-VarData::VarData(const StringName &p_name) {
+VarDescriptor::VarDescriptor(const StringName &p_name) {
 	var.name = p_name;
 }
 
-VarData::VarData(VarId p_id, const StringName &p_name, const Variant &p_val, bool p_skip_rewinding, bool p_enabled) :
+VarDescriptor::VarDescriptor(VarId p_id, const StringName &p_name, const Variant &p_val, bool p_skip_rewinding, bool p_enabled) :
 		id(p_id),
 		skip_rewinding(p_skip_rewinding),
 		enabled(p_enabled) {
@@ -16,11 +16,11 @@ VarData::VarData(VarId p_id, const StringName &p_name, const Variant &p_val, boo
 	var.value = p_val.duplicate(true);
 }
 
-bool VarData::operator==(const VarData &p_other) const {
+bool VarDescriptor::operator==(const VarDescriptor &p_other) const {
 	return var.name == p_other.var.name;
 }
 
-bool VarData::operator<(const VarData &p_other) const {
+bool VarDescriptor::operator<(const VarDescriptor &p_other) const {
 	return id < p_other.id;
 }
 

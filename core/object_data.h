@@ -9,24 +9,24 @@
 
 NS_NAMESPACE_BEGIN
 
-struct Var {
+struct NameAndVar {
 	StringName name;
 	Variant value;
 };
 
-struct VarData {
+struct VarDescriptor {
 	VarId id = VarId::NONE;
-	Var var;
+	NameAndVar var;
 	bool skip_rewinding = false;
 	bool enabled = false;
 	std::vector<struct ChangesListener *> changes_listeners;
 
-	VarData() = default;
-	VarData(const StringName &p_name);
-	VarData(VarId p_id, const StringName &p_name, const Variant &p_val, bool p_skip_rewinding, bool p_enabled);
+	VarDescriptor() = default;
+	VarDescriptor(const StringName &p_name);
+	VarDescriptor(VarId p_id, const StringName &p_name, const Variant &p_val, bool p_skip_rewinding, bool p_enabled);
 
-	bool operator==(const VarData &p_other) const;
-	bool operator<(const VarData &p_other) const;
+	bool operator==(const VarDescriptor &p_other) const;
+	bool operator<(const VarDescriptor &p_other) const;
 };
 
 struct ObjectData {
@@ -55,7 +55,7 @@ public:
 
 	/// The sync variables of this node. The order of this vector matters
 	/// because the index is the `VarId`.
-	LocalVector<VarData> vars;
+	LocalVector<VarDescriptor> vars;
 	NS::Processor<float> functions[PROCESSPHASE_COUNT];
 
 	// func _collect_epoch_data(buffer: DataBuffer):

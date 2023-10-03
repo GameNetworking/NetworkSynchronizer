@@ -14,11 +14,20 @@ Buffer::~Buffer() {
 	delete[] data;
 }
 
+VarData::VarData(double x, double y, double z, double w) {
+	data.x = x;
+	data.y = y;
+	data.z = z;
+	data.w = w;
+}
+
 VarData::VarData(VarData &&p_other) :
-		data(std::move(p_other.data)) {}
+		data(std::move(p_other.data)),
+		shared_buffer(std::move(p_other.shared_buffer)) {}
 
 VarData &VarData::operator=(VarData &&p_other) {
 	data = std::move(p_other.data);
+	shared_buffer = std::move(p_other.shared_buffer);
 }
 
 void VarData::copy(const VarData &p_other) {
