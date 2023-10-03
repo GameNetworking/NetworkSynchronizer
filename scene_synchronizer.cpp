@@ -260,7 +260,7 @@ void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const StringNa
 		}
 		const VarId var_id = generate_id ? VarId{ node_data->vars.size() } : VarId::NONE;
 		node_data->vars.push_back(
-				NS::VarData(
+				NS::VarDescriptor(
 						var_id,
 						p_variable,
 						old_val,
@@ -2116,7 +2116,7 @@ void ServerSynchronizer::generate_snapshot_node_data(
 	if (force_snapshot_variables || (node_has_changes && skip_snapshot_variables == false)) {
 		// Insert the node variables.
 		for (uint32_t i = 0; i < p_object_data->vars.size(); i += 1) {
-			const NS::VarData &var = p_object_data->vars[i];
+			const NS::VarDescriptor &var = p_object_data->vars[i];
 			if (var.enabled == false) {
 				continue;
 			}
@@ -2672,7 +2672,7 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 		Vector<StringName> variable_names;
 		Vector<Variant> server_values;
 		Vector<Variant> client_values;
-		const Vector<NS::Var> const_empty_vector;
+		const Vector<NS::NameAndVar> const_empty_vector;
 
 		// Emit the de-sync detected signal.
 		for (
@@ -2682,8 +2682,8 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 			const ObjectNetId net_node_id = different_node_data[i];
 			NS::ObjectData *rew_node_data = scene_synchronizer->get_object_data(net_node_id);
 
-			const Vector<NS::Var> &server_node_vars = ObjectNetId{ uint32_t(server_snapshots.front().node_vars.size()) } <= net_node_id ? const_empty_vector : server_snapshots.front().node_vars[net_node_id.id];
-			const Vector<NS::Var> &client_node_vars = ObjectNetId{ uint32_t(client_snapshots.front().node_vars.size()) } <= net_node_id ? const_empty_vector : client_snapshots.front().node_vars[net_node_id.id];
+			const Vector<NS::NameAndVar> &server_node_vars = ObjectNetId{ uint32_t(server_snapshots.front().node_vars.size()) } <= net_node_id ? const_empty_vector : server_snapshots.front().node_vars[net_node_id.id];
+			const Vector<NS::NameAndVar> &client_node_vars = ObjectNetId{ uint32_t(client_snapshots.front().node_vars.size()) } <= net_node_id ? const_empty_vector : client_snapshots.front().node_vars[net_node_id.id];
 
 			const int count = MAX(server_node_vars.size(), client_node_vars.size());
 
@@ -3085,7 +3085,7 @@ bool ClientSynchronizer::parse_sync_data(
 						const bool enabled = false;
 						synchronizer_node_data->vars
 								.push_back(
-										NS::VarData(
+										NS::VarDescriptor(
 												var_id,
 												variable_name,
 												Variant(),
@@ -3539,10 +3539,10 @@ void ClientSynchronizer::update_client_snapshot(NS::Snapshot &p_snapshot) {
 		CRASH_COND_MSG(nd->get_net_id().id >= uint32_t(p_snapshot.node_vars.size()), "This array was resized above, this can't be triggered.");
 #endif
 
-		Vector<NS::Var> *snap_node_vars = p_snapshot.node_vars.ptrw() + nd->get_net_id().id;
+		Vector<NS::NameAndVar> *snap_node_vars = p_snapshot.node_vars.ptrw() + nd->get_net_id().id;
 		snap_node_vars->resize(nd->vars.size());
 
-		NS::Var *snap_node_vars_ptr = snap_node_vars->ptrw();
+		NS::NameAndVar *snap_node_vars_ptr = snap_node_vars->ptrw();
 		for (uint32_t v = 0; v < nd->vars.size(); v += 1) {
 			if (nd->vars[v].enabled) {
 				snap_node_vars_ptr[v] = nd->vars[v].var;
@@ -3558,7 +3558,7 @@ void ClientSynchronizer::apply_snapshot(
 		int p_flag,
 		LocalVector<String> *r_applied_data_info,
 		bool p_skip_custom_data) {
-	const Vector<NS::Var> *nodes_vars = p_snapshot.node_vars.ptr();
+	const Vector<NS::NameAndVar> *nodes_vars = p_snapshot.node_vars.ptr();
 
 	scene_synchronizer->change_events_begin(p_flag);
 
@@ -3577,8 +3577,8 @@ void ClientSynchronizer::apply_snapshot(
 			continue;
 		}
 
-		const Vector<NS::Var> &vars = nodes_vars[net_node_id.id];
-		const NS::Var *vars_ptr = vars.ptr();
+		const Vector<NS::NameAndVar> &vars = nodes_vars[net_node_id.id];
+		const NS::NameAndVar *vars_ptr = vars.ptr();
 
 		if (r_applied_data_info) {
 			r_applied_data_info->push_back("Applied snapshot data on the node: " + String(nd->object_name.c_str()));

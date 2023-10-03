@@ -56,6 +56,7 @@ struct VarData {
 
 public:
 	VarData() = default;
+	VarData(double x, double y = 0.0, double z = 0.0, double w = 0.0);
 
 	VarData(const VarData &p_other) = delete;
 	VarData &operator=(const VarData &p_other) = delete;

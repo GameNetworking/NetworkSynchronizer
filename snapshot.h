@@ -11,7 +11,7 @@ struct Snapshot {
 	/// The Node variables in a particular frame. The order of this vector
 	/// matters because the index is the `NetNodeId`.
 	/// The variable array order also matter.
-	Vector<Vector<Var>> node_vars;
+	Vector<Vector<NameAndVar>> node_vars;
 	/// Game specific data.
 	Vector<Variant> custom_data;
 

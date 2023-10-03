@@ -87,6 +87,16 @@ bool GdNetworkInterface::is_local_peer_authority_of_this_unit() const {
 	return owner->is_multiplayer_authority();
 }
 
+void GdNetworkInterface::encode(const NS::VarData &p_val, DataBuffer &r_buffer) const {
+	// TODO
+	CRASH_NOW();
+}
+
+void GdNetworkInterface::decode(const DataBuffer &p_buffer, NS::VarData &r_val) const {
+	// TODO
+	CRASH_NOW();
+}
+
 void GdNetworkInterface::rpc_send(uint8_t p_rpc_id, int p_peer_recipient, const Variant *p_args, int p_count) {
 	ERR_FAIL_COND(rpcs_info.size() <= p_rpc_id);
 	if (rpcs_info[p_rpc_id].call_local) {

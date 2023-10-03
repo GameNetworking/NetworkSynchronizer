@@ -1,9 +1,11 @@
 #pragma once
 
 #include "core.h"
+#include "core/error/error_macros.h"
 #include "core/string/string_name.h"
-#include "core/variant/variant.h"
+#include "network_codec.h"
 #include <functional>
+#include <type_traits>
 #include <vector>
 
 NS_NAMESPACE_BEGIN
@@ -60,6 +62,9 @@ public: // ---------------------------------------------------------------- APIs
 		return get_unit_authority() == fetch_local_peer_id();
 	}
 
+	virtual void encode(const VarData &p_val, DataBuffer &r_buffer) const = 0;
+	virtual void decode(const DataBuffer &p_buffer, VarData &r_val) const = 0;
+
 	/// Returns the peer that remotelly called the currently executed rpc function.
 	/// Should be called always from an rpc function.
 	int rpc_get_sender() const {
@@ -76,7 +81,8 @@ public: // ---------------------------------------------------------------- APIs
 				[p_rpc_func](const Variant *p_args, int p_count) {
 					// Unless there is a bug into the rpc mechanism, this is never triggered.
 					CRASH_COND(p_count != sizeof...(ARGS));
-					internal_call_rpc(p_rpc_func, (const Variant *)p_args);
+					// TODO enable support to this.
+					//internal_call_rpc(p_rpc_func, (const Variant *)p_args);
 				};
 
 		const uint8_t rpc_index = rpcs_info.size();
@@ -86,7 +92,7 @@ public: // ---------------------------------------------------------------- APIs
 
 	/// Calls an rpc.
 	template <typename... ARGS>
-	void rpc(uint8_t p_rpc_id, int p_peer_id, ARGS... p_args);
+	void rpc(uint8_t p_rpc_id, int p_peer_id, const ARGS &...p_args);
 
 	/// This function must be called by the `Network` manager when this unit receives an rpc.
 	void rpc_receive(uint8_t p_rpc_id, int p_sender_peer, const Variant *p_args, int p_count) {
@@ -127,15 +133,19 @@ private: // ------------------------------------------------------- RPC internal
 };
 
 template <typename... ARGS>
-void NetworkInterface::rpc(uint8_t p_rpc_id, int p_peer_id, ARGS... p_args) {
-	// Convert the raw properties in an array of Variants.
-	Variant args[sizeof...(p_args) + 1] = { p_args..., Variant() }; // +1 makes sure zero sized arrays are also supported.
+void NetworkInterface::rpc(uint8_t p_rpc_id, int p_peer_id, const ARGS &...p_args) {
+	DataBuffer db;
 
-	rpc_send(
-			p_rpc_id,
-			p_peer_id,
-			sizeof...(p_args) == 0 ? nullptr : args,
-			sizeof...(p_args));
+	encode_variables<0>(db, p_args...);
+
+	// Convert the raw properties in an array of Variants.
+	//Variant args[sizeof...(p_args) + 1] = { p_args..., Variant() }; // +1 makes sure zero sized arrays are also supported.
+
+	//rpc_send(
+	//		p_rpc_id,
+	//		p_peer_id,
+	//		sizeof...(p_args) == 0 ? nullptr : args,
+	//		sizeof...(p_args));
 }
 
 //template <int n>
