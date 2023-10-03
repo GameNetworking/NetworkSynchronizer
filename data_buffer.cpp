@@ -36,6 +36,7 @@
 
 #include "core/io/marshalls.h"
 #include "scene_synchronizer_debugger.h"
+#include <utility>
 
 // Beware that this macros was written to make sure nested function call doesn't add debug calls,
 // making the log unreadable.
@@ -159,6 +160,15 @@ DataBuffer::DataBuffer(const BitArray &p_buffer) :
 		bit_size(p_buffer.size_in_bits()),
 		is_reading(true),
 		buffer(p_buffer) {}
+
+// TODO : Implemet this.
+//DataBuffer &DataBuffer::operator=(DataBuffer &&p_other) {
+//	metadata_size = std::move(p_other.metadata_size);
+//	bit_offset = std::move(p_other.bit_offset);
+//	bit_size = std::move(p_other.bit_size);
+//	is_reading = std::move(p_other.is_reading);
+//	buffer = std::move(p_other.buffer);
+//}
 
 void DataBuffer::copy(const DataBuffer &p_other) {
 	metadata_size = p_other.metadata_size;
@@ -811,20 +821,16 @@ Variant DataBuffer::read_variant() {
 	return ret;
 }
 
-void DataBuffer::add_bits(const Vector<uint8_t> &p_data, int p_bit_count) {
+void DataBuffer::add_bits(const uint8_t *p_data, int p_bit_count) {
 	ERR_FAIL_COND(is_reading);
-	ERR_FAIL_COND_MSG(
-			(p_data.size() * 8) < p_bit_count,
-			"Was not possible add bits because the passed array is smaller than the number of bits to add.");
 
 	make_room_in_bits(p_bit_count);
 
-	const uint8_t *data = p_data.ptr();
 	for (int i = 0; p_bit_count > 0; ++i) {
 		const int this_bit_count = MIN(p_bit_count, 8);
 		p_bit_count -= this_bit_count;
 
-		buffer.store_bits(bit_offset, data[i], this_bit_count);
+		buffer.store_bits(bit_offset, p_data[i], this_bit_count);
 
 		bit_offset += this_bit_count;
 	}
@@ -832,24 +838,19 @@ void DataBuffer::add_bits(const Vector<uint8_t> &p_data, int p_bit_count) {
 	DEB_WRITE(DATA_TYPE_BITS, COMPRESSION_LEVEL_0, p_data);
 }
 
-Vector<uint8_t> DataBuffer::read_bits(int p_bit_count) {
-	Vector<uint8_t> data;
-	ERR_FAIL_COND_V(!is_reading, data);
+void DataBuffer::read_bits(uint8_t *r_data, int p_bit_count) {
+	ERR_FAIL_COND(!is_reading);
 
-	data.resize(Math::ceil(double(p_bit_count) / 8.0));
-
-	uint8_t *data_ptr = data.ptrw();
 	for (int i = 0; p_bit_count > 0; ++i) {
 		const int this_bit_count = MIN(p_bit_count, 8);
 		p_bit_count -= this_bit_count;
 
-		data_ptr[i] = buffer.read_bits(bit_offset, this_bit_count);
+		r_data[i] = buffer.read_bits(bit_offset, this_bit_count);
 
 		bit_offset += this_bit_count;
 	}
 
-	DEB_READ(DATA_TYPE_BITS, COMPRESSION_LEVEL_0, data);
-	return data;
+	DEB_READ(DATA_TYPE_BITS, COMPRESSION_LEVEL_0, r_data);
 }
 
 void DataBuffer::zero() {

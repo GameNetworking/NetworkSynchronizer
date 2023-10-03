@@ -14,6 +14,8 @@ public:
 
 	Buffer(std::uint32_t p_size);
 	~Buffer();
+
+	std::uint32_t get_size() const { return size; }
 };
 
 // VarData is a struct that olds the value of a variable.

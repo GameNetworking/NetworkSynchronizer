@@ -15,7 +15,7 @@ public:
 	struct RPCInfo {
 		bool is_reliable = false;
 		bool call_local = false;
-		std::function<void(const Variant *, int)> func;
+		std::function<void(DataBuffer &p_db, const NetworkInterface &p_interface)> func;
 	};
 
 protected:
@@ -62,8 +62,8 @@ public: // ---------------------------------------------------------------- APIs
 		return get_unit_authority() == fetch_local_peer_id();
 	}
 
-	virtual void encode(const VarData &p_val, DataBuffer &r_buffer) const = 0;
-	virtual void decode(const DataBuffer &p_buffer, VarData &r_val) const = 0;
+	virtual void encode(DataBuffer &r_buffer, const VarData &p_val) const = 0;
+	virtual void decode(VarData &r_val, DataBuffer &p_buffer) const = 0;
 
 	/// Returns the peer that remotelly called the currently executed rpc function.
 	/// Should be called always from an rpc function.
@@ -77,12 +77,9 @@ public: // ---------------------------------------------------------------- APIs
 
 		// Create an intermediate lambda, which is easy to store, that is
 		// responsible to execute the user rpc function.
-		std::function<void(const Variant *, int)> func =
-				[p_rpc_func](const Variant *p_args, int p_count) {
-					// Unless there is a bug into the rpc mechanism, this is never triggered.
-					CRASH_COND(p_count != sizeof...(ARGS));
-					// TODO enable support to this.
-					//internal_call_rpc(p_rpc_func, (const Variant *)p_args);
+		std::function<void(DataBuffer &, const NetworkInterface &p_interface)> func =
+				[p_rpc_func](DataBuffer &p_db, const NetworkInterface &p_interface) {
+					internal_call_rpc(p_rpc_func, p_db, p_interface);
 				};
 
 		const uint8_t rpc_index = rpcs_info.size();
@@ -95,10 +92,11 @@ public: // ---------------------------------------------------------------- APIs
 	void rpc(uint8_t p_rpc_id, int p_peer_id, const ARGS &...p_args);
 
 	/// This function must be called by the `Network` manager when this unit receives an rpc.
-	void rpc_receive(uint8_t p_rpc_id, int p_sender_peer, const Variant *p_args, int p_count) {
-		ERR_FAIL_COND_MSG(rpcs_info.size() <= p_rpc_id, "The received rpc `" + itos(p_rpc_id) + "` doesn't exists.");
+	void rpc_receive(int p_sender_peer, DataBuffer &p_db) {
 		rpc_last_sender = p_sender_peer;
-		rpcs_info[p_rpc_id].func(p_args, p_count);
+		p_db.begin_read();
+		const uint8_t rpc_id = p_db.read_int(DataBuffer::COMPRESSION_LEVEL_3);
+		rpcs_info[rpc_id].func(p_db, *this);
 	}
 
 	const RPCInfo *get_rpc_info(uint8_t p_rpc_id) const {
@@ -107,81 +105,151 @@ public: // ---------------------------------------------------------------- APIs
 	}
 
 protected:
-	virtual void rpc_send(uint8_t p_rpc_id, int p_peer_recipient, const Variant *p_args, int p_count) = 0;
+	virtual void rpc_send(int p_peer_recipient, bool p_reliable, DataBuffer &&p_db) = 0;
 
 private: // ------------------------------------------------------- RPC internal
 	template <typename... ARGS>
-	static void internal_call_rpc(std::function<void()> p_func, const Variant *p_args);
+	static void internal_call_rpc(std::function<void()> p_func, DataBuffer &p_buffer, const NetworkInterface &p_interface);
 
 	template <typename A1>
-	static void internal_call_rpc(std::function<void(A1)> p_func, const Variant *p_args);
+	static void internal_call_rpc(std::function<void(A1)> p_func, DataBuffer &p_buffer, const NetworkInterface &p_interface);
 
 	template <typename A1, typename A2>
-	static void internal_call_rpc(std::function<void(A1, A2)> p_func, const Variant *p_args);
+	static void internal_call_rpc(std::function<void(A1, A2)> p_func, DataBuffer &p_buffer, const NetworkInterface &p_interface);
 
 	template <typename A1, typename A2, typename A3>
-	static void internal_call_rpc(std::function<void(A1, A2, A3)> p_func, const Variant *p_args);
+	static void internal_call_rpc(std::function<void(A1, A2, A3)> p_func, DataBuffer &p_buffer, const NetworkInterface &p_interface);
 
 	template <typename A1, typename A2, typename A3, typename A4>
-	static void internal_call_rpc(std::function<void(A1, A2, A3, A4)> p_func, const Variant *p_args);
+	static void internal_call_rpc(std::function<void(A1, A2, A3, A4)> p_func, DataBuffer &p_buffer, const NetworkInterface &p_interface);
 
 	template <typename A1, typename A2, typename A3, typename A4, typename A5>
-	static void internal_call_rpc(std::function<void(A1, A2, A3, A4, A5)> p_func, const Variant *p_args);
+	static void internal_call_rpc(std::function<void(A1, A2, A3, A4, A5)> p_func, DataBuffer &p_buffer, const NetworkInterface &p_interface);
 
 	template <typename A1, typename A2, typename A3, typename A4, typename A5, typename A6>
-	static void internal_call_rpc(std::function<void(A1, A2, A3, A4, A5, A6)> p_func, const Variant *p_args);
+	static void internal_call_rpc(std::function<void(A1, A2, A3, A4, A5, A6)> p_func, DataBuffer &p_buffer, const NetworkInterface &p_interface);
 };
 
 template <typename... ARGS>
 void NetworkInterface::rpc(uint8_t p_rpc_id, int p_peer_id, const ARGS &...p_args) {
+	ERR_FAIL_COND(rpcs_info.size() <= p_rpc_id);
+
 	DataBuffer db;
+	db.begin_write(0);
 
-	encode_variables<0>(db, p_args...);
+	// Add the rpc id.
+	db.add_int(p_rpc_id, DataBuffer::COMPRESSION_LEVEL_3);
 
-	// Convert the raw properties in an array of Variants.
-	//Variant args[sizeof...(p_args) + 1] = { p_args..., Variant() }; // +1 makes sure zero sized arrays are also supported.
+	// Encode the properties into a DataBuffer.
+	encode_variables<0>(*this, db, p_args...);
 
-	//rpc_send(
-	//		p_rpc_id,
-	//		p_peer_id,
-	//		sizeof...(p_args) == 0 ? nullptr : args,
-	//		sizeof...(p_args));
+	db.dry();
+	db.begin_read();
+
+	if (rpcs_info[p_rpc_id].call_local) {
+		rpc_receive(fetch_local_peer_id(), db);
+	}
+
+	db.begin_read();
+	rpc_send(p_peer_id, rpcs_info[p_rpc_id].is_reliable, std::move(db));
 }
 
 //template <int n>
 template <typename... ARGS>
-void NetworkInterface::internal_call_rpc(std::function<void()> p_func, const Variant *p_args) {
+void NetworkInterface::internal_call_rpc(std::function<void()> p_func, DataBuffer &p_buffer, const NetworkInterface &p_interface) {
 	p_func();
 }
 
 template <typename A1>
-void NetworkInterface::internal_call_rpc(std::function<void(A1)> p_func, const Variant *p_args) {
-	p_func(p_args[0]);
+void NetworkInterface::internal_call_rpc(std::function<void(A1)> p_func, DataBuffer &p_buffer, const NetworkInterface &p_interface) {
+	typename std::remove_const<typename std::remove_reference<A1>::type>::type p1;
+	decode_variable(p1, p_buffer, p_interface);
+	p_func(p1);
 }
 
 template <typename A1, typename A2>
-void NetworkInterface::internal_call_rpc(std::function<void(A1, A2)> p_func, const Variant *p_args) {
-	p_func(p_args[0], p_args[1]);
+void NetworkInterface::internal_call_rpc(std::function<void(A1, A2)> p_func, DataBuffer &p_buffer, const NetworkInterface &p_interface) {
+	typename std::remove_const<typename std::remove_reference<A1>::type>::type p1;
+	decode_variable(p1, p_buffer, p_interface);
+
+	typename std::remove_const<typename std::remove_reference<A2>::type>::type p2;
+	decode_variable(p2, p_buffer, p_interface);
+
+	p_func(p1, p2);
 }
 
 template <typename A1, typename A2, typename A3>
-void NetworkInterface::internal_call_rpc(std::function<void(A1, A2, A3)> p_func, const Variant *p_args) {
-	p_func(p_args[0], p_args[1], p_args[2]);
+void NetworkInterface::internal_call_rpc(std::function<void(A1, A2, A3)> p_func, DataBuffer &p_buffer, const NetworkInterface &p_interface) {
+	typename std::remove_const<typename std::remove_reference<A1>::type>::type p1;
+	decode_variable(p1, p_buffer, p_interface);
+
+	typename std::remove_const<typename std::remove_reference<A2>::type>::type p2;
+	decode_variable(p2, p_buffer, p_interface);
+
+	typename std::remove_const<typename std::remove_reference<A3>::type>::type p3;
+	decode_variable(p3, p_buffer, p_interface);
+
+	p_func(p1, p2, p3);
 }
 
 template <typename A1, typename A2, typename A3, typename A4>
-void NetworkInterface::internal_call_rpc(std::function<void(A1, A2, A3, A4)> p_func, const Variant *p_args) {
-	p_func(p_args[0], p_args[1], p_args[2], p_args[3]);
+void NetworkInterface::internal_call_rpc(std::function<void(A1, A2, A3, A4)> p_func, DataBuffer &p_buffer, const NetworkInterface &p_interface) {
+	typename std::remove_const<typename std::remove_reference<A1>::type>::type p1;
+	decode_variable(p1, p_buffer, p_interface);
+
+	typename std::remove_const<typename std::remove_reference<A2>::type>::type p2;
+	decode_variable(p2, p_buffer, p_interface);
+
+	typename std::remove_const<typename std::remove_reference<A3>::type>::type p3;
+	decode_variable(p3, p_buffer, p_interface);
+
+	typename std::remove_const<typename std::remove_reference<A4>::type>::type p4;
+	decode_variable(p4, p_buffer, p_interface);
+
+	p_func(p1, p2, p3, p4);
 }
 
 template <typename A1, typename A2, typename A3, typename A4, typename A5>
-void NetworkInterface::internal_call_rpc(std::function<void(A1, A2, A3, A4, A5)> p_func, const Variant *p_args) {
-	p_func(p_args[0], p_args[1], p_args[2], p_args[3], p_args[4]);
+void NetworkInterface::internal_call_rpc(std::function<void(A1, A2, A3, A4, A5)> p_func, DataBuffer &p_buffer, const NetworkInterface &p_interface) {
+	typename std::remove_const<typename std::remove_reference<A1>::type>::type p1;
+	decode_variable(p1, p_buffer, p_interface);
+
+	typename std::remove_const<typename std::remove_reference<A2>::type>::type p2;
+	decode_variable(p2, p_buffer, p_interface);
+
+	typename std::remove_const<typename std::remove_reference<A3>::type>::type p3;
+	decode_variable(p3, p_buffer, p_interface);
+
+	typename std::remove_const<typename std::remove_reference<A4>::type>::type p4;
+	decode_variable(p4, p_buffer, p_interface);
+
+	typename std::remove_const<typename std::remove_reference<A5>::type>::type p5;
+	decode_variable(p5, p_buffer, p_interface);
+
+	p_func(p1, p2, p3, p4, p5);
 }
 
 template <typename A1, typename A2, typename A3, typename A4, typename A5, typename A6>
-void NetworkInterface::internal_call_rpc(std::function<void(A1, A2, A3, A4, A5, A6)> p_func, const Variant *p_args) {
-	p_func(p_args[0], p_args[1], p_args[2], p_args[3], p_args[4], p_args[5]);
+void NetworkInterface::internal_call_rpc(std::function<void(A1, A2, A3, A4, A5, A6)> p_func, DataBuffer &p_buffer, const NetworkInterface &p_interface) {
+	typename std::remove_const<typename std::remove_reference<A1>::type>::type p1;
+	decode_variable(p1, p_buffer, p_interface);
+
+	typename std::remove_const<typename std::remove_reference<A2>::type>::type p2;
+	decode_variable(p2, p_buffer, p_interface);
+
+	typename std::remove_const<typename std::remove_reference<A3>::type>::type p3;
+	decode_variable(p3, p_buffer, p_interface);
+
+	typename std::remove_const<typename std::remove_reference<A4>::type>::type p4;
+	decode_variable(p4, p_buffer, p_interface);
+
+	typename std::remove_const<typename std::remove_reference<A5>::type>::type p5;
+	decode_variable(p5, p_buffer, p_interface);
+
+	typename std::remove_const<typename std::remove_reference<A6>::type>::type p6;
+	decode_variable(p6, p_buffer, p_interface);
+
+	p_func(p1, p2, p3, p4, p5, p6);
 }
 
 NS_NAMESPACE_END

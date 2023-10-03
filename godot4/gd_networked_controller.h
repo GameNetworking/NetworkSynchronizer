@@ -128,9 +128,9 @@ public: // ----------------------------------------------------------- Interface
 	virtual uint32_t count_input_size(DataBuffer &p_buffer) override;
 
 	// This funtion is used to sync data betweend the server and the client.
-	void _rpc_net_sync_reliable(const Vector<Variant> &p_args);
+	void _rpc_net_sync_reliable(const Vector<uint8_t> &p_args);
 	// This funtion is used to sync data betweend the server and the client.
-	void _rpc_net_sync_unreliable(const Vector<Variant> &p_args);
+	void _rpc_net_sync_unreliable(const Vector<uint8_t> &p_args);
 
 public:
 	virtual void validate_script_implementation();

@@ -356,11 +356,11 @@ uint32_t GdNetworkedController::count_input_size(DataBuffer &p_buffer) {
 	return uint32_t(input_size >= 0 ? input_size : 0);
 }
 
-void GdNetworkedController::_rpc_net_sync_reliable(const Vector<Variant> &p_args) {
+void GdNetworkedController::_rpc_net_sync_reliable(const Vector<uint8_t> &p_args) {
 	static_cast<GdNetworkInterface *>(&networked_controller.get_network_interface())->gd_rpc_receive(p_args);
 }
 
-void GdNetworkedController::_rpc_net_sync_unreliable(const Vector<Variant> &p_args) {
+void GdNetworkedController::_rpc_net_sync_unreliable(const Vector<uint8_t> &p_args) {
 	static_cast<GdNetworkInterface *>(&networked_controller.get_network_interface())->gd_rpc_receive(p_args);
 }
 

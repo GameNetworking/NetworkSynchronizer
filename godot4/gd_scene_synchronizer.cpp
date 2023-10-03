@@ -375,11 +375,11 @@ real_t GdSceneSynchronizer::get_nodes_relevancy_update_time() const {
 	return scene_synchronizer.get_nodes_relevancy_update_time();
 }
 
-void GdSceneSynchronizer::_rpc_net_sync_reliable(const Vector<Variant> &p_args) {
+void GdSceneSynchronizer::_rpc_net_sync_reliable(const Vector<uint8_t> &p_args) {
 	static_cast<GdNetworkInterface *>(&scene_synchronizer.get_network_interface())->gd_rpc_receive(p_args);
 }
 
-void GdSceneSynchronizer::_rpc_net_sync_unreliable(const Vector<Variant> &p_args) {
+void GdSceneSynchronizer::_rpc_net_sync_unreliable(const Vector<uint8_t> &p_args) {
 	static_cast<GdNetworkInterface *>(&scene_synchronizer.get_network_interface())->gd_rpc_receive(p_args);
 }
 

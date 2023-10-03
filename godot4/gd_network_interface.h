@@ -51,9 +51,9 @@ public: // ---------------------------------------------------------------- APIs
 	/// Can be used to verify if the local peer is the authority of this unit.
 	virtual bool is_local_peer_authority_of_this_unit() const override;
 
-	virtual void encode(const NS::VarData &p_val, DataBuffer &r_buffer) const;
-	virtual void decode(const DataBuffer &p_buffer, NS::VarData &r_val) const;
+	virtual void encode(DataBuffer &r_buffer, const NS::VarData &p_val) const override;
+	virtual void decode(NS::VarData &r_val, DataBuffer &p_buffer) const override;
 
-	virtual void rpc_send(uint8_t p_rpc_id, int p_peer_recipient, const Variant *p_args, int p_count) override;
-	void gd_rpc_receive(const Vector<Variant> &p_args);
+	virtual void rpc_send(int p_peer_recipient, bool p_reliable, DataBuffer &&p_buffer) override;
+	void gd_rpc_receive(const Vector<uint8_t> &p_args);
 };
