@@ -3,6 +3,7 @@
 #include "core/object/object.h"
 #include "modules/network_synchronizer/core/core.h"
 
+#include "core/network_interface.h"
 #include "core/object_data.h"
 #include "core/templates/local_vector.h"
 #include "core/templates/oa_hash_map.h"
@@ -148,11 +149,11 @@ private:
 	class NetworkInterface *network_interface = nullptr;
 	SynchronizerManager *synchronizer_manager = nullptr;
 
-	uint8_t rpc_handler_state = UINT8_MAX;
-	uint8_t rpc_handler_notify_need_full_snapshot = UINT8_MAX;
-	uint8_t rpc_handler_set_network_enabled = UINT8_MAX;
-	uint8_t rpc_handler_notify_peer_status = UINT8_MAX;
-	uint8_t rpc_handler_deferred_sync_data = UINT8_MAX;
+	RpcHandle<const Variant &> rpc_handler_state;
+	RpcHandle<> rpc_handler_notify_need_full_snapshot;
+	RpcHandle<bool> rpc_handler_set_network_enabled;
+	RpcHandle<bool> rpc_handler_notify_peer_status;
+	RpcHandle<const Vector<uint8_t> &> rpc_handler_deferred_sync_data;
 
 	int max_deferred_nodes_per_update = 30;
 	real_t server_notify_state_interval = 1.0;

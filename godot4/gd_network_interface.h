@@ -3,7 +3,8 @@
 #include "core/object/object.h"
 #include "modules/network_synchronizer/core/network_interface.h"
 
-class GdNetworkInterface : public NS::NetworkInterface, public Object {
+class GdNetworkInterface : public NS::NetworkInterface,
+						   public Object {
 public:
 	class Node *owner = nullptr;
 	std::function<void(int /*p_peer*/)> on_peer_connected_callback;

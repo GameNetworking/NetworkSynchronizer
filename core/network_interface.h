@@ -10,7 +10,29 @@
 
 NS_NAMESPACE_BEGIN
 
+template <typename... ARGs>
+class RpcHandle {
+	friend class NetworkInterface;
+
+	std::uint8_t index = std::numeric_limits<std::uint8_t>::max();
+	RpcHandle(std::uint8_t p_index) :
+			index(p_index) {}
+
+public:
+	RpcHandle() = default;
+
+	std::uint8_t get_index() const { return index; }
+	void reset() {
+		index = std::numeric_limits<std::uint8_t>::max();
+	}
+
+	void rpc(class NetworkInterface &p_interface, int p_peer_id, ARGs... p_args) const;
+};
+
 class NetworkInterface {
+	template <typename... ARGs>
+	friend class RpcHandle;
+
 public:
 	struct RPCInfo {
 		bool is_reliable = false;
@@ -72,7 +94,7 @@ public: // ---------------------------------------------------------------- APIs
 	}
 
 	template <typename... ARGS>
-	uint8_t rpc_config(std::function<void(ARGS...)> p_rpc_func, bool p_reliable, bool p_call_local) {
+	RpcHandle<ARGS...> rpc_config(std::function<void(ARGS...)> p_rpc_func, bool p_reliable, bool p_call_local) {
 		// Stores the rpc info.
 
 		// Create an intermediate lambda, which is easy to store, that is
@@ -82,14 +104,18 @@ public: // ---------------------------------------------------------------- APIs
 					internal_call_rpc(p_rpc_func, p_db, p_interface);
 				};
 
-		const uint8_t rpc_index = rpcs_info.size();
+		const std::uint8_t rpc_index = rpcs_info.size();
 		rpcs_info.push_back({ p_reliable, p_call_local, func });
-		return rpc_index;
+		return RpcHandle<ARGS...>(rpc_index);
 	}
 
 	/// Calls an rpc.
-	template <typename... ARGS>
-	void rpc(uint8_t p_rpc_id, int p_peer_id, const ARGS &...p_args);
+	//template <typename... ARGS>
+	//void rpc(RpcHandle<ARGS...> p_rpc_id, int p_peer_id, ARGS... p_args);
+	template <typename... H>
+	void rpc(RpcHandle<void(H...)> p_rpc_id, int p_peer_id, typename RpcHandle<void(H...)>::TYPE p_args);
+
+	void rpc(RpcHandle<void()> p_rpc_id, int p_peer_id);
 
 	/// This function must be called by the `Network` manager when this unit receives an rpc.
 	void rpc_receive(int p_sender_peer, DataBuffer &p_db) {
@@ -130,31 +156,30 @@ private: // ------------------------------------------------------- RPC internal
 	static void internal_call_rpc(std::function<void(A1, A2, A3, A4, A5, A6)> p_func, DataBuffer &p_buffer, const NetworkInterface &p_interface);
 };
 
-template <typename... ARGS>
-void NetworkInterface::rpc(uint8_t p_rpc_id, int p_peer_id, const ARGS &...p_args) {
-	ERR_FAIL_COND(rpcs_info.size() <= p_rpc_id);
+template <typename... ARGs>
+void RpcHandle<ARGs...>::rpc(NetworkInterface &p_interface, int p_peer_id, ARGs... p_args) const {
+	ERR_FAIL_COND(p_interface.rpcs_info.size() <= index);
 
 	DataBuffer db;
 	db.begin_write(0);
 
 	// Add the rpc id.
-	db.add_int(p_rpc_id, DataBuffer::COMPRESSION_LEVEL_3);
+	db.add_int(index, DataBuffer::COMPRESSION_LEVEL_3);
 
 	// Encode the properties into a DataBuffer.
-	encode_variables<0>(*this, db, p_args...);
+	encode_variables<0>(p_interface, db, p_args...);
 
 	db.dry();
 	db.begin_read();
 
-	if (rpcs_info[p_rpc_id].call_local) {
-		rpc_receive(fetch_local_peer_id(), db);
+	if (p_interface.rpcs_info[index].call_local) {
+		p_interface.rpc_receive(p_interface.fetch_local_peer_id(), db);
 	}
 
 	db.begin_read();
-	rpc_send(p_peer_id, rpcs_info[p_rpc_id].is_reliable, std::move(db));
+	p_interface.rpc_send(p_peer_id, p_interface.rpcs_info[index].is_reliable, std::move(db));
 }
 
-//template <int n>
 template <typename... ARGS>
 void NetworkInterface::internal_call_rpc(std::function<void()> p_func, DataBuffer &p_buffer, const NetworkInterface &p_interface) {
 	p_func();

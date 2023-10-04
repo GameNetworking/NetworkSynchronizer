@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/network_interface.h"
 #include "data_buffer.h"
 #include "modules/network_synchronizer/core/core.h"
 #include "modules/network_synchronizer/core/processor.h"
@@ -147,9 +148,9 @@ private:
 
 	NS::NetworkInterface *network_interface = nullptr;
 
-	uint8_t rpc_handle_receive_input = UINT8_MAX;
-	uint8_t rpc_handle_set_server_controlled = UINT8_MAX;
-	uint8_t rpc_handle_notify_fps_acceleration = UINT8_MAX;
+	RpcHandle<const Vector<uint8_t> &> rpc_handle_receive_input;
+	RpcHandle<bool> rpc_handle_set_server_controlled;
+	RpcHandle<const Vector<uint8_t> &> rpc_handle_notify_fps_acceleration;
 
 	NS::PHandler process_handler_process = NS::NullPHandler;
 

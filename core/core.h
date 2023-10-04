@@ -1,6 +1,9 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
+#include <limits>
+#include <type_traits>
 
 #define NS_NAMESPACE_BEGIN \
 	namespace NS {
