@@ -216,7 +216,7 @@ void NS_Test::test_local_network() {
 	server_obj_1.init(server, "object_1", 0);
 
 	std::vector<int> server_rpc_executed_by;
-	const int rpc_handle_server = server_obj_1.rpc_config(
+	const auto rpc_handle_server = server_obj_1.rpc_config(
 			std::function<void(bool, int, float, const NS::VarData &, const Vector<uint8_t> &)>([&server_rpc_executed_by, &server_obj_1](bool a, int b, float c, const NS::VarData &d, const Vector<uint8_t> &e) {
 				server_rpc_executed_by.push_back(server_obj_1.rpc_get_sender());
 				CRASH_COND(a != true);
@@ -235,7 +235,7 @@ void NS_Test::test_local_network() {
 	peer_1_obj_1.init(peer_1, "object_1", 0);
 
 	std::vector<int> peer_1_rpc_executed_by;
-	const int rpc_handle_1_obj_1 = peer_1_obj_1.rpc_config(
+	const auto rpc_handle_1_obj_1 = peer_1_obj_1.rpc_config(
 			std::function<void(bool, int, float, const NS::VarData &, const Vector<uint8_t> &)>([&peer_1_rpc_executed_by, &peer_1_obj_1](bool a, int b, float c, const NS::VarData &d, const Vector<uint8_t> &e) {
 				peer_1_rpc_executed_by.push_back(peer_1_obj_1.rpc_get_sender());
 				CRASH_COND(a != true);
@@ -255,7 +255,7 @@ void NS_Test::test_local_network() {
 
 	std::vector<int> peer_2_rpc_executed_by;
 	std::vector<int> peer_2_rpc_b_values_by_exec_order;
-	const int rpc_handle_2_obj_1 = peer_2_obj_1.rpc_config(
+	const auto rpc_handle_2_obj_1 = peer_2_obj_1.rpc_config(
 			std::function<void(bool, int, float, const NS::VarData &, const Vector<uint8_t> &)>([&peer_2_rpc_executed_by, &peer_2_obj_1, &peer_2_rpc_b_values_by_exec_order](bool a, int b, float c, const NS::VarData &d, const Vector<uint8_t> &e) {
 				peer_2_rpc_executed_by.push_back(peer_2_obj_1.rpc_get_sender());
 				peer_2_rpc_b_values_by_exec_order.push_back(b);
@@ -263,8 +263,8 @@ void NS_Test::test_local_network() {
 			false,
 			false);
 
-	CRASH_COND(rpc_handle_server != rpc_handle_1_obj_1);
-	CRASH_COND(rpc_handle_2_obj_1 != rpc_handle_1_obj_1);
+	CRASH_COND(rpc_handle_server.get_index() != rpc_handle_1_obj_1.get_index());
+	CRASH_COND(rpc_handle_2_obj_1.get_index() != rpc_handle_1_obj_1.get_index());
 
 	std::vector<int> server_connection_event;
 	server_obj_1.start_listening_peer_connection(
@@ -321,8 +321,7 @@ void NS_Test::test_local_network() {
 	vec.push_back(2);
 	vec.push_back(3);
 
-	int rpc_handle = rpc_handle_server;
-	peer_1_obj_1.rpc(rpc_handle, peer_1_obj_1.get_server_peer(), true, 22, 44.0, NS::VarData(1, 2, 3), vec);
+	rpc_handle_server.rpc(peer_1_obj_1, peer_1_obj_1.get_server_peer(), true, 22, 44.0, NS::VarData(1, 2, 3), vec);
 
 	// Make sure the rpc are not yet received.
 	CRASH_COND(!server_rpc_executed_by.empty());
@@ -339,7 +338,7 @@ void NS_Test::test_local_network() {
 
 	// -------------------------------------------------------Now test `latency`
 	network_properties.rtt_seconds = 1.0;
-	peer_2_obj_1.rpc(rpc_handle, peer_2_obj_1.get_server_peer(), true, 22, 44.0, NS::VarData(1, 2, 3), vec);
+	rpc_handle_2_obj_1.rpc(peer_2_obj_1, peer_2_obj_1.get_server_peer(), true, 22, 44.0, NS::VarData(1, 2, 3), vec);
 
 	CRASH_COND(server_rpc_executed_by.size() != 1);
 
@@ -367,7 +366,7 @@ void NS_Test::test_local_network() {
 	network_properties.rtt_seconds = 0.0;
 	network_properties.packet_loss = 1.0; // 100% packet loss
 
-	server_obj_1.rpc(rpc_handle, peer_1.get_peer(), true, 22, 44.0, NS::VarData(1, 2, 3), vec);
+	rpc_handle_server.rpc(server_obj_1, peer_1.get_peer(), true, 22, 44.0, NS::VarData(1, 2, 3), vec);
 	for (float t = 0.0; t < 2.0; t += delta) {
 		server.process(delta);
 		peer_1.process(delta);
@@ -384,7 +383,7 @@ void NS_Test::test_local_network() {
 	peer_1_obj_1.get_rpcs_info()[0].is_reliable = true;
 	peer_2_obj_1.get_rpcs_info()[0].is_reliable = true;
 
-	server_obj_1.rpc(rpc_handle, peer_1.get_peer(), true, 22, 44.0, NS::VarData(1, 2, 3), vec);
+	rpc_handle_server.rpc(server_obj_1, peer_1.get_peer(), true, 22, 44.0, NS::VarData(1, 2, 3), vec);
 	server.process(delta);
 	peer_1.process(delta);
 	peer_2.process(delta);
@@ -397,9 +396,9 @@ void NS_Test::test_local_network() {
 	network_properties.packet_loss = 1.0;
 	network_properties.reorder = 1.0; // 100% reorder
 
-	server_obj_1.rpc(rpc_handle, peer_2.get_peer(), true, 1, 44.0, NS::VarData(1, 2, 3), vec);
-	server_obj_1.rpc(rpc_handle, peer_2.get_peer(), true, 2, 44.0, NS::VarData(1, 2, 3), vec);
-	server_obj_1.rpc(rpc_handle, peer_2.get_peer(), true, 3, 44.0, NS::VarData(1, 2, 3), vec);
+	rpc_handle_server.rpc(server_obj_1, peer_2.get_peer(), true, 1, 44.0, NS::VarData(1, 2, 3), vec);
+	rpc_handle_server.rpc(server_obj_1, peer_2.get_peer(), true, 2, 44.0, NS::VarData(1, 2, 3), vec);
+	rpc_handle_server.rpc(server_obj_1, peer_2.get_peer(), true, 3, 44.0, NS::VarData(1, 2, 3), vec);
 
 	server.process(delta);
 	peer_1.process(delta);
@@ -422,7 +421,7 @@ void NS_Test::test_local_network() {
 	network_properties.packet_loss = 0.0;
 	network_properties.reorder = 0.0;
 
-	server_obj_1.rpc(rpc_handle, peer_2.get_peer(), true, 22, 44.0, NS::VarData(1, 2, 3), vec);
+	rpc_handle_server.rpc(server_obj_1, peer_2.get_peer(), true, 22, 44.0, NS::VarData(1, 2, 3), vec);
 
 	server.process(delta);
 	peer_1.process(delta);

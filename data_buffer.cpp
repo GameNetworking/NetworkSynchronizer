@@ -546,14 +546,6 @@ real_t DataBuffer::read_unit_real(CompressionLevel p_compression_level) {
 Vector2 DataBuffer::add_vector2(Vector2 p_input, CompressionLevel p_compression_level) {
 	ERR_FAIL_COND_V(is_reading == true, p_input);
 
-#ifndef REAL_T_IS_DOUBLE
-	// Fallback to compression level 1 if real_t is float
-	if (p_compression_level == DataBuffer::COMPRESSION_LEVEL_0) {
-		WARN_PRINT_ONCE("Compression level 0 is not supported for Vector2 for a binary compiled with single precision float. Falling back to compression level 1");
-		p_compression_level = DataBuffer::COMPRESSION_LEVEL_1;
-	}
-#endif
-
 	DEB_DISABLE
 
 	Vector2 r;
@@ -569,14 +561,6 @@ Vector2 DataBuffer::add_vector2(Vector2 p_input, CompressionLevel p_compression_
 
 Vector2 DataBuffer::read_vector2(CompressionLevel p_compression_level) {
 	ERR_FAIL_COND_V(is_reading == false, Vector2());
-
-#ifndef REAL_T_IS_DOUBLE
-	// Fallback to compression level 1 if real_t is float
-	if (p_compression_level == DataBuffer::COMPRESSION_LEVEL_0) {
-		WARN_PRINT_ONCE("Compression level 0 is not supported for Vector2 for a binary compiled with single precision float. Falling back to compression level 1");
-		p_compression_level = DataBuffer::COMPRESSION_LEVEL_1;
-	}
-#endif
 
 	DEB_DISABLE
 
@@ -655,14 +639,6 @@ Vector2 DataBuffer::read_normalized_vector2(CompressionLevel p_compression_level
 Vector3 DataBuffer::add_vector3(Vector3 p_input, CompressionLevel p_compression_level) {
 	ERR_FAIL_COND_V(is_reading == true, p_input);
 
-#ifndef REAL_T_IS_DOUBLE
-	// Fallback to compression level 1 if real_t is float
-	if (p_compression_level == DataBuffer::COMPRESSION_LEVEL_0) {
-		WARN_PRINT_ONCE("Compression level 0 is not supported for Vector3 for a binary compiled with single precision float. Falling back to compression level 1");
-		p_compression_level = DataBuffer::COMPRESSION_LEVEL_1;
-	}
-#endif
-
 	DEB_DISABLE
 
 	Vector3 r;
@@ -678,14 +654,6 @@ Vector3 DataBuffer::add_vector3(Vector3 p_input, CompressionLevel p_compression_
 
 Vector3 DataBuffer::read_vector3(CompressionLevel p_compression_level) {
 	ERR_FAIL_COND_V(is_reading == false, Vector3());
-
-#ifndef REAL_T_IS_DOUBLE
-	// Fallback to compression level 1 if real_t is float
-	if (p_compression_level == DataBuffer::COMPRESSION_LEVEL_0) {
-		WARN_PRINT_ONCE("Compression level 0 is not supported for Vector3 for a binary compiled with single precision float. Falling back to compression level 1");
-		p_compression_level = DataBuffer::COMPRESSION_LEVEL_1;
-	}
-#endif
 
 	DEB_DISABLE
 
@@ -1135,14 +1103,6 @@ int DataBuffer::get_bit_taken(DataType p_data_type, CompressionLevel p_compressi
 }
 
 int DataBuffer::get_mantissa_bits(CompressionLevel p_compression) {
-#ifndef REAL_T_IS_DOUBLE
-	// Fallback to compression level 1 if real_t is float
-	if (p_compression == DataBuffer::COMPRESSION_LEVEL_0) {
-		WARN_PRINT_ONCE("Compression level 0 is not supported for a binary compiled with single precision float. Falling back to compression level 1");
-		p_compression = DataBuffer::COMPRESSION_LEVEL_1;
-	}
-#endif
-
 	// https://en.wikipedia.org/wiki/IEEE_754#Basic_and_interchange_formats
 	switch (p_compression) {
 		case CompressionLevel::COMPRESSION_LEVEL_0:
@@ -1161,14 +1121,6 @@ int DataBuffer::get_mantissa_bits(CompressionLevel p_compression) {
 }
 
 int DataBuffer::get_exponent_bits(CompressionLevel p_compression) {
-#ifndef REAL_T_IS_DOUBLE
-	// Fallback to compression level 1 if real_t is float
-	if (p_compression == DataBuffer::COMPRESSION_LEVEL_0) {
-		WARN_PRINT_ONCE("Compression level 0 is not supported for a binary compiled with single precision float. Falling back to compression level 1");
-		p_compression = DataBuffer::COMPRESSION_LEVEL_1;
-	}
-#endif
-
 	// https://en.wikipedia.org/wiki/IEEE_754#Basic_and_interchange_formats
 	switch (p_compression) {
 		case CompressionLevel::COMPRESSION_LEVEL_0:

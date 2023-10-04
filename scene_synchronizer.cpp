@@ -100,11 +100,11 @@ void SceneSynchronizerBase::conclude() {
 
 	synchronizer_manager = nullptr;
 
-	rpc_handler_state = UINT8_MAX;
-	rpc_handler_notify_need_full_snapshot = UINT8_MAX;
-	rpc_handler_set_network_enabled = UINT8_MAX;
-	rpc_handler_notify_peer_status = UINT8_MAX;
-	rpc_handler_deferred_sync_data = UINT8_MAX;
+	rpc_handler_state.reset();
+	rpc_handler_notify_need_full_snapshot.reset();
+	rpc_handler_set_network_enabled.reset();
+	rpc_handler_notify_peer_status.reset();
+	rpc_handler_deferred_sync_data.reset();
 }
 
 void SceneSynchronizerBase::process() {
@@ -781,7 +781,7 @@ void SceneSynchronizerBase::dirty_peers() {
 void SceneSynchronizerBase::set_enabled(bool p_enable) {
 	ERR_FAIL_COND_MSG(synchronizer_type == SYNCHRONIZER_TYPE_SERVER, "The server is always enabled.");
 	if (synchronizer_type == SYNCHRONIZER_TYPE_CLIENT) {
-		network_interface->rpc(rpc_handler_set_network_enabled, network_interface->get_server_peer(), p_enable);
+		rpc_handler_set_network_enabled.rpc(*network_interface, network_interface->get_server_peer(), p_enable);
 		if (p_enable == false) {
 			// If the peer want to disable, we can disable it locally
 			// immediately. When it wants to enable the networking, the server
@@ -831,7 +831,7 @@ void SceneSynchronizerBase::set_peer_networking_enable(int p_peer, bool p_enable
 		dirty_peers();
 
 		// Just notify the peer status.
-		network_interface->rpc(rpc_handler_notify_peer_status, p_peer, p_enable);
+		rpc_handler_notify_peer_status.rpc(*network_interface, p_peer, p_enable);
 	} else {
 		ERR_FAIL_COND_MSG(synchronizer_type != SYNCHRONIZER_TYPE_NONETWORK, "At this point no network is expected.");
 		static_cast<NoNetSynchronizer *>(synchronizer)->set_enabled(p_enable);
@@ -1981,8 +1981,8 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 				snap.append_array(delta_global_nodes_snapshot);
 			}
 
-			scene_synchronizer->network_interface->rpc(
-					scene_synchronizer->rpc_handler_state,
+			scene_synchronizer->rpc_handler_state.rpc(
+					scene_synchronizer->get_network_interface(),
 					peer_id,
 					snap);
 
@@ -2233,8 +2233,8 @@ void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
 		if (update_node_count > 0) {
 			global_buffer.dry();
 			for (int i = 0; i < int(group.peers.size()); ++i) {
-				scene_synchronizer->network_interface->rpc(
-						scene_synchronizer->rpc_handler_deferred_sync_data,
+				scene_synchronizer->rpc_handler_deferred_sync_data.rpc(
+						scene_synchronizer->get_network_interface(),
 						group.peers[i],
 						global_buffer.get_buffer().get_bytes());
 			}
@@ -3515,8 +3515,8 @@ void ClientSynchronizer::notify_server_full_snapshot_is_needed() {
 
 	// Notify the server that a full snapshot is needed.
 	need_full_snapshot_notified = true;
-	scene_synchronizer->network_interface->rpc(
-			scene_synchronizer->rpc_handler_notify_need_full_snapshot,
+	scene_synchronizer->rpc_handler_notify_need_full_snapshot.rpc(
+			scene_synchronizer->get_network_interface(),
 			scene_synchronizer->network_interface->get_server_peer());
 }
 

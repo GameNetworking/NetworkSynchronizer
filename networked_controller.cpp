@@ -61,9 +61,9 @@ void NetworkedControllerBase::conclude() {
 	network_interface->clear();
 	networked_controller_manager = nullptr;
 
-	rpc_handle_receive_input = UINT8_MAX;
-	rpc_handle_set_server_controlled = UINT8_MAX;
-	rpc_handle_notify_fps_acceleration = UINT8_MAX;
+	rpc_handle_receive_input.reset();
+	rpc_handle_set_server_controlled.reset();
+	rpc_handle_notify_fps_acceleration.reset();
 }
 
 void NetworkedControllerBase::set_server_controlled(bool p_server_controlled) {
@@ -88,8 +88,8 @@ void NetworkedControllerBase::set_server_controlled(bool p_server_controlled) {
 
 			// Tell the client to do the switch too.
 			if (network_interface->get_unit_authority() != 1) {
-				network_interface->rpc(
-						rpc_handle_set_server_controlled,
+				rpc_handle_set_server_controlled.rpc(
+						get_network_interface(),
 						network_interface->get_unit_authority(),
 						server_controlled);
 			} else {
@@ -924,8 +924,8 @@ bool ServerController::receive_inputs(const Vector<uint8_t> &p_data) {
 
 					node->__input_data_set_first_input_id(data, peer_input_id);
 
-					node->network_interface->rpc(
-							node->rpc_handle_receive_input,
+					node->rpc_handle_receive_input.rpc(
+							node->get_network_interface(),
 							peer_id,
 							data);
 				}
@@ -1016,8 +1016,8 @@ void ServerController::adjust_player_tick_rate(double p_delta) {
 				packet_data;
 		packet_data.push_back(compressed_distance);
 
-		node->network_interface->rpc(
-				node->rpc_handle_notify_fps_acceleration,
+		node->rpc_handle_notify_fps_acceleration.rpc(
+				node->get_network_interface(),
 				node->network_interface->get_unit_authority(),
 				packet_data);
 	}
@@ -1405,8 +1405,8 @@ void PlayerController::send_frame_input_buffer_to_server() {
 			cached_packet_data.ptr(),
 			ofs);
 
-	node->network_interface->rpc(
-			node->rpc_handle_receive_input,
+	node->rpc_handle_receive_input.rpc(
+			node->get_network_interface(),
 			node->network_interface->get_server_peer(),
 			packet_data);
 }
