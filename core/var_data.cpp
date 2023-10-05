@@ -28,6 +28,7 @@ VarData::VarData(VarData &&p_other) :
 VarData &VarData::operator=(VarData &&p_other) {
 	data = std::move(p_other.data);
 	shared_buffer = std::move(p_other.shared_buffer);
+	return *this;
 }
 
 void VarData::copy(const VarData &p_other) {
