@@ -157,7 +157,7 @@ void replace_nodes_impl(
 		LocalVector<T> &r_sync_group_nodes,
 		bool &r_changed) {
 	for (int i = int(r_sync_group_nodes.size()) - 1; i >= 0; i--) {
-		const int64_t nta_index = p_nodes_to_add.find(r_sync_group_nodes[i].nd);
+		const int64_t nta_index = p_nodes_to_add.find(r_sync_group_nodes[i].od);
 		if (nta_index == -1) {
 			// This node is not part of this sync group, remove it.
 			r_sync_group_nodes.remove_at_unordered(i);
@@ -172,20 +172,20 @@ void replace_nodes_impl(
 
 #ifdef DEBUG_ENABLED
 			// Make sure there are no duplicates:
-			CRASH_COND_MSG(p_nodes_to_add.find(r_sync_group_nodes[i].nd) != -1, "The function `replace_nodes` must receive unique nodes on each array. Make sure not to add duplicates.");
+			CRASH_COND_MSG(p_nodes_to_add.find(r_sync_group_nodes[i].od) != -1, "The function `replace_nodes` must receive unique nodes on each array. Make sure not to add duplicates.");
 #endif
 		}
 	}
 
 	// Add the missing nodes now.
 	for (int i = 0; i < int(p_nodes_to_add.size()); i++) {
-		NS::ObjectData *nd = p_nodes_to_add[i].nd;
+		NS::ObjectData *od = p_nodes_to_add[i].od;
 
 #ifdef DEBUG_ENABLED
-		CRASH_COND_MSG(r_sync_group_nodes.find(nd) != -1, "[FATAL] This is impossible to trigger, because the above loop cleaned this.");
+		CRASH_COND_MSG(r_sync_group_nodes.find(od) != -1, "[FATAL] This is impossible to trigger, because the above loop cleaned this.");
 #endif
 
-		const uint32_t index = p_sync_group.add_new_node(nd, p_is_realtime);
+		const uint32_t index = p_sync_group.add_new_node(od, p_is_realtime);
 		r_sync_group_nodes[index].update_from(p_nodes_to_add[i]);
 	}
 }
@@ -241,7 +241,7 @@ void NS::SyncGroup::set_deferred_update_rate(NS::ObjectData *p_object_data, real
 
 real_t NS::SyncGroup::get_deferred_update_rate(const NS::ObjectData *p_object_data) const {
 	for (int i = 0; i < int(deferred_sync_nodes.size()); ++i) {
-		if (deferred_sync_nodes[i].nd == p_object_data) {
+		if (deferred_sync_nodes[i].od == p_object_data) {
 			return deferred_sync_nodes[i].update_rate;
 		}
 	}

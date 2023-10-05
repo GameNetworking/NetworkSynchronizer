@@ -303,7 +303,7 @@ public:
 	};
 
 	struct RealtimeNodeInfo {
-		struct ObjectData *nd = nullptr;
+		struct ObjectData *od = nullptr;
 		Change change;
 
 		RealtimeNodeInfo() = default;
@@ -311,14 +311,14 @@ public:
 		RealtimeNodeInfo &operator=(const RealtimeNodeInfo &) = default;
 		RealtimeNodeInfo &operator=(RealtimeNodeInfo &&) = default;
 		RealtimeNodeInfo(struct ObjectData *p_nd) :
-				nd(p_nd) {}
-		bool operator==(const RealtimeNodeInfo &p_other) { return nd == p_other.nd; }
+				od(p_nd) {}
+		bool operator==(const RealtimeNodeInfo &p_other) { return od == p_other.od; }
 
 		void update_from(const RealtimeNodeInfo &p_other) {}
 	};
 
 	struct DeferredNodeInfo {
-		struct ObjectData *nd = nullptr;
+		struct ObjectData *od = nullptr;
 
 		/// The node update rate, relative to the godot physics processing rate.
 		/// With the godot physics processing rate set to 60Hz, 0.5 means 30Hz.
@@ -337,8 +337,8 @@ public:
 		DeferredNodeInfo &operator=(const DeferredNodeInfo &) = default;
 		DeferredNodeInfo &operator=(DeferredNodeInfo &&) = default;
 		DeferredNodeInfo(struct ObjectData *p_nd) :
-				nd(p_nd) {}
-		bool operator==(const DeferredNodeInfo &p_other) { return nd == p_other.nd; }
+				od(p_nd) {}
+		bool operator==(const DeferredNodeInfo &p_other) { return od == p_other.od; }
 
 		void update_from(const DeferredNodeInfo &p_other) {
 			update_rate = p_other.update_rate;

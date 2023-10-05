@@ -1896,7 +1896,7 @@ void ServerSynchronizer::sync_group_debug_print() {
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|");
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|    [Realtime nodes]");
 		for (auto info : realtime_node_info) {
-			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|      |- " + String(info.nd->object_name.c_str()));
+			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|      |- " + String(info.od->object_name.c_str()));
 		}
 
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|");
@@ -1904,7 +1904,7 @@ void ServerSynchronizer::sync_group_debug_print() {
 		const LocalVector<NS::SyncGroup::DeferredNodeInfo> &deferred_node_info = group.get_deferred_sync_nodes();
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|    [Deferred nodes (UR: Update Rate)]");
 		for (auto info : deferred_node_info) {
-			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|      |- [UR: " + rtos(info.update_rate) + "] " + info.nd->object_name.c_str());
+			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|      |- [UR: " + rtos(info.update_rate) + "] " + info.od->object_name.c_str());
 		}
 	}
 	SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|-----------------------");
@@ -2017,7 +2017,7 @@ Vector<Variant> ServerSynchronizer::generate_snapshot(
 		bit_array.resize_in_bits(scene_synchronizer->objects_data_storage.get_sorted_objects_data().size());
 		bit_array.zero();
 		for (uint32_t i = 0; i < relevant_node_data.size(); i += 1) {
-			const NS::ObjectData *nd = relevant_node_data[i].nd;
+			const NS::ObjectData *nd = relevant_node_data[i].od;
 			CRASH_COND(nd->get_net_id() == ObjectNetId::NONE);
 			bit_array.store_bits(nd->get_net_id().id, 1, 1);
 		}
@@ -2033,7 +2033,7 @@ Vector<Variant> ServerSynchronizer::generate_snapshot(
 		for (int i = 0; i < int(p_group.get_deferred_sync_nodes().size()); ++i) {
 			if (p_group.get_deferred_sync_nodes()[i]._unknown || p_force_full_snapshot) {
 				generate_snapshot_node_data(
-						p_group.get_deferred_sync_nodes()[i].nd,
+						p_group.get_deferred_sync_nodes()[i].od,
 						SNAPSHOT_GENERATION_MODE_FORCE_NODE_PATH_ONLY,
 						NS::SyncGroup::Change(),
 						snapshot_data);
@@ -2045,7 +2045,7 @@ Vector<Variant> ServerSynchronizer::generate_snapshot(
 
 	// Then, generate the snapshot for the relevant nodes.
 	for (uint32_t i = 0; i < relevant_node_data.size(); i += 1) {
-		const NS::ObjectData *node_data = relevant_node_data[i].nd;
+		const NS::ObjectData *node_data = relevant_node_data[i].od;
 
 		if (node_data != nullptr) {
 			generate_snapshot_node_data(
@@ -2182,13 +2182,13 @@ void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
 				send = false;
 			}
 
-			if (node_info[i].nd->get_net_id().id > UINT16_MAX) {
-				SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "[FATAL] The `process_deferred_sync` found a node with ID `" + itos(node_info[i].nd->get_net_id().id) + "::" + node_info[i].nd->object_name.c_str() + "` that exceedes the max ID this function can network at the moment. Please report this, we will consider improving this function.");
+			if (node_info[i].od->get_net_id().id > UINT16_MAX) {
+				SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "[FATAL] The `process_deferred_sync` found a node with ID `" + itos(node_info[i].od->get_net_id().id) + "::" + node_info[i].od->object_name.c_str() + "` that exceedes the max ID this function can network at the moment. Please report this, we will consider improving this function.");
 				send = false;
 			}
 
-			if (node_info[i].nd->collect_epoch_func.is_null()) {
-				SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_deferred_sync` found a node `" + itos(node_info[i].nd->get_net_id().id) + "::" + node_info[i].nd->object_name.c_str() + "` with an invalid function `collect_epoch_func`. Please use `setup_deferred_sync` to correctly initialize this node for deferred sync.");
+			if (node_info[i].od->collect_epoch_func.is_null()) {
+				SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_deferred_sync` found a node `" + itos(node_info[i].od->get_net_id().id) + "::" + node_info[i].od->object_name.c_str() + "` with an invalid function `collect_epoch_func`. Please use `setup_deferred_sync` to correctly initialize this node for deferred sync.");
 				send = false;
 			}
 
@@ -2199,26 +2199,26 @@ void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
 				tmp_buffer->begin_write(0);
 
 				Callable::CallError e;
-				node_info[i].nd->collect_epoch_func.callp(&fake_array_vars, 1, r, e);
+				node_info[i].od->collect_epoch_func.callp(&fake_array_vars, 1, r, e);
 
 				if (e.error != Callable::CallError::CALL_OK) {
-					SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_deferred_sync` was not able to execute the function `" + node_info[i].nd->collect_epoch_func.get_method() + "` for the node `" + itos(node_info[i].nd->get_net_id().id) + "::" + node_info[i].nd->object_name.c_str() + "`.");
+					SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_deferred_sync` was not able to execute the function `" + node_info[i].od->collect_epoch_func.get_method() + "` for the node `" + itos(node_info[i].od->get_net_id().id) + "::" + node_info[i].od->object_name.c_str() + "`.");
 					continue;
 				}
 
 				if (tmp_buffer->total_size() > UINT16_MAX) {
-					SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_deferred_sync` failed because the method `" + node_info[i].nd->collect_epoch_func.get_method() + "` for the node `" + itos(node_info[i].nd->get_net_id().id) + "::" + node_info[i].nd->object_name.c_str() + "` collected more than " + itos(UINT16_MAX) + " bits. Please optimize your netcode to send less data.");
+					SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_deferred_sync` failed because the method `" + node_info[i].od->collect_epoch_func.get_method() + "` for the node `" + itos(node_info[i].od->get_net_id().id) + "::" + node_info[i].od->object_name.c_str() + "` collected more than " + itos(UINT16_MAX) + " bits. Please optimize your netcode to send less data.");
 					continue;
 				}
 
 				++update_node_count;
 
-				if (node_info[i].nd->get_net_id().id > UINT8_MAX) {
+				if (node_info[i].od->get_net_id().id > UINT8_MAX) {
 					global_buffer.add_bool(true);
-					global_buffer.add_uint(node_info[i].nd->get_net_id().id, DataBuffer::COMPRESSION_LEVEL_2);
+					global_buffer.add_uint(node_info[i].od->get_net_id().id, DataBuffer::COMPRESSION_LEVEL_2);
 				} else {
 					global_buffer.add_bool(false);
-					global_buffer.add_uint(node_info[i].nd->get_net_id().id, DataBuffer::COMPRESSION_LEVEL_3);
+					global_buffer.add_uint(node_info[i].od->get_net_id().id, DataBuffer::COMPRESSION_LEVEL_3);
 				}
 
 				// Collapse the two DataBuffer.
