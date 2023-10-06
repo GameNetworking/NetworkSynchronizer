@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/object_data.h"
+#include "core/var_data.h"
 #include "net_utilities.h"
 
 namespace NS {
@@ -12,10 +13,16 @@ struct Snapshot {
 	/// matters because the index is the `NetNodeId`.
 	/// The variable array order also matter.
 	Vector<Vector<NameAndVar>> node_vars;
-	/// Game specific data.
-	Vector<Variant> custom_data;
 
+	/// Custom variable specified by the user.
+	/// NOTE: The user can specify a different variable depending on the passed GroupSync.
+	VarData custom_data;
+
+public:
 	operator String() const;
+
+	/// Copy the given snapshot.
+	void copy(const Snapshot &p_other);
 
 	static bool compare(
 			NS::SceneSynchronizerBase &scene_synchronizer,

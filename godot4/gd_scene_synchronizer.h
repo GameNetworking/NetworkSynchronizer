@@ -2,6 +2,8 @@
 
 #include "core/object/object.h"
 #include "modules/network_synchronizer/core/processor.h"
+#include "modules/network_synchronizer/core/var_data.h"
+#include "modules/network_synchronizer/data_buffer.h"
 #include "modules/network_synchronizer/godot4/gd_network_interface.h"
 #include "modules/network_synchronizer/scene_synchronizer.h"
 #include "scene/main/node.h"
@@ -59,16 +61,19 @@ public: // ---------------------------------------- Scene Synchronizer Interface
 
 	virtual void update_nodes_relevancy() override;
 
-	virtual void snapshot_add_custom_data(const NS::SyncGroup *p_group, Vector<Variant> &r_snapshot_data) override {}
-	virtual bool snapshot_extract_custom_data(const Vector<Variant> &p_snapshot_data, uint32_t p_snap_data_index, LocalVector<const Variant *> &r_out) const override { return true; }
-	virtual void snapshot_apply_custom_data(const Vector<Variant> &p_custom_data) override {}
-
 	virtual NS::ObjectHandle fetch_app_object(const std::string &p_object_name) override;
 	virtual uint64_t get_object_id(NS::ObjectHandle p_app_object_handle) const override;
 	virtual std::string get_object_name(NS::ObjectHandle p_app_object_handle) const override;
 	virtual void setup_synchronizer_for(NS::ObjectHandle p_app_object_handle, NS::ObjectLocalId p_id) override;
 	virtual void set_variable(NS::ObjectHandle p_app_object_handle, const char *p_name, const Variant &p_val) override;
 	virtual bool get_variable(NS::ObjectHandle p_app_object_handle, const char *p_name, Variant &p_val) const override;
+
+	void convert(Variant &r_variant, const NS::VarData &p_vd) const;
+	void convert(NS::VarData &p_vd, const Variant &p_variant) const;
+
+	virtual void var_data_encode(DataBuffer &r_db, const NS::VarData &p_vd) const override;
+	virtual void var_data_decode(NS::VarData &p_vd, DataBuffer &p_db) const override;
+	virtual bool var_data_compare(const NS::VarData &p_A, const NS::VarData &p_B) const override;
 
 	virtual NS::NetworkedControllerBase *extract_network_controller(NS::ObjectHandle p_app_object_handle) override;
 	virtual const NS::NetworkedControllerBase *extract_network_controller(NS::ObjectHandle p_app_object_handle) const override;

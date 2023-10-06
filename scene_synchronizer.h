@@ -10,6 +10,7 @@
 #include "data_buffer.h"
 #include "modules/network_synchronizer/core/object_data_storage.h"
 #include "modules/network_synchronizer/core/processor.h"
+#include "modules/network_synchronizer/core/var_data.h"
 #include "net_utilities.h"
 #include "snapshot.h"
 #include <cstdint>
@@ -47,9 +48,8 @@ public:
 	/// and it's here that you want to update the node relevancy.
 	virtual void update_nodes_relevancy() {}
 
-	virtual void snapshot_add_custom_data(const NS::SyncGroup *p_group, Vector<Variant> &r_snapshot_data) {}
-	virtual bool snapshot_extract_custom_data(const Vector<Variant> &p_snapshot_data, uint32_t p_snap_data_index, LocalVector<const Variant *> &r_out) const { return true; }
-	virtual void snapshot_apply_custom_data(const Vector<Variant> &p_custom_data) {}
+	virtual void snapshot_get_custom_data(const NS::SyncGroup *p_group, NS::VarData &r_custom_data) {}
+	virtual void snapshot_set_custom_data(const NS::VarData &r_custom_data) {}
 
 	virtual ObjectHandle fetch_app_object(const std::string &p_object_name) = 0;
 	virtual uint64_t get_object_id(ObjectHandle p_app_object_handle) const = 0;
@@ -57,6 +57,10 @@ public:
 	virtual void setup_synchronizer_for(ObjectHandle p_app_object_handle, ObjectLocalId p_id) = 0;
 	virtual void set_variable(ObjectHandle p_app_object_handle, const char *p_var_name, const Variant &p_val) = 0;
 	virtual bool get_variable(ObjectHandle p_app_object_handle, const char *p_var_name, Variant &p_val) const = 0;
+
+	virtual void var_data_encode(DataBuffer &r_db, const VarData &p_vd) const {}
+	virtual void var_data_decode(VarData &p_vd, DataBuffer &p_db) const {}
+	virtual bool var_data_compare(const VarData &p_A, const VarData &p_B) const { return true; }
 
 	virtual NetworkedControllerBase *extract_network_controller(ObjectHandle p_app_object_handle) = 0;
 	virtual const NetworkedControllerBase *extract_network_controller(ObjectHandle p_app_object_handle) const = 0;
@@ -326,7 +330,7 @@ public: // ---------------------------------------------------------------- APIs
 	void start_tracking_scene_changes(Object *p_diff_handle) const;
 	void stop_tracking_scene_changes(Object *p_diff_handle) const;
 	Variant pop_scene_changes(Object *p_diff_handle) const;
-	void apply_scene_changes(const Variant &p_sync_data);
+	void apply_scene_changes(DataBuffer &p_sync_data);
 
 	bool is_recovered() const;
 	bool is_resetted() const;
@@ -410,6 +414,9 @@ public:
 	bool compare(const Vector3 &p_first, const Vector3 &p_second) const;
 	/// Returns true when the variants are the same. Uses comparison_float_tolerance member.
 	bool compare(const Variant &p_first, const Variant &p_second) const;
+
+	/// Returns true when the VarData are the same.
+	bool compare(const VarData &p_first, const VarData &p_second) const;
 
 	/// Returns true when the vectors are the same.
 	static bool compare(const Vector2 &p_first, const Vector2 &p_second, real_t p_tolerance);
@@ -514,15 +521,16 @@ public:
 
 	void process_snapshot_notificator(real_t p_delta);
 
-	Vector<Variant> generate_snapshot(
+	void generate_snapshot(
 			bool p_force_full_snapshot,
-			const NS::SyncGroup &p_group) const;
+			const NS::SyncGroup &p_group,
+			DataBuffer &r_snapshot_db) const;
 
-	void generate_snapshot_node_data(
+	void generate_snapshot_object_data(
 			const NS::ObjectData *p_object_data,
 			SnapshotGenerationMode p_mode,
 			const NS::SyncGroup::Change &p_change,
-			Vector<Variant> &r_result) const;
+			DataBuffer &r_snapshot_db) const;
 
 	void process_deferred_sync(real_t p_delta);
 };
@@ -617,10 +625,10 @@ public:
 
 	void receive_snapshot(Variant p_snapshot);
 	bool parse_sync_data(
-			Variant p_snapshot,
+			DataBuffer &p_snapshot,
 			void *p_user_pointer,
-			void (*p_custom_data_parse)(void *p_user_pointer, const LocalVector<const Variant *> &p_custom_data),
-			void (*p_node_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
+			void (*p_custom_data_parse)(void *p_user_pointer, VarData &&p_custom_data),
+			void (*p_ode_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
 			void (*p_input_id_parse)(void *p_user_pointer, uint32_t p_input_id),
 			void (*p_controller_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
 			void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, const Variant &p_value),
