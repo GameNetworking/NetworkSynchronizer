@@ -64,9 +64,12 @@ static const char *ProcessPhaseName[PROCESSPHASE_COUNT] = {
 
 NS_NAMESPACE_BEGIN
 
-template <typename T, typename IdType>
+template <typename T, typename TheIdType>
 struct IdMaker {
+	typedef TheIdType IdType;
+
 	IdType id;
+
 	bool operator==(const T &p_o) const { return id == p_o.id; }
 	bool operator!=(const T &p_o) const { return !(operator==(p_o)); }
 	bool operator<(const T &p_o) const { return id < p_o.id; }
@@ -90,13 +93,13 @@ struct IdMaker {
 	}
 };
 
-struct VarId : public IdMaker<VarId, uint32_t> {
+struct VarId : public IdMaker<VarId, uint32_t> { // TODO use `uint8_t` instead?
 	static const VarId NONE;
 };
-struct ObjectNetId : public IdMaker<ObjectNetId, uint32_t> {
+struct ObjectNetId : public IdMaker<ObjectNetId, uint32_t> { // TODO use `uint16_t` instead.
 	static const ObjectNetId NONE;
 };
-struct ObjectLocalId : public IdMaker<ObjectLocalId, uint32_t> {
+struct ObjectLocalId : public IdMaker<ObjectLocalId, uint32_t> { // TODO use `int` instead?
 	static const ObjectLocalId NONE;
 };
 struct ObjectHandle : public IdMaker<ObjectHandle, std::intptr_t> {

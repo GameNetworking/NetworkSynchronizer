@@ -17,9 +17,7 @@ NS::Snapshot::operator String() const {
 		}
 	}
 	s += "\nCUSTOM DATA:\n";
-	for (int i = 0; i < custom_data.size(); i += 1) {
-		s += " - " + itos(i) + ": " + String(custom_data[i]);
-	}
+	s += " Size:  ?add support to custom data serialization?";
 	return s;
 }
 
@@ -104,6 +102,12 @@ bool compare_vars(
 #endif
 }
 
+void NS::Snapshot::copy(const Snapshot &p_other) {
+	input_id = p_other.input_id;
+	node_vars = p_other.node_vars;
+	custom_data.copy(p_other.custom_data);
+}
+
 bool NS::Snapshot::compare(
 		NS::SceneSynchronizerBase &scene_synchronizer,
 		const Snapshot &p_snap_A,
@@ -119,28 +123,15 @@ bool NS::Snapshot::compare(
 	bool is_equal = true;
 #endif
 
-	if (p_snap_A.custom_data.size() != p_snap_B.custom_data.size()) {
+	if (!scene_synchronizer.compare(p_snap_A.custom_data, p_snap_B.custom_data)) {
 		if (r_differences_info) {
-			r_differences_info->push_back("Difference detected: custom data is different.");
+			r_differences_info->push_back("Difference detected: custom_data is different.");
 		}
 #ifdef DEBUG_ENABLED
 		is_equal = false;
 #else
 		return false;
 #endif
-	} else {
-		for (int i = 0; i < p_snap_A.custom_data.size(); i++) {
-			if (!scene_synchronizer.compare(p_snap_A.custom_data[i], p_snap_B.custom_data[i])) {
-				if (r_differences_info) {
-					r_differences_info->push_back("Difference detected: custom_data is different at index `" + itos(i) + "`.");
-				}
-#ifdef DEBUG_ENABLED
-				is_equal = false;
-#else
-				return false;
-#endif
-			}
-		}
 	}
 
 	if (r_no_rewind_recover) {

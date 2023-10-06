@@ -1,43 +1,9 @@
-/*************************************************************************/
-/*  data_buffer.h                                                        */
-/*************************************************************************/
-/*                       This file is part of:                           */
-/*                           GODOT ENGINE                                */
-/*                      https://godotengine.org                          */
-/*************************************************************************/
-/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
-/*                                                                       */
-/* Permission is hereby granted, free of charge, to any person obtaining */
-/* a copy of this software and associated documentation files (the       */
-/* "Software"), to deal in the Software without restriction, including   */
-/* without limitation the rights to use, copy, modify, merge, publish,   */
-/* distribute, sublicense, and/or sell copies of the Software, and to    */
-/* permit persons to whom the Software is furnished to do so, subject to */
-/* the following conditions:                                             */
-/*                                                                       */
-/* The above copyright notice and this permission notice shall be        */
-/* included in all copies or substantial portions of the Software.       */
-/*                                                                       */
-/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,       */
-/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF    */
-/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.*/
-/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY  */
-/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,  */
-/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
-/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
-/*************************************************************************/
-
-/**
-	@author AndreaCatania
-*/
+#pragma once
 
 #include "core/object/class_db.h"
 
 #include "bit_array.h"
-
-#ifndef INPUT_BUFFER_H
-#define INPUT_BUFFER_H
+#include <string>
 
 class DataBuffer : public Object {
 	GDCLASS(DataBuffer, Object);
@@ -155,6 +121,8 @@ private:
 	bool is_reading = false;
 	BitArray buffer;
 
+	bool buffer_failed = false;
+
 #if DEBUG_ENABLED
 	bool debug_enabled = true;
 #endif
@@ -207,6 +175,29 @@ public:
 
 	/// Begin read.
 	void begin_read();
+
+	bool is_buffer_failed() const { return buffer_failed; }
+
+	// ------------------------------------------------------ Type serialization
+	void add(bool p_input);
+	void read(bool &p_out);
+
+	void add(std::uint8_t p_input);
+	void read(std::uint8_t &r_out);
+
+	void add(std::uint16_t p_input);
+	void read(std::uint16_t &r_out);
+
+	void add(std::uint32_t p_input);
+	void read(std::uint32_t &r_out);
+
+	void add(std::uint64_t p_input);
+	void read(std::uint64_t &r_out);
+
+	void add(const std::string &p_string);
+	void read(std::string &r_out);
+
+	// -------------------------------------------------- Specific serialization
 
 	/// Add a boolean to the buffer.
 	/// Returns the same data.
@@ -310,7 +301,11 @@ public:
 	/// Parse the next data as Variant and returns it.
 	Variant read_variant();
 
-	/// Add bits
+	/// Add a data buffer to this buffer.
+	void add_data_buffer(const DataBuffer &p_db);
+	void read_data_buffer(DataBuffer &r_db);
+
+	/// Add bits of custom size.
 	void add_bits(const uint8_t *p_data, int p_bit_count);
 	void read_bits(uint8_t *r_data, int p_bit_count);
 
@@ -356,6 +351,7 @@ public:
 	int read_vector3_size(CompressionLevel p_compression);
 	int read_normalized_vector3_size(CompressionLevel p_compression);
 	int read_variant_size();
+	int read_buffer_size();
 
 	static int get_bit_taken(DataType p_data_type, CompressionLevel p_compression);
 	static int get_mantissa_bits(CompressionLevel p_compression);
@@ -372,5 +368,3 @@ private:
 
 VARIANT_ENUM_CAST(DataBuffer::DataType)
 VARIANT_ENUM_CAST(DataBuffer::CompressionLevel)
-
-#endif

@@ -45,8 +45,8 @@ BitArray::BitArray(const Vector<uint8_t> &p_bytes) :
 		bytes(p_bytes) {
 }
 
-void BitArray::resize_in_bytes(int p_bytes_count) {
-	ERR_FAIL_COND_MSG(p_bytes_count < 0, "Bytes count can't be negative");
+bool BitArray::resize_in_bytes(int p_bytes_count) {
+	ERR_FAIL_COND_V_MSG(p_bytes_count < 0, false, "Bytes count can't be negative");
 	bytes.resize(p_bytes_count);
 }
 
@@ -54,8 +54,8 @@ int BitArray::size_in_bytes() const {
 	return bytes.size();
 }
 
-void BitArray::resize_in_bits(int p_bits_count) {
-	ERR_FAIL_COND_MSG(p_bits_count < 0, "Bits count can't be negative");
+bool BitArray::resize_in_bits(int p_bits_count) {
+	ERR_FAIL_COND_V_MSG(p_bits_count < 0, false, "Bits count can't be negative");
 	const int min_size = Math::ceil((static_cast<float>(p_bits_count)) / 8);
 	bytes.resize(min_size);
 }
@@ -64,10 +64,10 @@ int BitArray::size_in_bits() const {
 	return bytes.size() * 8;
 }
 
-void BitArray::store_bits(int p_bit_offset, uint64_t p_value, int p_bits) {
-	ERR_FAIL_COND_MSG(p_bit_offset < 0, "Offset can't be negative");
-	ERR_FAIL_COND_MSG(p_bits <= 0, "The number of bits should be more than 0");
-	ERR_FAIL_INDEX_MSG(p_bit_offset + p_bits - 1, size_in_bits(), "The bit array size is `" + itos(size_in_bits()) + "` while you are trying to write `" + itos(p_bits) + "` starting from `" + itos(p_bit_offset) + "`.");
+bool BitArray::store_bits(int p_bit_offset, uint64_t p_value, int p_bits) {
+	ERR_FAIL_COND_V_MSG(p_bit_offset < 0, false, "Offset can't be negative");
+	ERR_FAIL_COND_V_MSG(p_bits <= 0, false, "The number of bits should be more than 0");
+	ERR_FAIL_INDEX_V_MSG(p_bit_offset + p_bits - 1, size_in_bits(), false, "The bit array size is `" + itos(size_in_bits()) + "` while you are trying to write `" + itos(p_bits) + "` starting from `" + itos(p_bit_offset) + "`.");
 
 	int bits = p_bits;
 	int bit_offset = p_bit_offset;
@@ -94,11 +94,13 @@ void BitArray::store_bits(int p_bit_offset, uint64_t p_value, int p_bits) {
 
 		val >>= bits_to_write;
 	}
+
+	return true;
 }
 
-uint64_t BitArray::read_bits(int p_bit_offset, int p_bits) const {
-	ERR_FAIL_COND_V_MSG(p_bits <= 0, 0, "The number of bits should be more than 0");
-	ERR_FAIL_INDEX_V_MSG(p_bit_offset + p_bits - 1, size_in_bits(), 0, "The bit array size is `" + itos(size_in_bits()) + "` while you are trying to read `" + itos(p_bits) + "` starting from `" + itos(p_bit_offset) + "`.");
+bool BitArray::read_bits(int p_bit_offset, int p_bits, std::uint64_t &r_out) const {
+	ERR_FAIL_COND_V_MSG(p_bits <= 0, false, "The number of bits should be more than 0");
+	ERR_FAIL_INDEX_V_MSG(p_bit_offset + p_bits - 1, size_in_bits(), false, "The bit array size is `" + itos(size_in_bits()) + "` while you are trying to read `" + itos(p_bits) + "` starting from `" + itos(p_bit_offset) + "`.");
 
 	int bits = p_bits;
 	int bit_offset = p_bit_offset;
@@ -124,7 +126,8 @@ uint64_t BitArray::read_bits(int p_bit_offset, int p_bits) const {
 		val_bits_to_jump += bits_to_read;
 	}
 
-	return val;
+	r_out = val;
+	return true;
 }
 
 void BitArray::zero() {
