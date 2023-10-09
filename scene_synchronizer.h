@@ -58,10 +58,6 @@ public:
 	virtual void set_variable(ObjectHandle p_app_object_handle, const char *p_var_name, const Variant &p_val) = 0;
 	virtual bool get_variable(ObjectHandle p_app_object_handle, const char *p_var_name, Variant &p_val) const = 0;
 
-	virtual void var_data_encode(DataBuffer &r_db, const VarData &p_vd) const {}
-	virtual void var_data_decode(VarData &p_vd, DataBuffer &p_db) const {}
-	virtual bool var_data_compare(const VarData &p_A, const VarData &p_B) const { return true; }
-
 	virtual NetworkedControllerBase *extract_network_controller(ObjectHandle p_app_object_handle) = 0;
 	virtual const NetworkedControllerBase *extract_network_controller(ObjectHandle p_app_object_handle) const = 0;
 };

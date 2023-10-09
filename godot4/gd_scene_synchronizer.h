@@ -68,13 +68,6 @@ public: // ---------------------------------------- Scene Synchronizer Interface
 	virtual void set_variable(NS::ObjectHandle p_app_object_handle, const char *p_name, const Variant &p_val) override;
 	virtual bool get_variable(NS::ObjectHandle p_app_object_handle, const char *p_name, Variant &p_val) const override;
 
-	void convert(Variant &r_variant, const NS::VarData &p_vd) const;
-	void convert(NS::VarData &p_vd, const Variant &p_variant) const;
-
-	virtual void var_data_encode(DataBuffer &r_db, const NS::VarData &p_vd) const override;
-	virtual void var_data_decode(NS::VarData &p_vd, DataBuffer &p_db) const override;
-	virtual bool var_data_compare(const NS::VarData &p_A, const NS::VarData &p_B) const override;
-
 	virtual NS::NetworkedControllerBase *extract_network_controller(NS::ObjectHandle p_app_object_handle) override;
 	virtual const NS::NetworkedControllerBase *extract_network_controller(NS::ObjectHandle p_app_object_handle) const override;
 

@@ -27,9 +27,11 @@ struct VarData {
 	union {
 		void *ptr = nullptr;
 
-		std::int64_t integer;
-
-		double flt;
+		bool boolean;
+		std::int32_t i32;
+		std::int64_t i64;
+		float f32;
+		double f64;
 
 		struct {
 			double x;
@@ -43,7 +45,14 @@ struct VarData {
 			double y;
 			double z;
 			double w;
-		} row[4];
+		} columns[4];
+
+		struct {
+			double x;
+			double y;
+			double z;
+			double w;
+		} rows[4];
 
 		struct {
 			std::int64_t ix;
