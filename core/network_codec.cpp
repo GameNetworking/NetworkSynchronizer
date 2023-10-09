@@ -40,22 +40,6 @@ void decode_variable(double &val, DataBuffer &p_buffer, const NetworkInterface &
 	val = p_buffer.read_real(DataBuffer::COMPRESSION_LEVEL_0);
 }
 
-void encode_variable(const Vector<Variant> &val, DataBuffer &r_buffer, const NetworkInterface &p_interface) {
-	CRASH_COND(val.size() >= 65000);
-	r_buffer.add_uint(val.size(), DataBuffer::COMPRESSION_LEVEL_2);
-	for (const auto &v : val) {
-		r_buffer.add_variant(v);
-	}
-}
-
-void decode_variable(Vector<Variant> &val, DataBuffer &p_buffer, const NetworkInterface &p_interface) {
-	const int size = p_buffer.read_uint(DataBuffer::COMPRESSION_LEVEL_2);
-	val.resize(size);
-	for (int i = 0; i < size; i++) {
-		val.write[i] = p_buffer.read_variant();
-	}
-}
-
 void encode_variable(const Variant &val, DataBuffer &r_buffer, const NetworkInterface &p_interface) {
 	r_buffer.add_variant(val);
 }
@@ -80,6 +64,14 @@ void decode_variable(Vector<uint8_t> &val, DataBuffer &p_buffer, const NetworkIn
 	for (int i = 0; i < size; i++) {
 		val.write[i] = p_buffer.read_uint(DataBuffer::COMPRESSION_LEVEL_3);
 	}
+}
+
+void encode_variable(const DataBuffer &val, DataBuffer &r_buffer, const NetworkInterface &p_interface) {
+	r_buffer.add(val);
+}
+
+void decode_variable(DataBuffer &val, DataBuffer &p_buffer, const NetworkInterface &p_interface) {
+	p_buffer.read(val);
 }
 
 void encode_variable(const VarData &val, DataBuffer &r_buffer, const NetworkInterface &p_interface) {

@@ -11,7 +11,7 @@ NS::Snapshot::operator String() const {
 		s += "\nNode Data: " + itos(net_node_id);
 		for (int i = 0; i < node_vars[net_node_id].size(); i += 1) {
 			s += "\n|- Variable: ";
-			s += node_vars[net_node_id][i].name;
+			s += node_vars[net_node_id][i].name.c_str();
 			s += " = ";
 			s += String(node_vars[net_node_id][i].value);
 		}
@@ -41,7 +41,7 @@ bool compare_vars(
 			continue;
 		}
 
-		if (s_vars[var_index].name == StringName()) {
+		if (s_vars[var_index].name.empty()) {
 			// This variable was not set, skip the check.
 			continue;
 		}
@@ -49,7 +49,7 @@ bool compare_vars(
 		// Compare.
 		const bool different =
 				// Make sure this variable is set.
-				c_vars[var_index].name == StringName() ||
+				c_vars[var_index].name.empty() ||
 				// Check if the value is different.
 				!scene_synchronizer.compare(
 						s_vars[var_index].value,
@@ -70,21 +70,21 @@ bool compare_vars(
 
 				if (r_differences_info) {
 					r_differences_info->push_back(
-							"[NO REWIND] Difference found on var #" + itos(var_index) + " " + p_synchronizer_node_data->vars[var_index].var.name + " " +
+							"[NO REWIND] Difference found on var #" + itos(var_index) + " " + p_synchronizer_node_data->vars[var_index].var.name.c_str() + " " +
 							"Server value: `" + NS::stringify_fast(s_vars[var_index].value) + "` " +
 							"Client value: `" + NS::stringify_fast(c_vars[var_index].value) + "`.    " +
-							"[Server name: `" + s_vars[var_index].name + "` " +
-							"Client name: `" + c_vars[var_index].name + "`].");
+							"[Server name: `" + s_vars[var_index].name.c_str() + "` " +
+							"Client name: `" + c_vars[var_index].name.c_str() + "`].");
 				}
 			} else {
 				// The vars are different.
 				if (r_differences_info) {
 					r_differences_info->push_back(
-							"Difference found on var #" + itos(var_index) + " " + p_synchronizer_node_data->vars[var_index].var.name + " " +
+							"Difference found on var #" + itos(var_index) + " " + p_synchronizer_node_data->vars[var_index].var.name.c_str() + " " +
 							"Server value: `" + NS::stringify_fast(s_vars[var_index].value) + "` " +
 							"Client value: `" + NS::stringify_fast(c_vars[var_index].value) + "`.    " +
-							"[Server name: `" + s_vars[var_index].name + "` " +
-							"Client name: `" + c_vars[var_index].name + "`].");
+							"[Server name: `" + s_vars[var_index].name.c_str() + "` " +
+							"Client name: `" + c_vars[var_index].name.c_str() + "`].");
 				}
 #ifdef DEBUG_ENABLED
 				is_equal = false;
@@ -100,6 +100,12 @@ bool compare_vars(
 #else
 	return true;
 #endif
+}
+
+NS::Snapshot NS::Snapshot::make_copy(const Snapshot &p_other) {
+	Snapshot s;
+	s.copy(p_other);
+	return s;
 }
 
 void NS::Snapshot::copy(const Snapshot &p_other) {

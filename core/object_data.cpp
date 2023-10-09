@@ -1,23 +1,16 @@
 #include "object_data.h"
 
+#include "modules/network_synchronizer/core/core.h"
 #include "object_data_storage.h"
 
 NS_NAMESPACE_BEGIN
-
-VarDescriptor::VarDescriptor(const StringName &p_name) {
-	var.name = p_name;
-}
 
 VarDescriptor::VarDescriptor(VarId p_id, const StringName &p_name, const Variant &p_val, bool p_skip_rewinding, bool p_enabled) :
 		id(p_id),
 		skip_rewinding(p_skip_rewinding),
 		enabled(p_enabled) {
-	var.name = p_name;
+	var.name = String(p_name).utf8();
 	var.value = p_val.duplicate(true);
-}
-
-bool VarDescriptor::operator==(const VarDescriptor &p_other) const {
-	return var.name == p_other.var.name;
 }
 
 bool VarDescriptor::operator<(const VarDescriptor &p_other) const {
@@ -64,6 +57,16 @@ void ObjectData::set_controller(NetworkedControllerBase *p_controller) {
 
 NetworkedControllerBase *ObjectData::get_controller() const {
 	return controller;
+}
+
+VarId ObjectData::find_variable_id(const std::string &p_var_name) const {
+	for (const auto &v : vars) {
+		if (v.var.name == p_var_name) {
+			return v.id;
+		}
+	}
+
+	return VarId::NONE;
 }
 
 NS_NAMESPACE_END

@@ -40,7 +40,7 @@ void SceneDiff::start_tracking_scene_changes(
 				// value.
 				p_synchronizer->get_synchronizer_manager().get_variable(
 						p_nodes[i]->app_object_handle,
-						String(p_nodes[i]->vars[v].var.name).utf8(),
+						String(p_nodes[i]->vars[v].var.name.c_str()).utf8(),
 						tracking[i][v]);
 			} else {
 				tracking[i][v] = Variant();
@@ -112,7 +112,7 @@ void SceneDiff::stop_tracking_scene_changes(const NS::SceneSynchronizerBase *p_s
 			Variant current_value;
 			p_synchronizer->get_synchronizer_manager().get_variable(
 					nd->app_object_handle,
-					String(nd->vars[v].var.name).utf8(),
+					String(nd->vars[v].var.name.c_str()).utf8(),
 					current_value);
 
 			// Compare the current value with the one taken during the start.

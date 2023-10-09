@@ -19,14 +19,14 @@ void decode_variable(float &val, DataBuffer &r_buffer, const NetworkInterface &p
 void encode_variable(double val, DataBuffer &r_buffer, const NetworkInterface &p_interface);
 void decode_variable(double &val, DataBuffer &p_buffer, const NetworkInterface &p_interface);
 
-void encode_variable(const Vector<Variant> &val, DataBuffer &r_buffer, const NetworkInterface &p_interface);
-void decode_variable(Vector<Variant> &val, DataBuffer &p_buffer, const NetworkInterface &p_interface);
-
 void encode_variable(const Variant &val, DataBuffer &r_buffer, const NetworkInterface &p_interface);
 void decode_variable(Variant &val, DataBuffer &p_buffer, const NetworkInterface &p_interface);
 
 void encode_variable(const Vector<uint8_t> &val, DataBuffer &r_buffer, const NetworkInterface &p_interface);
 void decode_variable(Vector<uint8_t> &val, DataBuffer &p_buffer, const NetworkInterface &p_interface);
+
+void encode_variable(const DataBuffer &val, DataBuffer &r_buffer, const NetworkInterface &p_interface);
+void decode_variable(DataBuffer &val, DataBuffer &p_buffer, const NetworkInterface &p_interface);
 
 void encode_variable(const VarData &val, DataBuffer &r_buffer, const NetworkInterface &p_interface);
 void decode_variable(VarData &val, DataBuffer &p_buffer, const NetworkInterface &p_interface);

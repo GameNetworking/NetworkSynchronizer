@@ -48,7 +48,7 @@ public:
 	/// and it's here that you want to update the node relevancy.
 	virtual void update_nodes_relevancy() {}
 
-	virtual void snapshot_get_custom_data(const NS::SyncGroup *p_group, NS::VarData &r_custom_data) {}
+	virtual bool snapshot_get_custom_data(const NS::SyncGroup *p_group, NS::VarData &r_custom_data) { return false; }
 	virtual void snapshot_set_custom_data(const NS::VarData &r_custom_data) {}
 
 	virtual ObjectHandle fetch_app_object(const std::string &p_object_name) = 0;
@@ -153,7 +153,7 @@ private:
 	class NetworkInterface *network_interface = nullptr;
 	SynchronizerManager *synchronizer_manager = nullptr;
 
-	RpcHandle<const Variant &> rpc_handler_state;
+	RpcHandle<DataBuffer &> rpc_handler_state;
 	RpcHandle<> rpc_handler_notify_need_full_snapshot;
 	RpcHandle<bool> rpc_handler_set_network_enabled;
 	RpcHandle<bool> rpc_handler_notify_peer_status;
@@ -194,7 +194,7 @@ public: // -------------------------------------------------------------- Events
 	Processor<const NS::ObjectData * /*p_object_data*/, int /*p_peer*/, bool /*p_connected*/, bool /*p_enabled*/> event_peer_status_updated;
 	Processor<uint32_t /*p_input_id*/> event_state_validated;
 	Processor<uint32_t /*p_input_id*/, int /*p_index*/, int /*p_count*/> event_rewind_frame_begin;
-	Processor<uint32_t /*p_input_id*/, ObjectHandle /*p_app_object_handle*/, const Vector<StringName> & /*p_var_names*/, const Vector<Variant> & /*p_client_values*/, const Vector<Variant> & /*p_server_values*/> event_desync_detected;
+	Processor<uint32_t /*p_input_id*/, ObjectHandle /*p_app_object_handle*/, const Vector<std::string> & /*p_var_names*/, const Vector<Variant> & /*p_client_values*/, const Vector<Variant> & /*p_server_values*/> event_desync_detected;
 
 private:
 	// This is private so this class can be created only from
@@ -248,7 +248,7 @@ public:
 	bool is_variable_registered(ObjectLocalId p_id, const StringName &p_variable) const;
 
 public: // ---------------------------------------------------------------- RPCs
-	void rpc_receive_state(const Variant &p_snapshot);
+	void rpc_receive_state(DataBuffer &p_snapshot);
 	void rpc__notify_need_full_snapshot();
 	void rpc_set_network_enabled(bool p_enabled);
 	void rpc_notify_peer_status(bool p_enabled);
@@ -482,8 +482,6 @@ class ServerSynchronizer : public Synchronizer {
 	enum SnapshotGenerationMode {
 		/// The shanpshot will include The NodeId or NodePath and allthe changed variables.
 		SNAPSHOT_GENERATION_MODE_NORMAL,
-		/// The snapshot will include The NodePath only in case it was unknown before.
-		SNAPSHOT_GENERATION_MODE_NODE_PATH_ONLY,
 		/// The snapshot will include The NodePath only.
 		SNAPSHOT_GENERATION_MODE_FORCE_NODE_PATH_ONLY,
 		/// The snapshot will contains everything no matter what.
@@ -623,7 +621,7 @@ public:
 	void signal_end_sync_changed_variables_events();
 	virtual void on_controller_reset(NS::ObjectData *p_object_data) override;
 
-	void receive_snapshot(Variant p_snapshot);
+	void receive_snapshot(DataBuffer &p_snapshot);
 	bool parse_sync_data(
 			DataBuffer &p_snapshot,
 			void *p_user_pointer,
@@ -674,7 +672,7 @@ private:
 			PlayerController *p_player_controller);
 
 	void process_paused_controller_recovery(real_t p_delta);
-	bool parse_snapshot(Variant p_snapshot);
+	bool parse_snapshot(DataBuffer &p_snapshot);
 
 	void notify_server_full_snapshot_is_needed();
 

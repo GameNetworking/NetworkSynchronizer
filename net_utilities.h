@@ -298,8 +298,8 @@ struct SyncGroup {
 public:
 	struct Change {
 		bool unknown = false;
-		RBSet<StringName> uknown_vars;
-		RBSet<StringName> vars;
+		RBSet<std::string> uknown_vars;
+		RBSet<std::string> vars;
 	};
 
 	struct RealtimeNodeInfo {
@@ -374,8 +374,8 @@ public:
 	void replace_nodes(LocalVector<RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<DeferredNodeInfo> &&p_new_deferred_nodes);
 	void remove_all_nodes();
 
-	void notify_new_variable(struct ObjectData *p_object_data, const StringName &p_var_name);
-	void notify_variable_changed(struct ObjectData *p_object_data, const StringName &p_var_name);
+	void notify_new_variable(struct ObjectData *p_object_data, const std::string &p_var_name);
+	void notify_variable_changed(struct ObjectData *p_object_data, const std::string &p_var_name);
 
 	void set_deferred_update_rate(struct ObjectData *p_object_data, real_t p_update_rate);
 	real_t get_deferred_update_rate(const struct ObjectData *p_object_data) const;
