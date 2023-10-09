@@ -1238,7 +1238,7 @@ bool SceneSynchronizerBase::compare(const Variant &p_first, const Variant &p_sec
 }
 
 bool SceneSynchronizerBase::compare(const VarData &p_first, const VarData &p_second) const {
-	return synchronizer_manager->var_data_compare(p_first, p_second);
+	return network_interface->compare(p_first, p_second);
 }
 
 bool SceneSynchronizerBase::compare(const Vector2 &p_first, const Vector2 &p_second, real_t p_tolerance) {
@@ -2036,7 +2036,7 @@ void ServerSynchronizer::generate_snapshot(
 	NS::VarData vd;
 	if (scene_synchronizer->synchronizer_manager->snapshot_get_custom_data(&p_group, vd)) {
 		r_snapshot_db.add(true);
-		scene_synchronizer->synchronizer_manager->var_data_encode(r_snapshot_db, vd);
+		scene_synchronizer->network_interface->encode(r_snapshot_db, vd);
 	} else {
 		r_snapshot_db.add(false);
 	}
@@ -2898,7 +2898,7 @@ bool ClientSynchronizer::parse_sync_data(
 		p_snapshot.read(has_custom_data);
 		if (has_custom_data) {
 			VarData vd;
-			scene_synchronizer->synchronizer_manager->var_data_decode(vd, p_snapshot);
+			scene_synchronizer->network_interface->decode(vd, p_snapshot);
 			p_custom_data_parse(p_user_pointer, std::move(vd));
 		}
 	}

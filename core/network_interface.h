@@ -86,6 +86,7 @@ public: // ---------------------------------------------------------------- APIs
 
 	virtual void encode(DataBuffer &r_buffer, const VarData &p_val) const = 0;
 	virtual void decode(VarData &r_val, DataBuffer &p_buffer) const = 0;
+	virtual bool compare(const VarData &p_A, const VarData &p_B) const { return true; }
 
 	/// Returns the peer that remotelly called the currently executed rpc function.
 	/// Should be called always from an rpc function.

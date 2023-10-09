@@ -55,6 +55,15 @@ public: // ---------------------------------------------------------------- APIs
 	virtual void encode(DataBuffer &r_buffer, const NS::VarData &p_val) const override;
 	virtual void decode(NS::VarData &r_val, DataBuffer &p_buffer) const override;
 
+	static void convert(Variant &r_variant, const NS::VarData &p_vd);
+	static void convert(NS::VarData &r_vd, const Variant &p_variant);
+	virtual bool compare(const NS::VarData &p_A, const NS::VarData &p_B) const override;
+	static bool compare_static(const NS::VarData &p_A, const NS::VarData &p_B);
+
 	virtual void rpc_send(int p_peer_recipient, bool p_reliable, DataBuffer &&p_buffer) override;
 	void gd_rpc_receive(const Vector<uint8_t> &p_args);
+};
+
+namespace NS_Test {
+void test_var_data_conversin();
 };

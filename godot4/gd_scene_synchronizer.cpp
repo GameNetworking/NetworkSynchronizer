@@ -334,23 +334,6 @@ bool GdSceneSynchronizer::get_variable(NS::ObjectHandle p_app_object_handle, con
 	return valid;
 }
 
-void GdSceneSynchronizer::convert(Variant &r_variant, const NS::VarData &p_vd) const {
-	CRASH_NOW();
-}
-
-void GdSceneSynchronizer::convert(NS::VarData &p_vd, const Variant &p_variant) const {
-	CRASH_NOW();
-}
-
-void GdSceneSynchronizer::var_data_encode(DataBuffer &r_db, const NS::VarData &p_vd) const {
-}
-
-void GdSceneSynchronizer::var_data_decode(NS::VarData &p_vd, DataBuffer &p_db) const {
-}
-
-bool GdSceneSynchronizer::var_data_compare(const NS::VarData &p_A, const NS::VarData &p_B) const {
-	return true;
-}
 
 NS::NetworkedControllerBase *GdSceneSynchronizer::extract_network_controller(NS::ObjectHandle p_app_object_handle) {
 	if (GdNetworkedController *c = Object::cast_to<GdNetworkedController>(scene_synchronizer.from_handle(p_app_object_handle))) {
