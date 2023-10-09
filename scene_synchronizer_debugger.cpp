@@ -553,7 +553,7 @@ void SceneSynchronizerDebugger::databuffer_operation_end_record() {
 #endif
 }
 
-void SceneSynchronizerDebugger::databuffer_write(uint32_t p_data_type, uint32_t p_compression_level, Variant p_variable) {
+void SceneSynchronizerDebugger::databuffer_write(uint32_t p_data_type, uint32_t p_compression_level, int p_new_bit_offset, const char *val_string) {
 #ifdef DEBUG_ENABLED
 	if (!dump_enabled) {
 		return;
@@ -563,17 +563,15 @@ void SceneSynchronizerDebugger::databuffer_write(uint32_t p_data_type, uint32_t 
 		return;
 	}
 
-	const String val_string = NS::stringify_fast(p_variable);
-
 	frame_dump__data_buffer_writes.push_back(val_string);
 
-	const String operation = "[WRITE]      [" + compression_level_to_string(p_compression_level) + "] [" + data_type_to_string(p_data_type) + "] " + val_string;
+	const String operation = "[WRITE]      [" + compression_level_to_string(p_compression_level) + "] [" + data_type_to_string(p_data_type) + "] [new offset: " + itos(p_new_bit_offset) + "] " + val_string;
 
 	add_node_message(frame_dump__data_buffer_name, operation);
 #endif
 }
 
-void SceneSynchronizerDebugger::databuffer_read(uint32_t p_data_type, uint32_t p_compression_level, Variant p_variable) {
+void SceneSynchronizerDebugger::databuffer_read(uint32_t p_data_type, uint32_t p_compression_level, int p_new_bit_offset, const char *val_string) {
 #ifdef DEBUG_ENABLED
 	if (!dump_enabled) {
 		return;
@@ -583,11 +581,9 @@ void SceneSynchronizerDebugger::databuffer_read(uint32_t p_data_type, uint32_t p
 		return;
 	}
 
-	const String val_string = NS::stringify_fast(p_variable);
-
 	frame_dump__data_buffer_reads.push_back(val_string);
 
-	const String operation = "[READ]     [" + compression_level_to_string(p_compression_level) + "] [" + data_type_to_string(p_data_type) + "] " + val_string;
+	const String operation = "[READ]     [" + compression_level_to_string(p_compression_level) + "] [" + data_type_to_string(p_data_type) + "] [new offset: " + itos(p_new_bit_offset) + "] " + val_string;
 
 	add_node_message(frame_dump__data_buffer_name, operation);
 #endif

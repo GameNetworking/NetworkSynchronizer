@@ -10,7 +10,7 @@
 NS_NAMESPACE_BEGIN
 
 struct NameAndVar {
-	StringName name;
+	std::string name;
 	Variant value;
 };
 
@@ -22,10 +22,8 @@ struct VarDescriptor {
 	std::vector<struct ChangesListener *> changes_listeners;
 
 	VarDescriptor() = default;
-	VarDescriptor(const StringName &p_name);
 	VarDescriptor(VarId p_id, const StringName &p_name, const Variant &p_val, bool p_skip_rewinding, bool p_enabled);
 
-	bool operator==(const VarDescriptor &p_other) const;
 	bool operator<(const VarDescriptor &p_other) const;
 };
 
@@ -75,6 +73,8 @@ public:
 
 	void set_controller(class NetworkedControllerBase *p_controller);
 	class NetworkedControllerBase *get_controller() const;
+
+	VarId find_variable_id(const std::string &p_var_name) const;
 };
 
 NS_NAMESPACE_END

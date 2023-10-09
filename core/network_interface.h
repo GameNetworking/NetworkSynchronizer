@@ -121,7 +121,8 @@ public: // ---------------------------------------------------------------- APIs
 	void rpc_receive(int p_sender_peer, DataBuffer &p_db) {
 		rpc_last_sender = p_sender_peer;
 		p_db.begin_read();
-		const uint8_t rpc_id = p_db.read_int(DataBuffer::COMPRESSION_LEVEL_3);
+		std::uint8_t rpc_id;
+		p_db.read(rpc_id);
 		rpcs_info[rpc_id].func(p_db, *this);
 	}
 
@@ -164,7 +165,7 @@ void RpcHandle<ARGs...>::rpc(NetworkInterface &p_interface, int p_peer_id, ARGs.
 	db.begin_write(0);
 
 	// Add the rpc id.
-	db.add_int(index, DataBuffer::COMPRESSION_LEVEL_3);
+	db.add(index);
 
 	// Encode the properties into a DataBuffer.
 	encode_variables<0>(p_interface, db, p_args...);

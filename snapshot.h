@@ -22,6 +22,7 @@ public:
 	operator String() const;
 
 	/// Copy the given snapshot.
+	static Snapshot make_copy(const Snapshot &p_other);
 	void copy(const Snapshot &p_other);
 
 	static bool compare(

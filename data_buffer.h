@@ -197,6 +197,9 @@ public:
 	void add(const std::string &p_string);
 	void read(std::string &r_out);
 
+	void add(const DataBuffer &p_db);
+	void read(DataBuffer &r_db);
+
 	// -------------------------------------------------- Specific serialization
 
 	/// Add a boolean to the buffer.

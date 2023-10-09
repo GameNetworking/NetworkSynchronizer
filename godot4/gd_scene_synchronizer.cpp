@@ -4,6 +4,7 @@
 #include "core/string/string_name.h"
 #include "modules/network_synchronizer/core/core.h"
 #include "modules/network_synchronizer/core/processor.h"
+#include "modules/network_synchronizer/data_buffer.h"
 #include "modules/network_synchronizer/godot4/gd_network_interface.h"
 #include "modules/network_synchronizer/godot4/gd_networked_controller.h"
 #include "modules/network_synchronizer/net_utilities.h"
@@ -164,8 +165,12 @@ GdSceneSynchronizer::GdSceneSynchronizer() :
 			});
 
 	event_handler_desync_detected =
-			scene_synchronizer.event_desync_detected.bind([this](uint32_t p_input_id, NS::ObjectHandle p_app_object, const Vector<StringName> &p_var_names, const Vector<Variant> &p_client_values, const Vector<Variant> &p_server_values) -> void {
-				emit_signal("desync_detected", p_input_id, GdSceneSynchronizer::SyncClass::from_handle(p_app_object), p_var_names, p_client_values, p_server_values);
+			scene_synchronizer.event_desync_detected.bind([this](uint32_t p_input_id, NS::ObjectHandle p_app_object, const Vector<std::string> &p_var_names, const Vector<Variant> &p_client_values, const Vector<Variant> &p_server_values) -> void {
+				Vector<String> var_names;
+				for (auto n : p_var_names) {
+					var_names.push_back(String(n.c_str()));
+				}
+				emit_signal("desync_detected", p_input_id, GdSceneSynchronizer::SyncClass::from_handle(p_app_object), var_names, p_client_values, p_server_values);
 			});
 }
 
@@ -602,8 +607,11 @@ Variant GdSceneSynchronizer::pop_scene_changes(Object *p_diff_handle) const {
 	return scene_synchronizer.pop_scene_changes(p_diff_handle);
 }
 
-void GdSceneSynchronizer::apply_scene_changes(const Variant &p_sync_data) {
-	scene_synchronizer.apply_scene_changes(p_sync_data);
+void GdSceneSynchronizer::apply_scene_changes(Object *p_sync_data) {
+	DataBuffer *db = Object::cast_to<DataBuffer>(p_sync_data);
+	if (db) {
+		scene_synchronizer.apply_scene_changes(*db);
+	}
 }
 
 bool GdSceneSynchronizer::is_recovered() const {

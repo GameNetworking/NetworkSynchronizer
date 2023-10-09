@@ -218,7 +218,7 @@ void NS::SyncGroup::remove_all_nodes() {
 	}
 }
 
-void NS::SyncGroup::notify_new_variable(ObjectData *p_object_data, const StringName &p_var_name) {
+void NS::SyncGroup::notify_new_variable(ObjectData *p_object_data, const std::string &p_var_name) {
 	int index = realtime_sync_nodes.find(p_object_data);
 	if (index >= 0) {
 		realtime_sync_nodes[index].change.vars.insert(p_var_name);
@@ -226,7 +226,7 @@ void NS::SyncGroup::notify_new_variable(ObjectData *p_object_data, const StringN
 	}
 }
 
-void NS::SyncGroup::notify_variable_changed(ObjectData *p_object_data, const StringName &p_var_name) {
+void NS::SyncGroup::notify_variable_changed(ObjectData *p_object_data, const std::string &p_var_name) {
 	int index = realtime_sync_nodes.find(p_object_data);
 	if (index >= 0) {
 		realtime_sync_nodes[index].change.vars.insert(p_var_name);

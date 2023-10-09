@@ -155,7 +155,7 @@ public: // ---------------------------------------------------------------- APIs
 	void start_tracking_scene_changes(Object *p_diff_handle) const;
 	void stop_tracking_scene_changes(Object *p_diff_handle) const;
 	Variant pop_scene_changes(Object *p_diff_handle) const;
-	void apply_scene_changes(const Variant &p_sync_data);
+	void apply_scene_changes(Object *p_sync_data);
 
 	bool is_recovered() const;
 	bool is_resetted() const;
