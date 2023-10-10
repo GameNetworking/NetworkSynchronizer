@@ -165,12 +165,20 @@ GdSceneSynchronizer::GdSceneSynchronizer() :
 			});
 
 	event_handler_desync_detected =
-			scene_synchronizer.event_desync_detected.bind([this](uint32_t p_input_id, NS::ObjectHandle p_app_object, const Vector<std::string> &p_var_names, const Vector<Variant> &p_client_values, const Vector<Variant> &p_server_values) -> void {
+			scene_synchronizer.event_desync_detected.bind([this](uint32_t p_input_id, NS::ObjectHandle p_app_object, const std::vector<std::string> &p_var_names, const std::vector<Variant> &p_client_values, const std::vector<Variant> &p_server_values) -> void {
 				Vector<String> var_names;
+				Vector<Variant> client_values;
+				Vector<Variant> server_values;
 				for (auto n : p_var_names) {
 					var_names.push_back(String(n.c_str()));
 				}
-				emit_signal("desync_detected", p_input_id, GdSceneSynchronizer::SyncClass::from_handle(p_app_object), var_names, p_client_values, p_server_values);
+				for (auto v : p_client_values) {
+					client_values.push_back(v);
+				}
+				for (auto v : p_server_values) {
+					server_values.push_back(v);
+				}
+				emit_signal("desync_detected", p_input_id, GdSceneSynchronizer::SyncClass::from_handle(p_app_object), var_names, client_values, server_values);
 			});
 }
 
@@ -334,7 +342,6 @@ bool GdSceneSynchronizer::get_variable(NS::ObjectHandle p_app_object_handle, con
 	return valid;
 }
 
-
 NS::NetworkedControllerBase *GdSceneSynchronizer::extract_network_controller(NS::ObjectHandle p_app_object_handle) {
 	if (GdNetworkedController *c = Object::cast_to<GdNetworkedController>(scene_synchronizer.from_handle(p_app_object_handle))) {
 		return c->get_networked_controller();
@@ -366,11 +373,11 @@ real_t GdSceneSynchronizer::get_server_notify_state_interval() const {
 }
 
 void GdSceneSynchronizer::set_comparison_float_tolerance(real_t p_tolerance) {
-	scene_synchronizer.set_comparison_float_tolerance(p_tolerance);
+	comparison_float_tolerance = p_tolerance;
 }
 
 real_t GdSceneSynchronizer::get_comparison_float_tolerance() const {
-	return scene_synchronizer.get_comparison_float_tolerance();
+	return comparison_float_tolerance;
 }
 
 void GdSceneSynchronizer::set_nodes_relevancy_update_time(real_t p_time) {

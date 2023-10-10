@@ -116,7 +116,7 @@ void SceneDiff::stop_tracking_scene_changes(const NS::SceneSynchronizerBase *p_s
 					current_value);
 
 			// Compare the current value with the one taken during the start.
-			if (p_synchronizer->compare(
+			if (p_synchronizer->get_network_interface().compare(
 						tracking[i.id][v],
 						current_value) == false) {
 				diff[i.id][v].is_different = true;

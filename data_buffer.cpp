@@ -34,11 +34,13 @@
 
 #include "data_buffer.h"
 
+#include "core/error/error_macros.h"
 #include "core/io/marshalls.h"
 #include "core/math/vector2.h"
 #include "core/variant/variant.h"
 #include "scene_synchronizer_debugger.h"
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 #include <string>
 #include <utility>
@@ -927,12 +929,15 @@ Variant DataBuffer::read_variant() {
 }
 
 void DataBuffer::add_data_buffer(const DataBuffer &p_db) {
-	const int other_db_bit_size = p_db.metadata_size + p_db.bit_size;
-	CRASH_COND_MSG(other_db_bit_size > 65535, "DataBuffer can't add DataBuffer bigger than `65535` bits at the moment. [If this feature is needed ask for it.]");
+	const std::uint32_t other_db_bit_size = p_db.metadata_size + p_db.bit_size;
+	CRASH_COND_MSG(other_db_bit_size > std::numeric_limits<std::uint32_t>::max(), "DataBuffer can't add DataBuffer bigger than `" + itos(std::numeric_limits<std::uint32_t>::max()) + "` bits at the moment. [If this feature is needed ask for it.]");
 
-	const std::uint8_t *ptr = p_db.buffer.get_bytes().ptr();
-	add_uint(other_db_bit_size, COMPRESSION_LEVEL_2);
+	const bool using_compression_lvl_2 = other_db_bit_size < std::numeric_limits<std::uint16_t>::max();
+	add(using_compression_lvl_2);
+	add_uint(other_db_bit_size, using_compression_lvl_2 ? COMPRESSION_LEVEL_2 : COMPRESSION_LEVEL_1);
+
 	make_room_pad_to_next_byte();
+	const std::uint8_t *ptr = p_db.buffer.get_bytes().ptr();
 	add_bits(ptr, other_db_bit_size);
 }
 
@@ -940,9 +945,15 @@ void DataBuffer::read_data_buffer(DataBuffer &r_db) {
 	ERR_FAIL_COND(!is_reading);
 	CRASH_COND(r_db.is_reading);
 
-	const int other_db_bit_size = read_uint(COMPRESSION_LEVEL_2);
+	bool using_compression_lvl_2 = false;
+	read(using_compression_lvl_2);
+	ERR_FAIL_COND(is_buffer_failed());
+	const int other_db_bit_size = read_uint(using_compression_lvl_2 ? COMPRESSION_LEVEL_2 : COMPRESSION_LEVEL_1);
+
 	pad_to_next_byte();
 	r_db.add_bits(&(buffer.get_bytes()[bit_offset / 8]), other_db_bit_size);
+
+	bit_offset += other_db_bit_size;
 }
 
 void DataBuffer::add_bits(const uint8_t *p_data, int p_bit_count) {

@@ -6,18 +6,6 @@
 
 NS_NAMESPACE_BEGIN
 
-class Buffer {
-	std::uint32_t size;
-
-public:
-	std::uint8_t *data;
-
-	Buffer(std::uint32_t p_size);
-	~Buffer();
-
-	std::uint32_t get_size() const { return size; }
-};
-
 // VarData is a struct that olds the value of a variable.
 struct VarData {
 	/// The type of the data, defined by the user.
@@ -63,7 +51,7 @@ struct VarData {
 	} data;
 
 	// Eventually shared buffer across many `VarData`.
-	std::shared_ptr<const Buffer> shared_buffer;
+	std::shared_ptr<void> shared_buffer;
 
 public:
 	VarData() = default;

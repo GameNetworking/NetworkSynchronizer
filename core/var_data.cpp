@@ -5,15 +5,6 @@
 
 NS_NAMESPACE_BEGIN
 
-Buffer::Buffer(std::uint32_t p_size) {
-	size = p_size;
-	data = new std::uint8_t(size);
-}
-
-Buffer::~Buffer() {
-	delete[] data;
-}
-
 VarData::VarData(double x, double y, double z, double w) {
 	data.x = x;
 	data.y = y;
@@ -22,16 +13,19 @@ VarData::VarData(double x, double y, double z, double w) {
 }
 
 VarData::VarData(VarData &&p_other) :
+		type(std::move(p_other.type)),
 		data(std::move(p_other.data)),
 		shared_buffer(std::move(p_other.shared_buffer)) {}
 
 VarData &VarData::operator=(VarData &&p_other) {
+	type = std::move(p_other.type);
 	data = std::move(p_other.data);
 	shared_buffer = std::move(p_other.shared_buffer);
 	return *this;
 }
 
 void VarData::copy(const VarData &p_other) {
+	type = p_other.type;
 	data = p_other.data;
 	shared_buffer = p_other.shared_buffer;
 }
