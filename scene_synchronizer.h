@@ -154,9 +154,9 @@ private:
 	RpcHandle<> rpc_handler_notify_need_full_snapshot;
 	RpcHandle<bool> rpc_handler_set_network_enabled;
 	RpcHandle<bool> rpc_handler_notify_peer_status;
-	RpcHandle<const Vector<uint8_t> &> rpc_handler_deferred_sync_data;
+	RpcHandle<const Vector<uint8_t> &> rpc_handler_trickled_sync_data;
 
-	int max_deferred_nodes_per_update = 30;
+	int max_trickled_nodes_per_update = 30;
 	real_t server_notify_state_interval = 1.0;
 	/// Can be 0.0 to update the relevancy each frame.
 	real_t nodes_relevancy_update_time = 0.5;
@@ -229,8 +229,8 @@ public:
 		return *synchronizer_manager;
 	}
 
-	void set_max_deferred_nodes_per_update(int p_rate);
-	int get_max_deferred_nodes_per_update() const;
+	void set_max_trickled_nodes_per_update(int p_rate);
+	int get_max_trickled_nodes_per_update() const;
 
 	void set_server_notify_state_interval(real_t p_interval);
 	real_t get_server_notify_state_interval() const;
@@ -245,7 +245,7 @@ public: // ---------------------------------------------------------------- RPCs
 	void rpc__notify_need_full_snapshot();
 	void rpc_set_network_enabled(bool p_enabled);
 	void rpc_notify_peer_status(bool p_enabled);
-	void rpc_deferred_sync_data(const Vector<uint8_t> &p_data);
+	void rpc_trickled_sync_data(const Vector<uint8_t> &p_data);
 
 public: // ---------------------------------------------------------------- APIs
 	/// Register a new node and returns its `NodeData`.
@@ -288,10 +288,10 @@ public: // ---------------------------------------------------------------- APIs
 	NS::PHandler register_process(ObjectLocalId p_id, ProcessPhase p_phase, std::function<void(float)> p_func);
 	void unregister_process(ObjectLocalId p_id, ProcessPhase p_phase, NS::PHandler p_func_handler);
 
-	/// Setup the deferred sync method for this specific node.
-	/// The deferred-sync is different from the realtime-sync because the data
+	/// Setup the trickled sync method for this specific node.
+	/// The trickled-sync is different from the realtime-sync because the data
 	/// is streamed and not simulated.
-	void setup_deferred_sync(ObjectLocalId p_id, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func);
+	void setup_trickled_sync(ObjectLocalId p_id, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func);
 
 	/// Creates a realtime sync group containing a list of nodes.
 	/// The Peers listening to this group will receive the updates only
@@ -304,18 +304,18 @@ public: // ---------------------------------------------------------------- APIs
 	void sync_group_remove_node_by_id(ObjectNetId p_node_id, SyncGroupId p_group_id);
 	void sync_group_remove_node(NS::ObjectData *p_object_data, SyncGroupId p_group_id);
 
-	/// Use `std::move()` to transfer `p_new_realtime_nodes` and `p_new_deferred_nodes`.
-	void sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::DeferredNodeInfo> &&p_new_deferred_nodes);
+	/// Use `std::move()` to transfer `p_new_realtime_nodes` and `p_new_trickled_nodes`.
+	void sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledNodeInfo> &&p_new_trickled_nodes);
 
 	void sync_group_remove_all_nodes(SyncGroupId p_group_id);
 	void sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id);
 	SyncGroupId sync_group_get_peer_group(int p_peer_id) const;
 	const LocalVector<int> *sync_group_get_peers(SyncGroupId p_group_id) const;
 
-	void sync_group_set_deferred_update_rate(ObjectLocalId p_node_id, SyncGroupId p_group_id, real_t p_update_rate);
-	void sync_group_set_deferred_update_rate(ObjectNetId p_node_id, SyncGroupId p_group_id, real_t p_update_rate);
-	real_t sync_group_get_deferred_update_rate(ObjectLocalId p_node_id, SyncGroupId p_group_id) const;
-	real_t sync_group_get_deferred_update_rate(ObjectNetId p_node_id, SyncGroupId p_group_id) const;
+	void sync_group_set_trickled_update_rate(ObjectLocalId p_node_id, SyncGroupId p_group_id, real_t p_update_rate);
+	void sync_group_set_trickled_update_rate(ObjectNetId p_node_id, SyncGroupId p_group_id, real_t p_update_rate);
+	real_t sync_group_get_trickled_update_rate(ObjectLocalId p_node_id, SyncGroupId p_group_id) const;
+	real_t sync_group_get_trickled_update_rate(ObjectNetId p_node_id, SyncGroupId p_group_id) const;
 
 	void sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_ptr);
 	uint64_t sync_group_get_user_data(SyncGroupId p_group_id) const;
@@ -480,13 +480,13 @@ public:
 	const NS::SyncGroup *sync_group_get(SyncGroupId p_group_id) const;
 	void sync_group_add_node(NS::ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime);
 	void sync_group_remove_node(NS::ObjectData *p_object_data, SyncGroupId p_group_id);
-	void sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::DeferredNodeInfo> &&p_new_deferred_nodes);
+	void sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledNodeInfo> &&p_new_trickled_nodes);
 	void sync_group_remove_all_nodes(SyncGroupId p_group_id);
 	void sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id);
 	const LocalVector<int> *sync_group_get_peers(SyncGroupId p_group_id) const;
 
-	void sync_group_set_deferred_update_rate(NS::ObjectData *p_object_data, SyncGroupId p_group_id, real_t p_update_rate);
-	real_t sync_group_get_deferred_update_rate(const NS::ObjectData *p_object_data, SyncGroupId p_group_id) const;
+	void sync_group_set_trickled_update_rate(NS::ObjectData *p_object_data, SyncGroupId p_group_id, real_t p_update_rate);
+	real_t sync_group_get_trickled_update_rate(const NS::ObjectData *p_object_data, SyncGroupId p_group_id) const;
 
 	void sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_ptr);
 	uint64_t sync_group_get_user_data(SyncGroupId p_group_id) const;
@@ -506,7 +506,7 @@ public:
 			const NS::SyncGroup::Change &p_change,
 			DataBuffer &r_snapshot_db) const;
 
-	void process_deferred_sync(real_t p_delta);
+	void process_trickled_sync(real_t p_delta);
 };
 
 class ClientSynchronizer : public Synchronizer {
@@ -540,7 +540,7 @@ class ClientSynchronizer : public Synchronizer {
 
 	RBSet<EndSyncEvent> sync_end_events;
 
-	struct DeferredSyncInterpolationData {
+	struct TrickledSyncInterpolationData {
 		NS::ObjectData *nd = nullptr;
 		DataBuffer past_epoch_buffer;
 		DataBuffer future_epoch_buffer;
@@ -550,8 +550,8 @@ class ClientSynchronizer : public Synchronizer {
 		real_t alpha_advacing_per_epoch = 1.0;
 		real_t alpha = 0.0;
 
-		DeferredSyncInterpolationData() = default;
-		DeferredSyncInterpolationData(const DeferredSyncInterpolationData &p_dss) :
+		TrickledSyncInterpolationData() = default;
+		TrickledSyncInterpolationData(const TrickledSyncInterpolationData &p_dss) :
 				nd(p_dss.nd),
 				past_epoch(p_dss.past_epoch),
 				future_epoch(p_dss.future_epoch),
@@ -560,7 +560,7 @@ class ClientSynchronizer : public Synchronizer {
 			past_epoch_buffer.copy(p_dss.past_epoch_buffer);
 			future_epoch_buffer.copy(p_dss.future_epoch_buffer);
 		}
-		DeferredSyncInterpolationData &operator=(const DeferredSyncInterpolationData &p_dss) {
+		TrickledSyncInterpolationData &operator=(const TrickledSyncInterpolationData &p_dss) {
 			nd = p_dss.nd;
 			past_epoch_buffer.copy(p_dss.past_epoch_buffer);
 			future_epoch_buffer.copy(p_dss.future_epoch_buffer);
@@ -571,19 +571,19 @@ class ClientSynchronizer : public Synchronizer {
 			return *this;
 		}
 
-		DeferredSyncInterpolationData(
+		TrickledSyncInterpolationData(
 				NS::ObjectData *p_nd) :
 				nd(p_nd) {}
-		DeferredSyncInterpolationData(
+		TrickledSyncInterpolationData(
 				NS::ObjectData *p_nd,
 				DataBuffer p_past_epoch_buffer,
 				DataBuffer p_future_epoch_buffer) :
 				nd(p_nd),
 				past_epoch_buffer(p_past_epoch_buffer),
 				future_epoch_buffer(p_future_epoch_buffer) {}
-		bool operator==(const DeferredSyncInterpolationData &o) const { return nd == o.nd; }
+		bool operator==(const TrickledSyncInterpolationData &o) const { return nd == o.nd; }
 	};
-	LocalVector<DeferredSyncInterpolationData> deferred_sync_array;
+	LocalVector<TrickledSyncInterpolationData> trickled_sync_array;
 
 public:
 	ClientSynchronizer(SceneSynchronizerBase *p_node);
@@ -610,10 +610,10 @@ public:
 
 	void set_enabled(bool p_enabled);
 
-	void receive_deferred_sync_data(const Vector<uint8_t> &p_data);
-	void process_received_deferred_sync_data(real_t p_delta);
+	void receive_trickled_sync_data(const Vector<uint8_t> &p_data);
+	void process_received_trickled_sync_data(real_t p_delta);
 
-	void remove_node_from_deferred_sync(NS::ObjectData *p_object_data);
+	void remove_node_from_trickled_sync(NS::ObjectData *p_object_data);
 
 private:
 	/// Store node data organized per controller.

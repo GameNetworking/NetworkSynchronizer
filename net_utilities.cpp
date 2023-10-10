@@ -51,20 +51,20 @@ bool NS::SyncGroup::is_realtime_node_list_changed() const {
 	return realtime_sync_nodes_list_changed;
 }
 
-bool NS::SyncGroup::is_deferred_node_list_changed() const {
-	return deferred_sync_nodes_list_changed;
+bool NS::SyncGroup::is_trickled_node_list_changed() const {
+	return trickled_sync_nodes_list_changed;
 }
 
 const LocalVector<NS::SyncGroup::RealtimeNodeInfo> &NS::SyncGroup::get_realtime_sync_nodes() const {
 	return realtime_sync_nodes;
 }
 
-const LocalVector<NS::SyncGroup::DeferredNodeInfo> &NS::SyncGroup::get_deferred_sync_nodes() const {
-	return deferred_sync_nodes;
+const LocalVector<NS::SyncGroup::TrickledNodeInfo> &NS::SyncGroup::get_trickled_sync_nodes() const {
+	return trickled_sync_nodes;
 }
 
-LocalVector<NS::SyncGroup::DeferredNodeInfo> &NS::SyncGroup::get_deferred_sync_nodes() {
-	return deferred_sync_nodes;
+LocalVector<NS::SyncGroup::TrickledNodeInfo> &NS::SyncGroup::get_trickled_sync_nodes() {
+	return trickled_sync_nodes;
 }
 
 void NS::SyncGroup::mark_changes_as_notified() {
@@ -73,20 +73,20 @@ void NS::SyncGroup::mark_changes_as_notified() {
 		realtime_sync_nodes[i].change.uknown_vars.clear();
 		realtime_sync_nodes[i].change.vars.clear();
 	}
-	for (int i = 0; i < int(deferred_sync_nodes.size()); ++i) {
-		deferred_sync_nodes[i]._unknown = false;
+	for (int i = 0; i < int(trickled_sync_nodes.size()); ++i) {
+		trickled_sync_nodes[i]._unknown = false;
 	}
 	realtime_sync_nodes_list_changed = false;
-	deferred_sync_nodes_list_changed = false;
+	trickled_sync_nodes_list_changed = false;
 }
 
 uint32_t NS::SyncGroup::add_new_node(ObjectData *p_object_data, bool p_realtime) {
 	if (p_realtime) {
-		// Make sure the node is not contained into the deferred sync.
-		const int dsn_index = deferred_sync_nodes.find(p_object_data);
+		// Make sure the node is not contained into the trickled sync.
+		const int dsn_index = trickled_sync_nodes.find(p_object_data);
 		if (dsn_index >= 0) {
-			deferred_sync_nodes.remove_at_unordered(dsn_index);
-			deferred_sync_nodes_list_changed = true;
+			trickled_sync_nodes.remove_at_unordered(dsn_index);
+			trickled_sync_nodes_list_changed = true;
 		}
 
 		// Add it into the realtime sync nodes
@@ -115,14 +115,14 @@ uint32_t NS::SyncGroup::add_new_node(ObjectData *p_object_data, bool p_realtime)
 			realtime_sync_nodes_list_changed = true;
 		}
 
-		// Add it into the deferred sync nodes
-		int index = deferred_sync_nodes.find(p_object_data);
+		// Add it into the trickled sync nodes
+		int index = trickled_sync_nodes.find(p_object_data);
 
 		if (index <= -1) {
-			index = deferred_sync_nodes.size();
-			deferred_sync_nodes.push_back(p_object_data);
-			deferred_sync_nodes[index]._unknown = true;
-			deferred_sync_nodes_list_changed = true;
+			index = trickled_sync_nodes.size();
+			trickled_sync_nodes.push_back(p_object_data);
+			trickled_sync_nodes[index]._unknown = true;
+			trickled_sync_nodes_list_changed = true;
 		}
 
 		return index;
@@ -135,16 +135,16 @@ void NS::SyncGroup::remove_node(ObjectData *p_object_data) {
 		if (index >= 0) {
 			realtime_sync_nodes.remove_at_unordered(index);
 			realtime_sync_nodes_list_changed = true;
-			// No need to check the deferred array. Nodes can be in 1 single array.
+			// No need to check the trickled array. Nodes can be in 1 single array.
 			return;
 		}
 	}
 
 	{
-		const int index = deferred_sync_nodes.find(p_object_data);
+		const int index = trickled_sync_nodes.find(p_object_data);
 		if (index >= 0) {
-			deferred_sync_nodes.erase(p_object_data);
-			deferred_sync_nodes_list_changed = true;
+			trickled_sync_nodes.erase(p_object_data);
+			trickled_sync_nodes_list_changed = true;
 		}
 	}
 }
@@ -190,7 +190,7 @@ void replace_nodes_impl(
 	}
 }
 
-void NS::SyncGroup::replace_nodes(LocalVector<RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<DeferredNodeInfo> &&p_new_deferred_nodes) {
+void NS::SyncGroup::replace_nodes(LocalVector<RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<TrickledNodeInfo> &&p_new_trickled_nodes) {
 	replace_nodes_impl(
 			*this,
 			std::move(p_new_realtime_nodes),
@@ -200,10 +200,10 @@ void NS::SyncGroup::replace_nodes(LocalVector<RealtimeNodeInfo> &&p_new_realtime
 
 	replace_nodes_impl(
 			*this,
-			std::move(p_new_deferred_nodes),
+			std::move(p_new_trickled_nodes),
 			false,
-			deferred_sync_nodes,
-			deferred_sync_nodes_list_changed);
+			trickled_sync_nodes,
+			trickled_sync_nodes_list_changed);
 }
 
 void NS::SyncGroup::remove_all_nodes() {
@@ -212,9 +212,9 @@ void NS::SyncGroup::remove_all_nodes() {
 		realtime_sync_nodes_list_changed = true;
 	}
 
-	if (!deferred_sync_nodes.is_empty()) {
-		deferred_sync_nodes.clear();
-		deferred_sync_nodes_list_changed = true;
+	if (!trickled_sync_nodes.is_empty()) {
+		trickled_sync_nodes.clear();
+		trickled_sync_nodes_list_changed = true;
 	}
 }
 
@@ -233,28 +233,28 @@ void NS::SyncGroup::notify_variable_changed(ObjectData *p_object_data, const std
 	}
 }
 
-void NS::SyncGroup::set_deferred_update_rate(NS::ObjectData *p_object_data, real_t p_update_rate) {
-	const int index = deferred_sync_nodes.find(p_object_data);
+void NS::SyncGroup::set_trickled_update_rate(NS::ObjectData *p_object_data, real_t p_update_rate) {
+	const int index = trickled_sync_nodes.find(p_object_data);
 	ERR_FAIL_COND(index < 0);
-	deferred_sync_nodes[index].update_rate = p_update_rate;
+	trickled_sync_nodes[index].update_rate = p_update_rate;
 }
 
-real_t NS::SyncGroup::get_deferred_update_rate(const NS::ObjectData *p_object_data) const {
-	for (int i = 0; i < int(deferred_sync_nodes.size()); ++i) {
-		if (deferred_sync_nodes[i].od == p_object_data) {
-			return deferred_sync_nodes[i].update_rate;
+real_t NS::SyncGroup::get_trickled_update_rate(const NS::ObjectData *p_object_data) const {
+	for (int i = 0; i < int(trickled_sync_nodes.size()); ++i) {
+		if (trickled_sync_nodes[i].od == p_object_data) {
+			return trickled_sync_nodes[i].update_rate;
 		}
 	}
-	ERR_PRINT(String() + "NodeData " + p_object_data->object_name.c_str() + " not found into `deferred_sync_nodes`.");
+	ERR_PRINT(String() + "NodeData " + p_object_data->object_name.c_str() + " not found into `trickled_sync_nodes`.");
 	return 0.0;
 }
 
-void NS::SyncGroup::sort_deferred_node_by_update_priority() {
+void NS::SyncGroup::sort_trickled_node_by_update_priority() {
 	struct DNIComparator {
-		_FORCE_INLINE_ bool operator()(const DeferredNodeInfo &a, const DeferredNodeInfo &b) const {
+		_FORCE_INLINE_ bool operator()(const TrickledNodeInfo &a, const TrickledNodeInfo &b) const {
 			return a._update_priority > b._update_priority;
 		}
 	};
 
-	deferred_sync_nodes.sort_custom<DNIComparator>();
+	trickled_sync_nodes.sort_custom<DNIComparator>();
 }

@@ -37,8 +37,8 @@ void GdSceneSynchronizer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("reset_synchronizer_mode"), &GdSceneSynchronizer::reset_synchronizer_mode);
 	ClassDB::bind_method(D_METHOD("clear"), &GdSceneSynchronizer::clear);
 
-	ClassDB::bind_method(D_METHOD("set_max_deferred_nodes_per_update", "rate"), &GdSceneSynchronizer::set_max_deferred_nodes_per_update);
-	ClassDB::bind_method(D_METHOD("get_max_deferred_nodes_per_update"), &GdSceneSynchronizer::get_max_deferred_nodes_per_update);
+	ClassDB::bind_method(D_METHOD("set_max_trickled_nodes_per_update", "rate"), &GdSceneSynchronizer::set_max_trickled_nodes_per_update);
+	ClassDB::bind_method(D_METHOD("get_max_trickled_nodes_per_update"), &GdSceneSynchronizer::get_max_trickled_nodes_per_update);
 
 	ClassDB::bind_method(D_METHOD("set_server_notify_state_interval", "interval"), &GdSceneSynchronizer::set_server_notify_state_interval);
 	ClassDB::bind_method(D_METHOD("get_server_notify_state_interval"), &GdSceneSynchronizer::get_server_notify_state_interval);
@@ -66,14 +66,14 @@ void GdSceneSynchronizer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("register_process", "node", "phase", "function"), &GdSceneSynchronizer::register_process);
 	ClassDB::bind_method(D_METHOD("unregister_process", "node", "phase", "function"), &GdSceneSynchronizer::unregister_process);
 
-	ClassDB::bind_method(D_METHOD("setup_deferred_sync", "node", "collect_epoch_func", "apply_epoch_func"), &GdSceneSynchronizer::setup_deferred_sync);
+	ClassDB::bind_method(D_METHOD("setup_trickled_sync", "node", "collect_epoch_func", "apply_epoch_func"), &GdSceneSynchronizer::setup_trickled_sync);
 
 	ClassDB::bind_method(D_METHOD("sync_group_create"), &GdSceneSynchronizer::sync_group_create);
 	ClassDB::bind_method(D_METHOD("sync_group_add_node", "node_id", "group_id", "realtime"), &GdSceneSynchronizer::sync_group_add_node_by_id);
 	ClassDB::bind_method(D_METHOD("sync_group_remove_node", "node_id", "group_id"), &GdSceneSynchronizer::sync_group_remove_node_by_id);
 	ClassDB::bind_method(D_METHOD("sync_group_move_peer_to", "peer_id", "group_id"), &GdSceneSynchronizer::sync_group_move_peer_to);
-	ClassDB::bind_method(D_METHOD("sync_group_set_deferred_update_rate", "node_id", "group_id", "update_rate"), &GdSceneSynchronizer::sync_group_set_deferred_update_rate_by_id);
-	ClassDB::bind_method(D_METHOD("sync_group_get_deferred_update_rate", "node_id", "group_id"), &GdSceneSynchronizer::sync_group_get_deferred_update_rate_by_id);
+	ClassDB::bind_method(D_METHOD("sync_group_set_trickled_update_rate", "node_id", "group_id", "update_rate"), &GdSceneSynchronizer::sync_group_set_trickled_update_rate_by_id);
+	ClassDB::bind_method(D_METHOD("sync_group_get_trickled_update_rate", "node_id", "group_id"), &GdSceneSynchronizer::sync_group_get_trickled_update_rate_by_id);
 
 	ClassDB::bind_method(D_METHOD("start_tracking_scene_changes", "diff_handle"), &GdSceneSynchronizer::start_tracking_scene_changes);
 	ClassDB::bind_method(D_METHOD("stop_tracking_scene_changes", "diff_handle"), &GdSceneSynchronizer::stop_tracking_scene_changes);
@@ -356,12 +356,12 @@ const NS::NetworkedControllerBase *GdSceneSynchronizer::extract_network_controll
 	return nullptr;
 }
 
-void GdSceneSynchronizer::set_max_deferred_nodes_per_update(int p_rate) {
-	scene_synchronizer.set_max_deferred_nodes_per_update(p_rate);
+void GdSceneSynchronizer::set_max_trickled_nodes_per_update(int p_rate) {
+	scene_synchronizer.set_max_trickled_nodes_per_update(p_rate);
 }
 
-int GdSceneSynchronizer::get_max_deferred_nodes_per_update() const {
-	return scene_synchronizer.get_max_deferred_nodes_per_update();
+int GdSceneSynchronizer::get_max_trickled_nodes_per_update() const {
+	return scene_synchronizer.get_max_trickled_nodes_per_update();
 }
 
 void GdSceneSynchronizer::set_server_notify_state_interval(real_t p_interval) {
@@ -513,8 +513,8 @@ void GdSceneSynchronizer::unregister_process(Node *p_node, ProcessPhase p_phase,
 			static_cast<NS::PHandler>(p_handler));
 }
 
-void GdSceneSynchronizer::setup_deferred_sync(Node *p_node, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func) {
-	scene_synchronizer.setup_deferred_sync(scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node)), p_collect_epoch_func, p_apply_epoch_func);
+void GdSceneSynchronizer::setup_trickled_sync(Node *p_node, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func) {
+	scene_synchronizer.setup_trickled_sync(scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node)), p_collect_epoch_func, p_apply_epoch_func);
 }
 
 SyncGroupId GdSceneSynchronizer::sync_group_create() {
@@ -541,8 +541,8 @@ void GdSceneSynchronizer::sync_group_remove_node(NS::ObjectData *p_object_data, 
 	scene_synchronizer.sync_group_remove_node(p_object_data, p_group_id);
 }
 
-void GdSceneSynchronizer::sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::DeferredNodeInfo> &&p_new_deferred_nodes) {
-	scene_synchronizer.sync_group_replace_nodes(p_group_id, std::move(p_new_realtime_nodes), std::move(p_new_deferred_nodes));
+void GdSceneSynchronizer::sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledNodeInfo> &&p_new_trickled_nodes) {
+	scene_synchronizer.sync_group_replace_nodes(p_group_id, std::move(p_new_realtime_nodes), std::move(p_new_trickled_nodes));
 }
 
 void GdSceneSynchronizer::sync_group_remove_all_nodes(SyncGroupId p_group_id) {
@@ -561,20 +561,20 @@ const LocalVector<int> *GdSceneSynchronizer::sync_group_get_peers(SyncGroupId p_
 	return scene_synchronizer.sync_group_get_peers(p_group_id);
 }
 
-void GdSceneSynchronizer::sync_group_set_deferred_update_rate_by_id(uint32_t p_net_id, SyncGroupId p_group_id, real_t p_update_rate) {
-	scene_synchronizer.sync_group_set_deferred_update_rate(NS::ObjectNetId{ p_net_id }, p_group_id, p_update_rate);
+void GdSceneSynchronizer::sync_group_set_trickled_update_rate_by_id(uint32_t p_net_id, SyncGroupId p_group_id, real_t p_update_rate) {
+	scene_synchronizer.sync_group_set_trickled_update_rate(NS::ObjectNetId{ p_net_id }, p_group_id, p_update_rate);
 }
 
-void GdSceneSynchronizer::sync_group_set_deferred_update_rate(NS::ObjectData *p_object_data, SyncGroupId p_group_id, real_t p_update_rate) {
-	scene_synchronizer.sync_group_set_deferred_update_rate(p_object_data->get_local_id(), p_group_id, p_update_rate);
+void GdSceneSynchronizer::sync_group_set_trickled_update_rate(NS::ObjectData *p_object_data, SyncGroupId p_group_id, real_t p_update_rate) {
+	scene_synchronizer.sync_group_set_trickled_update_rate(p_object_data->get_local_id(), p_group_id, p_update_rate);
 }
 
-real_t GdSceneSynchronizer::sync_group_get_deferred_update_rate_by_id(uint32_t p_net_id, SyncGroupId p_group_id) const {
-	return scene_synchronizer.sync_group_get_deferred_update_rate(NS::ObjectNetId{ p_net_id }, p_group_id);
+real_t GdSceneSynchronizer::sync_group_get_trickled_update_rate_by_id(uint32_t p_net_id, SyncGroupId p_group_id) const {
+	return scene_synchronizer.sync_group_get_trickled_update_rate(NS::ObjectNetId{ p_net_id }, p_group_id);
 }
 
-real_t GdSceneSynchronizer::sync_group_get_deferred_update_rate(const NS::ObjectData *p_object_data, SyncGroupId p_group_id) const {
-	return scene_synchronizer.sync_group_get_deferred_update_rate(p_object_data->get_local_id(), p_group_id);
+real_t GdSceneSynchronizer::sync_group_get_trickled_update_rate(const NS::ObjectData *p_object_data, SyncGroupId p_group_id) const {
+	return scene_synchronizer.sync_group_get_trickled_update_rate(p_object_data->get_local_id(), p_group_id);
 }
 
 void GdSceneSynchronizer::sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_data) {

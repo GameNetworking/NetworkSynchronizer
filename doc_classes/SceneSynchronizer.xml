@@ -35,7 +35,7 @@
 			<description>
 			</description>
 		</method>
-		<method name="get_max_deferred_nodes_per_update" qualifiers="const">
+		<method name="get_max_trickled_nodes_per_update" qualifiers="const">
 			<return type="int" />
 			<description>
 			</description>
@@ -141,7 +141,7 @@
 			<description>
 			</description>
 		</method>
-		<method name="set_max_deferred_nodes_per_update">
+		<method name="set_max_trickled_nodes_per_update">
 			<return type="void" />
 			<param index="0" name="rate" type="int" />
 			<description>
@@ -162,7 +162,7 @@
 			<description>
 			</description>
 		</method>
-		<method name="setup_deferred_sync">
+		<method name="setup_trickled_sync">
 			<return type="void" />
 			<param index="0" name="node" type="Node" />
 			<param index="1" name="collect_epoch_func" type="Callable" />
@@ -195,7 +195,7 @@
 			<description>
 			</description>
 		</method>
-		<method name="sync_group_get_deferred_update_rate" qualifiers="const">
+		<method name="sync_group_get_trickled_update_rate" qualifiers="const">
 			<return type="float" />
 			<param index="0" name="node_id" type="int" />
 			<param index="1" name="group_id" type="int" />
@@ -216,7 +216,7 @@
 			<description>
 			</description>
 		</method>
-		<method name="sync_group_set_deferred_update_rate">
+		<method name="sync_group_set_trickled_update_rate">
 			<return type="void" />
 			<param index="0" name="node_id" type="int" />
 			<param index="1" name="group_id" type="int" />

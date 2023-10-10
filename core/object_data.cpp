@@ -42,7 +42,7 @@ bool ObjectData::has_registered_process_functions() const {
 	return false;
 }
 
-bool ObjectData::can_deferred_sync() const {
+bool ObjectData::can_trickled_sync() const {
 	return collect_epoch_func.is_valid() && apply_epoch_func.is_valid();
 }
 
