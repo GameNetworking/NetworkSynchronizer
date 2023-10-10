@@ -18,6 +18,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <vector>
 
 class SceneDiff;
 
@@ -157,7 +158,6 @@ private:
 
 	int max_deferred_nodes_per_update = 30;
 	real_t server_notify_state_interval = 1.0;
-	real_t comparison_float_tolerance = 0.001;
 	/// Can be 0.0 to update the relevancy each frame.
 	real_t nodes_relevancy_update_time = 0.5;
 
@@ -190,7 +190,7 @@ public: // -------------------------------------------------------------- Events
 	Processor<const NS::ObjectData * /*p_object_data*/, int /*p_peer*/, bool /*p_connected*/, bool /*p_enabled*/> event_peer_status_updated;
 	Processor<uint32_t /*p_input_id*/> event_state_validated;
 	Processor<uint32_t /*p_input_id*/, int /*p_index*/, int /*p_count*/> event_rewind_frame_begin;
-	Processor<uint32_t /*p_input_id*/, ObjectHandle /*p_app_object_handle*/, const Vector<std::string> & /*p_var_names*/, const Vector<Variant> & /*p_client_values*/, const Vector<Variant> & /*p_server_values*/> event_desync_detected;
+	Processor<uint32_t /*p_input_id*/, ObjectHandle /*p_app_object_handle*/, const std::vector<std::string> & /*p_var_names*/, const std::vector<Variant> & /*p_client_values*/, const std::vector<Variant> & /*p_server_values*/> event_desync_detected;
 
 private:
 	// This is private so this class can be created only from
@@ -234,9 +234,6 @@ public:
 
 	void set_server_notify_state_interval(real_t p_interval);
 	real_t get_server_notify_state_interval() const;
-
-	void set_comparison_float_tolerance(real_t p_tolerance);
-	real_t get_comparison_float_tolerance() const;
 
 	void set_nodes_relevancy_update_time(real_t p_time);
 	real_t get_nodes_relevancy_update_time() const;
@@ -404,23 +401,6 @@ public: // ------------------------------------------------------------ INTERNAL
 	NetworkedControllerBase *fetch_controller_by_peer(int peer);
 
 public:
-	/// Returns true when the vectors are the same. Uses comparison_float_tolerance member.
-	bool compare(const Vector2 &p_first, const Vector2 &p_second) const;
-	/// Returns true when the vectors are the same. Uses comparison_float_tolerance member.
-	bool compare(const Vector3 &p_first, const Vector3 &p_second) const;
-	/// Returns true when the variants are the same. Uses comparison_float_tolerance member.
-	bool compare(const Variant &p_first, const Variant &p_second) const;
-
-	/// Returns true when the VarData are the same.
-	bool compare(const VarData &p_first, const VarData &p_second) const;
-
-	/// Returns true when the vectors are the same.
-	static bool compare(const Vector2 &p_first, const Vector2 &p_second, real_t p_tolerance);
-	/// Returns true when the vectors are the same.
-	static bool compare(const Vector3 &p_first, const Vector3 &p_second, real_t p_tolerance);
-	/// Returns true when the variants are the same.
-	static bool compare(const Variant &p_first, const Variant &p_second, real_t p_tolerance);
-
 	/// Returns true if this peer is server.
 	bool is_server() const;
 	/// Returns true if this peer is client.

@@ -172,24 +172,12 @@ bool LocalNetworkInterface::is_local_peer_server() const {
 
 void LocalNetworkInterface::encode(DataBuffer &r_buffer, const NS::VarData &p_val) const {
 	r_buffer.add_bits(reinterpret_cast<const uint8_t *>(&p_val.data), sizeof(p_val.data) * 8);
-	if (p_val.shared_buffer) {
-		r_buffer.add_bool(true);
-
-		r_buffer.add_int(p_val.shared_buffer->get_size(), DataBuffer::COMPRESSION_LEVEL_1);
-		r_buffer.add_bits(p_val.shared_buffer->data, p_val.shared_buffer->get_size() * 8);
-
-	} else {
-		r_buffer.add_bool(false);
-	}
+	// Not supported right now.
+	CRASH_COND(p_val.shared_buffer);
 }
 
 void LocalNetworkInterface::decode(NS::VarData &r_val, DataBuffer &p_buffer) const {
 	p_buffer.read_bits(reinterpret_cast<uint8_t *>(&r_val.data), sizeof(r_val.data) * 8);
-
-	if (p_buffer.read_bool()) {
-		r_val.shared_buffer = std::make_shared<NS::Buffer>(p_buffer.read_int(DataBuffer::COMPRESSION_LEVEL_1));
-		p_buffer.read_bits(r_val.shared_buffer->data, r_val.shared_buffer->get_size() * 8);
-	}
 }
 
 void LocalNetworkInterface::rpc_send(int p_peer_recipient, bool p_reliable, DataBuffer &&p_data_buffer) {

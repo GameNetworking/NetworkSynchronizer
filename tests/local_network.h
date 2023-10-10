@@ -10,6 +10,9 @@
 #include <string>
 #include <vector>
 
+// TODO remove this
+#include "modules/network_synchronizer/godot4/gd_network_interface.h"
+
 NS_NAMESPACE_BEGIN
 class LocalNetworkInterface;
 
@@ -110,6 +113,9 @@ public:
 
 	virtual void encode(DataBuffer &r_buffer, const NS::VarData &p_val) const override;
 	virtual void decode(NS::VarData &r_val, DataBuffer &p_buffer) const override;
+
+	virtual bool compare(const VarData &p_A, const VarData &p_B) const override { return true; }
+	virtual bool compare(const Variant &p_first, const Variant &p_second) const override { return GdNetworkInterface::compare(p_first, p_second, 0.0001); }
 
 	virtual void rpc_send(int p_peer_recipient, bool p_reliable, DataBuffer &&p_data_buffer) override;
 };

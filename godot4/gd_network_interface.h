@@ -57,13 +57,21 @@ public: // ---------------------------------------------------------------- APIs
 
 	static void convert(Variant &r_variant, const NS::VarData &p_vd);
 	static void convert(NS::VarData &r_vd, const Variant &p_variant);
+
 	virtual bool compare(const NS::VarData &p_A, const NS::VarData &p_B) const override;
+	virtual bool compare(const Variant &p_first, const Variant &p_second) const override;
+
 	static bool compare_static(const NS::VarData &p_A, const NS::VarData &p_B);
+	static bool compare(const Vector2 &p_first, const Vector2 &p_second, real_t p_tolerance);
+	/// Returns true when the vectors are the same.
+	static bool compare(const Vector3 &p_first, const Vector3 &p_second, real_t p_tolerance);
+	/// Returns true when the variants are the same.
+	static bool compare(const Variant &p_first, const Variant &p_second, real_t p_tolerance);
 
 	virtual void rpc_send(int p_peer_recipient, bool p_reliable, DataBuffer &&p_buffer) override;
 	void gd_rpc_receive(const Vector<uint8_t> &p_args);
 };
 
-namespace NS_Test {
+namespace NS_GD_Test {
 void test_var_data_conversin();
 };

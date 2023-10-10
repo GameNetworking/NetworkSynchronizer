@@ -12,7 +12,9 @@ struct Snapshot {
 	/// The Node variables in a particular frame. The order of this vector
 	/// matters because the index is the `NetNodeId`.
 	/// The variable array order also matter.
-	Vector<Vector<NameAndVar>> node_vars;
+	std::vector<std::vector<NameAndVar>> object_vars;
+
+	bool has_custom_data = false;
 
 	/// Custom variable specified by the user.
 	/// NOTE: The user can specify a different variable depending on the passed GroupSync.

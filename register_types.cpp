@@ -45,9 +45,7 @@
 #include "scene_synchronizer_debugger.h"
 
 #ifdef DEBUG_ENABLED
-#include "tests/local_network.h"
-#include "tests/test_processor.h"
-#include "tests/test_scene_synchronizer.h"
+#include "tests/tests.h"
 #endif
 
 void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
@@ -70,11 +68,8 @@ void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
 		GLOBAL_DEF("NetworkSynchronizer/debugger/log_debug_fps_warnings", true);
 	} else if (p_level == MODULE_INITIALIZATION_LEVEL_EDITOR) {
 #ifdef DEBUG_ENABLED
-		NS_Test::test_var_data_conversin();
-
-		NS_Test::test_processor();
-		NS_Test::test_local_network();
-		NS_Test::test_scene_synchronizer();
+		NS_GD_Test::test_var_data_conversin();
+		NS_Test::test_all();
 #endif
 	}
 }

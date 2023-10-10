@@ -53,7 +53,7 @@ public:
 
 	/// The sync variables of this node. The order of this vector matters
 	/// because the index is the `VarId`.
-	LocalVector<VarDescriptor> vars;
+	std::vector<VarDescriptor> vars;
 	NS::Processor<float> functions[PROCESSPHASE_COUNT];
 
 	// func _collect_epoch_data(buffer: DataBuffer):

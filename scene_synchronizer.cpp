@@ -143,14 +143,6 @@ real_t SceneSynchronizerBase::get_server_notify_state_interval() const {
 	return server_notify_state_interval;
 }
 
-void SceneSynchronizerBase::set_comparison_float_tolerance(real_t p_tolerance) {
-	comparison_float_tolerance = p_tolerance;
-}
-
-real_t SceneSynchronizerBase::get_comparison_float_tolerance() const {
-	return comparison_float_tolerance;
-}
-
 void SceneSynchronizerBase::set_nodes_relevancy_update_time(real_t p_time) {
 	nodes_relevancy_update_time = p_time;
 }
@@ -262,7 +254,7 @@ void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const StringNa
 		if (valid == false) {
 			SceneSynchronizerDebugger::singleton()->debug_error(network_interface, "The variable `" + p_variable + "` on the node `" + String(object_data->object_name.c_str()) + "` was not found, make sure the variable exist.");
 		}
-		var_id = VarId{ object_data->vars.size() };
+		var_id = VarId{ uint32_t(object_data->vars.size()) };
 		object_data->vars.push_back(
 				NS::VarDescriptor(
 						var_id,
@@ -276,7 +268,7 @@ void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const StringNa
 	}
 
 #ifdef DEBUG_ENABLED
-	for (VarId v = { 0 }; v < VarId{ object_data->vars.size() }; v += 1) {
+	for (VarId v = { 0 }; v < VarId{ uint32_t(object_data->vars.size()) }; v += 1) {
 		// This can't happen, because the IDs are always consecutive, or NONE.
 		CRASH_COND(object_data->vars[v.id].id != v);
 	}
@@ -702,7 +694,7 @@ void SceneSynchronizerBase::apply_scene_changes(DataBuffer &p_sync_data) {
 
 				const Variant current_val = p_object_data->vars[p_var_id.id].var.value;
 
-				if (scene_sync->compare(current_val, p_value) == false) {
+				if (scene_sync->network_interface->compare(current_val, p_value) == false) {
 					// There is a difference.
 					// Set the new value.
 					p_object_data->vars[p_var_id.id].var.value = p_value;
@@ -1225,167 +1217,6 @@ NetworkedControllerBase *SceneSynchronizerBase::fetch_controller_by_peer(int pee
 	return nullptr;
 }
 
-bool SceneSynchronizerBase::compare(const Vector2 &p_first, const Vector2 &p_second) const {
-	return compare(p_first, p_second, comparison_float_tolerance);
-}
-
-bool SceneSynchronizerBase::compare(const Vector3 &p_first, const Vector3 &p_second) const {
-	return compare(p_first, p_second, comparison_float_tolerance);
-}
-
-bool SceneSynchronizerBase::compare(const Variant &p_first, const Variant &p_second) const {
-	return compare(p_first, p_second, comparison_float_tolerance);
-}
-
-bool SceneSynchronizerBase::compare(const VarData &p_first, const VarData &p_second) const {
-	return network_interface->compare(p_first, p_second);
-}
-
-bool SceneSynchronizerBase::compare(const Vector2 &p_first, const Vector2 &p_second, real_t p_tolerance) {
-	return Math::is_equal_approx(p_first.x, p_second.x, p_tolerance) &&
-			Math::is_equal_approx(p_first.y, p_second.y, p_tolerance);
-}
-
-bool SceneSynchronizerBase::compare(const Vector3 &p_first, const Vector3 &p_second, real_t p_tolerance) {
-	return Math::is_equal_approx(p_first.x, p_second.x, p_tolerance) &&
-			Math::is_equal_approx(p_first.y, p_second.y, p_tolerance) &&
-			Math::is_equal_approx(p_first.z, p_second.z, p_tolerance);
-}
-
-bool SceneSynchronizerBase::compare(const Variant &p_first, const Variant &p_second, real_t p_tolerance) {
-	if (p_first.get_type() != p_second.get_type()) {
-		return false;
-	}
-
-	// Custom evaluation methods
-	switch (p_first.get_type()) {
-		case Variant::FLOAT: {
-			return Math::is_equal_approx(p_first, p_second, p_tolerance);
-		}
-		case Variant::VECTOR2: {
-			return compare(Vector2(p_first), Vector2(p_second), p_tolerance);
-		}
-		case Variant::RECT2: {
-			const Rect2 a(p_first);
-			const Rect2 b(p_second);
-			if (compare(a.position, b.position, p_tolerance)) {
-				if (compare(a.size, b.size, p_tolerance)) {
-					return true;
-				}
-			}
-			return false;
-		}
-		case Variant::TRANSFORM2D: {
-			const Transform2D a(p_first);
-			const Transform2D b(p_second);
-			if (compare(a.columns[0], b.columns[0], p_tolerance)) {
-				if (compare(a.columns[1], b.columns[1], p_tolerance)) {
-					if (compare(a.columns[2], b.columns[2], p_tolerance)) {
-						return true;
-					}
-				}
-			}
-			return false;
-		}
-		case Variant::VECTOR3: {
-			return compare(Vector3(p_first), Vector3(p_second), p_tolerance);
-		}
-		case Variant::QUATERNION: {
-			const Quaternion a = p_first;
-			const Quaternion b = p_second;
-			const Quaternion r(a - b); // Element wise subtraction.
-			return (r.x * r.x + r.y * r.y + r.z * r.z + r.w * r.w) <= (p_tolerance * p_tolerance);
-		}
-		case Variant::PLANE: {
-			const Plane a(p_first);
-			const Plane b(p_second);
-			if (Math::is_equal_approx(a.d, b.d, p_tolerance)) {
-				if (compare(a.normal, b.normal, p_tolerance)) {
-					return true;
-				}
-			}
-			return false;
-		}
-		case Variant::AABB: {
-			const AABB a(p_first);
-			const AABB b(p_second);
-			if (compare(a.position, b.position, p_tolerance)) {
-				if (compare(a.size, b.size, p_tolerance)) {
-					return true;
-				}
-			}
-			return false;
-		}
-		case Variant::BASIS: {
-			const Basis a = p_first;
-			const Basis b = p_second;
-			if (compare(a.rows[0], b.rows[0], p_tolerance)) {
-				if (compare(a.rows[1], b.rows[1], p_tolerance)) {
-					if (compare(a.rows[2], b.rows[2], p_tolerance)) {
-						return true;
-					}
-				}
-			}
-			return false;
-		}
-		case Variant::TRANSFORM3D: {
-			const Transform3D a = p_first;
-			const Transform3D b = p_second;
-			if (compare(a.origin, b.origin, p_tolerance)) {
-				if (compare(a.basis.rows[0], b.basis.rows[0], p_tolerance)) {
-					if (compare(a.basis.rows[1], b.basis.rows[1], p_tolerance)) {
-						if (compare(a.basis.rows[2], b.basis.rows[2], p_tolerance)) {
-							return true;
-						}
-					}
-				}
-			}
-			return false;
-		}
-		case Variant::ARRAY: {
-			const Array a = p_first;
-			const Array b = p_second;
-			if (a.size() != b.size()) {
-				return false;
-			}
-			for (int i = 0; i < a.size(); i += 1) {
-				if (compare(a[i], b[i], p_tolerance) == false) {
-					return false;
-				}
-			}
-			return true;
-		}
-		case Variant::DICTIONARY: {
-			const Dictionary a = p_first;
-			const Dictionary b = p_second;
-
-			if (a.size() != b.size()) {
-				return false;
-			}
-
-			List<Variant> l;
-			a.get_key_list(&l);
-
-			for (const List<Variant>::Element *key = l.front(); key; key = key->next()) {
-				if (b.has(key->get()) == false) {
-					return false;
-				}
-
-				if (compare(
-							a.get(key->get(), Variant()),
-							b.get(key->get(), Variant()),
-							p_tolerance) == false) {
-					return false;
-				}
-			}
-
-			return true;
-		}
-		default:
-			return p_first == p_second;
-	}
-}
-
 bool SceneSynchronizerBase::is_server() const {
 	return synchronizer_type == SYNCHRONIZER_TYPE_SERVER;
 }
@@ -1582,7 +1413,7 @@ void SceneSynchronizerBase::reset_controller(NS::ObjectData *p_controller_nd) {
 }
 
 void SceneSynchronizerBase::pull_node_changes(NS::ObjectData *p_object_data) {
-	for (VarId var_id = { 0 }; var_id < VarId{ p_object_data->vars.size() }; var_id += 1) {
+	for (VarId var_id = { 0 }; var_id < VarId{ uint32_t(p_object_data->vars.size()) }; var_id += 1) {
 		if (p_object_data->vars[var_id.id].enabled == false) {
 			continue;
 		}
@@ -1594,7 +1425,7 @@ void SceneSynchronizerBase::pull_node_changes(NS::ObjectData *p_object_data) {
 				p_object_data->vars[var_id.id].var.name.c_str(),
 				new_val);
 
-		if (!compare(old_val, new_val)) {
+		if (!network_interface->compare(old_val, new_val)) {
 			p_object_data->vars[var_id.id].var.value = new_val.duplicate(true);
 			change_event_add(
 					p_object_data,
@@ -1912,8 +1743,6 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 		return;
 	}
 
-	print_line("--- snapshot notificator ---");
-
 	for (int g = 0; g < int(sync_groups.size()); ++g) {
 		NS::SyncGroup &group = sync_groups[g];
 
@@ -1993,7 +1822,6 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 					scene_synchronizer->get_network_interface(),
 					peer_id,
 					*snap);
-			print_line("--- RPC ---");
 
 			if (controller_od) {
 				NetworkedControllerBase *controller = controller_od->get_controller();
@@ -2242,7 +2070,7 @@ void ClientSynchronizer::clear() {
 	player_controller_node_data = nullptr;
 	objects_names.clear();
 	last_received_snapshot.input_id = UINT32_MAX;
-	last_received_snapshot.node_vars.clear();
+	last_received_snapshot.object_vars.clear();
 	client_snapshots.clear();
 	server_snapshots.clear();
 	last_checked_input = 0;
@@ -2318,8 +2146,8 @@ void ClientSynchronizer::on_object_data_removed(NS::ObjectData &p_object_data) {
 		client_snapshots.clear();
 	}
 
-	if (p_object_data.get_net_id().id < uint32_t(last_received_snapshot.node_vars.size())) {
-		last_received_snapshot.node_vars.ptrw()[p_object_data.get_net_id().id].clear();
+	if (p_object_data.get_net_id().id < uint32_t(last_received_snapshot.object_vars.size())) {
+		last_received_snapshot.object_vars[p_object_data.get_net_id().id].clear();
 	}
 
 	remove_node_from_deferred_sync(&p_object_data);
@@ -2342,7 +2170,7 @@ void ClientSynchronizer::signal_end_sync_changed_variables_events() {
 			e = e->next()) {
 		// Check if the values between the variables before the sync and the
 		// current one are different.
-		if (scene_synchronizer->compare(
+		if (scene_synchronizer->network_interface->compare(
 					e->get().node_data->vars[e->get().var_id.id].var.value,
 					e->get().old_value) == false) {
 			// Are different so we need to emit the `END_SYNC`.
@@ -2655,10 +2483,9 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 			&different_node_data);
 
 	if (!is_equal) {
-		Vector<std::string> variable_names;
-		Vector<Variant> server_values;
-		Vector<Variant> client_values;
-		const Vector<NS::NameAndVar> const_empty_vector;
+		std::vector<std::string> variable_names;
+		std::vector<Variant> server_values;
+		std::vector<Variant> client_values;
 
 		// Emit the de-sync detected signal.
 		for (
@@ -2668,28 +2495,28 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 			const ObjectNetId net_node_id = different_node_data[i];
 			NS::ObjectData *rew_node_data = scene_synchronizer->get_object_data(net_node_id);
 
-			const Vector<NS::NameAndVar> &server_node_vars = ObjectNetId{ uint32_t(server_snapshots.front().node_vars.size()) } <= net_node_id ? const_empty_vector : server_snapshots.front().node_vars[net_node_id.id];
-			const Vector<NS::NameAndVar> &client_node_vars = ObjectNetId{ uint32_t(client_snapshots.front().node_vars.size()) } <= net_node_id ? const_empty_vector : client_snapshots.front().node_vars[net_node_id.id];
+			const std::vector<NS::NameAndVar> *server_node_vars = ObjectNetId{ uint32_t(server_snapshots.front().object_vars.size()) } <= net_node_id ? nullptr : &(server_snapshots.front().object_vars[net_node_id.id]);
+			const std::vector<NS::NameAndVar> *client_node_vars = ObjectNetId{ uint32_t(client_snapshots.front().object_vars.size()) } <= net_node_id ? nullptr : &(client_snapshots.front().object_vars[net_node_id.id]);
 
-			const int count = MAX(server_node_vars.size(), client_node_vars.size());
+			const std::size_t count = MAX(server_node_vars ? server_node_vars->size() : 0, client_node_vars ? client_node_vars->size() : 0);
 
 			variable_names.resize(count);
 			server_values.resize(count);
 			client_values.resize(count);
 
-			for (int g = 0; g < count; ++g) {
-				if (g < server_node_vars.size()) {
-					variable_names.ptrw()[g] = server_node_vars[g].name;
-					server_values.ptrw()[g] = server_node_vars[g].value;
+			for (std::size_t g = 0; g < count; ++g) {
+				if (server_node_vars && g < server_node_vars->size()) {
+					variable_names[g] = (*server_node_vars)[g].name;
+					server_values[g] = (*server_node_vars)[g].value;
 				} else {
-					server_values.ptrw()[g] = Variant();
+					server_values[g] = Variant();
 				}
 
-				if (g < client_node_vars.size()) {
-					variable_names.ptrw()[g] = client_node_vars[g].name;
-					client_values.ptrw()[g] = client_node_vars[g].value;
+				if (client_node_vars && g < client_node_vars->size()) {
+					variable_names[g] = (*client_node_vars)[g].name;
+					client_values[g] = (*client_node_vars)[g].value;
 				} else {
-					client_values.ptrw()[g] = Variant();
+					client_values[g] = Variant();
 				}
 			}
 
@@ -2857,8 +2684,6 @@ bool ClientSynchronizer::parse_sync_data(
 		void (*p_node_activation_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, bool p_is_active)) {
 	// The snapshot is a DataBuffer that contains the scene informations.
 	// NOTE: Check generate_snapshot to see the DataBuffer format.
-
-	print_line("--- snapshot parsing ---");
 
 	p_snapshot.begin_read();
 	if (p_snapshot.size() <= 0) {
@@ -3287,6 +3112,7 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 			// Custom data:
 			[](void *p_user_pointer, VarData &&p_custom_data) {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
+				pd->snapshot.has_custom_data = true;
 				pd->snapshot.custom_data = std::move(p_custom_data);
 			},
 
@@ -3300,8 +3126,8 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 #endif
 
 				// Make sure this node is part of the server node too.
-				if (uint32_t(pd->snapshot.node_vars.size()) <= p_object_data->get_net_id().id) {
-					pd->snapshot.node_vars.resize(p_object_data->get_net_id().id + 1);
+				if (uint32_t(pd->snapshot.object_vars.size()) <= p_object_data->get_net_id().id) {
+					pd->snapshot.object_vars.resize(p_object_data->get_net_id().id + 1);
 				}
 			},
 
@@ -3321,13 +3147,13 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 			[](void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, const Variant &p_value) {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
 
-				if (p_object_data->vars.size() != uint32_t(pd->snapshot.node_vars[p_object_data->get_net_id().id].size())) {
+				if (p_object_data->vars.size() != uint32_t(pd->snapshot.object_vars[p_object_data->get_net_id().id].size())) {
 					// The parser may have added a variable, so make sure to resize the vars array.
-					pd->snapshot.node_vars.write[p_object_data->get_net_id().id].resize(p_object_data->vars.size());
+					pd->snapshot.object_vars[p_object_data->get_net_id().id].resize(p_object_data->vars.size());
 				}
 
-				pd->snapshot.node_vars.write[p_object_data->get_net_id().id].write[p_var_id.id].name = p_object_data->vars[p_var_id.id].var.name;
-				pd->snapshot.node_vars.write[p_object_data->get_net_id().id].write[p_var_id.id].value = p_value.duplicate(true);
+				pd->snapshot.object_vars[p_object_data->get_net_id().id][p_var_id.id].name = p_object_data->vars[p_var_id.id].var.name;
+				pd->snapshot.object_vars[p_object_data->get_net_id().id][p_var_id.id].value = p_value.duplicate(true);
 			},
 
 			// Parse node activation:
@@ -3379,7 +3205,7 @@ void ClientSynchronizer::update_client_snapshot(NS::Snapshot &p_snapshot) {
 	scene_synchronizer->synchronizer_manager->snapshot_get_custom_data(nullptr, p_snapshot.custom_data);
 
 	// Make sure we have room for all the NodeData.
-	p_snapshot.node_vars.resize(scene_synchronizer->objects_data_storage.get_sorted_objects_data().size());
+	p_snapshot.object_vars.resize(scene_synchronizer->objects_data_storage.get_sorted_objects_data().size());
 
 	// Fetch the data.
 	for (ObjectNetId net_node_id = { 0 }; net_node_id < ObjectNetId{ uint32_t(scene_synchronizer->objects_data_storage.get_sorted_objects_data().size()) }; net_node_id += 1) {
@@ -3392,13 +3218,13 @@ void ClientSynchronizer::update_client_snapshot(NS::Snapshot &p_snapshot) {
 		ERR_FAIL_COND_MSG(nd->get_net_id() == ObjectNetId::NONE, "[BUG] It's not expected that the client has an uninitialized NetNodeId into the `organized_node_data` ");
 
 #ifdef DEBUG_ENABLED
-		CRASH_COND_MSG(nd->get_net_id().id >= uint32_t(p_snapshot.node_vars.size()), "This array was resized above, this can't be triggered.");
+		CRASH_COND_MSG(nd->get_net_id().id >= uint32_t(p_snapshot.object_vars.size()), "This array was resized above, this can't be triggered.");
 #endif
 
-		Vector<NS::NameAndVar> *snap_node_vars = p_snapshot.node_vars.ptrw() + nd->get_net_id().id;
+		std::vector<NS::NameAndVar> *snap_node_vars = p_snapshot.object_vars.data() + nd->get_net_id().id;
 		snap_node_vars->resize(nd->vars.size());
 
-		NS::NameAndVar *snap_node_vars_ptr = snap_node_vars->ptrw();
+		NS::NameAndVar *snap_node_vars_ptr = snap_node_vars->data();
 		for (uint32_t v = 0; v < nd->vars.size(); v += 1) {
 			if (nd->vars[v].enabled) {
 				snap_node_vars_ptr[v] = nd->vars[v].var;
@@ -3414,11 +3240,11 @@ void ClientSynchronizer::apply_snapshot(
 		int p_flag,
 		LocalVector<String> *r_applied_data_info,
 		bool p_skip_custom_data) {
-	const Vector<NS::NameAndVar> *nodes_vars = p_snapshot.node_vars.ptr();
+	const std::vector<NS::NameAndVar> *objects_vars = p_snapshot.object_vars.data();
 
 	scene_synchronizer->change_events_begin(p_flag);
 
-	for (ObjectNetId net_node_id = { 0 }; net_node_id < ObjectNetId{ uint32_t(p_snapshot.node_vars.size()) }; net_node_id += 1) {
+	for (ObjectNetId net_node_id = { 0 }; net_node_id < ObjectNetId{ uint32_t(p_snapshot.object_vars.size()) }; net_node_id += 1) {
 		NS::ObjectData *nd = scene_synchronizer->get_object_data(net_node_id);
 
 		if (nd == nullptr) {
@@ -3433,8 +3259,8 @@ void ClientSynchronizer::apply_snapshot(
 			continue;
 		}
 
-		const Vector<NS::NameAndVar> &vars = nodes_vars[net_node_id.id];
-		const NS::NameAndVar *vars_ptr = vars.ptr();
+		const std::vector<NS::NameAndVar> &vars = objects_vars[net_node_id.id];
+		const NS::NameAndVar *vars_ptr = vars.data();
 
 		if (r_applied_data_info) {
 			r_applied_data_info->push_back("Applied snapshot data on the node: " + String(nd->object_name.c_str()));
@@ -3451,7 +3277,7 @@ void ClientSynchronizer::apply_snapshot(
 			const Variant current_val = nd->vars[v.id].var.value;
 			nd->vars[v.id].var.value = vars_ptr[v.id].value.duplicate(true);
 
-			if (!scene_synchronizer->compare(current_val, vars_ptr[v.id].value)) {
+			if (!scene_synchronizer->network_interface->compare(current_val, vars_ptr[v.id].value)) {
 				scene_synchronizer->synchronizer_manager->set_variable(
 						nd->app_object_handle,
 						vars_ptr[v.id].name.c_str(),
@@ -3468,7 +3294,7 @@ void ClientSynchronizer::apply_snapshot(
 		}
 	}
 
-	if (!p_skip_custom_data) {
+	if (p_snapshot.has_custom_data && !p_skip_custom_data) {
 		scene_synchronizer->synchronizer_manager->snapshot_set_custom_data(p_snapshot.custom_data);
 	}
 
