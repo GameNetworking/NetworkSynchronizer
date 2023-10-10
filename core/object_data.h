@@ -69,7 +69,7 @@ public:
 	ObjectLocalId get_local_id() const;
 
 	bool has_registered_process_functions() const;
-	bool can_deferred_sync() const;
+	bool can_trickled_sync() const;
 
 	void set_controller(class NetworkedControllerBase *p_controller);
 	class NetworkedControllerBase *get_controller() const;

@@ -317,7 +317,7 @@ public:
 		void update_from(const RealtimeNodeInfo &p_other) {}
 	};
 
-	struct DeferredNodeInfo {
+	struct TrickledNodeInfo {
 		struct ObjectData *od = nullptr;
 
 		/// The node update rate, relative to the godot physics processing rate.
@@ -332,15 +332,15 @@ public:
 		/// INTERNAL
 		bool _unknown = false;
 
-		DeferredNodeInfo() = default;
-		DeferredNodeInfo(const DeferredNodeInfo &) = default;
-		DeferredNodeInfo &operator=(const DeferredNodeInfo &) = default;
-		DeferredNodeInfo &operator=(DeferredNodeInfo &&) = default;
-		DeferredNodeInfo(struct ObjectData *p_nd) :
+		TrickledNodeInfo() = default;
+		TrickledNodeInfo(const TrickledNodeInfo &) = default;
+		TrickledNodeInfo &operator=(const TrickledNodeInfo &) = default;
+		TrickledNodeInfo &operator=(TrickledNodeInfo &&) = default;
+		TrickledNodeInfo(struct ObjectData *p_nd) :
 				od(p_nd) {}
-		bool operator==(const DeferredNodeInfo &p_other) { return od == p_other.od; }
+		bool operator==(const TrickledNodeInfo &p_other) { return od == p_other.od; }
 
-		void update_from(const DeferredNodeInfo &p_other) {
+		void update_from(const TrickledNodeInfo &p_other) {
 			update_rate = p_other.update_rate;
 		}
 	};
@@ -349,8 +349,8 @@ private:
 	bool realtime_sync_nodes_list_changed = false;
 	LocalVector<RealtimeNodeInfo> realtime_sync_nodes;
 
-	bool deferred_sync_nodes_list_changed = false;
-	LocalVector<DeferredNodeInfo> deferred_sync_nodes;
+	bool trickled_sync_nodes_list_changed = false;
+	LocalVector<TrickledNodeInfo> trickled_sync_nodes;
 
 public:
 	uint64_t user_data = 0;
@@ -360,27 +360,27 @@ public:
 
 public:
 	bool is_realtime_node_list_changed() const;
-	bool is_deferred_node_list_changed() const;
+	bool is_trickled_node_list_changed() const;
 
 	const LocalVector<NS::SyncGroup::RealtimeNodeInfo> &get_realtime_sync_nodes() const;
-	const LocalVector<NS::SyncGroup::DeferredNodeInfo> &get_deferred_sync_nodes() const;
-	LocalVector<NS::SyncGroup::DeferredNodeInfo> &get_deferred_sync_nodes();
+	const LocalVector<NS::SyncGroup::TrickledNodeInfo> &get_trickled_sync_nodes() const;
+	LocalVector<NS::SyncGroup::TrickledNodeInfo> &get_trickled_sync_nodes();
 
 	void mark_changes_as_notified();
 
 	/// Returns the `index` or `UINT32_MAX` on error.
 	uint32_t add_new_node(struct ObjectData *p_object_data, bool p_realtime);
 	void remove_node(struct ObjectData *p_object_data);
-	void replace_nodes(LocalVector<RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<DeferredNodeInfo> &&p_new_deferred_nodes);
+	void replace_nodes(LocalVector<RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<TrickledNodeInfo> &&p_new_trickled_nodes);
 	void remove_all_nodes();
 
 	void notify_new_variable(struct ObjectData *p_object_data, const std::string &p_var_name);
 	void notify_variable_changed(struct ObjectData *p_object_data, const std::string &p_var_name);
 
-	void set_deferred_update_rate(struct ObjectData *p_object_data, real_t p_update_rate);
-	real_t get_deferred_update_rate(const struct ObjectData *p_object_data) const;
+	void set_trickled_update_rate(struct ObjectData *p_object_data, real_t p_update_rate);
+	real_t get_trickled_update_rate(const struct ObjectData *p_object_data) const;
 
-	void sort_deferred_node_by_update_priority();
+	void sort_trickled_node_by_update_priority();
 };
 
 NS_NAMESPACE_END

@@ -41,8 +41,8 @@ public:
 	void _notification(int p_what);
 
 public: // ---------------------------------------------------------- Properties
-	void set_max_deferred_nodes_per_update(int p_rate);
-	int get_max_deferred_nodes_per_update() const;
+	void set_max_trickled_nodes_per_update(int p_rate);
+	int get_max_trickled_nodes_per_update() const;
 
 	void set_server_notify_state_interval(real_t p_interval);
 	real_t get_server_notify_state_interval() const;
@@ -115,10 +115,10 @@ public: // ---------------------------------------------------------------- APIs
 	uint64_t register_process(Node *p_node, ProcessPhase p_phase, const Callable &p_callable);
 	void unregister_process(Node *p_node, ProcessPhase p_phase, uint64_t p_handler);
 
-	/// Setup the deferred sync method for this specific node.
-	/// The deferred-sync is different from the realtime-sync because the data
+	/// Setup the trickled sync method for this specific node.
+	/// The trickled-sync is different from the realtime-sync because the data
 	/// is streamed and not simulated.
-	void setup_deferred_sync(Node *p_node, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func);
+	void setup_trickled_sync(Node *p_node, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func);
 
 	/// Creates a realtime sync group containing a list of nodes.
 	/// The Peers listening to this group will receive the updates only
@@ -131,18 +131,18 @@ public: // ---------------------------------------------------------------- APIs
 	void sync_group_remove_node_by_id(uint32_t p_net_id, SyncGroupId p_group_id);
 	void sync_group_remove_node(NS::ObjectData *p_object_data, SyncGroupId p_group_id);
 
-	/// Use `std::move()` to transfer `p_new_realtime_nodes` and `p_new_deferred_nodes`.
-	void sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::DeferredNodeInfo> &&p_new_deferred_nodes);
+	/// Use `std::move()` to transfer `p_new_realtime_nodes` and `p_new_trickled_nodes`.
+	void sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledNodeInfo> &&p_new_trickled_nodes);
 
 	void sync_group_remove_all_nodes(SyncGroupId p_group_id);
 	void sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id);
 	SyncGroupId sync_group_get_peer_group(int p_peer_id) const;
 	const LocalVector<int> *sync_group_get_peers(SyncGroupId p_group_id) const;
 
-	void sync_group_set_deferred_update_rate_by_id(uint32_t p_node_id, SyncGroupId p_group_id, real_t p_update_rate);
-	void sync_group_set_deferred_update_rate(NS::ObjectData *p_object_data, SyncGroupId p_group_id, real_t p_update_rate);
-	real_t sync_group_get_deferred_update_rate_by_id(uint32_t p_node_id, SyncGroupId p_group_id) const;
-	real_t sync_group_get_deferred_update_rate(const NS::ObjectData *p_object_data, SyncGroupId p_group_id) const;
+	void sync_group_set_trickled_update_rate_by_id(uint32_t p_node_id, SyncGroupId p_group_id, real_t p_update_rate);
+	void sync_group_set_trickled_update_rate(NS::ObjectData *p_object_data, SyncGroupId p_group_id, real_t p_update_rate);
+	real_t sync_group_get_trickled_update_rate_by_id(uint32_t p_node_id, SyncGroupId p_group_id) const;
+	real_t sync_group_get_trickled_update_rate(const NS::ObjectData *p_object_data, SyncGroupId p_group_id) const;
 
 	void sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_ptr);
 	uint64_t sync_group_get_user_data(SyncGroupId p_group_id) const;

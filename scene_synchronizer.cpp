@@ -71,9 +71,9 @@ void SceneSynchronizerBase::setup(SynchronizerManager &p_synchronizer_interface)
 					true,
 					false);
 
-	rpc_handler_deferred_sync_data =
+	rpc_handler_trickled_sync_data =
 			network_interface->rpc_config(
-					std::function<void(const Vector<uint8_t> &)>(std::bind(&SceneSynchronizerBase::rpc_deferred_sync_data, this, std::placeholders::_1)),
+					std::function<void(const Vector<uint8_t> &)>(std::bind(&SceneSynchronizerBase::rpc_trickled_sync_data, this, std::placeholders::_1)),
 					false,
 					false);
 
@@ -108,7 +108,7 @@ void SceneSynchronizerBase::conclude() {
 	rpc_handler_notify_need_full_snapshot.reset();
 	rpc_handler_set_network_enabled.reset();
 	rpc_handler_notify_peer_status.reset();
-	rpc_handler_deferred_sync_data.reset();
+	rpc_handler_trickled_sync_data.reset();
 }
 
 void SceneSynchronizerBase::process() {
@@ -127,12 +127,12 @@ void SceneSynchronizerBase::on_app_object_removed(ObjectHandle p_app_object_hand
 	unregister_app_object(find_object_local_id(p_app_object_handle));
 }
 
-void SceneSynchronizerBase::set_max_deferred_nodes_per_update(int p_rate) {
-	max_deferred_nodes_per_update = p_rate;
+void SceneSynchronizerBase::set_max_trickled_nodes_per_update(int p_rate) {
+	max_trickled_nodes_per_update = p_rate;
 }
 
-int SceneSynchronizerBase::get_max_deferred_nodes_per_update() const {
-	return max_deferred_nodes_per_update;
+int SceneSynchronizerBase::get_max_trickled_nodes_per_update() const {
+	return max_trickled_nodes_per_update;
 }
 
 void SceneSynchronizerBase::set_server_notify_state_interval(real_t p_interval) {
@@ -481,7 +481,7 @@ void SceneSynchronizerBase::unregister_process(ObjectLocalId p_id, ProcessPhase 
 	}
 }
 
-void SceneSynchronizerBase::setup_deferred_sync(ObjectLocalId p_id, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func) {
+void SceneSynchronizerBase::setup_trickled_sync(ObjectLocalId p_id, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func) {
 	ERR_FAIL_COND(p_id == ObjectLocalId::NONE);
 	ERR_FAIL_COND(!p_collect_epoch_func.is_valid());
 	ERR_FAIL_COND(!p_apply_epoch_func.is_valid());
@@ -489,7 +489,7 @@ void SceneSynchronizerBase::setup_deferred_sync(ObjectLocalId p_id, const Callab
 	ERR_FAIL_COND(!od);
 	od->collect_epoch_func = p_collect_epoch_func;
 	od->apply_epoch_func = p_apply_epoch_func;
-	SceneSynchronizerDebugger::singleton()->debug_print(network_interface, "Setup deferred sync functions for: `" + String(od->object_name.c_str()) + "`. Collect epoch, method name: `" + p_collect_epoch_func.get_method() + "`. Apply epoch, method name: `" + p_apply_epoch_func.get_method() + "`.");
+	SceneSynchronizerDebugger::singleton()->debug_print(network_interface, "Setup trickled sync functions for: `" + String(od->object_name.c_str()) + "`. Collect epoch, method name: `" + p_collect_epoch_func.get_method() + "`. Apply epoch, method name: `" + p_apply_epoch_func.get_method() + "`.");
 }
 
 SyncGroupId SceneSynchronizerBase::sync_group_create() {
@@ -524,9 +524,9 @@ void SceneSynchronizerBase::sync_group_remove_node(NS::ObjectData *p_object_data
 	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_remove_node(p_object_data, p_group_id);
 }
 
-void SceneSynchronizerBase::sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::DeferredNodeInfo> &&p_new_deferred_nodes) {
+void SceneSynchronizerBase::sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledNodeInfo> &&p_new_trickled_nodes) {
 	ERR_FAIL_COND_MSG(!is_server(), "This function CAN be used only on the server.");
-	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_replace_nodes(p_group_id, std::move(p_new_realtime_nodes), std::move(p_new_deferred_nodes));
+	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_replace_nodes(p_group_id, std::move(p_new_realtime_nodes), std::move(p_new_trickled_nodes));
 }
 
 void SceneSynchronizerBase::sync_group_remove_all_nodes(SyncGroupId p_group_id) {
@@ -564,28 +564,28 @@ const LocalVector<int> *SceneSynchronizerBase::sync_group_get_peers(SyncGroupId 
 	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get_peers(p_group_id);
 }
 
-void SceneSynchronizerBase::sync_group_set_deferred_update_rate(ObjectLocalId p_node_id, SyncGroupId p_group_id, real_t p_update_rate) {
+void SceneSynchronizerBase::sync_group_set_trickled_update_rate(ObjectLocalId p_node_id, SyncGroupId p_group_id, real_t p_update_rate) {
 	NS::ObjectData *od = get_object_data(p_node_id);
 	ERR_FAIL_COND_MSG(!is_server(), "This function CAN be used only on the server.");
-	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_set_deferred_update_rate(od, p_group_id, p_update_rate);
+	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_set_trickled_update_rate(od, p_group_id, p_update_rate);
 }
 
-void SceneSynchronizerBase::sync_group_set_deferred_update_rate(ObjectNetId p_node_id, SyncGroupId p_group_id, real_t p_update_rate) {
+void SceneSynchronizerBase::sync_group_set_trickled_update_rate(ObjectNetId p_node_id, SyncGroupId p_group_id, real_t p_update_rate) {
 	NS::ObjectData *od = get_object_data(p_node_id);
 	ERR_FAIL_COND_MSG(!is_server(), "This function CAN be used only on the server.");
-	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_set_deferred_update_rate(od, p_group_id, p_update_rate);
+	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_set_trickled_update_rate(od, p_group_id, p_update_rate);
 }
 
-real_t SceneSynchronizerBase::sync_group_get_deferred_update_rate(ObjectLocalId p_id, SyncGroupId p_group_id) const {
+real_t SceneSynchronizerBase::sync_group_get_trickled_update_rate(ObjectLocalId p_id, SyncGroupId p_group_id) const {
 	const NS::ObjectData *od = get_object_data(p_id);
 	ERR_FAIL_COND_V_MSG(!is_server(), 0.0, "This function CAN be used only on the server.");
-	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get_deferred_update_rate(od, p_group_id);
+	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get_trickled_update_rate(od, p_group_id);
 }
 
-real_t SceneSynchronizerBase::sync_group_get_deferred_update_rate(ObjectNetId p_id, SyncGroupId p_group_id) const {
+real_t SceneSynchronizerBase::sync_group_get_trickled_update_rate(ObjectNetId p_id, SyncGroupId p_group_id) const {
 	const NS::ObjectData *od = get_object_data(p_id);
 	ERR_FAIL_COND_V_MSG(!is_server(), 0.0, "This function CAN be used only on the server.");
-	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get_deferred_update_rate(od, p_group_id);
+	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get_trickled_update_rate(od, p_group_id);
 }
 
 void SceneSynchronizerBase::sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_data) {
@@ -1017,11 +1017,11 @@ void SceneSynchronizerBase::rpc_notify_peer_status(bool p_enabled) {
 	static_cast<ClientSynchronizer *>(synchronizer)->set_enabled(p_enabled);
 }
 
-void SceneSynchronizerBase::rpc_deferred_sync_data(const Vector<uint8_t> &p_data) {
+void SceneSynchronizerBase::rpc_trickled_sync_data(const Vector<uint8_t> &p_data) {
 	ERR_FAIL_COND_MSG(is_client() == false, "Only clients are supposed to receive this function call.");
 	ERR_FAIL_COND_MSG(p_data.size() <= 0, "It's not supposed to receive a 0 size data.");
 
-	static_cast<ClientSynchronizer *>(synchronizer)->receive_deferred_sync_data(p_data);
+	static_cast<ClientSynchronizer *>(synchronizer)->receive_trickled_sync_data(p_data);
 }
 
 void SceneSynchronizerBase::update_peers() {
@@ -1527,7 +1527,7 @@ void ServerSynchronizer::process() {
 	scene_synchronizer->detect_and_signal_changed_variables(NetEventFlag::CHANGE);
 
 	process_snapshot_notificator(delta);
-	process_deferred_sync(delta);
+	process_trickled_sync(delta);
 
 	SceneSynchronizerDebugger::singleton()->scene_sync_process_end(scene_synchronizer);
 
@@ -1635,10 +1635,10 @@ void ServerSynchronizer::sync_group_remove_node(NS::ObjectData *p_object_data, S
 	sync_groups[p_group_id].remove_node(p_object_data);
 }
 
-void ServerSynchronizer::sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::DeferredNodeInfo> &&p_new_deferred_nodes) {
+void ServerSynchronizer::sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledNodeInfo> &&p_new_trickled_nodes) {
 	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
 	ERR_FAIL_COND_MSG(p_group_id == SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID, "You can't change this SyncGroup in any way. Create a new one.");
-	sync_groups[p_group_id].replace_nodes(std::move(p_new_realtime_nodes), std::move(p_new_deferred_nodes));
+	sync_groups[p_group_id].replace_nodes(std::move(p_new_realtime_nodes), std::move(p_new_trickled_nodes));
 }
 
 void ServerSynchronizer::sync_group_remove_all_nodes(SyncGroupId p_group_id) {
@@ -1679,18 +1679,18 @@ const LocalVector<int> *ServerSynchronizer::sync_group_get_peers(SyncGroupId p_g
 	return &sync_groups[p_group_id].peers;
 }
 
-void ServerSynchronizer::sync_group_set_deferred_update_rate(NS::ObjectData *p_object_data, SyncGroupId p_group_id, real_t p_update_rate) {
+void ServerSynchronizer::sync_group_set_trickled_update_rate(NS::ObjectData *p_object_data, SyncGroupId p_group_id, real_t p_update_rate) {
 	ERR_FAIL_COND(p_object_data == nullptr);
 	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
 	ERR_FAIL_COND_MSG(p_group_id == SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID, "You can't change this SyncGroup in any way. Create a new one.");
-	sync_groups[p_group_id].set_deferred_update_rate(p_object_data, p_update_rate);
+	sync_groups[p_group_id].set_trickled_update_rate(p_object_data, p_update_rate);
 }
 
-real_t ServerSynchronizer::sync_group_get_deferred_update_rate(const NS::ObjectData *p_object_data, SyncGroupId p_group_id) const {
+real_t ServerSynchronizer::sync_group_get_trickled_update_rate(const NS::ObjectData *p_object_data, SyncGroupId p_group_id) const {
 	ERR_FAIL_COND_V(p_object_data == nullptr, 0.0);
 	ERR_FAIL_COND_V_MSG(p_group_id >= sync_groups.size(), 0.0, "The group id `" + itos(p_group_id) + "` doesn't exist.");
 	ERR_FAIL_COND_V_MSG(p_group_id == SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID, 0.0, "You can't change this SyncGroup in any way. Create a new one.");
-	return sync_groups[p_group_id].get_deferred_update_rate(p_object_data);
+	return sync_groups[p_group_id].get_trickled_update_rate(p_object_data);
 }
 
 void ServerSynchronizer::sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_data) {
@@ -1727,9 +1727,9 @@ void ServerSynchronizer::sync_group_debug_print() {
 
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|");
 
-		const LocalVector<NS::SyncGroup::DeferredNodeInfo> &deferred_node_info = group.get_deferred_sync_nodes();
-		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|    [Deferred nodes (UR: Update Rate)]");
-		for (auto info : deferred_node_info) {
+		const LocalVector<NS::SyncGroup::TrickledNodeInfo> &trickled_node_info = group.get_trickled_sync_nodes();
+		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|    [Trickled nodes (UR: Update Rate)]");
+		for (auto info : trickled_node_info) {
 			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|      |- [UR: " + rtos(info.update_rate) + "] " + info.od->object_name.c_str());
 		}
 	}
@@ -1869,11 +1869,11 @@ void ServerSynchronizer::generate_snapshot(
 		r_snapshot_db.add(false);
 	}
 
-	if (p_group.is_deferred_node_list_changed() || p_force_full_snapshot) {
-		for (int i = 0; i < int(p_group.get_deferred_sync_nodes().size()); ++i) {
-			if (p_group.get_deferred_sync_nodes()[i]._unknown || p_force_full_snapshot) {
+	if (p_group.is_trickled_node_list_changed() || p_force_full_snapshot) {
+		for (int i = 0; i < int(p_group.get_trickled_sync_nodes().size()); ++i) {
+			if (p_group.get_trickled_sync_nodes()[i]._unknown || p_force_full_snapshot) {
 				generate_snapshot_object_data(
-						p_group.get_deferred_sync_nodes()[i].od,
+						p_group.get_trickled_sync_nodes()[i].od,
 						SNAPSHOT_GENERATION_MODE_FORCE_NODE_PATH_ONLY,
 						NS::SyncGroup::Change(),
 						r_snapshot_db);
@@ -1962,7 +1962,7 @@ void ServerSynchronizer::generate_snapshot_object_data(
 	}
 }
 
-void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
+void ServerSynchronizer::process_trickled_sync(real_t p_delta) {
 	DataBuffer *tmp_buffer = memnew(DataBuffer);
 	const Variant var_data_buffer = tmp_buffer;
 	const Variant *fake_array_vars = &var_data_buffer;
@@ -1977,7 +1977,7 @@ void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
 			continue;
 		}
 
-		LocalVector<NS::SyncGroup::DeferredNodeInfo> &node_info = group.get_deferred_sync_nodes();
+		LocalVector<NS::SyncGroup::TrickledNodeInfo> &node_info = group.get_trickled_sync_nodes();
 		if (node_info.size() == 0) {
 			// Nothing to sync.
 			continue;
@@ -1985,7 +1985,7 @@ void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
 
 		int update_node_count = 0;
 
-		group.sort_deferred_node_by_update_priority();
+		group.sort_trickled_node_by_update_priority();
 
 		DataBuffer global_buffer;
 		global_buffer.begin_write(0);
@@ -1993,7 +1993,7 @@ void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
 
 		for (int i = 0; i < int(node_info.size()); ++i) {
 			bool send = true;
-			if (node_info[i]._update_priority < 1.0 || update_node_count >= scene_synchronizer->max_deferred_nodes_per_update) {
+			if (node_info[i]._update_priority < 1.0 || update_node_count >= scene_synchronizer->max_trickled_nodes_per_update) {
 				send = false;
 			}
 
@@ -2048,7 +2048,7 @@ void ServerSynchronizer::process_deferred_sync(real_t p_delta) {
 		if (update_node_count > 0) {
 			global_buffer.dry();
 			for (int i = 0; i < int(group.peers.size()); ++i) {
-				scene_synchronizer->rpc_handler_deferred_sync_data.rpc(
+				scene_synchronizer->rpc_handler_trickled_sync_data.rpc(
 						scene_synchronizer->get_network_interface(),
 						group.peers[i],
 						global_buffer.get_buffer().get_bytes());
@@ -2098,7 +2098,7 @@ void ClientSynchronizer::process() {
 	// Now trigger the END_SYNC event.
 	signal_end_sync_changed_variables_events();
 
-	process_received_deferred_sync_data(delta);
+	process_received_trickled_sync_data(delta);
 
 #if DEBUG_ENABLED
 	if (player_controller_node_data) {
@@ -2150,7 +2150,7 @@ void ClientSynchronizer::on_object_data_removed(NS::ObjectData &p_object_data) {
 		last_received_snapshot.object_vars[p_object_data.get_net_id().id].clear();
 	}
 
-	remove_node_from_deferred_sync(&p_object_data);
+	remove_node_from_trickled_sync(&p_object_data);
 }
 
 void ClientSynchronizer::on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const Variant &p_old_value, int p_flag) {
@@ -2891,13 +2891,13 @@ void ClientSynchronizer::set_enabled(bool p_enabled) {
 	}
 }
 
-void ClientSynchronizer::receive_deferred_sync_data(const Vector<uint8_t> &p_data) {
+void ClientSynchronizer::receive_trickled_sync_data(const Vector<uint8_t> &p_data) {
 	DataBuffer future_epoch_buffer(p_data);
 	future_epoch_buffer.begin_read();
 
 	int remaining_size = future_epoch_buffer.size() - future_epoch_buffer.get_bit_offset();
 	if (remaining_size < DataBuffer::get_bit_taken(DataBuffer::DATA_TYPE_UINT, DataBuffer::COMPRESSION_LEVEL_1)) {
-		SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "[FATAL] The function `receive_deferred_sync_data` received malformed data.");
+		SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "[FATAL] The function `receive_trickled_sync_data` received malformed data.");
 		// Nothing to fetch.
 		return;
 	}
@@ -2954,7 +2954,7 @@ void ClientSynchronizer::receive_deferred_sync_data(const Vector<uint8_t> &p_dat
 
 		NS::ObjectData *nd = scene_synchronizer->get_object_data(node_id, false);
 		if (nd == nullptr) {
-			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The function `receive_deferred_sync_data` is skipping the node with ID `" + itos(node_id.id) + "` as it was not found locally.");
+			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The function `receive_trickled_sync_data` is skipping the node with ID `" + itos(node_id.id) + "` as it was not found locally.");
 			future_epoch_buffer.seek(expected_bit_offset_after_apply);
 			continue;
 		}
@@ -2964,12 +2964,12 @@ void ClientSynchronizer::receive_deferred_sync_data(const Vector<uint8_t> &p_dat
 		future_epoch_buffer.read_bits(future_buffer_data.ptrw(), buffer_bit_count);
 		CRASH_COND_MSG(future_epoch_buffer.get_bit_offset() != expected_bit_offset_after_apply, "At this point the buffer is expected to be exactly at this bit.");
 
-		int64_t index = deferred_sync_array.find(nd);
+		int64_t index = trickled_sync_array.find(nd);
 		if (index == -1) {
-			index = deferred_sync_array.size();
-			deferred_sync_array.push_back(DeferredSyncInterpolationData(nd));
+			index = trickled_sync_array.size();
+			trickled_sync_array.push_back(TrickledSyncInterpolationData(nd));
 		}
-		DeferredSyncInterpolationData &stream = deferred_sync_array[index];
+		TrickledSyncInterpolationData &stream = trickled_sync_array[index];
 #ifdef DEBUG_ENABLED
 		CRASH_COND(stream.nd != nd);
 #endif
@@ -3009,7 +3009,7 @@ void ClientSynchronizer::receive_deferred_sync_data(const Vector<uint8_t> &p_dat
 	memdelete(db);
 }
 
-void ClientSynchronizer::process_received_deferred_sync_data(real_t p_delta) {
+void ClientSynchronizer::process_received_trickled_sync_data(real_t p_delta) {
 	DataBuffer *db1 = memnew(DataBuffer);
 	DataBuffer *db2 = memnew(DataBuffer);
 
@@ -3021,8 +3021,8 @@ void ClientSynchronizer::process_received_deferred_sync_data(real_t p_delta) {
 
 	Variant r;
 
-	for (int i = 0; i < int(deferred_sync_array.size()); ++i) {
-		DeferredSyncInterpolationData &stream = deferred_sync_array[i];
+	for (int i = 0; i < int(trickled_sync_array.size()); ++i) {
+		TrickledSyncInterpolationData &stream = trickled_sync_array[i];
 		if (stream.alpha > 1.2) {
 			// The stream is not yet started.
 			// OR
@@ -3032,7 +3032,7 @@ void ClientSynchronizer::process_received_deferred_sync_data(real_t p_delta) {
 
 		NS::ObjectData *nd = stream.nd;
 		if (nd == nullptr) {
-			SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The function `process_received_deferred_sync_data` found a null NodeData into the `deferred_sync_array`; this is not supposed to happen.");
+			SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The function `process_received_trickled_sync_data` found a null NodeData into the `trickled_sync_array`; this is not supposed to happen.");
 			continue;
 		}
 
@@ -3058,7 +3058,7 @@ void ClientSynchronizer::process_received_deferred_sync_data(real_t p_delta) {
 		nd->apply_epoch_func.callp(array_vars_ptr, 4, r, e);
 
 		if (e.error != Callable::CallError::CALL_OK) {
-			SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_received_deferred_sync_data` failed executing the function`" + nd->collect_epoch_func.get_method() + "` for the node `" + nd->object_name.c_str() + "`.");
+			SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_received_trickled_sync_data` failed executing the function`" + nd->collect_epoch_func.get_method() + "` for the node `" + nd->object_name.c_str() + "`.");
 			continue;
 		}
 	}
@@ -3067,10 +3067,10 @@ void ClientSynchronizer::process_received_deferred_sync_data(real_t p_delta) {
 	memdelete(db2);
 }
 
-void ClientSynchronizer::remove_node_from_deferred_sync(NS::ObjectData *p_object_data) {
-	const int64_t index = deferred_sync_array.find(p_object_data);
+void ClientSynchronizer::remove_node_from_trickled_sync(NS::ObjectData *p_object_data) {
+	const int64_t index = trickled_sync_array.find(p_object_data);
 	if (index >= 0) {
-		deferred_sync_array.remove_at_unordered(index);
+		trickled_sync_array.remove_at_unordered(index);
 	}
 }
 
@@ -3166,9 +3166,9 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 					pd->scene_synchronizer->process_functions__clear();
 				}
 
-				// Make sure this node is not into the deferred sync list.
+				// Make sure this node is not into the trickled sync list.
 				if (p_is_active) {
-					pd->client_synchronizer->remove_node_from_deferred_sync(p_object_data);
+					pd->client_synchronizer->remove_node_from_trickled_sync(p_object_data);
 				}
 			});
 
