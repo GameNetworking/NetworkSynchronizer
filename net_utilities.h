@@ -302,22 +302,22 @@ public:
 		RBSet<std::string> vars;
 	};
 
-	struct RealtimeNodeInfo {
+	struct SimulatedObjectInfo {
 		struct ObjectData *od = nullptr;
 		Change change;
 
-		RealtimeNodeInfo() = default;
-		RealtimeNodeInfo(const RealtimeNodeInfo &) = default;
-		RealtimeNodeInfo &operator=(const RealtimeNodeInfo &) = default;
-		RealtimeNodeInfo &operator=(RealtimeNodeInfo &&) = default;
-		RealtimeNodeInfo(struct ObjectData *p_nd) :
+		SimulatedObjectInfo() = default;
+		SimulatedObjectInfo(const SimulatedObjectInfo &) = default;
+		SimulatedObjectInfo &operator=(const SimulatedObjectInfo &) = default;
+		SimulatedObjectInfo &operator=(SimulatedObjectInfo &&) = default;
+		SimulatedObjectInfo(struct ObjectData *p_nd) :
 				od(p_nd) {}
-		bool operator==(const RealtimeNodeInfo &p_other) { return od == p_other.od; }
+		bool operator==(const SimulatedObjectInfo &p_other) { return od == p_other.od; }
 
-		void update_from(const RealtimeNodeInfo &p_other) {}
+		void update_from(const SimulatedObjectInfo &p_other) {}
 	};
 
-	struct TrickledNodeInfo {
+	struct TrickledObjectInfo {
 		struct ObjectData *od = nullptr;
 
 		/// The node update rate, relative to the godot physics processing rate.
@@ -332,25 +332,25 @@ public:
 		/// INTERNAL
 		bool _unknown = false;
 
-		TrickledNodeInfo() = default;
-		TrickledNodeInfo(const TrickledNodeInfo &) = default;
-		TrickledNodeInfo &operator=(const TrickledNodeInfo &) = default;
-		TrickledNodeInfo &operator=(TrickledNodeInfo &&) = default;
-		TrickledNodeInfo(struct ObjectData *p_nd) :
+		TrickledObjectInfo() = default;
+		TrickledObjectInfo(const TrickledObjectInfo &) = default;
+		TrickledObjectInfo &operator=(const TrickledObjectInfo &) = default;
+		TrickledObjectInfo &operator=(TrickledObjectInfo &&) = default;
+		TrickledObjectInfo(struct ObjectData *p_nd) :
 				od(p_nd) {}
-		bool operator==(const TrickledNodeInfo &p_other) { return od == p_other.od; }
+		bool operator==(const TrickledObjectInfo &p_other) { return od == p_other.od; }
 
-		void update_from(const TrickledNodeInfo &p_other) {
+		void update_from(const TrickledObjectInfo &p_other) {
 			update_rate = p_other.update_rate;
 		}
 	};
 
 private:
 	bool realtime_sync_nodes_list_changed = false;
-	LocalVector<RealtimeNodeInfo> realtime_sync_nodes;
+	LocalVector<SimulatedObjectInfo> realtime_sync_nodes;
 
 	bool trickled_sync_nodes_list_changed = false;
-	LocalVector<TrickledNodeInfo> trickled_sync_nodes;
+	LocalVector<TrickledObjectInfo> trickled_sync_nodes;
 
 public:
 	uint64_t user_data = 0;
@@ -362,16 +362,16 @@ public:
 	bool is_realtime_node_list_changed() const;
 	bool is_trickled_node_list_changed() const;
 
-	const LocalVector<NS::SyncGroup::RealtimeNodeInfo> &get_realtime_sync_nodes() const;
-	const LocalVector<NS::SyncGroup::TrickledNodeInfo> &get_trickled_sync_nodes() const;
-	LocalVector<NS::SyncGroup::TrickledNodeInfo> &get_trickled_sync_nodes();
+	const LocalVector<NS::SyncGroup::SimulatedObjectInfo> &get_realtime_sync_nodes() const;
+	const LocalVector<NS::SyncGroup::TrickledObjectInfo> &get_trickled_sync_nodes() const;
+	LocalVector<NS::SyncGroup::TrickledObjectInfo> &get_trickled_sync_nodes();
 
 	void mark_changes_as_notified();
 
 	/// Returns the `index` or `UINT32_MAX` on error.
 	uint32_t add_new_node(struct ObjectData *p_object_data, bool p_realtime);
 	void remove_node(struct ObjectData *p_object_data);
-	void replace_nodes(LocalVector<RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<TrickledNodeInfo> &&p_new_trickled_nodes);
+	void replace_nodes(LocalVector<SimulatedObjectInfo> &&p_new_realtime_nodes, LocalVector<TrickledObjectInfo> &&p_new_trickled_nodes);
 	void remove_all_nodes();
 
 	void notify_new_variable(struct ObjectData *p_object_data, const std::string &p_var_name);

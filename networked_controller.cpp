@@ -1234,13 +1234,16 @@ void PlayerController::process(double p_delta) {
 		SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
 
 		node->player_set_has_new_input(false);
-		if (accept_new_inputs) {
-			if (streaming_paused == false) {
+		if (!streaming_paused) {
+			if (accept_new_inputs) {
 				input_buffers_counter += 1;
 				store_input_buffer(current_input_id);
-				send_frame_input_buffer_to_server();
 				node->player_set_has_new_input(true);
 			}
+
+			// Keep sending inputs, despite the server seems not responding properly,
+			// to make sure the server becomes up to date at some point.
+			send_frame_input_buffer_to_server();
 		}
 	}
 }

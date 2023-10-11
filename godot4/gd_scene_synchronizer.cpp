@@ -270,7 +270,7 @@ void GdSceneSynchronizer::on_add_object_data(NS::ObjectData &p_object_data) {
 }
 
 #ifdef DEBUG_ENABLED
-void GdSceneSynchronizer::debug_only_validate_nodes() {
+void GdSceneSynchronizer::debug_only_validate_objects() {
 	LocalVector<NS::ObjectHandle> null_objects;
 	null_objects.reserve(scene_synchronizer.get_all_object_data().size());
 
@@ -294,7 +294,7 @@ void GdSceneSynchronizer::debug_only_validate_nodes() {
 }
 #endif
 
-void GdSceneSynchronizer::update_nodes_relevancy() {
+void GdSceneSynchronizer::update_objects_relevancy() {
 	if (GDVIRTUAL_IS_OVERRIDDEN(_update_nodes_relevancy)) {
 		const bool executed = GDVIRTUAL_CALL(_update_nodes_relevancy);
 		if (executed == false) {
@@ -357,11 +357,11 @@ const NS::NetworkedControllerBase *GdSceneSynchronizer::extract_network_controll
 }
 
 void GdSceneSynchronizer::set_max_trickled_nodes_per_update(int p_rate) {
-	scene_synchronizer.set_max_trickled_nodes_per_update(p_rate);
+	scene_synchronizer.set_max_trickled_objects_per_update(p_rate);
 }
 
 int GdSceneSynchronizer::get_max_trickled_nodes_per_update() const {
-	return scene_synchronizer.get_max_trickled_nodes_per_update();
+	return scene_synchronizer.get_max_trickled_objects_per_update();
 }
 
 void GdSceneSynchronizer::set_server_notify_state_interval(real_t p_interval) {
@@ -381,11 +381,11 @@ real_t GdSceneSynchronizer::get_comparison_float_tolerance() const {
 }
 
 void GdSceneSynchronizer::set_nodes_relevancy_update_time(real_t p_time) {
-	scene_synchronizer.set_nodes_relevancy_update_time(p_time);
+	scene_synchronizer.set_objects_relevancy_update_time(p_time);
 }
 
 real_t GdSceneSynchronizer::get_nodes_relevancy_update_time() const {
-	return scene_synchronizer.get_nodes_relevancy_update_time();
+	return scene_synchronizer.get_objects_relevancy_update_time();
 }
 
 void GdSceneSynchronizer::_rpc_net_sync_reliable(const Vector<uint8_t> &p_args) {
@@ -526,27 +526,27 @@ const NS::SyncGroup *GdSceneSynchronizer::sync_group_get(SyncGroupId p_group_id)
 }
 
 void GdSceneSynchronizer::sync_group_add_node_by_id(uint32_t p_net_id, SyncGroupId p_group_id, bool p_realtime) {
-	scene_synchronizer.sync_group_add_node_by_id({ p_net_id }, p_group_id, p_realtime);
+	scene_synchronizer.sync_group_add_object_by_id({ p_net_id }, p_group_id, p_realtime);
 }
 
 void GdSceneSynchronizer::sync_group_add_node(NS::ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime) {
-	scene_synchronizer.sync_group_add_node(p_object_data, p_group_id, p_realtime);
+	scene_synchronizer.sync_group_add_object(p_object_data, p_group_id, p_realtime);
 }
 
 void GdSceneSynchronizer::sync_group_remove_node_by_id(uint32_t p_net_id, SyncGroupId p_group_id) {
-	scene_synchronizer.sync_group_remove_node_by_id({ p_net_id }, p_group_id);
+	scene_synchronizer.sync_group_remove_object_by_id({ p_net_id }, p_group_id);
 }
 
 void GdSceneSynchronizer::sync_group_remove_node(NS::ObjectData *p_object_data, SyncGroupId p_group_id) {
-	scene_synchronizer.sync_group_remove_node(p_object_data, p_group_id);
+	scene_synchronizer.sync_group_remove_object(p_object_data, p_group_id);
 }
 
-void GdSceneSynchronizer::sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledNodeInfo> &&p_new_trickled_nodes) {
-	scene_synchronizer.sync_group_replace_nodes(p_group_id, std::move(p_new_realtime_nodes), std::move(p_new_trickled_nodes));
+void GdSceneSynchronizer::sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes) {
+	scene_synchronizer.sync_group_replace_objects(p_group_id, std::move(p_new_realtime_nodes), std::move(p_new_trickled_nodes));
 }
 
 void GdSceneSynchronizer::sync_group_remove_all_nodes(SyncGroupId p_group_id) {
-	scene_synchronizer.sync_group_remove_all_nodes(p_group_id);
+	scene_synchronizer.sync_group_remove_all_objects(p_group_id);
 }
 
 void GdSceneSynchronizer::sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id) {

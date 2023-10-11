@@ -55,15 +55,15 @@ bool NS::SyncGroup::is_trickled_node_list_changed() const {
 	return trickled_sync_nodes_list_changed;
 }
 
-const LocalVector<NS::SyncGroup::RealtimeNodeInfo> &NS::SyncGroup::get_realtime_sync_nodes() const {
+const LocalVector<NS::SyncGroup::SimulatedObjectInfo> &NS::SyncGroup::get_realtime_sync_nodes() const {
 	return realtime_sync_nodes;
 }
 
-const LocalVector<NS::SyncGroup::TrickledNodeInfo> &NS::SyncGroup::get_trickled_sync_nodes() const {
+const LocalVector<NS::SyncGroup::TrickledObjectInfo> &NS::SyncGroup::get_trickled_sync_nodes() const {
 	return trickled_sync_nodes;
 }
 
-LocalVector<NS::SyncGroup::TrickledNodeInfo> &NS::SyncGroup::get_trickled_sync_nodes() {
+LocalVector<NS::SyncGroup::TrickledObjectInfo> &NS::SyncGroup::get_trickled_sync_nodes() {
 	return trickled_sync_nodes;
 }
 
@@ -97,7 +97,7 @@ uint32_t NS::SyncGroup::add_new_node(ObjectData *p_object_data, bool p_realtime)
 			realtime_sync_nodes.push_back(p_object_data);
 			realtime_sync_nodes_list_changed = true;
 
-			RealtimeNodeInfo &info = realtime_sync_nodes[index];
+			SimulatedObjectInfo &info = realtime_sync_nodes[index];
 
 			info.change.unknown = true;
 
@@ -190,7 +190,7 @@ void replace_nodes_impl(
 	}
 }
 
-void NS::SyncGroup::replace_nodes(LocalVector<RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<TrickledNodeInfo> &&p_new_trickled_nodes) {
+void NS::SyncGroup::replace_nodes(LocalVector<SimulatedObjectInfo> &&p_new_realtime_nodes, LocalVector<TrickledObjectInfo> &&p_new_trickled_nodes) {
 	replace_nodes_impl(
 			*this,
 			std::move(p_new_realtime_nodes),
@@ -251,7 +251,7 @@ real_t NS::SyncGroup::get_trickled_update_rate(const NS::ObjectData *p_object_da
 
 void NS::SyncGroup::sort_trickled_node_by_update_priority() {
 	struct DNIComparator {
-		_FORCE_INLINE_ bool operator()(const TrickledNodeInfo &a, const TrickledNodeInfo &b) const {
+		_FORCE_INLINE_ bool operator()(const TrickledObjectInfo &a, const TrickledObjectInfo &b) const {
 			return a._update_priority > b._update_priority;
 		}
 	};

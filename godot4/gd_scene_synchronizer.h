@@ -57,11 +57,11 @@ public: // ---------------------------------------- Scene Synchronizer Interface
 	virtual void on_init_synchronizer(bool p_was_generating_ids) override;
 	virtual void on_uninit_synchronizer() override;
 
-	virtual void debug_only_validate_nodes() override;
+	virtual void debug_only_validate_objects() override;
 
 	virtual void on_add_object_data(NS::ObjectData &p_object_data) override;
 
-	virtual void update_nodes_relevancy() override;
+	virtual void update_objects_relevancy() override;
 
 	virtual NS::ObjectHandle fetch_app_object(const std::string &p_object_name) override;
 	virtual uint64_t get_object_id(NS::ObjectHandle p_app_object_handle) const override;
@@ -132,7 +132,7 @@ public: // ---------------------------------------------------------------- APIs
 	void sync_group_remove_node(NS::ObjectData *p_object_data, SyncGroupId p_group_id);
 
 	/// Use `std::move()` to transfer `p_new_realtime_nodes` and `p_new_trickled_nodes`.
-	void sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledNodeInfo> &&p_new_trickled_nodes);
+	void sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes);
 
 	void sync_group_remove_all_nodes(SyncGroupId p_group_id);
 	void sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id);

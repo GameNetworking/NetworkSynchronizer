@@ -60,13 +60,13 @@ void SceneDiff::stop_tracking_scene_changes(const NS::SceneSynchronizerBase *p_s
 		return;
 	}
 
-	if (p_synchronizer->get_biggest_node_id() == NS::ObjectNetId::NONE) {
+	if (p_synchronizer->get_biggest_object_id() == NS::ObjectNetId::NONE) {
 		// No nodes to track.
 		tracking.clear();
 		return;
 	}
 
-	if (tracking.size() > (p_synchronizer->get_biggest_node_id().id + 1)) {
+	if (tracking.size() > (p_synchronizer->get_biggest_object_id().id + 1)) {
 		NET_DEBUG_ERR("[BUG] The tracked nodes are exceeding the sync nodes. Probably the sync is different or it has reset?");
 		tracking.clear();
 		return;

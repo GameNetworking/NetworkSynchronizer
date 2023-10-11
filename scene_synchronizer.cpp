@@ -117,7 +117,7 @@ void SceneSynchronizerBase::process() {
 #ifdef DEBUG_ENABLED
 	CRASH_COND_MSG(synchronizer == nullptr, "Never execute this function unless this synchronizer is ready.");
 
-	synchronizer_manager->debug_only_validate_nodes();
+	synchronizer_manager->debug_only_validate_objects();
 #endif
 
 	synchronizer->process();
@@ -127,12 +127,12 @@ void SceneSynchronizerBase::on_app_object_removed(ObjectHandle p_app_object_hand
 	unregister_app_object(find_object_local_id(p_app_object_handle));
 }
 
-void SceneSynchronizerBase::set_max_trickled_nodes_per_update(int p_rate) {
-	max_trickled_nodes_per_update = p_rate;
+void SceneSynchronizerBase::set_max_trickled_objects_per_update(int p_rate) {
+	max_trickled_objects_per_update = p_rate;
 }
 
-int SceneSynchronizerBase::get_max_trickled_nodes_per_update() const {
-	return max_trickled_nodes_per_update;
+int SceneSynchronizerBase::get_max_trickled_objects_per_update() const {
+	return max_trickled_objects_per_update;
 }
 
 void SceneSynchronizerBase::set_server_notify_state_interval(real_t p_interval) {
@@ -143,12 +143,12 @@ real_t SceneSynchronizerBase::get_server_notify_state_interval() const {
 	return server_notify_state_interval;
 }
 
-void SceneSynchronizerBase::set_nodes_relevancy_update_time(real_t p_time) {
-	nodes_relevancy_update_time = p_time;
+void SceneSynchronizerBase::set_objects_relevancy_update_time(real_t p_time) {
+	objects_relevancy_update_time = p_time;
 }
 
-real_t SceneSynchronizerBase::get_nodes_relevancy_update_time() const {
-	return nodes_relevancy_update_time;
+real_t SceneSynchronizerBase::get_objects_relevancy_update_time() const {
+	return objects_relevancy_update_time;
 }
 
 bool SceneSynchronizerBase::is_variable_registered(ObjectLocalId p_id, const StringName &p_variable) const {
@@ -504,34 +504,34 @@ const NS::SyncGroup *SceneSynchronizerBase::sync_group_get(SyncGroupId p_group_i
 	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get(p_group_id);
 }
 
-void SceneSynchronizerBase::sync_group_add_node_by_id(ObjectNetId p_node_id, SyncGroupId p_group_id, bool p_realtime) {
+void SceneSynchronizerBase::sync_group_add_object_by_id(ObjectNetId p_node_id, SyncGroupId p_group_id, bool p_realtime) {
 	NS::ObjectData *nd = get_object_data(p_node_id);
-	sync_group_add_node(nd, p_group_id, p_realtime);
+	sync_group_add_object(nd, p_group_id, p_realtime);
 }
 
-void SceneSynchronizerBase::sync_group_add_node(NS::ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime) {
+void SceneSynchronizerBase::sync_group_add_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime) {
 	ERR_FAIL_COND_MSG(!is_server(), "This function CAN be used only on the server.");
-	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_add_node(p_object_data, p_group_id, p_realtime);
+	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_add_object(p_object_data, p_group_id, p_realtime);
 }
 
-void SceneSynchronizerBase::sync_group_remove_node_by_id(ObjectNetId p_node_id, SyncGroupId p_group_id) {
+void SceneSynchronizerBase::sync_group_remove_object_by_id(ObjectNetId p_node_id, SyncGroupId p_group_id) {
 	NS::ObjectData *nd = get_object_data(p_node_id);
-	sync_group_remove_node(nd, p_group_id);
+	sync_group_remove_object(nd, p_group_id);
 }
 
-void SceneSynchronizerBase::sync_group_remove_node(NS::ObjectData *p_object_data, SyncGroupId p_group_id) {
+void SceneSynchronizerBase::sync_group_remove_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id) {
 	ERR_FAIL_COND_MSG(!is_server(), "This function CAN be used only on the server.");
-	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_remove_node(p_object_data, p_group_id);
+	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_remove_object(p_object_data, p_group_id);
 }
 
-void SceneSynchronizerBase::sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledNodeInfo> &&p_new_trickled_nodes) {
+void SceneSynchronizerBase::sync_group_replace_objects(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes) {
 	ERR_FAIL_COND_MSG(!is_server(), "This function CAN be used only on the server.");
-	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_replace_nodes(p_group_id, std::move(p_new_realtime_nodes), std::move(p_new_trickled_nodes));
+	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_replace_object(p_group_id, std::move(p_new_realtime_nodes), std::move(p_new_trickled_nodes));
 }
 
-void SceneSynchronizerBase::sync_group_remove_all_nodes(SyncGroupId p_group_id) {
+void SceneSynchronizerBase::sync_group_remove_all_objects(SyncGroupId p_group_id) {
 	ERR_FAIL_COND_MSG(!is_server(), "This function CAN be used only on the server.");
-	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_remove_all_nodes(p_group_id);
+	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_remove_all_objects(p_group_id);
 }
 
 void SceneSynchronizerBase::sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id) {
@@ -1085,7 +1085,7 @@ void SceneSynchronizerBase::detect_and_signal_changed_variables(int p_flags) {
 
 	for (auto od : objects_data_storage.get_objects_data()) {
 		if (od) {
-			pull_node_changes(od);
+			pull_object_changes(od);
 		}
 	}
 	change_events_flush();
@@ -1233,8 +1233,8 @@ bool SceneSynchronizerBase::is_networked() const {
 	return is_client() || is_server();
 }
 
-void SceneSynchronizerBase::update_nodes_relevancy() {
-	synchronizer_manager->update_nodes_relevancy();
+void SceneSynchronizerBase::update_objects_relevancy() {
+	synchronizer_manager->update_objects_relevancy();
 
 	const bool log_debug_nodes_relevancy_update = ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/log_debug_nodes_relevancy_update");
 	if (log_debug_nodes_relevancy_update) {
@@ -1349,7 +1349,7 @@ const NS::PeerData *SceneSynchronizerBase::get_peer_for_controller(const Network
 	return nullptr;
 }
 
-ObjectNetId SceneSynchronizerBase::get_biggest_node_id() const {
+ObjectNetId SceneSynchronizerBase::get_biggest_object_id() const {
 	return objects_data_storage.get_sorted_objects_data().size() == 0 ? ObjectNetId::NONE : ObjectNetId{ uint32_t(objects_data_storage.get_sorted_objects_data().size() - 1) };
 }
 
@@ -1412,7 +1412,7 @@ void SceneSynchronizerBase::reset_controller(NS::ObjectData *p_controller_nd) {
 	}
 }
 
-void SceneSynchronizerBase::pull_node_changes(NS::ObjectData *p_object_data) {
+void SceneSynchronizerBase::pull_object_changes(NS::ObjectData *p_object_data) {
 	for (VarId var_id = { 0 }; var_id < VarId{ uint32_t(p_object_data->vars.size()) }; var_id += 1) {
 		if (p_object_data->vars[var_id.id].enabled == false) {
 			continue;
@@ -1498,7 +1498,7 @@ ServerSynchronizer::ServerSynchronizer(SceneSynchronizerBase *p_node) :
 }
 
 void ServerSynchronizer::clear() {
-	nodes_relevancy_update_timer = 0.0;
+	objects_relevancy_update_timer = 0.0;
 	// Release the internal memory.
 	sync_groups.clear();
 }
@@ -1511,11 +1511,11 @@ void ServerSynchronizer::process() {
 	const double physics_ticks_per_second = Engine::get_singleton()->get_physics_ticks_per_second();
 	const double delta = 1.0 / physics_ticks_per_second;
 
-	if (nodes_relevancy_update_timer >= scene_synchronizer->nodes_relevancy_update_time) {
-		scene_synchronizer->update_nodes_relevancy();
-		nodes_relevancy_update_timer = 0.0;
+	if (objects_relevancy_update_timer >= scene_synchronizer->objects_relevancy_update_time) {
+		scene_synchronizer->update_objects_relevancy();
+		objects_relevancy_update_timer = 0.0;
 	}
-	nodes_relevancy_update_timer += delta;
+	objects_relevancy_update_timer += delta;
 
 	SceneSynchronizerDebugger::singleton()->scene_sync_process_start(scene_synchronizer);
 
@@ -1621,27 +1621,27 @@ const NS::SyncGroup *ServerSynchronizer::sync_group_get(SyncGroupId p_group_id) 
 	return &sync_groups[p_group_id];
 }
 
-void ServerSynchronizer::sync_group_add_node(NS::ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime) {
+void ServerSynchronizer::sync_group_add_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime) {
 	ERR_FAIL_COND(p_object_data == nullptr);
 	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
 	ERR_FAIL_COND_MSG(p_group_id == SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID, "You can't change this SyncGroup in any way. Create a new one.");
 	sync_groups[p_group_id].add_new_node(p_object_data, p_realtime);
 }
 
-void ServerSynchronizer::sync_group_remove_node(NS::ObjectData *p_object_data, SyncGroupId p_group_id) {
+void ServerSynchronizer::sync_group_remove_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id) {
 	ERR_FAIL_COND(p_object_data == nullptr);
 	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
 	ERR_FAIL_COND_MSG(p_group_id == SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID, "You can't change this SyncGroup in any way. Create a new one.");
 	sync_groups[p_group_id].remove_node(p_object_data);
 }
 
-void ServerSynchronizer::sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledNodeInfo> &&p_new_trickled_nodes) {
+void ServerSynchronizer::sync_group_replace_object(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes) {
 	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
 	ERR_FAIL_COND_MSG(p_group_id == SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID, "You can't change this SyncGroup in any way. Create a new one.");
 	sync_groups[p_group_id].replace_nodes(std::move(p_new_realtime_nodes), std::move(p_new_trickled_nodes));
 }
 
-void ServerSynchronizer::sync_group_remove_all_nodes(SyncGroupId p_group_id) {
+void ServerSynchronizer::sync_group_remove_all_objects(SyncGroupId p_group_id) {
 	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
 	ERR_FAIL_COND_MSG(p_group_id == SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID, "You can't change this SyncGroup in any way. Create a new one.");
 	sync_groups[p_group_id].remove_all_nodes();
@@ -1670,7 +1670,7 @@ void ServerSynchronizer::sync_group_move_peer_to(int p_peer_id, SyncGroupId p_gr
 	// Make sure the controller is added into this group.
 	NS::ObjectData *nd = scene_synchronizer->get_object_data(pd->controller_id, false);
 	if (nd) {
-		sync_group_add_node(nd, p_group_id, true);
+		sync_group_add_object(nd, p_group_id, true);
 	}
 }
 
@@ -1718,7 +1718,7 @@ void ServerSynchronizer::sync_group_debug_print() {
 			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|      |- " + itos(peer));
 		}
 
-		const LocalVector<NS::SyncGroup::RealtimeNodeInfo> &realtime_node_info = group.get_realtime_sync_nodes();
+		const LocalVector<NS::SyncGroup::SimulatedObjectInfo> &realtime_node_info = group.get_realtime_sync_nodes();
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|");
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|    [Realtime nodes]");
 		for (auto info : realtime_node_info) {
@@ -1727,7 +1727,7 @@ void ServerSynchronizer::sync_group_debug_print() {
 
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|");
 
-		const LocalVector<NS::SyncGroup::TrickledNodeInfo> &trickled_node_info = group.get_trickled_sync_nodes();
+		const LocalVector<NS::SyncGroup::TrickledObjectInfo> &trickled_node_info = group.get_trickled_sync_nodes();
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|    [Trickled nodes (UR: Update Rate)]");
 		for (auto info : trickled_node_info) {
 			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|      |- [UR: " + rtos(info.update_rate) + "] " + info.od->object_name.c_str());
@@ -1841,7 +1841,7 @@ void ServerSynchronizer::generate_snapshot(
 		bool p_force_full_snapshot,
 		const NS::SyncGroup &p_group,
 		DataBuffer &r_snapshot_db) const {
-	const LocalVector<NS::SyncGroup::RealtimeNodeInfo> &relevant_node_data = p_group.get_realtime_sync_nodes();
+	const LocalVector<NS::SyncGroup::SimulatedObjectInfo> &relevant_node_data = p_group.get_realtime_sync_nodes();
 
 	// First insert the list of ALL simulated ObjectData, if changed.
 	if (p_group.is_realtime_node_list_changed() || p_force_full_snapshot) {
@@ -1977,7 +1977,7 @@ void ServerSynchronizer::process_trickled_sync(real_t p_delta) {
 			continue;
 		}
 
-		LocalVector<NS::SyncGroup::TrickledNodeInfo> &node_info = group.get_trickled_sync_nodes();
+		LocalVector<NS::SyncGroup::TrickledObjectInfo> &node_info = group.get_trickled_sync_nodes();
 		if (node_info.size() == 0) {
 			// Nothing to sync.
 			continue;
@@ -1993,7 +1993,7 @@ void ServerSynchronizer::process_trickled_sync(real_t p_delta) {
 
 		for (int i = 0; i < int(node_info.size()); ++i) {
 			bool send = true;
-			if (node_info[i]._update_priority < 1.0 || update_node_count >= scene_synchronizer->max_trickled_nodes_per_update) {
+			if (node_info[i]._update_priority < 1.0 || update_node_count >= scene_synchronizer->max_trickled_objects_per_update) {
 				send = false;
 			}
 
@@ -2067,7 +2067,7 @@ ClientSynchronizer::ClientSynchronizer(SceneSynchronizerBase *p_node) :
 }
 
 void ClientSynchronizer::clear() {
-	player_controller_node_data = nullptr;
+	player_controller_object_data = nullptr;
 	objects_names.clear();
 	last_received_snapshot.input_id = UINT32_MAX;
 	last_received_snapshot.object_vars.clear();
@@ -2101,8 +2101,8 @@ void ClientSynchronizer::process() {
 	process_received_trickled_sync_data(delta);
 
 #if DEBUG_ENABLED
-	if (player_controller_node_data) {
-		NetworkedControllerBase *controller = player_controller_node_data->get_controller();
+	if (player_controller_object_data) {
+		NetworkedControllerBase *controller = player_controller_object_data->get_controller();
 		PlayerController *player_controller = controller->get_player_controller();
 		const int client_peer = scene_synchronizer->network_interface->fetch_local_peer_id();
 		SceneSynchronizerDebugger::singleton()->write_dump(client_peer, player_controller->get_current_input_id());
@@ -2140,8 +2140,8 @@ void ClientSynchronizer::on_object_data_added(NS::ObjectData *p_object_data) {
 }
 
 void ClientSynchronizer::on_object_data_removed(NS::ObjectData &p_object_data) {
-	if (player_controller_node_data == &p_object_data) {
-		player_controller_node_data = nullptr;
+	if (player_controller_object_data == &p_object_data) {
+		player_controller_object_data = nullptr;
 		server_snapshots.clear();
 		client_snapshots.clear();
 	}
@@ -2150,7 +2150,7 @@ void ClientSynchronizer::on_object_data_removed(NS::ObjectData &p_object_data) {
 		last_received_snapshot.object_vars[p_object_data.get_net_id().id].clear();
 	}
 
-	remove_node_from_trickled_sync(&p_object_data);
+	remove_object_from_trickled_sync(&p_object_data);
 }
 
 void ClientSynchronizer::on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const Variant &p_old_value, int p_flag) {
@@ -2171,11 +2171,11 @@ void ClientSynchronizer::signal_end_sync_changed_variables_events() {
 		// Check if the values between the variables before the sync and the
 		// current one are different.
 		if (scene_synchronizer->network_interface->compare(
-					e->get().node_data->vars[e->get().var_id.id].var.value,
+					e->get().object_data->vars[e->get().var_id.id].var.value,
 					e->get().old_value) == false) {
 			// Are different so we need to emit the `END_SYNC`.
 			scene_synchronizer->change_event_add(
-					e->get().node_data,
+					e->get().object_data,
 					e->get().var_id,
 					e->get().old_value);
 		}
@@ -2190,19 +2190,19 @@ void ClientSynchronizer::on_controller_reset(NS::ObjectData *p_object_data) {
 	CRASH_COND(p_object_data->get_controller() == nullptr);
 #endif
 
-	if (player_controller_node_data == p_object_data) {
+	if (player_controller_object_data == p_object_data) {
 		// Reset the node_data.
-		player_controller_node_data = nullptr;
+		player_controller_object_data = nullptr;
 		server_snapshots.clear();
 		client_snapshots.clear();
 	}
 
 	if (p_object_data->get_controller()->is_player_controller()) {
-		if (player_controller_node_data != nullptr) {
+		if (player_controller_object_data != nullptr) {
 			SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "Only one player controller is supported, at the moment. Make sure this is the case.");
 		} else {
 			// Set this player controller as active.
-			player_controller_node_data = p_object_data;
+			player_controller_object_data = p_object_data;
 			server_snapshots.clear();
 			client_snapshots.clear();
 		}
@@ -2210,11 +2210,11 @@ void ClientSynchronizer::on_controller_reset(NS::ObjectData *p_object_data) {
 }
 
 void ClientSynchronizer::store_snapshot() {
-	NetworkedControllerBase *controller = player_controller_node_data->get_controller();
+	NetworkedControllerBase *controller = player_controller_object_data->get_controller();
 
 #ifdef DEBUG_ENABLED
 	if (unlikely(client_snapshots.size() > 0 && controller->get_current_input_id() <= client_snapshots.back().input_id)) {
-		CRASH_NOW_MSG("[FATAL] During snapshot creation, for controller " + String(player_controller_node_data->object_name.c_str()) + ", was found an ID for an older snapshots. New input ID: " + itos(controller->get_current_input_id()) + " Last saved snapshot input ID: " + itos(client_snapshots.back().input_id) + ".");
+		CRASH_NOW_MSG("[FATAL] During snapshot creation, for controller " + String(player_controller_object_data->object_name.c_str()) + ", was found an ID for an older snapshots. New input ID: " + itos(controller->get_current_input_id()) + " Last saved snapshot input ID: " + itos(client_snapshots.back().input_id) + ".");
 	}
 #endif
 
@@ -2231,7 +2231,7 @@ void ClientSynchronizer::store_controllers_snapshot(
 		std::deque<NS::Snapshot> &r_snapshot_storage) {
 	// Put the parsed snapshot into the queue.
 
-	if (p_snapshot.input_id == UINT32_MAX && player_controller_node_data != nullptr) {
+	if (p_snapshot.input_id == UINT32_MAX && player_controller_object_data != nullptr) {
 		// The snapshot doesn't have any info for this controller; Skip it.
 		return;
 	}
@@ -2254,6 +2254,7 @@ void ClientSynchronizer::store_controllers_snapshot(
 				r_snapshot_storage.back().copy(p_snapshot);
 			} else {
 				ERR_FAIL_COND_MSG(p_snapshot.input_id < last_stored_input_id, "This snapshot (with ID: " + itos(p_snapshot.input_id) + ") is not expected because the last stored id is: " + itos(last_stored_input_id));
+				r_snapshot_storage.push_back(Snapshot::make_copy(p_snapshot));
 			}
 		} else {
 			r_snapshot_storage.push_back(Snapshot::make_copy(p_snapshot));
@@ -2262,7 +2263,7 @@ void ClientSynchronizer::store_controllers_snapshot(
 }
 
 void ClientSynchronizer::process_simulation(real_t p_delta, real_t p_physics_ticks_per_second) {
-	if (unlikely(player_controller_node_data == nullptr || enabled == false)) {
+	if (unlikely(player_controller_object_data == nullptr || enabled == false)) {
 		// No player controller so can't process the simulation.
 		// TODO Remove this constraint?
 
@@ -2271,7 +2272,7 @@ void ClientSynchronizer::process_simulation(real_t p_delta, real_t p_physics_tic
 		return;
 	}
 
-	NetworkedControllerBase *controller = player_controller_node_data->get_controller();
+	NetworkedControllerBase *controller = player_controller_object_data->get_controller();
 	PlayerController *player_controller = controller->get_player_controller();
 
 	// Reset this here, so even when `sub_ticks` is zero (and it's not
@@ -2348,13 +2349,13 @@ void ClientSynchronizer::process_received_server_state(real_t p_delta) {
 		return;
 	}
 
-	if (!player_controller_node_data) {
+	if (!player_controller_object_data) {
 		// There is no player controller, we can't apply any snapshot which
 		// `input_id` is not UINT32_MAX.
 		return;
 	}
 
-	NetworkedControllerBase *controller = player_controller_node_data->get_controller();
+	NetworkedControllerBase *controller = player_controller_object_data->get_controller();
 	PlayerController *player_controller = controller->get_player_controller();
 
 #ifdef DEBUG_ENABLED
@@ -2446,7 +2447,7 @@ void ClientSynchronizer::process_received_server_state(real_t p_delta) {
 		__pcr__rewind(
 				p_delta,
 				checkable_input_id,
-				player_controller_node_data,
+				player_controller_object_data,
 				controller,
 				player_controller);
 	} else {
@@ -3067,7 +3068,7 @@ void ClientSynchronizer::process_received_trickled_sync_data(real_t p_delta) {
 	memdelete(db2);
 }
 
-void ClientSynchronizer::remove_node_from_trickled_sync(NS::ObjectData *p_object_data) {
+void ClientSynchronizer::remove_object_from_trickled_sync(NS::ObjectData *p_object_data) {
 	const int64_t index = trickled_sync_array.find(p_object_data);
 	if (index >= 0) {
 		trickled_sync_array.remove_at_unordered(index);
@@ -3100,7 +3101,7 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 
 	ParseData parse_data{
 		received_snapshot,
-		player_controller_node_data,
+		player_controller_object_data,
 		scene_synchronizer,
 		this
 	};
@@ -3168,7 +3169,7 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 
 				// Make sure this node is not into the trickled sync list.
 				if (p_is_active) {
-					pd->client_synchronizer->remove_node_from_trickled_sync(p_object_data);
+					pd->client_synchronizer->remove_object_from_trickled_sync(p_object_data);
 				}
 			});
 
@@ -3177,10 +3178,10 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 		return false;
 	}
 
-	if (unlikely(received_snapshot.input_id == UINT32_MAX && player_controller_node_data != nullptr)) {
+	if (unlikely(received_snapshot.input_id == UINT32_MAX && player_controller_object_data != nullptr)) {
 		// We espect that the player_controller is updated by this new snapshot,
 		// so make sure it's done so.
-		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "[INFO] the player controller (" + String(player_controller_node_data->object_name.c_str()) + ") was not part of the received snapshot, this happens when the server destroys the peer controller.");
+		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "[INFO] the player controller (" + String(player_controller_object_data->object_name.c_str()) + ") was not part of the received snapshot, this happens when the server destroys the peer controller.");
 	}
 
 	last_received_snapshot = std::move(received_snapshot);

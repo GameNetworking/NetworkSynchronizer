@@ -36,18 +36,18 @@ public:
 	virtual void on_uninit_synchronizer() {}
 
 #ifdef DEBUG_ENABLED
-	virtual void debug_only_validate_nodes() {}
+	virtual void debug_only_validate_objects() {}
 #endif
 
-	/// Add node data and generates the `NetNodeId` if allowed.
+	/// Add object data and generates the `ObjectNetId` if allowed.
 	virtual void on_add_object_data(NS::ObjectData &p_object_data) {}
 	virtual void on_drop_object_data(NS::ObjectData &p_object_data) {}
 
 	virtual void on_sync_group_created(SyncGroupId p_group_id) {}
 
 	/// This function is always executed on the server before anything else
-	/// and it's here that you want to update the node relevancy.
-	virtual void update_nodes_relevancy() {}
+	/// and it's here that you want to update the object relevancy.
+	virtual void update_objects_relevancy() {}
 
 	virtual bool snapshot_get_custom_data(const NS::SyncGroup *p_group, NS::VarData &r_custom_data) { return false; }
 	virtual void snapshot_set_custom_data(const NS::VarData &r_custom_data) {}
@@ -143,7 +143,7 @@ public:
 		SYNCHRONIZER_TYPE_SERVER
 	};
 
-	/// This SyncGroup contains ALL the registered NodeData.
+	/// This SyncGroup contains ALL the registered ObjectData.
 	static const SyncGroupId GLOBAL_SYNC_GROUP_ID;
 
 private:
@@ -156,10 +156,10 @@ private:
 	RpcHandle<bool> rpc_handler_notify_peer_status;
 	RpcHandle<const Vector<uint8_t> &> rpc_handler_trickled_sync_data;
 
-	int max_trickled_nodes_per_update = 30;
+	int max_trickled_objects_per_update = 30;
 	real_t server_notify_state_interval = 1.0;
 	/// Can be 0.0 to update the relevancy each frame.
-	real_t nodes_relevancy_update_time = 0.5;
+	real_t objects_relevancy_update_time = 0.5;
 
 	SynchronizerType synchronizer_type = SYNCHRONIZER_TYPE_NULL;
 	Synchronizer *synchronizer = nullptr;
@@ -229,14 +229,14 @@ public:
 		return *synchronizer_manager;
 	}
 
-	void set_max_trickled_nodes_per_update(int p_rate);
-	int get_max_trickled_nodes_per_update() const;
+	void set_max_trickled_objects_per_update(int p_rate);
+	int get_max_trickled_objects_per_update() const;
 
 	void set_server_notify_state_interval(real_t p_interval);
 	real_t get_server_notify_state_interval() const;
 
-	void set_nodes_relevancy_update_time(real_t p_time);
-	real_t get_nodes_relevancy_update_time() const;
+	void set_objects_relevancy_update_time(real_t p_time);
+	real_t get_objects_relevancy_update_time() const;
 
 	bool is_variable_registered(ObjectLocalId p_id, const StringName &p_variable) const;
 
@@ -248,7 +248,6 @@ public: // ---------------------------------------------------------------- RPCs
 	void rpc_trickled_sync_data(const Vector<uint8_t> &p_data);
 
 public: // ---------------------------------------------------------------- APIs
-	/// Register a new node and returns its `NodeData`.
 	void register_app_object(ObjectHandle p_app_object_handle, ObjectLocalId *out_id = nullptr);
 	void unregister_app_object(ObjectLocalId p_id);
 	void register_variable(ObjectLocalId p_id, const StringName &p_variable);
@@ -261,11 +260,10 @@ public: // ---------------------------------------------------------------- APIs
 
 	const std::vector<ObjectData *> &get_all_object_data() const;
 
-	/// Returns the variable ID relative to the `Node`.
-	/// This may return `UINT32_MAX` in various cases:
-	/// - The node is not registered.
+	/// Returns the variable ID relative to the `Object`.
+	/// This may return `NONE` in various cases:
+	/// - The Object is not registered.
 	/// - The variable is not registered.
-	/// - The client doesn't know the ID yet.
 	VarId get_variable_id(ObjectLocalId p_id, const StringName &p_variable);
 
 	void set_skip_rewinding(ObjectLocalId p_id, const StringName &p_variable, bool p_skip_rewinding);
@@ -288,7 +286,7 @@ public: // ---------------------------------------------------------------- APIs
 	NS::PHandler register_process(ObjectLocalId p_id, ProcessPhase p_phase, std::function<void(float)> p_func);
 	void unregister_process(ObjectLocalId p_id, ProcessPhase p_phase, NS::PHandler p_func_handler);
 
-	/// Setup the trickled sync method for this specific node.
+	/// Setup the trickled sync method for this specific object.
 	/// The trickled-sync is different from the realtime-sync because the data
 	/// is streamed and not simulated.
 	void setup_trickled_sync(ObjectLocalId p_id, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func);
@@ -299,23 +297,23 @@ public: // ---------------------------------------------------------------- APIs
 	SyncGroupId sync_group_create();
 	const NS::SyncGroup *sync_group_get(SyncGroupId p_group_id) const;
 
-	void sync_group_add_node_by_id(ObjectNetId p_node_id, SyncGroupId p_group_id, bool p_realtime);
-	void sync_group_add_node(NS::ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime);
-	void sync_group_remove_node_by_id(ObjectNetId p_node_id, SyncGroupId p_group_id);
-	void sync_group_remove_node(NS::ObjectData *p_object_data, SyncGroupId p_group_id);
+	void sync_group_add_object_by_id(ObjectNetId p_id, SyncGroupId p_group_id, bool p_realtime);
+	void sync_group_add_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime);
+	void sync_group_remove_object_by_id(ObjectNetId p_node_id, SyncGroupId p_group_id);
+	void sync_group_remove_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id);
 
-	/// Use `std::move()` to transfer `p_new_realtime_nodes` and `p_new_trickled_nodes`.
-	void sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledNodeInfo> &&p_new_trickled_nodes);
+	/// Use `std::move()` to transfer `p_new_realtime_object` and `p_new_trickled_objects`.
+	void sync_group_replace_objects(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_objects, LocalVector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_objects);
 
-	void sync_group_remove_all_nodes(SyncGroupId p_group_id);
+	void sync_group_remove_all_objects(SyncGroupId p_group_id);
 	void sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id);
 	SyncGroupId sync_group_get_peer_group(int p_peer_id) const;
 	const LocalVector<int> *sync_group_get_peers(SyncGroupId p_group_id) const;
 
-	void sync_group_set_trickled_update_rate(ObjectLocalId p_node_id, SyncGroupId p_group_id, real_t p_update_rate);
-	void sync_group_set_trickled_update_rate(ObjectNetId p_node_id, SyncGroupId p_group_id, real_t p_update_rate);
-	real_t sync_group_get_trickled_update_rate(ObjectLocalId p_node_id, SyncGroupId p_group_id) const;
-	real_t sync_group_get_trickled_update_rate(ObjectNetId p_node_id, SyncGroupId p_group_id) const;
+	void sync_group_set_trickled_update_rate(ObjectLocalId p_id, SyncGroupId p_group_id, real_t p_update_rate);
+	void sync_group_set_trickled_update_rate(ObjectNetId p_id, SyncGroupId p_group_id, real_t p_update_rate);
+	real_t sync_group_get_trickled_update_rate(ObjectLocalId p_id, SyncGroupId p_group_id) const;
+	real_t sync_group_get_trickled_update_rate(ObjectNetId p_id, SyncGroupId p_group_id) const;
 
 	void sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_ptr);
 	uint64_t sync_group_get_user_data(SyncGroupId p_group_id) const;
@@ -362,7 +360,7 @@ public: // ---------------------------------------------------------------- APIs
 	void change_events_flush();
 
 public: // ------------------------------------------------------------ INTERNAL
-	void update_nodes_relevancy();
+	void update_objects_relevancy();
 
 	void process_functions__clear();
 	void process_functions__execute(const double p_delta);
@@ -382,17 +380,17 @@ public: // ------------------------------------------------------------ INTERNAL
 	PeerData *get_peer_for_controller(const NetworkedControllerBase &p_controller, bool p_expected = true);
 	const PeerData *get_peer_for_controller(const NetworkedControllerBase &p_controller, bool p_expected = true) const;
 
-	/// Returns the latest generated `NetNodeId`.
-	ObjectNetId get_biggest_node_id() const;
+	/// Returns the latest generated `ObjectNetId`.
+	ObjectNetId get_biggest_object_id() const;
 
 	void reset_controllers();
 	void reset_controller(NS::ObjectData *p_controller);
 
 	real_t get_pretended_delta() const;
 
-	/// Read the node variables and store the value if is different from the
+	/// Read the object variables and store the value if is different from the
 	/// previous one and emits a signal.
-	void pull_node_changes(NS::ObjectData *p_object_data);
+	void pull_object_changes(NS::ObjectData *p_object_data);
 
 	void drop_object_data(NS::ObjectData &p_object_data);
 
@@ -416,7 +414,7 @@ protected:
 	SceneSynchronizerBase *scene_synchronizer;
 
 public:
-	Synchronizer(SceneSynchronizerBase *p_node);
+	Synchronizer(SceneSynchronizerBase *p_ss);
 	virtual ~Synchronizer() = default;
 
 	virtual void clear() = 0;
@@ -438,7 +436,7 @@ class NoNetSynchronizer : public Synchronizer {
 	uint32_t frame_count = 0;
 
 public:
-	NoNetSynchronizer(SceneSynchronizerBase *p_node);
+	NoNetSynchronizer(SceneSynchronizerBase *p_ss);
 
 	virtual void clear() override;
 	virtual void process() override;
@@ -450,22 +448,22 @@ public:
 class ServerSynchronizer : public Synchronizer {
 	friend class SceneSynchronizerBase;
 
-	real_t nodes_relevancy_update_timer = 0.0;
+	real_t objects_relevancy_update_timer = 0.0;
 	uint32_t epoch = 0;
-	/// This array contains a map between the peers and the relevant nodes.
+	/// This array contains a map between the peers and the relevant objects.
 	LocalVector<NS::SyncGroup> sync_groups;
 
 	enum SnapshotGenerationMode {
-		/// The shanpshot will include The NodeId or NodePath and allthe changed variables.
+		/// The shanpshot will include The NetId and the object name and all the changed variables.
 		SNAPSHOT_GENERATION_MODE_NORMAL,
-		/// The snapshot will include The NodePath only.
+		/// The snapshot will include The object name only.
 		SNAPSHOT_GENERATION_MODE_FORCE_NODE_PATH_ONLY,
 		/// The snapshot will contains everything no matter what.
 		SNAPSHOT_GENERATION_MODE_FORCE_FULL,
 	};
 
 public:
-	ServerSynchronizer(SceneSynchronizerBase *p_node);
+	ServerSynchronizer(SceneSynchronizerBase *p_ss);
 
 	virtual void clear() override;
 	virtual void process() override;
@@ -478,10 +476,10 @@ public:
 
 	SyncGroupId sync_group_create();
 	const NS::SyncGroup *sync_group_get(SyncGroupId p_group_id) const;
-	void sync_group_add_node(NS::ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime);
-	void sync_group_remove_node(NS::ObjectData *p_object_data, SyncGroupId p_group_id);
-	void sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::RealtimeNodeInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledNodeInfo> &&p_new_trickled_nodes);
-	void sync_group_remove_all_nodes(SyncGroupId p_group_id);
+	void sync_group_add_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime);
+	void sync_group_remove_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id);
+	void sync_group_replace_object(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes);
+	void sync_group_remove_all_objects(SyncGroupId p_group_id);
 	void sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id);
 	const LocalVector<int> *sync_group_get_peers(SyncGroupId p_group_id) const;
 
@@ -512,7 +510,7 @@ public:
 class ClientSynchronizer : public Synchronizer {
 	friend class SceneSynchronizerBase;
 
-	NS::ObjectData *player_controller_node_data = nullptr;
+	NS::ObjectData *player_controller_object_data = nullptr;
 	std::map<ObjectNetId, std::string> objects_names;
 
 	NS::Snapshot last_received_snapshot;
@@ -525,15 +523,15 @@ class ClientSynchronizer : public Synchronizer {
 	bool need_full_snapshot_notified = false;
 
 	struct EndSyncEvent {
-		NS::ObjectData *node_data;
+		NS::ObjectData *object_data;
 		VarId var_id;
 		Variant old_value;
 
 		bool operator<(const EndSyncEvent &p_other) const {
-			if (node_data->get_net_id() == p_other.node_data->get_net_id()) {
+			if (object_data->get_net_id() == p_other.object_data->get_net_id()) {
 				return var_id < p_other.var_id;
 			} else {
-				return node_data->get_net_id().id < p_other.node_data->get_net_id().id;
+				return object_data->get_net_id().id < p_other.object_data->get_net_id().id;
 			}
 		}
 	};
@@ -606,17 +604,17 @@ public:
 			void (*p_input_id_parse)(void *p_user_pointer, uint32_t p_input_id),
 			void (*p_controller_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
 			void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, const Variant &p_value),
-			void (*p_node_activation_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, bool p_is_active));
+			void (*p_object_activation_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, bool p_is_active));
 
 	void set_enabled(bool p_enabled);
 
 	void receive_trickled_sync_data(const Vector<uint8_t> &p_data);
 	void process_received_trickled_sync_data(real_t p_delta);
 
-	void remove_node_from_trickled_sync(NS::ObjectData *p_object_data);
+	void remove_object_from_trickled_sync(NS::ObjectData *p_object_data);
 
 private:
-	/// Store node data organized per controller.
+	/// Store object data organized per controller.
 	void store_snapshot();
 
 	void store_controllers_snapshot(
@@ -636,7 +634,7 @@ private:
 	void __pcr__rewind(
 			real_t p_delta,
 			const uint32_t p_checkable_input_id,
-			NS::ObjectData *p_local_controller_node,
+			NS::ObjectData *p_local_controller_object,
 			NetworkedControllerBase *p_controller,
 			PlayerController *p_player_controller);
 
