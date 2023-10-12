@@ -2,8 +2,10 @@
 #define TEST_NETSYNC_DATA_BUFFER_H
 
 #include "../data_buffer.h"
+#include "../godot4/gd_network_interface.h"
 #include "../scene_synchronizer.h"
 
+#include "modules/network_synchronizer/godot4/gd_network_interface.h"
 #include "tests/test_macros.h"
 
 namespace test_netsync_DataBuffer {
@@ -578,14 +580,14 @@ TEST_CASE("[NetSync][DataBuffer] Variant") {
 
 	DataBuffer buffer;
 	buffer.begin_write(0);
-	CHECK_MESSAGE(SceneSynchronizer::compare(buffer.add_variant(value), value, DBL_EPSILON), "Should return the same value");
+	CHECK_MESSAGE(GdNetworkInterface::compare(buffer.add_variant(value), value, DBL_EPSILON), "Should return the same value");
 
 	const int size = buffer.get_bit_offset();
 	buffer.begin_read();
 	CHECK(size == buffer.read_variant_size());
 
 	buffer.begin_read();
-	CHECK_MESSAGE(SceneSynchronizer::compare(buffer.read_variant(), value, DBL_EPSILON), "Should read the same value");
+	CHECK_MESSAGE(GdNetworkInterface::compare(buffer.read_variant(), value, DBL_EPSILON), "Should read the same value");
 }
 
 TEST_CASE("[NetSync][DataBuffer] Seek") {
