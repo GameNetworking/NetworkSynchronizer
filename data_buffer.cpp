@@ -304,7 +304,27 @@ void DataBuffer::read(std::string &r_out) {
 	std::vector<char> chars;
 	chars.resize(size);
 	read_bits(reinterpret_cast<uint8_t *>(chars.data()), size * 8);
-	r_out = std::string(&chars[0]);
+	r_out = std::string(chars.data(), size);
+}
+
+void DataBuffer::add(const std::u16string &p_string) {
+	CRASH_COND(std::uint64_t(p_string.size()) > std::uint64_t(std::numeric_limits<std::uint16_t>::max()));
+	add_uint(p_string.size(), COMPRESSION_LEVEL_2);
+	if (p_string.size() > 0) {
+		add_bits(reinterpret_cast<const uint8_t *>(p_string.c_str()), p_string.size() * 8 * (sizeof(char16_t)));
+	}
+}
+
+void DataBuffer::read(std::u16string &r_out) {
+	const uint16_t size = read_uint(COMPRESSION_LEVEL_2);
+	if (size <= 0) {
+		return;
+	}
+
+	std::vector<char16_t> chars;
+	chars.resize(size);
+	read_bits(reinterpret_cast<uint8_t *>(chars.data()), size * 8 * (sizeof(char16_t)));
+	r_out = std::u16string(chars.data(), size);
 }
 
 void DataBuffer::add(const DataBuffer &p_db) {
