@@ -609,7 +609,7 @@ public:
 	void set_enabled(bool p_enabled);
 
 	void receive_trickled_sync_data(const Vector<uint8_t> &p_data);
-	void process_received_trickled_sync_data(real_t p_delta);
+	void process_trickled_sync(real_t p_delta);
 
 	void remove_object_from_trickled_sync(NS::ObjectData *p_object_data);
 
@@ -621,8 +621,7 @@ private:
 			const NS::Snapshot &p_snapshot,
 			std::deque<NS::Snapshot> &r_snapshot_storage);
 
-	void process_simulation(real_t p_delta, real_t p_physics_ticks_per_second);
-
+	void process_server_sync(float p_delta);
 	void process_received_server_state(real_t p_delta);
 
 	bool __pcr__fetch_recovery_info(
@@ -646,6 +645,9 @@ private:
 			PlayerController *p_player_controller);
 
 	void process_paused_controller_recovery(real_t p_delta);
+
+	void process_simulation(real_t p_delta, real_t p_physics_ticks_per_second);
+
 	bool parse_snapshot(DataBuffer &p_snapshot);
 
 	void notify_server_full_snapshot_is_needed();
