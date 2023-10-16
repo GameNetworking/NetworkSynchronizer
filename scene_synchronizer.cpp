@@ -13,7 +13,6 @@
 #include "modules/network_synchronizer/core/processor.h"
 #include "modules/network_synchronizer/core/var_data.h"
 #include "modules/network_synchronizer/data_buffer.h"
-#include "modules/network_synchronizer/godot4/gd_network_interface.h"
 #include "modules/network_synchronizer/net_utilities.h"
 #include "modules/network_synchronizer/networked_controller.h"
 #include "modules/network_synchronizer/snapshot.h"
@@ -26,6 +25,10 @@
 NS_NAMESPACE_BEGIN
 
 const SyncGroupId SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID = 0;
+void (*SceneSynchronizerBase::var_data_encode_func)(DataBuffer &r_buffer, const NS::VarData &p_val) = nullptr;
+void (*SceneSynchronizerBase::var_data_decode_func)(NS::VarData &r_val, DataBuffer &p_buffer) = nullptr;
+bool (*SceneSynchronizerBase::var_data_compare_func)(const VarData &p_A, const VarData &p_B) = nullptr;
+std::string (*SceneSynchronizerBase::var_data_stringify_func)(const VarData &p_var_data) = nullptr;
 
 SceneSynchronizerBase::SceneSynchronizerBase(NetworkInterface *p_network_interface) :
 		network_interface(p_network_interface),
@@ -38,6 +41,17 @@ SceneSynchronizerBase::~SceneSynchronizerBase() {
 	clear();
 	uninit_synchronizer();
 	network_interface = nullptr;
+}
+
+void SceneSynchronizerBase::register_var_data_functions(
+		void (*p_var_data_encode_func)(DataBuffer &r_buffer, const NS::VarData &p_val),
+		void (*p_var_data_decode_func)(NS::VarData &r_val, DataBuffer &p_buffer),
+		bool (*p_var_data_compare_func)(const VarData &p_A, const VarData &p_B),
+		std::string (*p_var_data_stringify_func)(const VarData &p_var_data)) {
+	var_data_encode_func = p_var_data_encode_func;
+	var_data_decode_func = p_var_data_decode_func;
+	var_data_compare_func = p_var_data_compare_func;
+	var_data_stringify_func = p_var_data_stringify_func;
 }
 
 void SceneSynchronizerBase::setup(SynchronizerManager &p_synchronizer_interface) {
@@ -124,6 +138,22 @@ void SceneSynchronizerBase::process() {
 
 void SceneSynchronizerBase::on_app_object_removed(ObjectHandle p_app_object_handle) {
 	unregister_app_object(find_object_local_id(p_app_object_handle));
+}
+
+void SceneSynchronizerBase::var_data_encode(DataBuffer &r_buffer, const NS::VarData &p_val) {
+	var_data_encode_func(r_buffer, p_val);
+}
+
+void SceneSynchronizerBase::var_data_decode(NS::VarData &r_val, DataBuffer &p_buffer) {
+	var_data_decode_func(r_val, p_buffer);
+}
+
+bool SceneSynchronizerBase::var_data_compare(const VarData &p_A, const VarData &p_B) {
+	return var_data_compare_func(p_A, p_B);
+}
+
+std::string SceneSynchronizerBase::var_data_stringify(const VarData &p_var_data) {
+	return var_data_stringify_func(p_var_data);
 }
 
 void SceneSynchronizerBase::set_max_trickled_objects_per_update(int p_rate) {
@@ -1301,7 +1331,7 @@ void SceneSynchronizerBase::pull_object_changes(NS::ObjectData *p_object_data) {
 				p_object_data->vars[var_id.id].var.name.c_str(),
 				new_val);
 
-		if (!network_interface->compare(old_val, new_val)) {
+		if (!SceneSynchronizerBase::var_data_compare(old_val, new_val)) {
 			change_event_add(
 					p_object_data,
 					var_id,
@@ -1740,7 +1770,7 @@ void ServerSynchronizer::generate_snapshot(
 	NS::VarData vd;
 	if (scene_synchronizer->synchronizer_manager->snapshot_get_custom_data(&p_group, vd)) {
 		r_snapshot_db.add(true);
-		scene_synchronizer->network_interface->encode(r_snapshot_db, vd);
+		SceneSynchronizerBase::var_data_encode(r_snapshot_db, vd);
 	} else {
 		r_snapshot_db.add(false);
 	}
@@ -1833,7 +1863,7 @@ void ServerSynchronizer::generate_snapshot_object_data(
 
 		r_snapshot_db.add(var_has_value);
 		if (var_has_value) {
-			scene_synchronizer->network_interface->encode(r_snapshot_db, var.var.value);
+			SceneSynchronizerBase::var_data_encode(r_snapshot_db, var.var.value);
 		}
 	}
 }
@@ -2044,7 +2074,7 @@ void ClientSynchronizer::signal_end_sync_changed_variables_events() {
 	for (auto &e : sync_end_events) {
 		// Check if the values between the variables before the sync and the
 		// current one are different.
-		if (scene_synchronizer->network_interface->compare(
+		if (SceneSynchronizerBase::var_data_compare(
 					e.object_data->vars[e.var_id.id].var.value,
 					e.old_value) == false) {
 			// Are different so we need to emit the `END_SYNC`.
@@ -2597,7 +2627,7 @@ bool ClientSynchronizer::parse_sync_data(
 		p_snapshot.read(has_custom_data);
 		if (has_custom_data) {
 			VarData vd;
-			scene_synchronizer->network_interface->decode(vd, p_snapshot);
+			SceneSynchronizerBase::var_data_decode(vd, p_snapshot);
 			p_custom_data_parse(p_user_pointer, std::move(vd));
 		}
 	}
@@ -2707,7 +2737,7 @@ bool ClientSynchronizer::parse_sync_data(
 
 				if (var_has_value) {
 					VarData value;
-					scene_synchronizer->network_interface->decode(value, p_snapshot);
+					SceneSynchronizerBase::var_data_decode(value, p_snapshot);
 					ERR_FAIL_COND_V_MSG(p_snapshot.is_buffer_failed(), false, String() + "This snapshot is corrupted. The `variable value` was expected at this point. Object: `" + synchronizer_object_data->object_name.c_str() + "` Var: `" + var_desc.var.name.c_str() + "`");
 
 					// Variable fetched, now parse this variable.
@@ -3154,7 +3184,7 @@ void ClientSynchronizer::apply_snapshot(
 			VarData current_val;
 			const bool get_var_success = scene_synchronizer->synchronizer_manager->get_variable(nd->app_object_handle, nd->vars[v.id].var.name.c_str(), current_val);
 
-			if (!get_var_success || !scene_synchronizer->network_interface->compare(current_val, vars_ptr[v.id].value)) {
+			if (!get_var_success || !SceneSynchronizerBase::var_data_compare(current_val, vars_ptr[v.id].value)) {
 				nd->vars[v.id].var.value.copy(vars_ptr[v.id].value);
 
 				scene_synchronizer->synchronizer_manager->set_variable(
@@ -3167,8 +3197,7 @@ void ClientSynchronizer::apply_snapshot(
 						current_val);
 
 				if (r_applied_data_info) {
-					//r_applied_data_info->push_back(String() + " |- Variable: " + vars_ptr[v.id].name.c_str() + " New value: " + NS::stringify_fast(vars_ptr[v.id].value));
-					r_applied_data_info->push_back(String() + " |- Variable: " + vars_ptr[v.id].name.c_str() + " New value: [STRINGIFY not supported at the moment].");
+					r_applied_data_info->push_back(String() + " |- Variable: " + vars_ptr[v.id].name.c_str() + " New value: " + SceneSynchronizerBase::var_data_stringify(vars_ptr[v.id].value).c_str());
 				}
 			}
 		}

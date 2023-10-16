@@ -170,22 +170,6 @@ bool LocalNetworkInterface::is_local_peer_server() const {
 	return network->get_peer() == 1;
 }
 
-void LocalNetworkInterface::encode(DataBuffer &r_buffer, const NS::VarData &p_val) const {
-	r_buffer.add(p_val.type);
-	r_buffer.add_bits(reinterpret_cast<const uint8_t *>(&p_val.data), sizeof(p_val.data) * 8);
-	// Not supported right now.
-	CRASH_COND(p_val.shared_buffer);
-}
-
-void LocalNetworkInterface::decode(NS::VarData &r_val, DataBuffer &p_buffer) const {
-	p_buffer.read(r_val.type);
-	p_buffer.read_bits(reinterpret_cast<uint8_t *>(&r_val.data), sizeof(r_val.data) * 8);
-}
-
-bool LocalNetworkInterface::compare(const VarData &p_A, const VarData &p_B) const {
-	return p_A.data.i32 == p_B.data.i32;
-}
-
 void LocalNetworkInterface::rpc_send(int p_peer_recipient, bool p_reliable, DataBuffer &&p_data_buffer) {
 	ERR_FAIL_COND(!network);
 	network->rpc_send(get_name(), p_peer_recipient, p_reliable, std::move(p_data_buffer));
