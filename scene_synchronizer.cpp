@@ -2081,8 +2081,8 @@ void ClientSynchronizer::clear() {
 void ClientSynchronizer::process() {
 	SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "ClientSynchronizer::process", true);
 
-	const double physics_ticks_per_second = Engine::get_singleton()->get_physics_ticks_per_second();
-	const double delta = 1.0 / physics_ticks_per_second;
+	const float physics_ticks_per_second = Engine::get_singleton()->get_physics_ticks_per_second();
+	const float delta = 1.0 / physics_ticks_per_second;
 
 #ifdef DEBUG_ENABLED
 	if (unlikely(Engine::get_singleton()->get_frames_per_second() < physics_ticks_per_second)) {
@@ -2091,14 +2091,9 @@ void ClientSynchronizer::process() {
 	}
 #endif
 
+	process_server_sync(delta);
 	process_simulation(delta, physics_ticks_per_second);
-
-	process_received_server_state(delta);
-
-	// Now trigger the END_SYNC event.
-	signal_end_sync_changed_variables_events();
-
-	process_received_trickled_sync_data(delta);
+	process_trickled_sync(delta);
 
 #if DEBUG_ENABLED
 	if (player_controller_object_data) {
@@ -2262,76 +2257,14 @@ void ClientSynchronizer::store_controllers_snapshot(
 	}
 }
 
-void ClientSynchronizer::process_simulation(real_t p_delta, real_t p_physics_ticks_per_second) {
-	if (unlikely(player_controller_object_data == nullptr || enabled == false)) {
-		// No player controller so can't process the simulation.
-		// TODO Remove this constraint?
+void ClientSynchronizer::process_server_sync(float p_delta) {
+	process_received_server_state(p_delta);
 
-		// Make sure to fetch changed variable anyway.
-		scene_synchronizer->detect_and_signal_changed_variables(NetEventFlag::CHANGE);
-		return;
-	}
-
-	NetworkedControllerBase *controller = player_controller_object_data->get_controller();
-	PlayerController *player_controller = controller->get_player_controller();
-
-	// Reset this here, so even when `sub_ticks` is zero (and it's not
-	// updated due to process is not called), we can still have the corect
-	// data.
-	controller->player_set_has_new_input(false);
-
-	// Due to some lag we may want to speed up the input_packet
-	// generation, for this reason here I'm performing a sub tick.
-	//
-	// keep in mind that we are just pretending that the time
-	// is advancing faster, for this reason we are still using
-	// `delta` to step the controllers_node_data.
-	//
-	// The dolls may want to speed up too, so to consume the inputs faster
-	// and get back in time with the server.
-	int sub_ticks = player_controller->calculates_sub_ticks(p_delta, p_physics_ticks_per_second);
-
-	if (sub_ticks == 0) {
-		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "No sub ticks: this is not bu a bug; it's the lag compensation algorithm.", true);
-	}
-
-	while (sub_ticks > 0) {
-		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "ClientSynchronizer::process::sub_process " + itos(sub_ticks), true);
-		SceneSynchronizerDebugger::singleton()->scene_sync_process_start(scene_synchronizer);
-
-		// Process the scene.
-		scene_synchronizer->process_functions__execute(p_delta);
-
-		scene_synchronizer->detect_and_signal_changed_variables(NetEventFlag::CHANGE);
-
-		if (controller->player_has_new_input()) {
-			store_snapshot();
-		}
-
-		sub_ticks -= 1;
-		SceneSynchronizerDebugger::singleton()->scene_sync_process_end(scene_synchronizer);
-
-#if DEBUG_ENABLED
-		if (sub_ticks > 0) {
-			// This is an intermediate sub tick, so store the dumping.
-			// The last sub frame is not dumped, untile the end of the frame, so we can capture any subsequent message.
-			const int client_peer = scene_synchronizer->network_interface->fetch_local_peer_id();
-			SceneSynchronizerDebugger::singleton()->write_dump(client_peer, player_controller->get_current_input_id());
-			SceneSynchronizerDebugger::singleton()->start_new_frame();
-		}
-#endif
-	}
+	// Now trigger the END_SYNC event.
+	signal_end_sync_changed_variables_events();
 }
 
 void ClientSynchronizer::process_received_server_state(real_t p_delta) {
-	// The client is responsible to recover only its local controller, while all
-	// the other controllers_node_data (dolls) have their state interpolated. There is
-	// no need to check the correctness of the doll state nor the needs to
-	// rewind those.
-	//
-	// The scene, (global nodes), are always in sync with the reference frame
-	// of the client.
-
 	// --- Phase one: find the snapshot to check. ---
 	if (server_snapshots.empty()) {
 		// No snapshots to recover for this controller. Nothing to do.
@@ -2674,6 +2607,67 @@ void ClientSynchronizer::process_paused_controller_recovery(real_t p_delta) {
 	}
 }
 
+void ClientSynchronizer::process_simulation(real_t p_delta, real_t p_physics_ticks_per_second) {
+	if (unlikely(player_controller_object_data == nullptr || enabled == false)) {
+		// No player controller so can't process the simulation.
+		// TODO Remove this constraint?
+
+		// Make sure to fetch changed variable anyway.
+		scene_synchronizer->detect_and_signal_changed_variables(NetEventFlag::CHANGE);
+		return;
+	}
+
+	NetworkedControllerBase *controller = player_controller_object_data->get_controller();
+	PlayerController *player_controller = controller->get_player_controller();
+
+	// Reset this here, so even when `sub_ticks` is zero (and it's not
+	// updated due to process is not called), we can still have the corect
+	// data.
+	controller->player_set_has_new_input(false);
+
+	// Due to some lag we may want to speed up the input_packet
+	// generation, for this reason here I'm performing a sub tick.
+	//
+	// keep in mind that we are just pretending that the time
+	// is advancing faster, for this reason we are still using
+	// `delta` to step the controllers_node_data.
+	//
+	// The dolls may want to speed up too, so to consume the inputs faster
+	// and get back in time with the server.
+	int sub_ticks = player_controller->calculates_sub_ticks(p_delta, p_physics_ticks_per_second);
+
+	if (sub_ticks == 0) {
+		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "No sub ticks: this is not bu a bug; it's the lag compensation algorithm.", true);
+	}
+
+	while (sub_ticks > 0) {
+		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "ClientSynchronizer::process::sub_process " + itos(sub_ticks), true);
+		SceneSynchronizerDebugger::singleton()->scene_sync_process_start(scene_synchronizer);
+
+		// Process the scene.
+		scene_synchronizer->process_functions__execute(p_delta);
+
+		scene_synchronizer->detect_and_signal_changed_variables(NetEventFlag::CHANGE);
+
+		if (controller->player_has_new_input()) {
+			store_snapshot();
+		}
+
+		sub_ticks -= 1;
+		SceneSynchronizerDebugger::singleton()->scene_sync_process_end(scene_synchronizer);
+
+#if DEBUG_ENABLED
+		if (sub_ticks > 0) {
+			// This is an intermediate sub tick, so store the dumping.
+			// The last sub frame is not dumped, untile the end of the frame, so we can capture any subsequent message.
+			const int client_peer = scene_synchronizer->network_interface->fetch_local_peer_id();
+			SceneSynchronizerDebugger::singleton()->write_dump(client_peer, player_controller->get_current_input_id());
+			SceneSynchronizerDebugger::singleton()->start_new_frame();
+		}
+#endif
+	}
+}
+
 bool ClientSynchronizer::parse_sync_data(
 		DataBuffer &p_snapshot,
 		void *p_user_pointer,
@@ -3010,7 +3004,7 @@ void ClientSynchronizer::receive_trickled_sync_data(const Vector<uint8_t> &p_dat
 	memdelete(db);
 }
 
-void ClientSynchronizer::process_received_trickled_sync_data(real_t p_delta) {
+void ClientSynchronizer::process_trickled_sync(real_t p_delta) {
 	DataBuffer *db1 = memnew(DataBuffer);
 	DataBuffer *db2 = memnew(DataBuffer);
 
@@ -3275,10 +3269,12 @@ void ClientSynchronizer::apply_snapshot(
 				continue;
 			}
 
-			const Variant current_val = nd->vars[v.id].var.value;
-			nd->vars[v.id].var.value = vars_ptr[v.id].value.duplicate(true);
+			Variant current_val;
+			const bool get_var_success = scene_synchronizer->synchronizer_manager->get_variable(nd->app_object_handle, nd->vars[v.id].var.name.c_str(), current_val);
 
-			if (!scene_synchronizer->network_interface->compare(current_val, vars_ptr[v.id].value)) {
+			if (!get_var_success || !scene_synchronizer->network_interface->compare(current_val, vars_ptr[v.id].value)) {
+				nd->vars[v.id].var.value = vars_ptr[v.id].value.duplicate(true);
+
 				scene_synchronizer->synchronizer_manager->set_variable(
 						nd->app_object_handle,
 						vars_ptr[v.id].name.c_str(),
