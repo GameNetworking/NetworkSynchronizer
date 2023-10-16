@@ -63,6 +63,7 @@ public:
 	VarData(VarData &&p_other);
 	VarData &operator=(VarData &&p_other);
 
+	static VarData make_copy(const VarData &p_other);
 	void copy(const VarData &p_other);
 };
 

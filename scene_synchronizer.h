@@ -18,6 +18,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <unordered_set>
 #include <vector>
 
 class SceneDiff;
@@ -56,8 +57,8 @@ public:
 	virtual uint64_t get_object_id(ObjectHandle p_app_object_handle) const = 0;
 	virtual std::string get_object_name(ObjectHandle p_app_object_handle) const = 0;
 	virtual void setup_synchronizer_for(ObjectHandle p_app_object_handle, ObjectLocalId p_id) = 0;
-	virtual void set_variable(ObjectHandle p_app_object_handle, const char *p_var_name, const Variant &p_val) = 0;
-	virtual bool get_variable(ObjectHandle p_app_object_handle, const char *p_var_name, Variant &p_val) const = 0;
+	virtual void set_variable(ObjectHandle p_app_object_handle, const char *p_var_name, const VarData &p_val) = 0;
+	virtual bool get_variable(ObjectHandle p_app_object_handle, const char *p_var_name, VarData &p_val) const = 0;
 
 	virtual NetworkedControllerBase *extract_network_controller(ObjectHandle p_app_object_handle) = 0;
 	virtual const NetworkedControllerBase *extract_network_controller(ObjectHandle p_app_object_handle) const = 0;
@@ -190,7 +191,7 @@ public: // -------------------------------------------------------------- Events
 	Processor<const NS::ObjectData * /*p_object_data*/, int /*p_peer*/, bool /*p_connected*/, bool /*p_enabled*/> event_peer_status_updated;
 	Processor<uint32_t /*p_input_id*/> event_state_validated;
 	Processor<uint32_t /*p_input_id*/, int /*p_index*/, int /*p_count*/> event_rewind_frame_begin;
-	Processor<uint32_t /*p_input_id*/, ObjectHandle /*p_app_object_handle*/, const std::vector<std::string> & /*p_var_names*/, const std::vector<Variant> & /*p_client_values*/, const std::vector<Variant> & /*p_server_values*/> event_desync_detected;
+	Processor<uint32_t /*p_input_id*/, ObjectHandle /*p_app_object_handle*/, const std::vector<std::string> & /*p_var_names*/, const std::vector<VarData> & /*p_client_values*/, const std::vector<VarData> & /*p_server_values*/> event_desync_detected;
 
 private:
 	// This is private so this class can be created only from
@@ -250,8 +251,8 @@ public: // ---------------------------------------------------------------- RPCs
 public: // ---------------------------------------------------------------- APIs
 	void register_app_object(ObjectHandle p_app_object_handle, ObjectLocalId *out_id = nullptr);
 	void unregister_app_object(ObjectLocalId p_id);
-	void register_variable(ObjectLocalId p_id, const StringName &p_variable);
-	void unregister_variable(ObjectLocalId p_id, const StringName &p_variable);
+	void register_variable(ObjectLocalId p_id, const std::string &p_variable);
+	void unregister_variable(ObjectLocalId p_id, const std::string &p_variable);
 
 	ObjectNetId get_app_object_net_id(ObjectHandle p_app_object_handle) const;
 
@@ -271,13 +272,13 @@ public: // ---------------------------------------------------------------- APIs
 	ListenerHandle track_variable_changes(
 			ObjectLocalId p_id,
 			const StringName &p_variable,
-			std::function<void(const std::vector<Variant> &p_old_values)> p_listener_func,
+			std::function<void(const std::vector<VarData> &p_old_values)> p_listener_func,
 			NetEventFlag p_flags = NetEventFlag::DEFAULT);
 
 	ListenerHandle track_variables_changes(
 			const std::vector<ObjectLocalId> &p_object_ids,
 			const std::vector<StringName> &p_variables,
-			std::function<void(const std::vector<Variant> &p_old_values)> p_listener_func,
+			std::function<void(const std::vector<VarData> &p_old_values)> p_listener_func,
 			NetEventFlag p_flags = NetEventFlag::DEFAULT);
 
 	void untrack_variable_changes(ListenerHandle p_handle);
@@ -318,11 +319,6 @@ public: // ---------------------------------------------------------------- APIs
 	void sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_ptr);
 	uint64_t sync_group_get_user_data(SyncGroupId p_group_id) const;
 
-	void start_tracking_scene_changes(Object *p_diff_handle) const;
-	void stop_tracking_scene_changes(Object *p_diff_handle) const;
-	Variant pop_scene_changes(Object *p_diff_handle) const;
-	void apply_scene_changes(DataBuffer &p_sync_data);
-
 	bool is_recovered() const;
 	bool is_resetted() const;
 	bool is_rewinding() const;
@@ -356,7 +352,7 @@ public: // ---------------------------------------------------------------- APIs
 	void detect_and_signal_changed_variables(int p_flags);
 
 	void change_events_begin(int p_flag);
-	void change_event_add(NS::ObjectData *p_object_data, VarId p_var_id, const Variant &p_old);
+	void change_event_add(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old);
 	void change_events_flush();
 
 public: // ------------------------------------------------------------ INTERNAL
@@ -424,8 +420,8 @@ public:
 	virtual void on_peer_disconnected(int p_peer_id) {}
 	virtual void on_object_data_added(NS::ObjectData *p_object_data) {}
 	virtual void on_object_data_removed(NS::ObjectData &p_object_data) {}
-	virtual void on_variable_added(NS::ObjectData *p_object_data, const StringName &p_var_name) {}
-	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const Variant &p_old_value, int p_flag) {}
+	virtual void on_variable_added(NS::ObjectData *p_object_data, const std::string &p_var_name) {}
+	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) {}
 	virtual void on_controller_reset(NS::ObjectData *p_object_data) {}
 };
 
@@ -471,8 +467,8 @@ public:
 	virtual void on_peer_disconnected(int p_peer_id) override;
 	virtual void on_object_data_added(NS::ObjectData *p_object_data) override;
 	virtual void on_object_data_removed(NS::ObjectData &p_object_data) override;
-	virtual void on_variable_added(NS::ObjectData *p_object_data, const StringName &p_var_name) override;
-	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const Variant &p_old_value, int p_flag) override;
+	virtual void on_variable_added(NS::ObjectData *p_object_data, const std::string &p_var_name) override;
+	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) override;
 
 	SyncGroupId sync_group_create();
 	const NS::SyncGroup *sync_group_get(SyncGroupId p_group_id) const;
@@ -523,9 +519,33 @@ class ClientSynchronizer : public Synchronizer {
 	bool need_full_snapshot_notified = false;
 
 	struct EndSyncEvent {
-		NS::ObjectData *object_data;
-		VarId var_id;
-		Variant old_value;
+		NS::ObjectData *object_data = nullptr;
+		VarId var_id = VarId::NONE;
+		VarData old_value;
+
+		EndSyncEvent() = default;
+		EndSyncEvent(const EndSyncEvent &p_other) :
+				EndSyncEvent(p_other.object_data, p_other.var_id, p_other.old_value) {}
+		EndSyncEvent(
+				NS::ObjectData *p_object_data,
+				VarId p_var_id,
+				const VarData &p_old_value) :
+				object_data(p_object_data),
+				var_id(p_var_id) {
+			old_value.copy(p_old_value);
+		}
+
+		EndSyncEvent &operator=(const EndSyncEvent &p_se) {
+			object_data = p_se.object_data;
+			var_id = p_se.var_id;
+			old_value.copy(p_se.old_value);
+			return *this;
+		}
+
+		bool operator==(const EndSyncEvent &p_other) const {
+			return object_data == p_other.object_data &&
+					var_id == p_other.var_id;
+		}
 
 		bool operator<(const EndSyncEvent &p_other) const {
 			if (object_data->get_net_id() == p_other.object_data->get_net_id()) {
@@ -536,7 +556,7 @@ class ClientSynchronizer : public Synchronizer {
 		}
 	};
 
-	RBSet<EndSyncEvent> sync_end_events;
+	std::vector<EndSyncEvent> sync_end_events;
 
 	struct TrickledSyncInterpolationData {
 		NS::ObjectData *nd = nullptr;
@@ -591,7 +611,7 @@ public:
 	virtual void process() override;
 	virtual void on_object_data_added(NS::ObjectData *p_object_data) override;
 	virtual void on_object_data_removed(NS::ObjectData &p_object_data) override;
-	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const Variant &p_old_value, int p_flag) override;
+	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) override;
 	void signal_end_sync_changed_variables_events();
 	virtual void on_controller_reset(NS::ObjectData *p_object_data) override;
 
@@ -603,7 +623,7 @@ public:
 			void (*p_ode_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
 			void (*p_input_id_parse)(void *p_user_pointer, uint32_t p_input_id),
 			void (*p_controller_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
-			void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, const Variant &p_value),
+			void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, VarData &&p_value),
 			void (*p_object_activation_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, bool p_is_active));
 
 	void set_enabled(bool p_enabled);

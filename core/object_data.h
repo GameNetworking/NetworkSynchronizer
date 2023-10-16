@@ -2,8 +2,9 @@
 
 #include "core.h"
 #include "core/templates/local_vector.h"
-#include "core/variant/variant.h"
+#include "core/variant/callable.h"
 #include "processor.h"
+#include "var_data.h"
 #include <string>
 #include <vector>
 
@@ -11,7 +12,9 @@ NS_NAMESPACE_BEGIN
 
 struct NameAndVar {
 	std::string name;
-	Variant value;
+	VarData value;
+
+	void copy(const NameAndVar &p_nav);
 };
 
 struct VarDescriptor {
@@ -22,7 +25,7 @@ struct VarDescriptor {
 	std::vector<struct ChangesListener *> changes_listeners;
 
 	VarDescriptor() = default;
-	VarDescriptor(VarId p_id, const StringName &p_name, const Variant &p_val, bool p_skip_rewinding, bool p_enabled);
+	VarDescriptor(VarId p_id, const std::string &p_name, VarData &&p_val, bool p_skip_rewinding, bool p_enabled);
 
 	bool operator<(const VarDescriptor &p_other) const;
 };

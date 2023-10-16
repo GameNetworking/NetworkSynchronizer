@@ -41,7 +41,6 @@
 #include "godot4/gd_scene_synchronizer.h"
 #include "input_network_encoder.h"
 #include "modules/network_synchronizer/godot4/gd_network_interface.h"
-#include "scene_diff.h"
 #include "scene_synchronizer_debugger.h"
 
 #ifdef DEBUG_ENABLED
@@ -51,7 +50,6 @@
 void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
 	if (p_level == MODULE_INITIALIZATION_LEVEL_SERVERS) {
 		GDREGISTER_CLASS(DataBuffer);
-		GDREGISTER_CLASS(SceneDiff);
 		GDREGISTER_CLASS(GdNetworkedController);
 		GDREGISTER_CLASS(GdSceneSynchronizer);
 		GDREGISTER_CLASS(InputNetworkEncoder);

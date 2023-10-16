@@ -67,8 +67,8 @@ public: // ---------------------------------------- Scene Synchronizer Interface
 	virtual uint64_t get_object_id(NS::ObjectHandle p_app_object_handle) const override;
 	virtual std::string get_object_name(NS::ObjectHandle p_app_object_handle) const override;
 	virtual void setup_synchronizer_for(NS::ObjectHandle p_app_object_handle, NS::ObjectLocalId p_id) override;
-	virtual void set_variable(NS::ObjectHandle p_app_object_handle, const char *p_name, const Variant &p_val) override;
-	virtual bool get_variable(NS::ObjectHandle p_app_object_handle, const char *p_name, Variant &p_val) const override;
+	virtual void set_variable(NS::ObjectHandle p_app_object_handle, const char *p_name, const NS::VarData &p_val) override;
+	virtual bool get_variable(NS::ObjectHandle p_app_object_handle, const char *p_name, NS::VarData &p_val) const override;
 
 	virtual NS::NetworkedControllerBase *extract_network_controller(NS::ObjectHandle p_app_object_handle) override;
 	virtual const NS::NetworkedControllerBase *extract_network_controller(NS::ObjectHandle p_app_object_handle) const override;
@@ -146,11 +146,6 @@ public: // ---------------------------------------------------------------- APIs
 
 	void sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_ptr);
 	uint64_t sync_group_get_user_data(SyncGroupId p_group_id) const;
-
-	void start_tracking_scene_changes(Object *p_diff_handle) const;
-	void stop_tracking_scene_changes(Object *p_diff_handle) const;
-	Variant pop_scene_changes(Object *p_diff_handle) const;
-	void apply_scene_changes(Object *p_sync_data);
 
 	bool is_recovered() const;
 	bool is_resetted() const;

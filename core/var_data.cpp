@@ -24,6 +24,12 @@ VarData &VarData::operator=(VarData &&p_other) {
 	return *this;
 }
 
+VarData VarData::make_copy(const VarData &p_other) {
+	VarData vd;
+	vd.copy(p_other);
+	return vd;
+}
+
 void VarData::copy(const VarData &p_other) {
 	type = p_other.type;
 	data = p_other.data;

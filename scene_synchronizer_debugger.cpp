@@ -715,7 +715,8 @@ void SceneSynchronizerDebugger::dump_tracked_objects(const NS::SceneSynchronizer
 				prefix = "* ";
 			}
 
-			node_dump[prefix + e->get().name + "::" + type_to_string(e->get().type)] = NS::stringify_fast(tracked_nodes[i].node->get(e->get().name));
+			//node_dump[prefix + e->get().name + "::" + type_to_string(e->get().type)] = NS::stringify_fast(tracked_nodes[i].node->get(e->get().name));
+			node_dump[prefix + e->get().name + "::" + type_to_string(e->get().type)] = "STRINGIFY not supported at the moment.";
 		}
 
 		p_dump[node_path] = node_dump;

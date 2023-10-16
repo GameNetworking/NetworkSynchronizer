@@ -5,6 +5,7 @@
 #include "core/variant/variant.h"
 #include "local_scene.h"
 #include "modules/network_synchronizer/core/core.h"
+#include "modules/network_synchronizer/core/var_data.h"
 #include "modules/network_synchronizer/net_utilities.h"
 #include "modules/network_synchronizer/tests/local_network.h"
 
@@ -45,8 +46,7 @@ public:
 		get_network_interface().init(get_scene()->get_network(), name, authoritative_peer_id);
 		setup(*this);
 
-		Variant line_pos = 0.0;
-		variables.insert(std::make_pair("position", line_pos));
+		variables.insert(std::make_pair("position", NS::VarData()));
 
 		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
 	}
@@ -66,10 +66,8 @@ public:
 
 	virtual void controller_process(double p_delta, DataBuffer &p_buffer) override {
 		if (p_buffer.read_bool()) {
-			float position = variables["position"];
 			const float one_meter = 1.0;
-			position += p_delta * one_meter;
-			variables["position"] = position;
+			variables["position"].data.f32 += p_delta * one_meter;
 		}
 	}
 
@@ -170,9 +168,12 @@ void test_state_notify() {
 			server_scene.scene_sync->set_server_notify_state_interval(0.0);
 
 			// Set the `var_1` to a different value to all the clients.
-			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 0;
-			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 1;
-			peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 2;
+			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 0;
+			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 1;
+			peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 2;
+			CRASH_COND(server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 0);
+			CRASH_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 1);
+			CRASH_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 2);
 
 			// Process exactly 1 time.
 			// NOTE: Processing the controller so the server receives the input right after.
@@ -184,9 +185,9 @@ void test_state_notify() {
 			// the snapshot right away: since the server snapshot is always
 			// at least one frame behind the client, we can assume that the
 			// client has applied the server correction.
-			CRASH_COND(int(server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"]) != 0);
-			CRASH_COND(int(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"]) != 0);
-			CRASH_COND(int(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"]) != 0);
+			CRASH_COND(server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 0);
+			CRASH_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 0);
+			CRASH_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 0);
 		}
 
 		// Test with notify interval set to 0.5 seconds.
@@ -194,24 +195,22 @@ void test_state_notify() {
 			server_scene.scene_sync->set_server_notify_state_interval(0.5);
 
 			// Set the `var_1` to a different value to all the clients.
-			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 3;
-			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 4;
-			peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 5;
+			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 3;
+			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 4;
+			peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 5;
 
 			// Process for 0.5 second + delta
 			float time = 0.0;
-			int h = 0;
 			for (; time <= 0.5 + delta + 0.001; time += delta) {
-				h++;
 				// NOTE: Processing the controller so the server receives the input right after.
 				server_scene.process(delta);
 				peer_1_scene.process(delta);
 				peer_2_scene.process(delta);
 
 				if (
-						int(server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"]) == 3 &&
-						int(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"]) == 3 &&
-						int(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"]) == 3) {
+						server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 == 3 &&
+						peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 == 3 &&
+						peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 == 3) {
 					break;
 				}
 			}
@@ -220,9 +219,9 @@ void test_state_notify() {
 			// the snapshot after some 0.5s: since the server snapshot is always
 			// at least one frame behind the client, we can assume that the
 			// client has applied the server correction.
-			CRASH_COND(int(server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"]) != 3);
-			CRASH_COND(int(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"]) != 3);
-			CRASH_COND(int(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"]) != 3);
+			CRASH_COND(server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 3);
+			CRASH_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 3);
+			CRASH_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 3);
 			CRASH_COND(time >= 0.5);
 		}
 
@@ -236,8 +235,8 @@ void test_state_notify() {
 			// The server remains like it was.
 			// server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 3;
 			// While the peers change its variables.
-			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 4;
-			peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 5;
+			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 4;
+			peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 5;
 
 			if (f == 0) {
 				server_scene.process(delta);
@@ -245,9 +244,9 @@ void test_state_notify() {
 				peer_2_scene.process(delta);
 
 				// Still the value expected is `3`.
-				CRASH_COND(int(server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"]) != 3);
-				CRASH_COND(int(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"]) != 3);
-				CRASH_COND(int(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"]) != 3);
+				CRASH_COND(server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 3);
+				CRASH_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 3);
+				CRASH_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 3);
 			} else {
 				// Note: the +1 is needed because the change is recored on the snapshot
 				// the scene sync is going to created on the next "process".
@@ -274,7 +273,7 @@ void test_state_notify() {
 
 					// However, since the `peer_2` doesn't have the local controller
 					// the server snapshot is expected to be applied right away.
-					CRASH_COND(int(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"]) != 3);
+					CRASH_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 3);
 
 					if (change_made_on_frame == server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id()) {
 						// Break as soon as the server reaches the same snapshot.
@@ -287,7 +286,7 @@ void test_state_notify() {
 				CRASH_COND(change_made_on_frame != server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id());
 
 				// and now is time to check for the `peer_1`.
-				CRASH_COND(int(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"]) != 3);
+				CRASH_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 3);
 			}
 		}
 
@@ -409,26 +408,26 @@ void test_variable_change_event() {
 			bool is_p2_change_event_triggered = false;
 
 			NS::ListenerHandle server_lh = server_scene.scene_sync->track_variable_changes(
-					server_obj_1_oh, "var_1", [&is_server_change_event_triggered](const std::vector<Variant> &p_old_values) {
+					server_obj_1_oh, "var_1", [&is_server_change_event_triggered](const std::vector<NS::VarData> &p_old_values) {
 						is_server_change_event_triggered = true;
 					},
 					NetEventFlag::CHANGE);
 
 			NS::ListenerHandle p1_lh = peer_1_scene.scene_sync->track_variable_changes(
-					p1_obj_1_oh, "var_1", [&is_p1_change_event_triggered](const std::vector<Variant> &p_old_values) {
+					p1_obj_1_oh, "var_1", [&is_p1_change_event_triggered](const std::vector<NS::VarData> &p_old_values) {
 						is_p1_change_event_triggered = true;
 					},
 					NetEventFlag::CHANGE);
 
 			NS::ListenerHandle p2_lh = peer_2_scene.scene_sync->track_variable_changes(
-					p2_obj_1_oh, "var_1", [&is_p2_change_event_triggered](const std::vector<Variant> &p_old_values) {
+					p2_obj_1_oh, "var_1", [&is_p2_change_event_triggered](const std::vector<NS::VarData> &p_old_values) {
 						is_p2_change_event_triggered = true;
 					},
 					NetEventFlag::CHANGE);
 
-			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 2;
-			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 3;
-			peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 4;
+			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 2;
+			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 3;
+			peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 4;
 
 			peer_1_scene.process(delta);
 			peer_2_scene.process(delta);
@@ -471,9 +470,9 @@ void test_variable_change_event() {
 			is_p2_change_event_triggered = false;
 
 			// Change the values
-			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 30;
-			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 30;
-			peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 30;
+			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 30;
+			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 30;
+			peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 30;
 
 			// Process again
 			for (int i = 0; i < 4; i++) {
@@ -493,9 +492,9 @@ void test_variable_change_event() {
 			// Unify the state across all the peers
 			server_scene.scene_sync->set_server_notify_state_interval(0.0);
 
-			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 0;
-			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 0;
-			peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 0;
+			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 0;
+			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 0;
+			peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 0;
 
 			for (int i = 0; i < 4; i++) {
 				server_scene.process(delta);
@@ -508,25 +507,25 @@ void test_variable_change_event() {
 			bool is_p2_change_event_triggered = false;
 
 			NS::ListenerHandle server_lh = server_scene.scene_sync->track_variable_changes(
-					server_obj_1_oh, "var_1", [&is_server_change_event_triggered](const std::vector<Variant> &p_old_values) {
+					server_obj_1_oh, "var_1", [&is_server_change_event_triggered](const std::vector<NS::VarData> &p_old_values) {
 						is_server_change_event_triggered = true;
 					},
 					NetEventFlag::SYNC_RECOVER);
 
 			NS::ListenerHandle p1_lh = peer_1_scene.scene_sync->track_variable_changes(
-					p1_obj_1_oh, "var_1", [&is_p1_change_event_triggered](const std::vector<Variant> &p_old_values) {
+					p1_obj_1_oh, "var_1", [&is_p1_change_event_triggered](const std::vector<NS::VarData> &p_old_values) {
 						is_p1_change_event_triggered = true;
 					},
 					NetEventFlag::SYNC_RECOVER);
 
 			NS::ListenerHandle p2_lh = peer_2_scene.scene_sync->track_variable_changes(
-					p2_obj_1_oh, "var_1", [&is_p2_change_event_triggered](const std::vector<Variant> &p_old_values) {
+					p2_obj_1_oh, "var_1", [&is_p2_change_event_triggered](const std::vector<NS::VarData> &p_old_values) {
 						is_p2_change_event_triggered = true;
 					},
 					NetEventFlag::SYNC_RECOVER);
 
 			// Change the value on the server.
-			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 1;
+			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 1;
 
 			for (int i = 0; i < 4; i++) {
 				server_scene.process(delta);
@@ -551,9 +550,9 @@ void test_variable_change_event() {
 			// Unify the state across all the peers
 			server_scene.scene_sync->set_server_notify_state_interval(0.0);
 
-			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 0;
-			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 0;
-			peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 0;
+			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 0;
+			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 0;
+			peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 0;
 
 			for (int i = 0; i < 4; i++) {
 				server_scene.process(delta);
@@ -566,21 +565,21 @@ void test_variable_change_event() {
 			bool is_p2_change_event_triggered = false;
 
 			NS::ListenerHandle server_lh = server_scene.scene_sync->track_variable_changes(
-					server_obj_1_oh, "var_1", [&is_server_change_event_triggered, &server_scene](const std::vector<Variant> &p_old_values) {
+					server_obj_1_oh, "var_1", [&is_server_change_event_triggered, &server_scene](const std::vector<NS::VarData> &p_old_values) {
 						is_server_change_event_triggered = true;
 						CRASH_COND(!server_scene.scene_sync->is_resetted());
 					},
 					NetEventFlag::SYNC_RESET);
 
 			NS::ListenerHandle p1_lh = peer_1_scene.scene_sync->track_variable_changes(
-					p1_obj_1_oh, "var_1", [&is_p1_change_event_triggered, &peer_1_scene](const std::vector<Variant> &p_old_values) {
+					p1_obj_1_oh, "var_1", [&is_p1_change_event_triggered, &peer_1_scene](const std::vector<NS::VarData> &p_old_values) {
 						is_p1_change_event_triggered = true;
 						CRASH_COND(!peer_1_scene.scene_sync->is_resetted());
 					},
 					NetEventFlag::SYNC_RESET);
 
 			NS::ListenerHandle p2_lh = peer_2_scene.scene_sync->track_variable_changes(
-					p2_obj_1_oh, "var_1", [&is_p2_change_event_triggered, &peer_2_scene](const std::vector<Variant> &p_old_values) {
+					p2_obj_1_oh, "var_1", [&is_p2_change_event_triggered, &peer_2_scene](const std::vector<NS::VarData> &p_old_values) {
 						is_p2_change_event_triggered = true;
 						CRASH_COND(!peer_2_scene.scene_sync->is_resetted());
 					},
@@ -592,7 +591,7 @@ void test_variable_change_event() {
 			peer_2_scene.scene_sync->set_skip_rewinding(p2_obj_1_oh, "var_1", true);
 
 			// Change the value on the server.
-			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 1;
+			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 1;
 
 			for (int i = 0; i < 4; i++) {
 				server_scene.process(delta);
@@ -612,7 +611,7 @@ void test_variable_change_event() {
 			peer_2_scene.scene_sync->set_skip_rewinding(p2_obj_1_oh, "var_1", false);
 
 			// Change the value on the server.
-			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 10;
+			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 10;
 
 			for (int i = 0; i < 4; i++) {
 				server_scene.process(delta);

@@ -5,12 +5,17 @@
 
 NS_NAMESPACE_BEGIN
 
-VarDescriptor::VarDescriptor(VarId p_id, const StringName &p_name, const Variant &p_val, bool p_skip_rewinding, bool p_enabled) :
+void NameAndVar::copy(const NameAndVar &p_nav) {
+	name = p_nav.name;
+	value.copy(p_nav.value);
+}
+
+VarDescriptor::VarDescriptor(VarId p_id, const std::string &p_name, VarData &&p_val, bool p_skip_rewinding, bool p_enabled) :
 		id(p_id),
 		skip_rewinding(p_skip_rewinding),
 		enabled(p_enabled) {
-	var.name = String(p_name).utf8();
-	var.value = p_val.duplicate(true);
+	var.name = p_name;
+	var.value = std::move(p_val);
 }
 
 bool VarDescriptor::operator<(const VarDescriptor &p_other) const {
