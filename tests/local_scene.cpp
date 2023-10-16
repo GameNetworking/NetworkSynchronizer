@@ -15,6 +15,26 @@ NS::ObjectLocalId LocalSceneObject::find_local_id() const {
 LocalSceneSynchronizer::LocalSceneSynchronizer() {
 }
 
+void LocalSceneSynchronizer::register_local_sync() {
+	register_var_data_functions(
+			[](DataBuffer &r_buffer, const NS::VarData &p_val) {
+				r_buffer.add(p_val.type);
+				r_buffer.add_bits(reinterpret_cast<const uint8_t *>(&p_val.data), sizeof(p_val.data) * 8);
+				// Not supported right now.
+				CRASH_COND(p_val.shared_buffer);
+			},
+			[](NS::VarData &r_val, DataBuffer &p_buffer) {
+				p_buffer.read(r_val.type);
+				p_buffer.read_bits(reinterpret_cast<uint8_t *>(&r_val.data), sizeof(r_val.data) * 8);
+			},
+			[](const NS::VarData &p_A, const NS::VarData &p_B) -> bool {
+				return p_A.data.i32 == p_B.data.i32;
+			},
+			[](const NS::VarData &p_var_data) -> std::string {
+				return std::string("[No stringify supported by the NS test]");
+			});
+}
+
 void LocalSceneSynchronizer::on_scene_entry() {
 	get_network_interface().init(get_scene()->get_network(), name, authoritative_peer_id);
 	setup(*this);

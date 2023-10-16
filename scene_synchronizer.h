@@ -18,7 +18,6 @@
 #include <functional>
 #include <map>
 #include <memory>
-#include <unordered_set>
 #include <vector>
 
 class SceneDiff;
@@ -148,6 +147,11 @@ public:
 	static const SyncGroupId GLOBAL_SYNC_GROUP_ID;
 
 private:
+	static void (*var_data_encode_func)(DataBuffer &r_buffer, const NS::VarData &p_val);
+	static void (*var_data_decode_func)(NS::VarData &r_val, DataBuffer &p_buffer);
+	static bool (*var_data_compare_func)(const VarData &p_A, const VarData &p_B);
+	static std::string (*var_data_stringify_func)(const VarData &p_var_data);
+
 	class NetworkInterface *network_interface = nullptr;
 	SynchronizerManager *synchronizer_manager = nullptr;
 
@@ -202,9 +206,14 @@ public:
 	~SceneSynchronizerBase();
 
 public: // -------------------------------------------------------- Manager APIs
+	static void register_var_data_functions(
+			void (*p_var_data_encode_func)(DataBuffer &r_buffer, const NS::VarData &p_val),
+			void (*p_var_data_decode_func)(NS::VarData &r_val, DataBuffer &p_buffer),
+			bool (*p_var_data_compare_func)(const VarData &p_A, const VarData &p_B),
+			std::string (*p_var_data_stringify_func)(const VarData &p_var_data));
+
 	/// Setup the synchronizer
-	void setup(
-			SynchronizerManager &p_synchronizer_manager);
+	void setup(SynchronizerManager &p_synchronizer_manager);
 
 	/// Prepare the synchronizer for destruction.
 	void conclude();
@@ -216,6 +225,11 @@ public: // -------------------------------------------------------- Manager APIs
 	void on_app_object_removed(ObjectHandle p_app_object_handle);
 
 public:
+	static void var_data_encode(DataBuffer &r_buffer, const NS::VarData &p_val);
+	static void var_data_decode(NS::VarData &r_val, DataBuffer &p_buffer);
+	static bool var_data_compare(const VarData &p_A, const VarData &p_B);
+	static std::string var_data_stringify(const VarData &p_var_data);
+
 	NS::NetworkInterface &get_network_interface() {
 		return *network_interface;
 	}

@@ -14,8 +14,7 @@ NS::Snapshot::operator String() const {
 			s += "\n|- Variable: ";
 			s += object_vars[net_node_id][i].name.c_str();
 			s += " = ";
-			s += "[STRINGIFY not supported]";
-			//s += String(object_vars[net_node_id][i].value);
+			s += SceneSynchronizerBase::var_data_stringify(object_vars[net_node_id][i].value).c_str();
 		}
 	}
 	s += "\nCUSTOM DATA:\n";
@@ -53,7 +52,7 @@ bool compare_vars(
 				// Make sure this variable is set.
 				c_vars[var_index].name.empty() ||
 				// Check if the value is different.
-				!scene_synchronizer.get_network_interface().compare(
+				!NS::SceneSynchronizerBase::var_data_compare(
 						s_vars[var_index].value,
 						c_vars[var_index].value);
 
@@ -73,10 +72,8 @@ bool compare_vars(
 				if (r_differences_info) {
 					r_differences_info->push_back(
 							"[NO REWIND] Difference found on var #" + itos(var_index) + " " + p_synchronizer_node_data->vars[var_index].var.name.c_str() + " " +
-							//"Server value: `" + NS::stringify_fast(s_vars[var_index].value) + "` " +
-							"Server value: `STRINGIFY not supported`.    " +
-							//"Client value: `" + NS::stringify_fast(c_vars[var_index].value) + "`.    " +
-							"Client value: `STRINGIFY not supported`.    " +
+							"Server value: `" + NS::SceneSynchronizerBase::var_data_stringify(s_vars[var_index].value).c_str() + "` " +
+							"Client value: `" + NS::SceneSynchronizerBase::var_data_stringify(c_vars[var_index].value).c_str() + "`.    " +
 							"[Server name: `" + s_vars[var_index].name.c_str() + "` " +
 							"Client name: `" + c_vars[var_index].name.c_str() + "`].");
 				}
@@ -85,10 +82,8 @@ bool compare_vars(
 				if (r_differences_info) {
 					r_differences_info->push_back(
 							"Difference found on var #" + itos(var_index) + " " + p_synchronizer_node_data->vars[var_index].var.name.c_str() + " " +
-							//"Server value: `" + NS::stringify_fast(s_vars[var_index].value) + "` " +
-							"Server value: `STRINGIFY not supported`.    " +
-							//"Client value: `" + NS::stringify_fast(c_vars[var_index].value) + "`.    " +
-							"Client value: `STRINGIFY not supported`.    " +
+							"Server value: `" + NS::SceneSynchronizerBase::var_data_stringify(s_vars[var_index].value).c_str() + "` " +
+							"Client value: `" + NS::SceneSynchronizerBase::var_data_stringify(c_vars[var_index].value).c_str() + "`.    " +
 							"[Server name: `" + s_vars[var_index].name.c_str() + "` " +
 							"Client name: `" + c_vars[var_index].name.c_str() + "`].");
 				}
@@ -154,7 +149,7 @@ bool NS::Snapshot::compare(
 #endif
 	}
 
-	if (p_snap_A.has_custom_data && !scene_synchronizer.get_network_interface().compare(p_snap_A.custom_data, p_snap_B.custom_data)) {
+	if (p_snap_A.has_custom_data && !SceneSynchronizerBase::var_data_compare(p_snap_A.custom_data, p_snap_B.custom_data)) {
 		if (r_differences_info) {
 			r_differences_info->push_back("Difference detected: custom_data is different.");
 		}

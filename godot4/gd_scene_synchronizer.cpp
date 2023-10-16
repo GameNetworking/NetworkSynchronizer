@@ -14,19 +14,8 @@
 #include "scene/main/multiplayer_api.h"
 #include "scene/main/node.h"
 #include "scene/main/window.h"
+#include <cstring>
 #include <vector>
-
-// This was needed to optimize the godot stringify for byte arrays.. it was slowing down perfs.
-String stringify_byte_array_fast(const Vector<uint8_t> &p_array) {
-	CharString str;
-	str.resize(p_array.size());
-	memcpy(str.ptrw(), p_array.ptr(), p_array.size());
-	return String(str);
-}
-
-String stringify_fast(const Variant &p_var) {
-	return p_var.get_type() == Variant::PACKED_BYTE_ARRAY ? stringify_byte_array_fast(p_var) : p_var.stringify();
-}
 
 void GdSceneSynchronizer::_bind_methods() {
 	BIND_CONSTANT(NS::SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID)
@@ -181,12 +170,12 @@ GdSceneSynchronizer::GdSceneSynchronizer() :
 				}
 				for (const auto &vd : p_client_values) {
 					Variant v;
-					GdNetworkInterface::convert(v, vd);
+					GdSceneSynchronizer::convert(v, vd);
 					client_values.push_back(v);
 				}
 				for (const auto &vd : p_server_values) {
 					Variant v;
-					GdNetworkInterface::convert(v, vd);
+					GdSceneSynchronizer::convert(v, vd);
 					server_values.push_back(v);
 				}
 				emit_signal("desync_detected", p_input_id, GdSceneSynchronizer::SyncClass::from_handle(p_app_object), var_names, client_values, server_values);
@@ -254,6 +243,12 @@ void GdSceneSynchronizer::_notification(int p_what) {
 }
 
 void GdSceneSynchronizer::on_init_synchronizer(bool p_was_generating_ids) {
+	NS::SceneSynchronizerBase::register_var_data_functions(
+			GdSceneSynchronizer::encode,
+			GdSceneSynchronizer::decode,
+			GdSceneSynchronizer::compare,
+			GdSceneSynchronizer::stringify);
+
 	// Always runs the SceneSynchronizer last.
 	const int lowest_priority_number = INT32_MAX;
 	set_process_priority(lowest_priority_number);
@@ -341,7 +336,7 @@ void GdSceneSynchronizer::setup_synchronizer_for(NS::ObjectHandle p_app_object_h
 void GdSceneSynchronizer::set_variable(NS::ObjectHandle p_app_object_handle, const char *p_name, const NS::VarData &p_val) {
 	Node *node = scene_synchronizer.from_handle(p_app_object_handle);
 	Variant v;
-	GdNetworkInterface::convert(v, p_val);
+	GdSceneSynchronizer::convert(v, p_val);
 	node->set(StringName(p_name), v);
 }
 
@@ -350,7 +345,7 @@ bool GdSceneSynchronizer::get_variable(NS::ObjectHandle p_app_object_handle, con
 	bool valid = false;
 	Variant val = node->get(StringName(p_name), &valid);
 	if (valid) {
-		GdNetworkInterface::convert(r_val, val);
+		GdSceneSynchronizer::convert(r_val, val);
 	}
 	return valid;
 }
@@ -494,7 +489,7 @@ uint64_t GdSceneSynchronizer::track_variable_changes(
 						Array arguments;
 						for (const auto &vd : p_old_variables) {
 							Variant v;
-							GdNetworkInterface::convert(v, vd);
+							GdSceneSynchronizer::convert(v, vd);
 							arguments.push_back(v);
 						}
 						p_callable.callv(arguments);
@@ -650,4 +645,372 @@ bool GdSceneSynchronizer::is_no_network() const {
 
 bool GdSceneSynchronizer::is_networked() const {
 	return scene_synchronizer.is_networked();
+}
+
+void GdSceneSynchronizer::encode(DataBuffer &r_buffer, const NS::VarData &p_val) {
+	Variant vA;
+	convert(vA, p_val);
+	r_buffer.add_variant(vA);
+}
+
+void GdSceneSynchronizer::decode(NS::VarData &r_val, DataBuffer &p_buffer) {
+	Variant vA = p_buffer.read_variant();
+	convert(r_val, vA);
+}
+
+#define CONVERT_VARDATA(CLAZZ, variant, vardata)           \
+	CLAZZ v;                                               \
+	std::memcpy((void *)&v, &vardata.data.ptr, sizeof(v)); \
+	variant = v;
+
+void GdSceneSynchronizer::convert(Variant &r_variant, const NS::VarData &p_vd) {
+	const Variant::Type t = static_cast<Variant::Type>(p_vd.type);
+	switch (t) {
+		case Variant::NIL: {
+			r_variant = Variant();
+		} break;
+		case Variant::BOOL: {
+			CONVERT_VARDATA(bool, r_variant, p_vd);
+		} break;
+		case Variant::INT: {
+			CONVERT_VARDATA(std::int64_t, r_variant, p_vd);
+		} break;
+		case Variant::FLOAT: {
+			CONVERT_VARDATA(double, r_variant, p_vd);
+		} break;
+		case Variant::VECTOR2: {
+			CONVERT_VARDATA(Vector2, r_variant, p_vd);
+		} break;
+		case Variant::VECTOR2I: {
+			CONVERT_VARDATA(Vector2i, r_variant, p_vd);
+		} break;
+		case Variant::RECT2: {
+			CONVERT_VARDATA(Rect2, r_variant, p_vd);
+		} break;
+		case Variant::RECT2I: {
+			CONVERT_VARDATA(Rect2i, r_variant, p_vd);
+		} break;
+		case Variant::VECTOR3: {
+			CONVERT_VARDATA(Vector3, r_variant, p_vd);
+		} break;
+		case Variant::VECTOR3I: {
+			CONVERT_VARDATA(Vector3i, r_variant, p_vd);
+		} break;
+		case Variant::TRANSFORM2D: {
+			CONVERT_VARDATA(Transform2D, r_variant, p_vd);
+		} break;
+		case Variant::VECTOR4: {
+			CONVERT_VARDATA(Vector4, r_variant, p_vd);
+		} break;
+		case Variant::VECTOR4I: {
+			CONVERT_VARDATA(Vector4i, r_variant, p_vd);
+		} break;
+		case Variant::PLANE: {
+			CONVERT_VARDATA(Plane, r_variant, p_vd);
+		} break;
+		case Variant::QUATERNION: {
+			CONVERT_VARDATA(Quaternion, r_variant, p_vd);
+		} break;
+		case Variant::AABB: {
+			CONVERT_VARDATA(AABB, r_variant, p_vd);
+		} break;
+		case Variant::BASIS: {
+			CONVERT_VARDATA(Basis, r_variant, p_vd);
+		} break;
+		case Variant::TRANSFORM3D: {
+			CONVERT_VARDATA(Transform3D, r_variant, p_vd);
+		} break;
+		case Variant::PROJECTION: {
+			CONVERT_VARDATA(Projection, r_variant, p_vd);
+		} break;
+		case Variant::COLOR: {
+			CONVERT_VARDATA(Color, r_variant, p_vd);
+		} break;
+
+		case Variant::STRING_NAME:
+		case Variant::NODE_PATH:
+		case Variant::STRING:
+		case Variant::DICTIONARY:
+		case Variant::ARRAY:
+		case Variant::PACKED_BYTE_ARRAY:
+		case Variant::PACKED_INT32_ARRAY:
+		case Variant::PACKED_INT64_ARRAY:
+		case Variant::PACKED_FLOAT32_ARRAY:
+		case Variant::PACKED_FLOAT64_ARRAY:
+		case Variant::PACKED_STRING_ARRAY:
+		case Variant::PACKED_VECTOR2_ARRAY:
+		case Variant::PACKED_VECTOR3_ARRAY: {
+			if (p_vd.shared_buffer) {
+				r_variant = *std::static_pointer_cast<Variant>(p_vd.shared_buffer);
+			}
+		} break;
+
+		default:
+			ERR_PRINT("This VarDta can't be converted to a Variant. Type not supported: " + itos(p_vd.type));
+			r_variant = Variant();
+	}
+}
+
+#undef CONVERT_VARDATA
+#define CONVERT_VARDATA(CLAZZ, variant, vardata) \
+	const CLAZZ v = variant;                     \
+	std::memcpy(&vardata.data.ptr, &v, sizeof(v));
+
+void GdSceneSynchronizer::convert(NS::VarData &r_vd, const Variant &p_variant) {
+	r_vd.type = static_cast<std::uint8_t>(p_variant.get_type());
+	switch (p_variant.get_type()) {
+		case Variant::NIL: {
+			r_vd.data.ptr = nullptr;
+		} break;
+		case Variant::BOOL: {
+			CONVERT_VARDATA(bool, p_variant, r_vd);
+		} break;
+		case Variant::INT: {
+			CONVERT_VARDATA(std::int64_t, p_variant, r_vd);
+		} break;
+		case Variant::FLOAT: {
+			CONVERT_VARDATA(double, p_variant, r_vd);
+		} break;
+		case Variant::VECTOR2: {
+			CONVERT_VARDATA(Vector2, p_variant, r_vd);
+		} break;
+		case Variant::VECTOR2I: {
+			CONVERT_VARDATA(Vector2i, p_variant, r_vd);
+		} break;
+		case Variant::RECT2: {
+			CONVERT_VARDATA(Rect2, p_variant, r_vd);
+		} break;
+		case Variant::RECT2I: {
+			CONVERT_VARDATA(Rect2i, p_variant, r_vd);
+		} break;
+		case Variant::VECTOR3: {
+			CONVERT_VARDATA(Vector3, p_variant, r_vd);
+		} break;
+		case Variant::VECTOR3I: {
+			CONVERT_VARDATA(Vector3i, p_variant, r_vd);
+		} break;
+		case Variant::TRANSFORM2D: {
+			CONVERT_VARDATA(Transform2D, p_variant, r_vd);
+		} break;
+		case Variant::VECTOR4: {
+			CONVERT_VARDATA(Vector4, p_variant, r_vd);
+		} break;
+		case Variant::VECTOR4I: {
+			CONVERT_VARDATA(Vector4i, p_variant, r_vd);
+		} break;
+		case Variant::PLANE: {
+			CONVERT_VARDATA(Plane, p_variant, r_vd);
+		} break;
+		case Variant::QUATERNION: {
+			CONVERT_VARDATA(Quaternion, p_variant, r_vd);
+		} break;
+		case Variant::AABB: {
+			CONVERT_VARDATA(AABB, p_variant, r_vd);
+		} break;
+		case Variant::BASIS: {
+			CONVERT_VARDATA(Basis, p_variant, r_vd);
+		} break;
+		case Variant::TRANSFORM3D: {
+			CONVERT_VARDATA(Transform3D, p_variant, r_vd);
+		} break;
+		case Variant::PROJECTION: {
+			CONVERT_VARDATA(Projection, p_variant, r_vd);
+		} break;
+		case Variant::COLOR: {
+			CONVERT_VARDATA(Color, p_variant, r_vd);
+		} break;
+
+		case Variant::STRING_NAME:
+		case Variant::NODE_PATH:
+		case Variant::STRING:
+		case Variant::DICTIONARY:
+		case Variant::ARRAY:
+		case Variant::PACKED_BYTE_ARRAY:
+		case Variant::PACKED_INT32_ARRAY:
+		case Variant::PACKED_INT64_ARRAY:
+		case Variant::PACKED_FLOAT32_ARRAY:
+		case Variant::PACKED_FLOAT64_ARRAY:
+		case Variant::PACKED_STRING_ARRAY:
+		case Variant::PACKED_VECTOR2_ARRAY:
+		case Variant::PACKED_VECTOR3_ARRAY: {
+			r_vd.shared_buffer = std::make_shared<Variant>(p_variant.duplicate(true));
+		} break;
+
+		default:
+			ERR_PRINT("This variant can't be converted: " + p_variant.stringify());
+			r_vd.type = Variant::VARIANT_MAX;
+	}
+}
+
+#undef CONVERT_VARDATA
+
+bool GdSceneSynchronizer::compare(const NS::VarData &p_A, const NS::VarData &p_B) {
+	Variant vA;
+	Variant vB;
+	convert(vA, p_A);
+	convert(vB, p_B);
+	return compare(vA, vB, FLT_EPSILON);
+}
+
+bool GdSceneSynchronizer::compare(const Variant &p_first, const Variant &p_second) {
+	return compare(p_first, p_second, FLT_EPSILON);
+}
+
+bool GdSceneSynchronizer::compare(const Vector2 &p_first, const Vector2 &p_second, real_t p_tolerance) {
+	return Math::is_equal_approx(p_first.x, p_second.x, p_tolerance) &&
+			Math::is_equal_approx(p_first.y, p_second.y, p_tolerance);
+}
+
+bool GdSceneSynchronizer::compare(const Vector3 &p_first, const Vector3 &p_second, real_t p_tolerance) {
+	return Math::is_equal_approx(p_first.x, p_second.x, p_tolerance) &&
+			Math::is_equal_approx(p_first.y, p_second.y, p_tolerance) &&
+			Math::is_equal_approx(p_first.z, p_second.z, p_tolerance);
+}
+
+bool GdSceneSynchronizer::compare(const Variant &p_first, const Variant &p_second, real_t p_tolerance) {
+	if (p_first.get_type() != p_second.get_type()) {
+		return false;
+	}
+
+	// Custom evaluation methods
+	switch (p_first.get_type()) {
+		case Variant::FLOAT: {
+			return Math::is_equal_approx(p_first, p_second, p_tolerance);
+		}
+		case Variant::VECTOR2: {
+			return compare(Vector2(p_first), Vector2(p_second), p_tolerance);
+		}
+		case Variant::RECT2: {
+			const Rect2 a(p_first);
+			const Rect2 b(p_second);
+			if (compare(a.position, b.position, p_tolerance)) {
+				if (compare(a.size, b.size, p_tolerance)) {
+					return true;
+				}
+			}
+			return false;
+		}
+		case Variant::TRANSFORM2D: {
+			const Transform2D a(p_first);
+			const Transform2D b(p_second);
+			if (compare(a.columns[0], b.columns[0], p_tolerance)) {
+				if (compare(a.columns[1], b.columns[1], p_tolerance)) {
+					if (compare(a.columns[2], b.columns[2], p_tolerance)) {
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+		case Variant::VECTOR3: {
+			return compare(Vector3(p_first), Vector3(p_second), p_tolerance);
+		}
+		case Variant::QUATERNION: {
+			const Quaternion a = p_first;
+			const Quaternion b = p_second;
+			const Quaternion r(a - b); // Element wise subtraction.
+			return (r.x * r.x + r.y * r.y + r.z * r.z + r.w * r.w) <= (p_tolerance * p_tolerance);
+		}
+		case Variant::PLANE: {
+			const Plane a(p_first);
+			const Plane b(p_second);
+			if (Math::is_equal_approx(a.d, b.d, p_tolerance)) {
+				if (compare(a.normal, b.normal, p_tolerance)) {
+					return true;
+				}
+			}
+			return false;
+		}
+		case Variant::AABB: {
+			const AABB a(p_first);
+			const AABB b(p_second);
+			if (compare(a.position, b.position, p_tolerance)) {
+				if (compare(a.size, b.size, p_tolerance)) {
+					return true;
+				}
+			}
+			return false;
+		}
+		case Variant::BASIS: {
+			const Basis a = p_first;
+			const Basis b = p_second;
+			if (compare(a.rows[0], b.rows[0], p_tolerance)) {
+				if (compare(a.rows[1], b.rows[1], p_tolerance)) {
+					if (compare(a.rows[2], b.rows[2], p_tolerance)) {
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+		case Variant::TRANSFORM3D: {
+			const Transform3D a = p_first;
+			const Transform3D b = p_second;
+			if (compare(a.origin, b.origin, p_tolerance)) {
+				if (compare(a.basis.rows[0], b.basis.rows[0], p_tolerance)) {
+					if (compare(a.basis.rows[1], b.basis.rows[1], p_tolerance)) {
+						if (compare(a.basis.rows[2], b.basis.rows[2], p_tolerance)) {
+							return true;
+						}
+					}
+				}
+			}
+			return false;
+		}
+		case Variant::ARRAY: {
+			const Array a = p_first;
+			const Array b = p_second;
+			if (a.size() != b.size()) {
+				return false;
+			}
+			for (int i = 0; i < a.size(); i += 1) {
+				if (compare(a[i], b[i], p_tolerance) == false) {
+					return false;
+				}
+			}
+			return true;
+		}
+		case Variant::DICTIONARY: {
+			const Dictionary a = p_first;
+			const Dictionary b = p_second;
+
+			if (a.size() != b.size()) {
+				return false;
+			}
+
+			List<Variant> l;
+			a.get_key_list(&l);
+
+			for (const List<Variant>::Element *key = l.front(); key; key = key->next()) {
+				if (b.has(key->get()) == false) {
+					return false;
+				}
+
+				if (compare(
+							a.get(key->get(), Variant()),
+							b.get(key->get(), Variant()),
+							p_tolerance) == false) {
+					return false;
+				}
+			}
+
+			return true;
+		}
+		default:
+			return p_first == p_second;
+	}
+}
+
+// This was needed to optimize the godot stringify for byte arrays.. it was slowing down perfs.
+String stringify_byte_array_fast(const Vector<uint8_t> &p_array) {
+	CharString str;
+	str.resize(p_array.size());
+	memcpy(str.ptrw(), p_array.ptr(), p_array.size());
+	return String(str);
+}
+
+std::string GdSceneSynchronizer::stringify(const NS::VarData &p_var_data) {
+	Variant v;
+	convert(v, p_var_data);
+	return std::string((v.get_type() == Variant::PACKED_BYTE_ARRAY ? stringify_byte_array_fast(v) : v.stringify()).utf8());
 }
