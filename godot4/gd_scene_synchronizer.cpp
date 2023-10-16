@@ -16,6 +16,18 @@
 #include "scene/main/window.h"
 #include <vector>
 
+// This was needed to optimize the godot stringify for byte arrays.. it was slowing down perfs.
+String stringify_byte_array_fast(const Vector<uint8_t> &p_array) {
+	CharString str;
+	str.resize(p_array.size());
+	memcpy(str.ptrw(), p_array.ptr(), p_array.size());
+	return String(str);
+}
+
+String stringify_fast(const Variant &p_var) {
+	return p_var.get_type() == Variant::PACKED_BYTE_ARRAY ? stringify_byte_array_fast(p_var) : p_var.stringify();
+}
+
 void GdSceneSynchronizer::_bind_methods() {
 	BIND_CONSTANT(NS::SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID)
 
@@ -74,11 +86,6 @@ void GdSceneSynchronizer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("sync_group_move_peer_to", "peer_id", "group_id"), &GdSceneSynchronizer::sync_group_move_peer_to);
 	ClassDB::bind_method(D_METHOD("sync_group_set_trickled_update_rate", "node_id", "group_id", "update_rate"), &GdSceneSynchronizer::sync_group_set_trickled_update_rate_by_id);
 	ClassDB::bind_method(D_METHOD("sync_group_get_trickled_update_rate", "node_id", "group_id"), &GdSceneSynchronizer::sync_group_get_trickled_update_rate_by_id);
-
-	ClassDB::bind_method(D_METHOD("start_tracking_scene_changes", "diff_handle"), &GdSceneSynchronizer::start_tracking_scene_changes);
-	ClassDB::bind_method(D_METHOD("stop_tracking_scene_changes", "diff_handle"), &GdSceneSynchronizer::stop_tracking_scene_changes);
-	ClassDB::bind_method(D_METHOD("pop_scene_changes", "diff_handle"), &GdSceneSynchronizer::pop_scene_changes);
-	ClassDB::bind_method(D_METHOD("apply_scene_changes", "sync_data"), &GdSceneSynchronizer::apply_scene_changes);
 
 	ClassDB::bind_method(D_METHOD("is_recovered"), &GdSceneSynchronizer::is_recovered);
 	ClassDB::bind_method(D_METHOD("is_resetted"), &GdSceneSynchronizer::is_resetted);
@@ -165,17 +172,21 @@ GdSceneSynchronizer::GdSceneSynchronizer() :
 			});
 
 	event_handler_desync_detected =
-			scene_synchronizer.event_desync_detected.bind([this](uint32_t p_input_id, NS::ObjectHandle p_app_object, const std::vector<std::string> &p_var_names, const std::vector<Variant> &p_client_values, const std::vector<Variant> &p_server_values) -> void {
+			scene_synchronizer.event_desync_detected.bind([this](uint32_t p_input_id, NS::ObjectHandle p_app_object, const std::vector<std::string> &p_var_names, const std::vector<NS::VarData> &p_client_values, const std::vector<NS::VarData> &p_server_values) -> void {
 				Vector<String> var_names;
 				Vector<Variant> client_values;
 				Vector<Variant> server_values;
 				for (auto n : p_var_names) {
 					var_names.push_back(String(n.c_str()));
 				}
-				for (auto v : p_client_values) {
+				for (const auto &vd : p_client_values) {
+					Variant v;
+					GdNetworkInterface::convert(v, vd);
 					client_values.push_back(v);
 				}
-				for (auto v : p_server_values) {
+				for (const auto &vd : p_server_values) {
+					Variant v;
+					GdNetworkInterface::convert(v, vd);
 					server_values.push_back(v);
 				}
 				emit_signal("desync_detected", p_input_id, GdSceneSynchronizer::SyncClass::from_handle(p_app_object), var_names, client_values, server_values);
@@ -327,17 +338,19 @@ void GdSceneSynchronizer::setup_synchronizer_for(NS::ObjectHandle p_app_object_h
 	}
 }
 
-void GdSceneSynchronizer::set_variable(NS::ObjectHandle p_app_object_handle, const char *p_name, const Variant &p_val) {
+void GdSceneSynchronizer::set_variable(NS::ObjectHandle p_app_object_handle, const char *p_name, const NS::VarData &p_val) {
 	Node *node = scene_synchronizer.from_handle(p_app_object_handle);
-	node->set(StringName(p_name), p_val);
+	Variant v;
+	GdNetworkInterface::convert(v, p_val);
+	node->set(StringName(p_name), v);
 }
 
-bool GdSceneSynchronizer::get_variable(NS::ObjectHandle p_app_object_handle, const char *p_name, Variant &p_val) const {
+bool GdSceneSynchronizer::get_variable(NS::ObjectHandle p_app_object_handle, const char *p_name, NS::VarData &r_val) const {
 	const Node *node = scene_synchronizer.from_handle(p_app_object_handle);
 	bool valid = false;
-	p_val = node->get(StringName(p_name), &valid);
+	Variant val = node->get(StringName(p_name), &valid);
 	if (valid) {
-		p_val = p_val.duplicate(true);
+		GdNetworkInterface::convert(r_val, val);
 	}
 	return valid;
 }
@@ -432,11 +445,11 @@ const Node *GdSceneSynchronizer::get_node_from_id_const(uint32_t p_id, bool p_ex
 }
 
 void GdSceneSynchronizer::register_variable(Node *p_node, const StringName &p_variable) {
-	scene_synchronizer.register_variable(scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node)), p_variable);
+	scene_synchronizer.register_variable(scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node)), std::string(String(p_variable).utf8()));
 }
 
 void GdSceneSynchronizer::unregister_variable(Node *p_node, const StringName &p_variable) {
-	scene_synchronizer.unregister_variable(scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node)), p_variable);
+	scene_synchronizer.unregister_variable(scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node)), std::string(String(p_variable).utf8()));
 }
 
 uint32_t GdSceneSynchronizer::get_variable_id(Node *p_node, const StringName &p_variable) {
@@ -477,10 +490,12 @@ uint64_t GdSceneSynchronizer::track_variable_changes(
 			scene_synchronizer.track_variables_changes(
 					objects_ids,
 					var_names,
-					[p_callable](const std::vector<Variant> &p_old_variables) {
+					[p_callable](const std::vector<NS::VarData> &p_old_variables) {
 						Array arguments;
-						for (auto ov : p_old_variables) {
-							arguments.push_back(ov);
+						for (const auto &vd : p_old_variables) {
+							Variant v;
+							GdNetworkInterface::convert(v, vd);
+							arguments.push_back(v);
 						}
 						p_callable.callv(arguments);
 					},
@@ -583,25 +598,6 @@ void GdSceneSynchronizer::sync_group_set_user_data(SyncGroupId p_group_id, uint6
 
 uint64_t GdSceneSynchronizer::sync_group_get_user_data(SyncGroupId p_group_id) const {
 	return scene_synchronizer.sync_group_get_user_data(p_group_id);
-}
-
-void GdSceneSynchronizer::start_tracking_scene_changes(Object *p_diff_handle) const {
-	scene_synchronizer.start_tracking_scene_changes(p_diff_handle);
-}
-
-void GdSceneSynchronizer::stop_tracking_scene_changes(Object *p_diff_handle) const {
-	scene_synchronizer.stop_tracking_scene_changes(p_diff_handle);
-}
-
-Variant GdSceneSynchronizer::pop_scene_changes(Object *p_diff_handle) const {
-	return scene_synchronizer.pop_scene_changes(p_diff_handle);
-}
-
-void GdSceneSynchronizer::apply_scene_changes(Object *p_sync_data) {
-	DataBuffer *db = Object::cast_to<DataBuffer>(p_sync_data);
-	if (db) {
-		scene_synchronizer.apply_scene_changes(*db);
-	}
 }
 
 bool GdSceneSynchronizer::is_recovered() const {

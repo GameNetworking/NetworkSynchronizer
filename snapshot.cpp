@@ -2,6 +2,7 @@
 
 #include "scene/main/node.h"
 #include "scene_synchronizer.h"
+#include <cstddef>
 
 NS::Snapshot::operator String() const {
 	String s;
@@ -13,7 +14,8 @@ NS::Snapshot::operator String() const {
 			s += "\n|- Variable: ";
 			s += object_vars[net_node_id][i].name.c_str();
 			s += " = ";
-			s += String(object_vars[net_node_id][i].value);
+			s += "[STRINGIFY not supported]";
+			//s += String(object_vars[net_node_id][i].value);
 		}
 	}
 	s += "\nCUSTOM DATA:\n";
@@ -62,7 +64,7 @@ bool compare_vars(
 					if (uint32_t(r_no_rewind_recover->object_vars.data()[p_synchronizer_node_data->get_net_id().id].size()) <= var_index) {
 						r_no_rewind_recover->object_vars.data()[p_synchronizer_node_data->get_net_id().id].resize(var_index + 1);
 					}
-					r_no_rewind_recover->object_vars.data()[p_synchronizer_node_data->get_net_id().id].data()[var_index] = s_vars[var_index];
+					r_no_rewind_recover->object_vars.data()[p_synchronizer_node_data->get_net_id().id].data()[var_index].copy(s_vars[var_index]);
 					// Sets `input_id` to 0 to signal that this snapshot contains
 					// no-rewind data.
 					r_no_rewind_recover->input_id = 0;
@@ -71,8 +73,10 @@ bool compare_vars(
 				if (r_differences_info) {
 					r_differences_info->push_back(
 							"[NO REWIND] Difference found on var #" + itos(var_index) + " " + p_synchronizer_node_data->vars[var_index].var.name.c_str() + " " +
-							"Server value: `" + NS::stringify_fast(s_vars[var_index].value) + "` " +
-							"Client value: `" + NS::stringify_fast(c_vars[var_index].value) + "`.    " +
+							//"Server value: `" + NS::stringify_fast(s_vars[var_index].value) + "` " +
+							"Server value: `STRINGIFY not supported`.    " +
+							//"Client value: `" + NS::stringify_fast(c_vars[var_index].value) + "`.    " +
+							"Client value: `STRINGIFY not supported`.    " +
 							"[Server name: `" + s_vars[var_index].name.c_str() + "` " +
 							"Client name: `" + c_vars[var_index].name.c_str() + "`].");
 				}
@@ -81,8 +85,10 @@ bool compare_vars(
 				if (r_differences_info) {
 					r_differences_info->push_back(
 							"Difference found on var #" + itos(var_index) + " " + p_synchronizer_node_data->vars[var_index].var.name.c_str() + " " +
-							"Server value: `" + NS::stringify_fast(s_vars[var_index].value) + "` " +
-							"Client value: `" + NS::stringify_fast(c_vars[var_index].value) + "`.    " +
+							//"Server value: `" + NS::stringify_fast(s_vars[var_index].value) + "` " +
+							"Server value: `STRINGIFY not supported`.    " +
+							//"Client value: `" + NS::stringify_fast(c_vars[var_index].value) + "`.    " +
+							"Client value: `STRINGIFY not supported`.    " +
 							"[Server name: `" + s_vars[var_index].name.c_str() + "` " +
 							"Client name: `" + c_vars[var_index].name.c_str() + "`].");
 				}
@@ -110,7 +116,14 @@ NS::Snapshot NS::Snapshot::make_copy(const Snapshot &p_other) {
 
 void NS::Snapshot::copy(const Snapshot &p_other) {
 	input_id = p_other.input_id;
-	object_vars = p_other.object_vars;
+	object_vars.resize(p_other.object_vars.size());
+	for (std::size_t i = 0; i < p_other.object_vars.size(); i++) {
+		object_vars[i].resize(p_other.object_vars[i].size());
+		for (std::size_t s = 0; s < p_other.object_vars[i].size(); s++) {
+			object_vars[i][s].name = p_other.object_vars[i][s].name;
+			object_vars[i][s].value.copy(p_other.object_vars[i][s].value);
+		}
+	}
 	has_custom_data = p_other.has_custom_data;
 	custom_data.copy(p_other.custom_data);
 }

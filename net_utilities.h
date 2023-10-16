@@ -5,6 +5,7 @@
 #include "core/math/math_funcs.h"
 #include "core/processor.h"
 #include "core/templates/local_vector.h"
+#include "core/var_data.h"
 #include <map>
 #include <stdexcept>
 #include <string>
@@ -66,11 +67,11 @@ struct ListeningVariable {
 /// if one or more tracked variable change during the tracked phase, specified
 /// by the `NetEventFlag`.
 struct ChangesListener {
-	std::function<void(const std::vector<Variant> &p_old_vars)> listener_func;
+	std::function<void(const std::vector<VarData> &p_old_vars)> listener_func;
 	NetEventFlag flag;
 
 	std::vector<ListeningVariable> watching_vars;
-	std::vector<Variant> old_values;
+	std::vector<VarData> old_values;
 	bool emitted = true;
 };
 
@@ -109,10 +110,6 @@ inline static const ListenerHandle nulllistenerhandle = { 0 };
 #define PROFILE_NODE
 
 #endif
-
-// This was needed to optimize the godot stringify for byte arrays.. it was slowing down perfs.
-String stringify_byte_array_fast(const Vector<uint8_t> &p_array);
-String stringify_fast(const Variant &p_var);
 
 template <class T>
 class StatisticalRingBuffer {

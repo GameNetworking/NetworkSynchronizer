@@ -11,13 +11,12 @@
 #include "modules/network_synchronizer/core/network_interface.h"
 #include "modules/network_synchronizer/core/object_data.h"
 #include "modules/network_synchronizer/core/processor.h"
+#include "modules/network_synchronizer/core/var_data.h"
 #include "modules/network_synchronizer/data_buffer.h"
 #include "modules/network_synchronizer/godot4/gd_network_interface.h"
 #include "modules/network_synchronizer/net_utilities.h"
 #include "modules/network_synchronizer/networked_controller.h"
 #include "modules/network_synchronizer/snapshot.h"
-#include "modules/network_synchronizer/tests/local_scene.h"
-#include "scene_diff.h"
 #include "scene_synchronizer_debugger.h"
 #include <limits>
 #include <stdexcept>
@@ -238,28 +237,28 @@ void SceneSynchronizerBase::unregister_app_object(ObjectLocalId p_id) {
 	drop_object_data(*od);
 }
 
-void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const StringName &p_variable) {
+void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const std::string &p_variable) {
 	ERR_FAIL_COND(p_id == ObjectLocalId::NONE);
-	ERR_FAIL_COND(p_variable == StringName());
+	ERR_FAIL_COND(p_variable.empty());
 
 	NS::ObjectData *object_data = get_object_data(p_id);
 	ERR_FAIL_COND(object_data == nullptr);
 
-	VarId var_id = object_data->find_variable_id(std::string(String(p_variable).utf8()));
+	VarId var_id = object_data->find_variable_id(p_variable);
 	if (var_id == VarId::NONE) {
 		// The variable is not yet registered.
 		bool valid = false;
-		Variant old_val;
-		valid = synchronizer_manager->get_variable(object_data->app_object_handle, String(p_variable).utf8(), old_val);
+		VarData old_val;
+		valid = synchronizer_manager->get_variable(object_data->app_object_handle, p_variable.data(), old_val);
 		if (valid == false) {
-			SceneSynchronizerDebugger::singleton()->debug_error(network_interface, "The variable `" + p_variable + "` on the node `" + String(object_data->object_name.c_str()) + "` was not found, make sure the variable exist.");
+			SceneSynchronizerDebugger::singleton()->debug_error(network_interface, "The variable `" + String(p_variable.c_str()) + "` on the node `" + String(object_data->object_name.c_str()) + "` was not found, make sure the variable exist.");
 		}
 		var_id = VarId{ uint32_t(object_data->vars.size()) };
 		object_data->vars.push_back(
 				NS::VarDescriptor(
 						var_id,
 						p_variable,
-						old_val,
+						std::move(old_val),
 						false,
 						true));
 	} else {
@@ -279,14 +278,14 @@ void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const StringNa
 	}
 }
 
-void SceneSynchronizerBase::unregister_variable(ObjectLocalId p_id, const StringName &p_variable) {
+void SceneSynchronizerBase::unregister_variable(ObjectLocalId p_id, const std::string &p_variable) {
 	ERR_FAIL_COND(p_id == ObjectLocalId::NONE);
-	ERR_FAIL_COND(p_variable == StringName());
+	ERR_FAIL_COND(p_variable.empty());
 
 	NS::ObjectData *od = objects_data_storage.get_object_data(p_id);
 	ERR_FAIL_COND(od == nullptr);
 
-	const VarId var_id = od->find_variable_id(std::string(String(p_variable).utf8()));
+	const VarId var_id = od->find_variable_id(p_variable);
 	ERR_FAIL_COND(var_id == VarId::NONE);
 
 	// Never remove the variable values, because the order of the vars matters.
@@ -362,7 +361,7 @@ void SceneSynchronizerBase::set_skip_rewinding(ObjectLocalId p_id, const StringN
 ListenerHandle SceneSynchronizerBase::track_variable_changes(
 		ObjectLocalId p_id,
 		const StringName &p_variable,
-		std::function<void(const std::vector<Variant> &p_old_values)> p_listener_func,
+		std::function<void(const std::vector<VarData> &p_old_values)> p_listener_func,
 		NetEventFlag p_flags) {
 	std::vector<ObjectLocalId> object_ids;
 	std::vector<StringName> variables;
@@ -374,7 +373,7 @@ ListenerHandle SceneSynchronizerBase::track_variable_changes(
 ListenerHandle SceneSynchronizerBase::track_variables_changes(
 		const std::vector<ObjectLocalId> &p_object_ids,
 		const std::vector<StringName> &p_variables,
-		std::function<void(const std::vector<Variant> &p_old_values)> p_listener_func,
+		std::function<void(const std::vector<VarData> &p_old_values)> p_listener_func,
 		NetEventFlag p_flags) {
 	ERR_FAIL_COND_V_MSG(p_object_ids.size() != p_variables.size(), nulllistenerhandle, "object_ids and variables should have the exact same size.");
 	ERR_FAIL_COND_V_MSG(p_object_ids.size() == 0, nulllistenerhandle, "object_ids can't be of size 0");
@@ -598,129 +597,6 @@ uint64_t SceneSynchronizerBase::sync_group_get_user_data(SyncGroupId p_group_id)
 	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get_user_data(p_group_id);
 }
 
-void SceneSynchronizerBase::start_tracking_scene_changes(Object *p_diff_handle) const {
-	ERR_FAIL_COND_MSG(!is_server(), "This function is supposed to be called only on server.");
-	SceneDiff *diff = Object::cast_to<SceneDiff>(p_diff_handle);
-	ERR_FAIL_COND_MSG(diff == nullptr, "The object is not a SceneDiff class.");
-
-	// TODO add this back?
-	//diff->start_tracking_scene_changes(this, objects_data_storage.get_sorted_objects_data());
-}
-
-void SceneSynchronizerBase::stop_tracking_scene_changes(Object *p_diff_handle) const {
-	ERR_FAIL_COND_MSG(!is_server(), "This function is supposed to be called only on server.");
-	SceneDiff *diff = Object::cast_to<SceneDiff>(p_diff_handle);
-	ERR_FAIL_COND_MSG(diff == nullptr, "The object is not a SceneDiff class.");
-
-	diff->stop_tracking_scene_changes(this);
-}
-
-Variant SceneSynchronizerBase::pop_scene_changes(Object *p_diff_handle) const {
-	ERR_FAIL_COND_V_MSG(
-			synchronizer_type != SYNCHRONIZER_TYPE_SERVER,
-			Variant(),
-			"This function is supposed to be called only on server.");
-
-	SceneDiff *diff = Object::cast_to<SceneDiff>(p_diff_handle);
-	ERR_FAIL_COND_V_MSG(
-			diff == nullptr,
-			Variant(),
-			"The object is not a SceneDiff class.");
-
-	ERR_FAIL_COND_V_MSG(
-			diff->is_tracking_in_progress(),
-			Variant(),
-			"You can't pop the changes while the tracking is still in progress.");
-
-	// Generates a sync_data and returns it.
-	Vector<Variant> ret;
-	for (ObjectNetId node_id = { 0 }; node_id < ObjectNetId{ diff->diff.size() }; node_id += 1) {
-		if (diff->diff[node_id.id].size() == 0) {
-			// Nothing to do.
-			continue;
-		}
-
-		bool node_id_in_ret = false;
-		for (VarId var_id = { 0 }; var_id < VarId{ diff->diff[node_id.id].size() }; var_id += 1) {
-			if (diff->diff[node_id.id][var_id.id].is_different == false) {
-				continue;
-			}
-			if (node_id_in_ret == false) {
-				node_id_in_ret = true;
-				// Set the node id.
-				ret.push_back(node_id.id);
-			}
-			ret.push_back(var_id.id);
-			ret.push_back(diff->diff[node_id.id][var_id.id].value);
-		}
-		if (node_id_in_ret) {
-			// Close the Node data.
-			ret.push_back(Variant());
-		}
-	}
-
-	// Clear the diff data.
-	diff->diff.clear();
-
-	return ret.size() > 0 ? Variant(ret) : Variant();
-}
-
-void SceneSynchronizerBase::apply_scene_changes(DataBuffer &p_sync_data) {
-	ERR_FAIL_COND_MSG(is_client() == false, "This function is not supposed to be called on server.");
-
-	ClientSynchronizer *client_sync = static_cast<ClientSynchronizer *>(synchronizer);
-
-	change_events_begin(NetEventFlag::CHANGE);
-
-	p_sync_data.begin_read();
-	const bool success = client_sync->parse_sync_data(
-			p_sync_data,
-			this,
-
-			[](void *p_user_pointer, VarData &&p_custom_data) {},
-
-			// Parse the Node:
-			[](void *p_user_pointer, NS::ObjectData *p_object_data) {},
-
-			// Parse InputID:
-			[](void *p_user_pointer, uint32_t p_input_id) {},
-
-			// Parse controller:
-			[](void *p_user_pointer, NS::ObjectData *p_object_data) {},
-
-			// Parse variable:
-			[](void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, const Variant &p_value) {
-				SceneSynchronizerBase *scene_sync = static_cast<SceneSynchronizerBase *>(p_user_pointer);
-
-				const Variant current_val = p_object_data->vars[p_var_id.id].var.value;
-
-				if (scene_sync->network_interface->compare(current_val, p_value) == false) {
-					// There is a difference.
-					// Set the new value.
-					p_object_data->vars[p_var_id.id].var.value = p_value;
-					scene_sync->synchronizer_manager->set_variable(
-							p_object_data->app_object_handle,
-							p_object_data->vars[p_var_id.id].var.name.c_str(),
-							p_value);
-
-					// Add an event.
-					scene_sync->change_event_add(
-							p_object_data,
-							p_var_id,
-							current_val);
-				}
-			},
-
-			// Parse node activation:
-			[](void *p_user_pointer, NS::ObjectData *p_object_data, bool p_is_active) {});
-
-	if (success == false) {
-		SceneSynchronizerDebugger::singleton()->debug_error(network_interface, "DataBuffer parsing failed.");
-	}
-
-	change_events_flush();
-}
-
 bool SceneSynchronizerBase::is_recovered() const {
 	return recover_in_progress;
 }
@@ -920,7 +796,7 @@ void SceneSynchronizerBase::init_synchronizer(bool p_was_generating_ids) {
 
 		synchronizer->on_object_data_added(od);
 		for (uint32_t y = 0; y < od->vars.size(); y += 1) {
-			synchronizer->on_variable_added(od, StringName(od->vars[y].var.name.c_str()));
+			synchronizer->on_variable_added(od, od->vars[y].var.name);
 		}
 	}
 
@@ -1106,7 +982,7 @@ void SceneSynchronizerBase::change_events_begin(int p_flag) {
 	end_sync = NetEventFlag::END_SYNC & p_flag;
 }
 
-void SceneSynchronizerBase::change_event_add(NS::ObjectData *p_object_data, VarId p_var_id, const Variant &p_old) {
+void SceneSynchronizerBase::change_event_add(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old) {
 	for (int i = 0; i < int(p_object_data->vars[p_var_id.id].changes_listeners.size()); i += 1) {
 		ChangesListener *listener = p_object_data->vars[p_var_id.id].changes_listeners[i];
 		// This can't be `nullptr` because when the changes listener is dropped
@@ -1124,7 +1000,7 @@ void SceneSynchronizerBase::change_event_add(NS::ObjectData *p_object_data, VarI
 		for (auto wv : listener->watching_vars) {
 			if (wv.var_id == p_var_id) {
 				wv.old_set = true;
-				listener->old_values[v] = p_old;
+				listener->old_values[v].copy(p_old);
 			}
 			v += 1;
 		}
@@ -1152,8 +1028,8 @@ void SceneSynchronizerBase::change_events_flush() {
 		for (uint32_t v = 0; v < listener.watching_vars.size(); v += 1) {
 			if (!listener.watching_vars[v].old_set) {
 				// Old is not set, so set the current valud.
-				listener.old_values[v] =
-						listener.watching_vars[v].node_data->vars[listener.watching_vars[v].var_id.id].var.value;
+				listener.old_values[v].copy(
+						listener.watching_vars[v].node_data->vars[listener.watching_vars[v].var_id.id].var.value);
 			}
 			// Reset this to false.
 			listener.watching_vars[v].old_set = false;
@@ -1418,19 +1294,19 @@ void SceneSynchronizerBase::pull_object_changes(NS::ObjectData *p_object_data) {
 			continue;
 		}
 
-		const Variant old_val = p_object_data->vars[var_id.id].var.value;
-		Variant new_val;
+		const VarData &old_val = p_object_data->vars[var_id.id].var.value;
+		VarData new_val;
 		synchronizer_manager->get_variable(
 				p_object_data->app_object_handle,
 				p_object_data->vars[var_id.id].var.name.c_str(),
 				new_val);
 
 		if (!network_interface->compare(old_val, new_val)) {
-			p_object_data->vars[var_id.id].var.value = new_val.duplicate(true);
 			change_event_add(
 					p_object_data,
 					var_id,
 					old_val);
+			p_object_data->vars[var_id.id].var.value = std::move(new_val);
 		}
 	}
 }
@@ -1584,7 +1460,7 @@ void ServerSynchronizer::on_object_data_removed(NS::ObjectData &p_object_data) {
 	}
 }
 
-void ServerSynchronizer::on_variable_added(NS::ObjectData *p_object_data, const StringName &p_var_name) {
+void ServerSynchronizer::on_variable_added(NS::ObjectData *p_object_data, const std::string &p_var_name) {
 #ifdef DEBUG_ENABLED
 	// Can't happen on server
 	CRASH_COND(scene_synchronizer->is_recovered());
@@ -1593,11 +1469,11 @@ void ServerSynchronizer::on_variable_added(NS::ObjectData *p_object_data, const 
 #endif
 
 	for (uint32_t g = 0; g < sync_groups.size(); ++g) {
-		sync_groups[g].notify_new_variable(p_object_data, std::string(String(p_var_name).utf8()));
+		sync_groups[g].notify_new_variable(p_object_data, p_var_name);
 	}
 }
 
-void ServerSynchronizer::on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const Variant &p_old_value, int p_flag) {
+void ServerSynchronizer::on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) {
 #ifdef DEBUG_ENABLED
 	// Can't happen on server
 	CRASH_COND(scene_synchronizer->is_recovered());
@@ -1957,7 +1833,7 @@ void ServerSynchronizer::generate_snapshot_object_data(
 
 		r_snapshot_db.add(var_has_value);
 		if (var_has_value) {
-			r_snapshot_db.add_variant(var.var.value);
+			scene_synchronizer->network_interface->encode(r_snapshot_db, var.var.value);
 		}
 	}
 }
@@ -2148,31 +2024,34 @@ void ClientSynchronizer::on_object_data_removed(NS::ObjectData &p_object_data) {
 	remove_object_from_trickled_sync(&p_object_data);
 }
 
-void ClientSynchronizer::on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const Variant &p_old_value, int p_flag) {
+void ClientSynchronizer::on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) {
 	if (p_flag & NetEventFlag::SYNC) {
-		sync_end_events.insert(
-				EndSyncEvent{
-						p_object_data,
-						p_var_id,
-						p_old_value });
+		const EndSyncEvent ese(
+				p_object_data,
+				p_var_id,
+				p_old_value);
+		auto see_it = ns_find(sync_end_events, ese);
+		if (see_it == sync_end_events.end()) {
+			sync_end_events.push_back(ese);
+		} else {
+			see_it->old_value.copy(p_old_value);
+		}
 	}
 }
 
 void ClientSynchronizer::signal_end_sync_changed_variables_events() {
 	scene_synchronizer->change_events_begin(NetEventFlag::END_SYNC);
-	for (const RBSet<EndSyncEvent>::Element *e = sync_end_events.front();
-			e != nullptr;
-			e = e->next()) {
+	for (auto &e : sync_end_events) {
 		// Check if the values between the variables before the sync and the
 		// current one are different.
 		if (scene_synchronizer->network_interface->compare(
-					e->get().object_data->vars[e->get().var_id.id].var.value,
-					e->get().old_value) == false) {
+					e.object_data->vars[e.var_id.id].var.value,
+					e.old_value) == false) {
 			// Are different so we need to emit the `END_SYNC`.
 			scene_synchronizer->change_event_add(
-					e->get().object_data,
-					e->get().var_id,
-					e->get().old_value);
+					e.object_data,
+					e.var_id,
+					e.old_value);
 		}
 	}
 	sync_end_events.clear();
@@ -2418,8 +2297,8 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 
 	if (!is_equal) {
 		std::vector<std::string> variable_names;
-		std::vector<Variant> server_values;
-		std::vector<Variant> client_values;
+		std::vector<VarData> server_values;
+		std::vector<VarData> client_values;
 
 		// Emit the de-sync detected signal.
 		for (
@@ -2441,16 +2320,16 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 			for (std::size_t g = 0; g < count; ++g) {
 				if (server_node_vars && g < server_node_vars->size()) {
 					variable_names[g] = (*server_node_vars)[g].name;
-					server_values[g] = (*server_node_vars)[g].value;
+					server_values[g].copy((*server_node_vars)[g].value);
 				} else {
-					server_values[g] = Variant();
+					server_values[g] = VarData();
 				}
 
 				if (client_node_vars && g < client_node_vars->size()) {
 					variable_names[g] = (*client_node_vars)[g].name;
-					client_values[g] = (*client_node_vars)[g].value;
+					client_values[g].copy((*client_node_vars)[g].value);
 				} else {
-					client_values[g] = Variant();
+					client_values[g] = VarData();
 				}
 			}
 
@@ -2675,7 +2554,7 @@ bool ClientSynchronizer::parse_sync_data(
 		void (*p_node_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
 		void (*p_input_id_parse)(void *p_user_pointer, uint32_t p_input_id),
 		void (*p_controller_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
-		void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, const Variant &p_value),
+		void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, VarData &&p_value),
 		void (*p_node_activation_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, bool p_is_active)) {
 	// The snapshot is a DataBuffer that contains the scene informations.
 	// NOTE: Check generate_snapshot to see the DataBuffer format.
@@ -2827,7 +2706,8 @@ bool ClientSynchronizer::parse_sync_data(
 				ERR_FAIL_COND_V_MSG(p_snapshot.is_buffer_failed(), false, String() + "This snapshot is corrupted. The `var_has_value` was expected at this point. Object: `" + synchronizer_object_data->object_name.c_str() + "` Var: `" + var_desc.var.name.c_str() + "`");
 
 				if (var_has_value) {
-					Variant value = p_snapshot.read_variant();
+					VarData value;
+					scene_synchronizer->network_interface->decode(value, p_snapshot);
 					ERR_FAIL_COND_V_MSG(p_snapshot.is_buffer_failed(), false, String() + "This snapshot is corrupted. The `variable value` was expected at this point. Object: `" + synchronizer_object_data->object_name.c_str() + "` Var: `" + var_desc.var.name.c_str() + "`");
 
 					// Variable fetched, now parse this variable.
@@ -2835,7 +2715,7 @@ bool ClientSynchronizer::parse_sync_data(
 							p_user_pointer,
 							synchronizer_object_data,
 							var_desc.id,
-							value);
+							std::move(value));
 				}
 			}
 		}
@@ -3139,7 +3019,7 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 			[](void *p_user_pointer, NS::ObjectData *p_object_data) {},
 
 			// Parse variable:
-			[](void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, const Variant &p_value) {
+			[](void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, VarData &&p_value) {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
 
 				if (p_object_data->vars.size() != uint32_t(pd->snapshot.object_vars[p_object_data->get_net_id().id].size())) {
@@ -3148,7 +3028,7 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 				}
 
 				pd->snapshot.object_vars[p_object_data->get_net_id().id][p_var_id.id].name = p_object_data->vars[p_var_id.id].var.name;
-				pd->snapshot.object_vars[p_object_data->get_net_id().id][p_var_id.id].value = p_value.duplicate(true);
+				pd->snapshot.object_vars[p_object_data->get_net_id().id][p_var_id.id].value = std::move(p_value);
 			},
 
 			// Parse node activation:
@@ -3196,11 +3076,11 @@ void ClientSynchronizer::notify_server_full_snapshot_is_needed() {
 			scene_synchronizer->network_interface->get_server_peer());
 }
 
-void ClientSynchronizer::update_client_snapshot(NS::Snapshot &p_snapshot) {
-	scene_synchronizer->synchronizer_manager->snapshot_get_custom_data(nullptr, p_snapshot.custom_data);
+void ClientSynchronizer::update_client_snapshot(NS::Snapshot &r_snapshot) {
+	scene_synchronizer->synchronizer_manager->snapshot_get_custom_data(nullptr, r_snapshot.custom_data);
 
 	// Make sure we have room for all the NodeData.
-	p_snapshot.object_vars.resize(scene_synchronizer->objects_data_storage.get_sorted_objects_data().size());
+	r_snapshot.object_vars.resize(scene_synchronizer->objects_data_storage.get_sorted_objects_data().size());
 
 	// Fetch the data.
 	for (ObjectNetId net_node_id = { 0 }; net_node_id < ObjectNetId{ uint32_t(scene_synchronizer->objects_data_storage.get_sorted_objects_data().size()) }; net_node_id += 1) {
@@ -3213,18 +3093,20 @@ void ClientSynchronizer::update_client_snapshot(NS::Snapshot &p_snapshot) {
 		ERR_FAIL_COND_MSG(nd->get_net_id() == ObjectNetId::NONE, "[BUG] It's not expected that the client has an uninitialized NetNodeId into the `organized_node_data` ");
 
 #ifdef DEBUG_ENABLED
-		CRASH_COND_MSG(nd->get_net_id().id >= uint32_t(p_snapshot.object_vars.size()), "This array was resized above, this can't be triggered.");
+		CRASH_COND_MSG(nd->get_net_id().id >= uint32_t(r_snapshot.object_vars.size()), "This array was resized above, this can't be triggered.");
 #endif
 
-		std::vector<NS::NameAndVar> *snap_node_vars = p_snapshot.object_vars.data() + nd->get_net_id().id;
+		std::vector<NS::NameAndVar> *snap_node_vars = r_snapshot.object_vars.data() + nd->get_net_id().id;
 		snap_node_vars->resize(nd->vars.size());
 
 		NS::NameAndVar *snap_node_vars_ptr = snap_node_vars->data();
 		for (uint32_t v = 0; v < nd->vars.size(); v += 1) {
 			if (nd->vars[v].enabled) {
-				snap_node_vars_ptr[v] = nd->vars[v].var;
+				snap_node_vars_ptr[v].name = nd->vars[v].var.name;
+				snap_node_vars_ptr[v].value.copy(nd->vars[v].var.value);
 			} else {
 				snap_node_vars_ptr[v].name = std::string();
+				snap_node_vars_ptr[v].value = VarData();
 			}
 		}
 	}
@@ -3269,11 +3151,11 @@ void ClientSynchronizer::apply_snapshot(
 				continue;
 			}
 
-			Variant current_val;
+			VarData current_val;
 			const bool get_var_success = scene_synchronizer->synchronizer_manager->get_variable(nd->app_object_handle, nd->vars[v.id].var.name.c_str(), current_val);
 
 			if (!get_var_success || !scene_synchronizer->network_interface->compare(current_val, vars_ptr[v.id].value)) {
-				nd->vars[v.id].var.value = vars_ptr[v.id].value.duplicate(true);
+				nd->vars[v.id].var.value.copy(vars_ptr[v.id].value);
 
 				scene_synchronizer->synchronizer_manager->set_variable(
 						nd->app_object_handle,
@@ -3285,7 +3167,8 @@ void ClientSynchronizer::apply_snapshot(
 						current_val);
 
 				if (r_applied_data_info) {
-					r_applied_data_info->push_back(String() + " |- Variable: " + vars_ptr[v.id].name.c_str() + " New value: " + NS::stringify_fast(vars_ptr[v.id].value));
+					//r_applied_data_info->push_back(String() + " |- Variable: " + vars_ptr[v.id].name.c_str() + " New value: " + NS::stringify_fast(vars_ptr[v.id].value));
+					r_applied_data_info->push_back(String() + " |- Variable: " + vars_ptr[v.id].name.c_str() + " New value: [STRINGIFY not supported at the moment].");
 				}
 			}
 		}
