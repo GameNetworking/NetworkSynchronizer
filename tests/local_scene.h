@@ -20,6 +20,8 @@ public:
 	std::string name;
 	std::map<std::string, VarData> variables;
 
+	virtual ~LocalSceneObject();
+
 	class LocalScene *get_scene() const;
 
 	virtual void on_scene_entry() {}
@@ -32,6 +34,7 @@ public:
 class LocalSceneSynchronizer : public SceneSynchronizer<LocalSceneObject, LocalNetworkInterface>, public SynchronizerManager, public LocalSceneObject {
 public:
 	LocalSceneSynchronizer();
+	virtual ~LocalSceneSynchronizer();
 
 	static void register_local_sync();
 
