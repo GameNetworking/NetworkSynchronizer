@@ -523,8 +523,30 @@ void GdSceneSynchronizer::unregister_process(Node *p_node, ProcessPhase p_phase,
 			static_cast<NS::PHandler>(p_handler));
 }
 
+void GdSceneSynchronizer::setup_simulated_sync(
+		Node *p_node,
+		const Callable &p_collect,
+		const Callable &p_get_size,
+		const Callable &p_are_equals,
+		const Callable &p_process) {
+}
+
 void GdSceneSynchronizer::setup_trickled_sync(Node *p_node, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func) {
-	scene_synchronizer.setup_trickled_sync(scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node)), p_collect_epoch_func, p_apply_epoch_func);
+	scene_synchronizer.set_trickled_sync(
+			scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node)),
+			[p_collect_epoch_func](DataBuffer &db) -> void {
+				Array a;
+				a.push_back(&db);
+				p_collect_epoch_func.callv(a);
+			},
+			[p_apply_epoch_func](float delta, float alpha, DataBuffer &db_from, DataBuffer &db_to) -> void {
+				Array a;
+				a.push_back(delta);
+				a.push_back(alpha);
+				a.push_back(&db_from);
+				a.push_back(&db_to);
+				p_apply_epoch_func.callv(a);
+			});
 }
 
 SyncGroupId GdSceneSynchronizer::sync_group_create() {

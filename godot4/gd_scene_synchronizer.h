@@ -115,6 +115,13 @@ public: // ---------------------------------------------------------------- APIs
 	uint64_t register_process(Node *p_node, ProcessPhase p_phase, const Callable &p_callable);
 	void unregister_process(Node *p_node, ProcessPhase p_phase, uint64_t p_handler);
 
+	void setup_simulated_sync(
+			Node *p_node,
+			const Callable &p_collect,
+			const Callable &p_get_size,
+			const Callable &p_are_equals,
+			const Callable &p_process);
+
 	/// Setup the trickled sync method for this specific node.
 	/// The trickled-sync is different from the realtime-sync because the data
 	/// is streamed and not simulated.

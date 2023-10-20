@@ -304,7 +304,10 @@ public: // ---------------------------------------------------------------- APIs
 	/// Setup the trickled sync method for this specific object.
 	/// The trickled-sync is different from the realtime-sync because the data
 	/// is streamed and not simulated.
-	void setup_trickled_sync(ObjectLocalId p_id, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func);
+	void set_trickled_sync(
+			ObjectLocalId p_id,
+			std::function<void(DataBuffer & /*out_buffer*/)> p_func_trickled_collect,
+			std::function<void(float /*delta*/, float /*interpolation_alpha*/, DataBuffer & /*past_buffer*/, DataBuffer & /*future_buffer*/)> p_func_trickled_apply);
 
 	/// Creates a realtime sync group containing a list of nodes.
 	/// The Peers listening to this group will receive the updates only
@@ -573,7 +576,7 @@ class ClientSynchronizer : public Synchronizer {
 	std::vector<EndSyncEvent> sync_end_events;
 
 	struct TrickledSyncInterpolationData {
-		NS::ObjectData *nd = nullptr;
+		NS::ObjectData *od = nullptr;
 		DataBuffer past_epoch_buffer;
 		DataBuffer future_epoch_buffer;
 
@@ -584,7 +587,7 @@ class ClientSynchronizer : public Synchronizer {
 
 		TrickledSyncInterpolationData() = default;
 		TrickledSyncInterpolationData(const TrickledSyncInterpolationData &p_dss) :
-				nd(p_dss.nd),
+				od(p_dss.od),
 				past_epoch(p_dss.past_epoch),
 				future_epoch(p_dss.future_epoch),
 				alpha_advacing_per_epoch(p_dss.alpha_advacing_per_epoch),
@@ -593,7 +596,7 @@ class ClientSynchronizer : public Synchronizer {
 			future_epoch_buffer.copy(p_dss.future_epoch_buffer);
 		}
 		TrickledSyncInterpolationData &operator=(const TrickledSyncInterpolationData &p_dss) {
-			nd = p_dss.nd;
+			od = p_dss.od;
 			past_epoch_buffer.copy(p_dss.past_epoch_buffer);
 			future_epoch_buffer.copy(p_dss.future_epoch_buffer);
 			past_epoch = p_dss.past_epoch;
@@ -605,15 +608,15 @@ class ClientSynchronizer : public Synchronizer {
 
 		TrickledSyncInterpolationData(
 				NS::ObjectData *p_nd) :
-				nd(p_nd) {}
+				od(p_nd) {}
 		TrickledSyncInterpolationData(
 				NS::ObjectData *p_nd,
 				DataBuffer p_past_epoch_buffer,
 				DataBuffer p_future_epoch_buffer) :
-				nd(p_nd),
+				od(p_nd),
 				past_epoch_buffer(p_past_epoch_buffer),
 				future_epoch_buffer(p_future_epoch_buffer) {}
-		bool operator==(const TrickledSyncInterpolationData &o) const { return nd == o.nd; }
+		bool operator==(const TrickledSyncInterpolationData &o) const { return od == o.od; }
 	};
 	LocalVector<TrickledSyncInterpolationData> trickled_sync_array;
 

@@ -510,15 +510,18 @@ void SceneSynchronizerBase::unregister_process(ObjectLocalId p_id, ProcessPhase 
 	}
 }
 
-void SceneSynchronizerBase::setup_trickled_sync(ObjectLocalId p_id, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func) {
+void SceneSynchronizerBase::set_trickled_sync(
+		ObjectLocalId p_id,
+		std::function<void(DataBuffer & /*out_buffer*/)> p_func_trickled_collect,
+		std::function<void(float /*delta*/, float /*interpolation_alpha*/, DataBuffer & /*past_buffer*/, DataBuffer & /*future_buffer*/)> p_func_trickled_apply) {
 	ERR_FAIL_COND(p_id == ObjectLocalId::NONE);
-	ERR_FAIL_COND(!p_collect_epoch_func.is_valid());
-	ERR_FAIL_COND(!p_apply_epoch_func.is_valid());
+
 	NS::ObjectData *od = get_object_data(p_id);
 	ERR_FAIL_COND(!od);
-	od->collect_epoch_func = p_collect_epoch_func;
-	od->apply_epoch_func = p_apply_epoch_func;
-	SceneSynchronizerDebugger::singleton()->debug_print(network_interface, "Setup trickled sync functions for: `" + String(od->object_name.c_str()) + "`. Collect epoch, method name: `" + p_collect_epoch_func.get_method() + "`. Apply epoch, method name: `" + p_apply_epoch_func.get_method() + "`.");
+
+	od->func_trickled_collect = p_func_trickled_collect;
+	od->func_trickled_apply = p_func_trickled_apply;
+	SceneSynchronizerDebugger::singleton()->debug_print(network_interface, "Setup trickled sync functions for: `" + String(od->object_name.c_str()) + "`.");
 }
 
 SyncGroupId SceneSynchronizerBase::sync_group_create() {
@@ -1870,8 +1873,6 @@ void ServerSynchronizer::generate_snapshot_object_data(
 
 void ServerSynchronizer::process_trickled_sync(real_t p_delta) {
 	DataBuffer *tmp_buffer = memnew(DataBuffer);
-	const Variant var_data_buffer = tmp_buffer;
-	const Variant *fake_array_vars = &var_data_buffer;
 
 	Variant r;
 
@@ -1904,12 +1905,12 @@ void ServerSynchronizer::process_trickled_sync(real_t p_delta) {
 			}
 
 			if (node_info[i].od->get_net_id().id > UINT16_MAX) {
-				SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "[FATAL] The `process_deferred_sync` found a node with ID `" + itos(node_info[i].od->get_net_id().id) + "::" + node_info[i].od->object_name.c_str() + "` that exceedes the max ID this function can network at the moment. Please report this, we will consider improving this function.");
+				SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "[FATAL] The `process_trickled_sync` found a node with ID `" + itos(node_info[i].od->get_net_id().id) + "::" + node_info[i].od->object_name.c_str() + "` that exceedes the max ID this function can network at the moment. Please report this, we will consider improving this function.");
 				send = false;
 			}
 
-			if (node_info[i].od->collect_epoch_func.is_null()) {
-				SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_deferred_sync` found a node `" + itos(node_info[i].od->get_net_id().id) + "::" + node_info[i].od->object_name.c_str() + "` with an invalid function `collect_epoch_func`. Please use `setup_deferred_sync` to correctly initialize this node for deferred sync.");
+			if (!node_info[i].od->func_trickled_collect) {
+				SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_deferred_sync` found a node `" + itos(node_info[i].od->get_net_id().id) + "::" + node_info[i].od->object_name.c_str() + "` with an invalid function `func_trickled_collect`. Please use `setup_deferred_sync` to correctly initialize this node for deferred sync.");
 				send = false;
 			}
 
@@ -1919,16 +1920,10 @@ void ServerSynchronizer::process_trickled_sync(real_t p_delta) {
 				// Read the state and write into the tmp_buffer:
 				tmp_buffer->begin_write(0);
 
-				Callable::CallError e;
-				node_info[i].od->collect_epoch_func.callp(&fake_array_vars, 1, r, e);
-
-				if (e.error != Callable::CallError::CALL_OK) {
-					SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_deferred_sync` was not able to execute the function `" + node_info[i].od->collect_epoch_func.get_method() + "` for the node `" + itos(node_info[i].od->get_net_id().id) + "::" + node_info[i].od->object_name.c_str() + "`.");
-					continue;
-				}
+				node_info[i].od->func_trickled_collect(*tmp_buffer);
 
 				if (tmp_buffer->total_size() > UINT16_MAX) {
-					SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_deferred_sync` failed because the method `" + node_info[i].od->collect_epoch_func.get_method() + "` for the node `" + itos(node_info[i].od->get_net_id().id) + "::" + node_info[i].od->object_name.c_str() + "` collected more than " + itos(UINT16_MAX) + " bits. Please optimize your netcode to send less data.");
+					SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_deferred_sync` failed because the method `trickled_collect` for the node `" + itos(node_info[i].od->get_net_id().id) + "::" + node_info[i].od->object_name.c_str() + "` collected more than " + itos(UINT16_MAX) + " bits. Please optimize your netcode to send less data.");
 					continue;
 				}
 
@@ -2810,8 +2805,6 @@ void ClientSynchronizer::receive_trickled_sync_data(const Vector<uint8_t> &p_dat
 	const uint32_t epoch = future_epoch_buffer.read_uint(DataBuffer::COMPRESSION_LEVEL_1);
 
 	DataBuffer *db = memnew(DataBuffer);
-	Variant var_data_buffer = db;
-	const Variant *fake_array_vars = &var_data_buffer;
 
 	Variant r;
 
@@ -2876,7 +2869,7 @@ void ClientSynchronizer::receive_trickled_sync_data(const Vector<uint8_t> &p_dat
 		}
 		TrickledSyncInterpolationData &stream = trickled_sync_array[index];
 #ifdef DEBUG_ENABLED
-		CRASH_COND(stream.nd != nd);
+		CRASH_COND(stream.od != nd);
 #endif
 		stream.future_epoch_buffer.copy(future_buffer_data);
 
@@ -2885,16 +2878,14 @@ void ClientSynchronizer::receive_trickled_sync_data(const Vector<uint8_t> &p_dat
 		// 2. Now collect the past epoch buffer by reading the current values.
 		db->begin_write(0);
 
-		Callable::CallError e;
-		stream.nd->collect_epoch_func.callp(&fake_array_vars, 1, r, e);
-
-		stream.past_epoch_buffer.copy(*db);
-
-		if (e.error != Callable::CallError::CALL_OK) {
-			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The function `receive_deferred_sync_data` is skipping the node `" + String(stream.nd->object_name.c_str()) + "` as the function `" + stream.nd->collect_epoch_func.get_method() + "` failed executing.");
+		if (!stream.od->func_trickled_collect) {
+			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The function `receive_deferred_sync_data` is skipping the node `" + String(stream.od->object_name.c_str()) + "` as the function `trickled_collect` failed executing.");
 			future_epoch_buffer.seek(expected_bit_offset_after_apply);
 			continue;
 		}
+
+		stream.od->func_trickled_collect(*db);
+		stream.past_epoch_buffer.copy(*db);
 
 		// 3. Initialize the past_epoch and the future_epoch.
 		stream.past_epoch = stream.future_epoch;
@@ -2918,14 +2909,6 @@ void ClientSynchronizer::process_trickled_sync(real_t p_delta) {
 	DataBuffer *db1 = memnew(DataBuffer);
 	DataBuffer *db2 = memnew(DataBuffer);
 
-	Variant array_vars[4];
-	array_vars[0] = p_delta;
-	array_vars[2] = db1;
-	array_vars[3] = db2;
-	const Variant *array_vars_ptr[4] = { array_vars + 0, array_vars + 1, array_vars + 2, array_vars + 3 };
-
-	Variant r;
-
 	for (int i = 0; i < int(trickled_sync_array.size()); ++i) {
 		TrickledSyncInterpolationData &stream = trickled_sync_array[i];
 		if (stream.alpha > 1.2) {
@@ -2935,15 +2918,15 @@ void ClientSynchronizer::process_trickled_sync(real_t p_delta) {
 			continue;
 		}
 
-		NS::ObjectData *nd = stream.nd;
-		if (nd == nullptr) {
+		NS::ObjectData *od = stream.od;
+		if (od == nullptr) {
 			SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The function `process_received_trickled_sync_data` found a null NodeData into the `trickled_sync_array`; this is not supposed to happen.");
 			continue;
 		}
 
 #ifdef DEBUG_ENABLED
-		if (nd->apply_epoch_func.is_null()) {
-			SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The function `process_received_deferred_sync_data` skip the node `" + String(nd->object_name.c_str()) + "` has an invalid apply epoch function named `" + nd->apply_epoch_func.get_method() + "`. Remotely you used the function `setup_deferred_sync` properly, while locally you didn't. Fix it.");
+		if (!od->func_trickled_apply) {
+			SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The function `process_received_deferred_sync_data` skip the node `" + String(od->object_name.c_str()) + "` has an invalid apply epoch function named `trickled_apply`. Remotely you used the function `setup_deferred_sync` properly, while locally you didn't. Fix it.");
 			continue;
 		}
 #endif
@@ -2957,15 +2940,7 @@ void ClientSynchronizer::process_trickled_sync(real_t p_delta) {
 		db1->begin_read();
 		db2->begin_read();
 
-		array_vars[1] = stream.alpha;
-
-		Callable::CallError e;
-		nd->apply_epoch_func.callp(array_vars_ptr, 4, r, e);
-
-		if (e.error != Callable::CallError::CALL_OK) {
-			SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_received_trickled_sync_data` failed executing the function`" + nd->collect_epoch_func.get_method() + "` for the node `" + nd->object_name.c_str() + "`.");
-			continue;
-		}
+		od->func_trickled_apply(p_delta, stream.alpha, *db1, *db2);
 	}
 
 	memdelete(db1);

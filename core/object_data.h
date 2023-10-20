@@ -1,10 +1,12 @@
 #pragma once
 
+#include "../data_buffer.h"
 #include "core.h"
 #include "core/templates/local_vector.h"
 #include "core/variant/callable.h"
 #include "processor.h"
 #include "var_data.h"
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -59,11 +61,8 @@ public:
 	std::vector<VarDescriptor> vars;
 	NS::Processor<float> functions[PROCESSPHASE_COUNT];
 
-	// func _collect_epoch_data(buffer: DataBuffer):
-	Callable collect_epoch_func;
-
-	// func _apply_epoch(delta: float, interpolation_alpha: float, past_buffer: DataBuffer, future_buffer: DataBuffer):
-	Callable apply_epoch_func;
+	std::function<void(DataBuffer & /*out_buffer*/)> func_trickled_collect;
+	std::function<void(float /*delta*/, float /*interpolation_alpha*/, DataBuffer & /*past_buffer*/, DataBuffer & /*future_buffer*/)> func_trickled_apply;
 
 public:
 	void set_net_id(ObjectNetId p_id);
