@@ -54,13 +54,7 @@ enum ProcessPhase {
 	PROCESSPHASE_COUNT
 };
 
-static const char *ProcessPhaseName[PROCESSPHASE_COUNT] = {
-	"EARLY PROCESS",
-	"PRE PROCESS",
-	"PROCESS",
-	"POST PROCESS",
-	"LATE PROCESS"
-};
+const char *get_process_phase_name(ProcessPhase pp);
 
 NS_NAMESPACE_BEGIN
 

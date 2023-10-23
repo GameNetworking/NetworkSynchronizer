@@ -48,7 +48,7 @@ bool ObjectData::has_registered_process_functions() const {
 }
 
 bool ObjectData::can_trickled_sync() const {
-	return collect_epoch_func.is_valid() && apply_epoch_func.is_valid();
+	return func_trickled_collect && func_trickled_apply;
 }
 
 void ObjectData::set_controller(NetworkedControllerBase *p_controller) {

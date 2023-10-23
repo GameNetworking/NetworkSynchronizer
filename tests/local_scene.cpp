@@ -5,6 +5,8 @@
 
 NS_NAMESPACE_BEGIN
 
+LocalSceneObject::~LocalSceneObject() {}
+
 NS::ObjectLocalId LocalSceneObject::find_local_id() const {
 	if (get_scene()) {
 		return get_scene()->scene_sync->find_object_local_id(get_scene()->scene_sync->to_handle(this));
@@ -14,6 +16,8 @@ NS::ObjectLocalId LocalSceneObject::find_local_id() const {
 
 LocalSceneSynchronizer::LocalSceneSynchronizer() {
 }
+
+LocalSceneSynchronizer::~LocalSceneSynchronizer() {}
 
 void LocalSceneSynchronizer::register_local_sync() {
 	register_var_data_functions(
