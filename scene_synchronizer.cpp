@@ -2926,7 +2926,7 @@ void ClientSynchronizer::process_trickled_sync(real_t p_delta) {
 
 #ifdef DEBUG_ENABLED
 		if (!od->func_trickled_apply) {
-			SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The function `process_received_trickled_sync_data` skip the node `" + String(od->object_name.c_str()) + "` has an invalid apply epoch function named `trickled_apply`. Remotely you used the function `setup_deferred_sync` properly, while locally you didn't. Fix it.");
+			SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The function `process_received_trickled_sync_data` skip the node `" + String(od->object_name.c_str()) + "` has an invalid apply epoch function named `trickled_apply`. Remotely you used the function `setup_trickled_sync` properly, while locally you didn't. Fix it.");
 			continue;
 		}
 #endif
