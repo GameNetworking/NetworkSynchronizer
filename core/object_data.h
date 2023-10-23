@@ -61,7 +61,7 @@ public:
 	std::vector<VarDescriptor> vars;
 	NS::Processor<float> functions[PROCESSPHASE_COUNT];
 
-	std::function<void(DataBuffer & /*out_buffer*/)> func_trickled_collect;
+	std::function<void(DataBuffer & /*out_buffer*/, float /*update_rate*/)> func_trickled_collect;
 	std::function<void(float /*delta*/, float /*interpolation_alpha*/, DataBuffer & /*past_buffer*/, DataBuffer & /*future_buffer*/)> func_trickled_apply;
 
 public:

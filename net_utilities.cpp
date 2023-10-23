@@ -18,7 +18,7 @@ const LocalVector<NS::SyncGroup::TrickledObjectInfo> &NS::SyncGroup::get_trickle
 	return trickled_sync_nodes;
 }
 
-LocalVector<NS::SyncGroup::TrickledObjectInfo> &NS::SyncGroup::get_trickled_sync_nodes() {
+LocalVector<NS::SyncGroup::TrickledObjectInfo> &NS::SyncGroup::get_trickled_sync_objects() {
 	return trickled_sync_nodes;
 }
 

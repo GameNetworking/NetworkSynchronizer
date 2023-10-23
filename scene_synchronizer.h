@@ -306,7 +306,7 @@ public: // ---------------------------------------------------------------- APIs
 	/// is streamed and not simulated.
 	void set_trickled_sync(
 			ObjectLocalId p_id,
-			std::function<void(DataBuffer & /*out_buffer*/)> p_func_trickled_collect,
+			std::function<void(DataBuffer & /*out_buffer*/, float /*update_rate*/)> p_func_trickled_collect,
 			std::function<void(float /*delta*/, float /*interpolation_alpha*/, DataBuffer & /*past_buffer*/, DataBuffer & /*future_buffer*/)> p_func_trickled_apply);
 
 	/// Creates a realtime sync group containing a list of nodes.

@@ -512,7 +512,7 @@ void SceneSynchronizerBase::unregister_process(ObjectLocalId p_id, ProcessPhase 
 
 void SceneSynchronizerBase::set_trickled_sync(
 		ObjectLocalId p_id,
-		std::function<void(DataBuffer & /*out_buffer*/)> p_func_trickled_collect,
+		std::function<void(DataBuffer & /*out_buffer*/, float /*update_rate*/)> p_func_trickled_collect,
 		std::function<void(float /*delta*/, float /*interpolation_alpha*/, DataBuffer & /*past_buffer*/, DataBuffer & /*future_buffer*/)> p_func_trickled_apply) {
 	ERR_FAIL_COND(p_id == ObjectLocalId::NONE);
 
@@ -1636,7 +1636,7 @@ void ServerSynchronizer::sync_group_debug_print() {
 
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|");
 
-		const LocalVector<NS::SyncGroup::TrickledObjectInfo> &trickled_node_info = group.get_trickled_sync_nodes();
+		const LocalVector<NS::SyncGroup::TrickledObjectInfo> &trickled_node_info = group.get_trickled_sync_objects();
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|    [Trickled nodes (UR: Update Rate)]");
 		for (auto info : trickled_node_info) {
 			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|      |- [UR: " + rtos(info.update_rate) + "] " + info.od->object_name.c_str());
@@ -1884,8 +1884,8 @@ void ServerSynchronizer::process_trickled_sync(real_t p_delta) {
 			continue;
 		}
 
-		LocalVector<NS::SyncGroup::TrickledObjectInfo> &node_info = group.get_trickled_sync_nodes();
-		if (node_info.size() == 0) {
+		LocalVector<NS::SyncGroup::TrickledObjectInfo> &objects_info = group.get_trickled_sync_objects();
+		if (objects_info.size() == 0) {
 			// Nothing to sync.
 			continue;
 		}
@@ -1898,42 +1898,42 @@ void ServerSynchronizer::process_trickled_sync(real_t p_delta) {
 		global_buffer.begin_write(0);
 		global_buffer.add_uint(epoch, DataBuffer::COMPRESSION_LEVEL_1);
 
-		for (int i = 0; i < int(node_info.size()); ++i) {
+		for (int i = 0; i < int(objects_info.size()); ++i) {
 			bool send = true;
-			if (node_info[i]._update_priority < 1.0 || update_node_count >= scene_synchronizer->max_trickled_objects_per_update) {
+			if (objects_info[i]._update_priority < 1.0 || update_node_count >= scene_synchronizer->max_trickled_objects_per_update) {
 				send = false;
 			}
 
-			if (node_info[i].od->get_net_id().id > UINT16_MAX) {
-				SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "[FATAL] The `process_trickled_sync` found a node with ID `" + itos(node_info[i].od->get_net_id().id) + "::" + node_info[i].od->object_name.c_str() + "` that exceedes the max ID this function can network at the moment. Please report this, we will consider improving this function.");
+			if (objects_info[i].od->get_net_id().id > UINT16_MAX) {
+				SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "[FATAL] The `process_trickled_sync` found a node with ID `" + itos(objects_info[i].od->get_net_id().id) + "::" + objects_info[i].od->object_name.c_str() + "` that exceedes the max ID this function can network at the moment. Please report this, we will consider improving this function.");
 				send = false;
 			}
 
-			if (!node_info[i].od->func_trickled_collect) {
-				SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_trickled_sync` found a node `" + itos(node_info[i].od->get_net_id().id) + "::" + node_info[i].od->object_name.c_str() + "` with an invalid function `func_trickled_collect`. Please use `setup_deferred_sync` to correctly initialize this node for deferred sync.");
+			if (!objects_info[i].od->func_trickled_collect) {
+				SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_trickled_sync` found a node `" + itos(objects_info[i].od->get_net_id().id) + "::" + objects_info[i].od->object_name.c_str() + "` with an invalid function `func_trickled_collect`. Please use `setup_deferred_sync` to correctly initialize this node for deferred sync.");
 				send = false;
 			}
 
 			if (send) {
-				node_info[i]._update_priority = 0.0;
+				objects_info[i]._update_priority = 0.0;
 
 				// Read the state and write into the tmp_buffer:
 				tmp_buffer->begin_write(0);
 
-				node_info[i].od->func_trickled_collect(*tmp_buffer);
+				objects_info[i].od->func_trickled_collect(*tmp_buffer, objects_info[i].update_rate);
 				if (tmp_buffer->total_size() > UINT16_MAX) {
-					SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_trickled_sync` failed because the method `trickled_collect` for the node `" + itos(node_info[i].od->get_net_id().id) + "::" + node_info[i].od->object_name.c_str() + "` collected more than " + itos(UINT16_MAX) + " bits. Please optimize your netcode to send less data.");
+					SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_trickled_sync` failed because the method `trickled_collect` for the node `" + itos(objects_info[i].od->get_net_id().id) + "::" + objects_info[i].od->object_name.c_str() + "` collected more than " + itos(UINT16_MAX) + " bits. Please optimize your netcode to send less data.");
 					continue;
 				}
 
 				++update_node_count;
 
-				if (node_info[i].od->get_net_id().id > UINT8_MAX) {
+				if (objects_info[i].od->get_net_id().id > UINT8_MAX) {
 					global_buffer.add_bool(true);
-					global_buffer.add_uint(node_info[i].od->get_net_id().id, DataBuffer::COMPRESSION_LEVEL_2);
+					global_buffer.add_uint(objects_info[i].od->get_net_id().id, DataBuffer::COMPRESSION_LEVEL_2);
 				} else {
 					global_buffer.add_bool(false);
-					global_buffer.add_uint(node_info[i].od->get_net_id().id, DataBuffer::COMPRESSION_LEVEL_3);
+					global_buffer.add_uint(objects_info[i].od->get_net_id().id, DataBuffer::COMPRESSION_LEVEL_3);
 				}
 
 				// Collapse the two DataBuffer.
@@ -1941,7 +1941,7 @@ void ServerSynchronizer::process_trickled_sync(real_t p_delta) {
 				global_buffer.add_bits(tmp_buffer->get_buffer().get_bytes().ptr(), tmp_buffer->total_size());
 
 			} else {
-				node_info[i]._update_priority += node_info[i].update_rate;
+				objects_info[i]._update_priority += objects_info[i].update_rate;
 			}
 		}
 
@@ -2883,7 +2883,7 @@ void ClientSynchronizer::receive_trickled_sync_data(const Vector<uint8_t> &p_dat
 			continue;
 		}
 
-		stream.od->func_trickled_collect(*db);
+		stream.od->func_trickled_collect(*db, 1.0);
 		stream.past_epoch_buffer.copy(*db);
 
 		// 3. Initialize the past_epoch and the future_epoch.

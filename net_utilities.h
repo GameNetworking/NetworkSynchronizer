@@ -361,7 +361,7 @@ public:
 
 	const LocalVector<NS::SyncGroup::SimulatedObjectInfo> &get_realtime_sync_nodes() const;
 	const LocalVector<NS::SyncGroup::TrickledObjectInfo> &get_trickled_sync_nodes() const;
-	LocalVector<NS::SyncGroup::TrickledObjectInfo> &get_trickled_sync_nodes();
+	LocalVector<NS::SyncGroup::TrickledObjectInfo> &get_trickled_sync_objects();
 
 	void mark_changes_as_notified();
 

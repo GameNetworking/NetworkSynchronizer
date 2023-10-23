@@ -534,9 +534,10 @@ void GdSceneSynchronizer::setup_simulated_sync(
 void GdSceneSynchronizer::setup_trickled_sync(Node *p_node, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func) {
 	scene_synchronizer.set_trickled_sync(
 			scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node)),
-			[p_collect_epoch_func](DataBuffer &db) -> void {
+			[p_collect_epoch_func](DataBuffer &db, float p_update_rate) -> void {
 				Array a;
 				a.push_back(&db);
+				a.push_back(p_update_rate);
 				p_collect_epoch_func.callv(a);
 			},
 			[p_apply_epoch_func](float delta, float alpha, DataBuffer &db_from, DataBuffer &db_to) -> void {
