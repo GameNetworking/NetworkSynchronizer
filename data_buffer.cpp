@@ -48,7 +48,11 @@
 
 // Beware that this macros was written to make sure nested function call doesn't add debug calls,
 // making the log unreadable.
-#ifdef DEBUG_ENABLED
+//#ifdef DEBUG_ENABLED
+//#define DEBUG_DATA_BUFFER
+//#endif
+
+#ifdef DEBUG_DATA_BUFFER
 #define DEB_WRITE(dt, compression, input)                                                             \
 	if (debug_enabled) {                                                                              \
 		SceneSynchronizerDebugger::singleton()->databuffer_write(dt, compression, bit_offset, input); \
