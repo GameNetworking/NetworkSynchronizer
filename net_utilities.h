@@ -78,6 +78,28 @@ void insert_unique(std::vector<V> &r_vec, const T &p_val) {
 }
 
 template <class V, typename T>
+void insert_at_position_expand(std::vector<V> &r_vec, std::size_t p_index, const T &p_val, const T &p_default) {
+	if (r_vec.size() <= p_index) {
+		const std::size_t initial_size = r_vec.size();
+		r_vec.resize(p_index + 1);
+		for (std::size_t i = initial_size; i < r_vec.size(); i++) {
+			r_vec[i] = p_default;
+		}
+	}
+
+	r_vec[p_index] = p_val;
+}
+
+// Return the value at index or default if not set.
+template <class V, typename T>
+const T &at(const std::vector<V> &p_vec, std::size_t p_index, const T &p_default) {
+	if (p_vec.size() <= p_index) {
+		return p_default;
+	}
+	return p_vec[p_index];
+}
+
+template <class V, typename T>
 void remove(std::vector<V> &r_vec, const T &p_val) {
 	auto it = find(r_vec, p_val);
 	if (it != r_vec.end()) {
