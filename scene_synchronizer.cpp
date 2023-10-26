@@ -460,7 +460,7 @@ void SceneSynchronizerBase::untrack_variable_changes(ListenerHandle p_handle) {
 	// Find the listener
 
 	const ChangesListener *unsafe_handle = ListenerHandle::from_handle(p_handle);
-	auto it = ns_find(changes_listeners, unsafe_handle);
+	auto it = VecFunc::find(changes_listeners, unsafe_handle);
 	if (it == changes_listeners.end()) {
 		// Nothing to do.
 		return;
@@ -472,7 +472,7 @@ void SceneSynchronizerBase::untrack_variable_changes(ListenerHandle p_handle) {
 	for (auto &wv : listener->watching_vars) {
 		if (wv.node_data) {
 			if (wv.node_data->vars.size() > wv.var_id.id) {
-				auto wv_cl_it = ns_find(wv.node_data->vars[wv.var_id.id].changes_listeners, unsafe_handle);
+				auto wv_cl_it = VecFunc::find(wv.node_data->vars[wv.var_id.id].changes_listeners, unsafe_handle);
 				if (wv_cl_it != wv.node_data->vars[wv.var_id.id].changes_listeners.end()) {
 					wv.node_data->vars[wv.var_id.id].changes_listeners.erase(wv_cl_it);
 				}
@@ -591,9 +591,9 @@ SyncGroupId SceneSynchronizerBase::sync_group_get_peer_group(int p_peer_id) cons
 	return pd->sync_group_id;
 }
 
-const LocalVector<int> *SceneSynchronizerBase::sync_group_get_peers(SyncGroupId p_group_id) const {
+const std::vector<int> *SceneSynchronizerBase::sync_group_get_listening_peers(SyncGroupId p_group_id) const {
 	ERR_FAIL_COND_V_MSG(!is_server(), nullptr, "This function CAN be used only on the server.");
-	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get_peers(p_group_id);
+	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get_listening_peers(p_group_id);
 }
 
 void SceneSynchronizerBase::sync_group_set_trickled_update_rate(ObjectLocalId p_node_id, SyncGroupId p_group_id, real_t p_update_rate) {
@@ -1461,7 +1461,7 @@ void ServerSynchronizer::on_peer_connected(int p_peer_id) {
 
 void ServerSynchronizer::on_peer_disconnected(int p_peer_id) {
 	for (uint32_t i = 0; i < sync_groups.size(); ++i) {
-		sync_groups[i].peers.erase(p_peer_id);
+		sync_groups[i].remove_listening_peer(p_peer_id);
 	}
 }
 
@@ -1473,7 +1473,7 @@ void ServerSynchronizer::on_object_data_added(NS::ObjectData *p_object_data) {
 	CRASH_COND(p_object_data->get_net_id() == ObjectNetId::NONE);
 #endif
 
-	sync_groups[SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID].add_new_node(p_object_data, true);
+	sync_groups[SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID].add_new_sync_object(p_object_data, true);
 
 	if (p_object_data->get_controller()) {
 		// It was added a new NodeData with a controller, make sure to mark
@@ -1489,7 +1489,7 @@ void ServerSynchronizer::on_object_data_added(NS::ObjectData *p_object_data) {
 void ServerSynchronizer::on_object_data_removed(NS::ObjectData &p_object_data) {
 	// Make sure to remove this `NodeData` from any sync group.
 	for (uint32_t i = 0; i < sync_groups.size(); ++i) {
-		sync_groups[i].remove_node(&p_object_data);
+		sync_groups[i].remove_sync_object(p_object_data);
 	}
 }
 
@@ -1534,20 +1534,20 @@ void ServerSynchronizer::sync_group_add_object(NS::ObjectData *p_object_data, Sy
 	ERR_FAIL_COND(p_object_data == nullptr);
 	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
 	ERR_FAIL_COND_MSG(p_group_id == SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID, "You can't change this SyncGroup in any way. Create a new one.");
-	sync_groups[p_group_id].add_new_node(p_object_data, p_realtime);
+	sync_groups[p_group_id].add_new_sync_object(p_object_data, p_realtime);
 }
 
 void ServerSynchronizer::sync_group_remove_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id) {
 	ERR_FAIL_COND(p_object_data == nullptr);
 	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
 	ERR_FAIL_COND_MSG(p_group_id == SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID, "You can't change this SyncGroup in any way. Create a new one.");
-	sync_groups[p_group_id].remove_node(p_object_data);
+	sync_groups[p_group_id].remove_sync_object(*p_object_data);
 }
 
 void ServerSynchronizer::sync_group_replace_object(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes) {
 	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
 	ERR_FAIL_COND_MSG(p_group_id == SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID, "You can't change this SyncGroup in any way. Create a new one.");
-	sync_groups[p_group_id].replace_nodes(std::move(p_new_realtime_nodes), std::move(p_new_trickled_nodes));
+	sync_groups[p_group_id].replace_objects(std::move(p_new_realtime_nodes), std::move(p_new_trickled_nodes));
 }
 
 void ServerSynchronizer::sync_group_remove_all_objects(SyncGroupId p_group_id) {
@@ -1559,7 +1559,7 @@ void ServerSynchronizer::sync_group_remove_all_objects(SyncGroupId p_group_id) {
 void ServerSynchronizer::sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id) {
 	// remove the peer from any sync_group.
 	for (uint32_t i = 0; i < sync_groups.size(); ++i) {
-		sync_groups[i].peers.erase(p_peer_id);
+		sync_groups[i].remove_listening_peer(p_peer_id);
 	}
 
 	if (p_group_id == UINT32_MAX) {
@@ -1568,7 +1568,7 @@ void ServerSynchronizer::sync_group_move_peer_to(int p_peer_id, SyncGroupId p_gr
 	}
 
 	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
-	sync_groups[p_group_id].peers.push_back(p_peer_id);
+	sync_groups[p_group_id].add_listening_peer(p_peer_id);
 
 	// Also mark the peer as need full snapshot, as it's into a new group now.
 	NS::PeerData *pd = MapFunc::at(scene_synchronizer->peer_data, p_peer_id);
@@ -1583,9 +1583,9 @@ void ServerSynchronizer::sync_group_move_peer_to(int p_peer_id, SyncGroupId p_gr
 	}
 }
 
-const LocalVector<int> *ServerSynchronizer::sync_group_get_peers(SyncGroupId p_group_id) const {
+const std::vector<int> *ServerSynchronizer::sync_group_get_listening_peers(SyncGroupId p_group_id) const {
 	ERR_FAIL_COND_V_MSG(p_group_id >= sync_groups.size(), nullptr, "The group id `" + itos(p_group_id) + "` doesn't exist.");
-	return &sync_groups[p_group_id].peers;
+	return &sync_groups[p_group_id].get_listening_peers();
 }
 
 void ServerSynchronizer::sync_group_set_trickled_update_rate(NS::ObjectData *p_object_data, SyncGroupId p_group_id, real_t p_update_rate) {
@@ -1623,11 +1623,11 @@ void ServerSynchronizer::sync_group_debug_print() {
 
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "| [Group " + itos(g) + "#]");
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|    Listening peers");
-		for (int peer : group.peers) {
+		for (int peer : group.get_listening_peers()) {
 			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|      |- " + itos(peer));
 		}
 
-		const LocalVector<NS::SyncGroup::SimulatedObjectInfo> &realtime_node_info = group.get_realtime_sync_nodes();
+		const LocalVector<NS::SyncGroup::SimulatedObjectInfo> &realtime_node_info = group.get_simulated_sync_objects();
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|");
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|    [Realtime nodes]");
 		for (auto info : realtime_node_info) {
@@ -1655,7 +1655,7 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 	for (int g = 0; g < int(sync_groups.size()); ++g) {
 		NS::SyncGroup &group = sync_groups[g];
 
-		if (group.peers.size() == 0) {
+		if (group.get_listening_peers().empty()) {
 			// No one is interested to this group.
 			continue;
 		}
@@ -1678,8 +1678,7 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 		DataBuffer delta_snapshot;
 		delta_snapshot.begin_write(MD_SIZE);
 
-		for (int pi = 0; pi < int(group.peers.size()); ++pi) {
-			const int peer_id = group.peers[pi];
+		for (int peer_id : group.get_listening_peers()) {
 			NS::PeerData *peer = MapFunc::at(scene_synchronizer->peer_data, peer_id);
 			if (peer == nullptr) {
 				ERR_PRINT("The `process_snapshot_notificator` failed to lookup the peer_id `" + itos(peer_id) + "`. Was it removed but never cleared from sync_groups. Report this error, as this is a bug.");
@@ -1750,7 +1749,7 @@ void ServerSynchronizer::generate_snapshot(
 		bool p_force_full_snapshot,
 		const NS::SyncGroup &p_group,
 		DataBuffer &r_snapshot_db) const {
-	const LocalVector<NS::SyncGroup::SimulatedObjectInfo> &relevant_node_data = p_group.get_realtime_sync_nodes();
+	const LocalVector<NS::SyncGroup::SimulatedObjectInfo> &relevant_node_data = p_group.get_simulated_sync_objects();
 
 	// First insert the list of ALL simulated ObjectData, if changed.
 	if (p_group.is_realtime_node_list_changed() || p_force_full_snapshot) {
@@ -1779,10 +1778,10 @@ void ServerSynchronizer::generate_snapshot(
 	}
 
 	if (p_group.is_trickled_node_list_changed() || p_force_full_snapshot) {
-		for (int i = 0; i < int(p_group.get_trickled_sync_nodes().size()); ++i) {
-			if (p_group.get_trickled_sync_nodes()[i]._unknown || p_force_full_snapshot) {
+		for (int i = 0; i < int(p_group.get_trickled_sync_objects().size()); ++i) {
+			if (p_group.get_trickled_sync_objects()[i]._unknown || p_force_full_snapshot) {
 				generate_snapshot_object_data(
-						p_group.get_trickled_sync_nodes()[i].od,
+						p_group.get_trickled_sync_objects()[i].od,
 						SNAPSHOT_GENERATION_MODE_FORCE_NODE_PATH_ONLY,
 						NS::SyncGroup::Change(),
 						r_snapshot_db);
@@ -1879,7 +1878,7 @@ void ServerSynchronizer::process_trickled_sync(real_t p_delta) {
 	for (int g = 0; g < int(sync_groups.size()); ++g) {
 		NS::SyncGroup &group = sync_groups[g];
 
-		if (group.peers.size() == 0) {
+		if (group.get_listening_peers().empty()) {
 			// No one is interested to this group.
 			continue;
 		}
@@ -1947,10 +1946,10 @@ void ServerSynchronizer::process_trickled_sync(real_t p_delta) {
 
 		if (update_node_count > 0) {
 			global_buffer.dry();
-			for (int i = 0; i < int(group.peers.size()); ++i) {
+			for (int peer : group.get_listening_peers()) {
 				scene_synchronizer->rpc_handler_trickled_sync_data.rpc(
 						scene_synchronizer->get_network_interface(),
-						group.peers[i],
+						peer,
 						global_buffer.get_buffer().get_bytes());
 			}
 		}
@@ -2054,7 +2053,7 @@ void ClientSynchronizer::on_variable_changed(NS::ObjectData *p_object_data, VarI
 				p_object_data,
 				p_var_id,
 				p_old_value);
-		auto see_it = ns_find(sync_end_events, ese);
+		auto see_it = VecFunc::find(sync_end_events, ese);
 		if (see_it == sync_end_events.end()) {
 			sync_end_events.push_back(ese);
 		} else {
@@ -2750,7 +2749,7 @@ bool ClientSynchronizer::parse_sync_data(
 	if (has_active_list_array) {
 		for (ObjectData *od : scene_synchronizer->objects_data_storage.get_sorted_objects_data()) {
 			if (od) {
-				auto active_it = ns_find(active_objects, od->get_net_id());
+				auto active_it = VecFunc::find(active_objects, od->get_net_id());
 				const bool is_active = active_it != active_objects.end();
 
 				if (is_active) {

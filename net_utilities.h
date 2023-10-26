@@ -38,7 +38,7 @@ template <class K, class V>
 V *at(std::map<K, V> &p_map, const K &p_key) {
 	try {
 		return &p_map.at(p_key);
-	} catch (std::out_of_range &e) {
+	} catch ([[maybe_unused]] std::out_of_range &e) {
 		return nullptr;
 	}
 }
@@ -47,13 +47,74 @@ template <class K, class V>
 const V *at(const std::map<K, V> &p_map, const K &p_key) {
 	try {
 		return &p_map.at(p_key);
-	} catch (std::out_of_range &e) {
+	} catch ([[maybe_unused]] std::out_of_range &e) {
 		return nullptr;
 	}
 }
 }; //namespace MapFunc
 
-#define ns_find(vec, val) std::find(vec.begin(), vec.end(), val)
+namespace VecFunc {
+
+template <class V, typename T>
+typename std::vector<V>::const_iterator find(const std::vector<V> &p_vec, const T &p_val) {
+	return std::find(p_vec.begin(), p_vec.end(), p_val);
+}
+
+template <class V, typename T>
+typename std::vector<V>::iterator find(std::vector<V> &r_vec, const T &p_val) {
+	return std::find(r_vec.begin(), r_vec.end(), p_val);
+}
+
+template <class V, typename T>
+bool has(const std::vector<V> &p_vec, const T &p_val) {
+	return std::find(p_vec.begin(), p_vec.end(), p_val) != p_vec.end();
+}
+
+template <class V, typename T>
+void insert_unique(std::vector<V> &r_vec, const T &p_val) {
+	if (!has(r_vec, p_val)) {
+		r_vec.push_back(p_val);
+	}
+}
+
+template <class V, typename T>
+void remove(std::vector<V> &r_vec, const T &p_val) {
+	auto it = find(r_vec, p_val);
+	if (it != r_vec.end()) {
+		r_vec.erase(it);
+	}
+}
+
+// Swap the element with the last one, then removes it.
+template <class V, typename T>
+void remove_unordered(std::vector<V> &r_vec, const T &p_val) {
+	auto it = find(r_vec, p_val);
+	if (it != r_vec.end()) {
+		std::iter_swap(it, r_vec.rbegin());
+		r_vec.pop_back();
+	}
+}
+
+// Swap the element at position with the last one, then removes it.
+template <class V, typename T>
+void remove_at(std::vector<V> &r_vec, std::size_t p_index) {
+	if (r_vec.size() >= p_index) {
+		return;
+	}
+
+	remove(r_vec, r_vec.begin() + p_index);
+}
+
+// Swap the element at position with the last one, then removes it.
+template <class V, typename T>
+void remove_at_unordered(std::vector<V> &r_vec, std::size_t p_index) {
+	if (r_vec.size() >= p_index) {
+		return;
+	}
+
+	remove_unordered(r_vec, r_vec.begin() + p_index);
+}
+} //namespace VecFunc
 
 /// Specific node listener. Alone this doesn't do much, but allows the
 /// `ChangeListener` to know and keep track of the node events.
@@ -343,15 +404,16 @@ public:
 	};
 
 private:
-	bool realtime_sync_nodes_list_changed = false;
-	LocalVector<SimulatedObjectInfo> realtime_sync_nodes;
+	bool simulated_sync_objects_list_changed = false;
+	LocalVector<SimulatedObjectInfo> simulated_sync_objects;
 
-	bool trickled_sync_nodes_list_changed = false;
-	LocalVector<TrickledObjectInfo> trickled_sync_nodes;
+	bool trickled_sync_objects_list_changed = false;
+	LocalVector<TrickledObjectInfo> trickled_sync_objects;
+
+	std::vector<int> listening_peers;
 
 public:
 	uint64_t user_data = 0;
-	LocalVector<int> peers;
 
 	real_t state_notifier_timer = 0.0;
 
@@ -359,16 +421,21 @@ public:
 	bool is_realtime_node_list_changed() const;
 	bool is_trickled_node_list_changed() const;
 
-	const LocalVector<NS::SyncGroup::SimulatedObjectInfo> &get_realtime_sync_nodes() const;
-	const LocalVector<NS::SyncGroup::TrickledObjectInfo> &get_trickled_sync_nodes() const;
+	const LocalVector<NS::SyncGroup::SimulatedObjectInfo> &get_simulated_sync_objects() const;
+	const LocalVector<NS::SyncGroup::TrickledObjectInfo> &get_trickled_sync_objects() const;
 	LocalVector<NS::SyncGroup::TrickledObjectInfo> &get_trickled_sync_objects();
 
 	void mark_changes_as_notified();
 
+	void add_listening_peer(int p_peer);
+	void remove_listening_peer(int p_peer);
+	const std::vector<int> &get_listening_peers() const { return listening_peers; };
+
 	/// Returns the `index` or `UINT32_MAX` on error.
-	uint32_t add_new_node(struct ObjectData *p_object_data, bool p_realtime);
-	void remove_node(struct ObjectData *p_object_data);
-	void replace_nodes(LocalVector<SimulatedObjectInfo> &&p_new_realtime_nodes, LocalVector<TrickledObjectInfo> &&p_new_trickled_nodes);
+	uint32_t add_new_sync_object(struct ObjectData *p_object_data, bool p_is_simulated);
+	void remove_sync_object(std::size_t p_index, bool p_is_simulated);
+	void remove_sync_object(const struct ObjectData &p_object_data);
+	void replace_objects(LocalVector<SimulatedObjectInfo> &&p_new_simulated_objects, LocalVector<TrickledObjectInfo> &&p_new_trickled_objects);
 	void remove_all_nodes();
 
 	void notify_new_variable(struct ObjectData *p_object_data, const std::string &p_var_name);
@@ -378,6 +445,13 @@ public:
 	real_t get_trickled_update_rate(const struct ObjectData *p_object_data) const;
 
 	void sort_trickled_node_by_update_priority();
+
+private:
+	void notify_controller_about_simulating_peers(struct ObjectData *p_object_data, bool p_simulating);
+	void notify_controllers_about_simulating_peer(int p_peer, bool p_simulating);
+
+	std::size_t find_simulated(const struct ObjectData &p_object_data) const;
+	std::size_t find_trickled(const struct ObjectData &p_object_data) const;
 };
 
 NS_NAMESPACE_END

@@ -326,7 +326,7 @@ public: // ---------------------------------------------------------------- APIs
 	void sync_group_remove_all_objects(SyncGroupId p_group_id);
 	void sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id);
 	SyncGroupId sync_group_get_peer_group(int p_peer_id) const;
-	const LocalVector<int> *sync_group_get_peers(SyncGroupId p_group_id) const;
+	const std::vector<int> *sync_group_get_listening_peers(SyncGroupId p_group_id) const;
 
 	void sync_group_set_trickled_update_rate(ObjectLocalId p_id, SyncGroupId p_group_id, real_t p_update_rate);
 	void sync_group_set_trickled_update_rate(ObjectNetId p_id, SyncGroupId p_group_id, real_t p_update_rate);
@@ -494,7 +494,7 @@ public:
 	void sync_group_replace_object(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes);
 	void sync_group_remove_all_objects(SyncGroupId p_group_id);
 	void sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id);
-	const LocalVector<int> *sync_group_get_peers(SyncGroupId p_group_id) const;
+	const std::vector<int> *sync_group_get_listening_peers(SyncGroupId p_group_id) const;
 
 	void sync_group_set_trickled_update_rate(NS::ObjectData *p_object_data, SyncGroupId p_group_id, real_t p_update_rate);
 	real_t sync_group_get_trickled_update_rate(const NS::ObjectData *p_object_data, SyncGroupId p_group_id) const;

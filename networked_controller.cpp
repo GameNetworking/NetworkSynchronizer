@@ -8,6 +8,7 @@
 #include "godot4/gd_network_interface.h"
 #include "modules/network_synchronizer/core/core.h"
 #include "modules/network_synchronizer/core/processor.h"
+#include "modules/network_synchronizer/net_utilities.h"
 #include "scene/main/multiplayer_api.h"
 #include "scene_synchronizer.h"
 #include "scene_synchronizer_debugger.h"
@@ -184,6 +185,20 @@ uint32_t NetworkedControllerBase::get_current_input_id() const {
 real_t NetworkedControllerBase::player_get_pretended_delta() const {
 	ERR_FAIL_COND_V_MSG(is_player_controller() == false, 1.0, "This function can be called only on client.");
 	return get_player_controller()->pretended_delta;
+}
+
+void NetworkedControllerBase::server_set_peer_simulating_this_controller(int p_peer, bool p_simulating) {
+	ERR_FAIL_COND_MSG(!is_server_controller(), "This function can be called only on the server.");
+	if (p_simulating) {
+		VecFunc::insert_unique(get_server_controller()->peers_simulating_this_controller, p_peer);
+	} else {
+		VecFunc::remove(get_server_controller()->peers_simulating_this_controller, p_peer);
+	}
+}
+
+bool NetworkedControllerBase::server_is_peer_simulating_this_controller(int p_peer) const {
+	ERR_FAIL_COND_V_MSG(!is_server_controller(), false, "This function can be called only on the server.");
+	return VecFunc::has(get_server_controller()->peers_simulating_this_controller, p_peer);
 }
 
 bool NetworkedControllerBase::has_another_instant_to_process_after(int p_i) const {
@@ -907,29 +922,26 @@ bool ServerController::receive_inputs(const Vector<uint8_t> &p_data) {
 		CRASH_COND(!extraction_success);
 
 		// The input parsing succeded on the server, now ping pong this to all the dolls.
-		const SyncGroupId sync_group = node->get_scene_synchronizer()->sync_group_get_peer_group(node->peer_id);
-		const LocalVector<int> *peers = node->get_scene_synchronizer()->sync_group_get_peers(sync_group);
-		if (peers) {
-			for (int i = 0; i < int(peers->size()); ++i) {
-				const int peer_id = (*peers)[i];
-				if (peer_id != node->peer_id) {
-					// Convert the `input_id` to peer_id :: input_id.
-					// So the peer can properly read the data.
-					const uint32_t peer_input_id = convert_input_id_to(peer_id, input_id);
-
-					if (peer_input_id == UINT32_MAX) {
-						SceneSynchronizerDebugger::singleton()->debug_print(node->network_interface, "The `input_id` conversion failed for the peer `" + itos(peer_id) + "`. This is expected untill the client is fully initialized.", true);
-						continue;
-					}
-
-					node->__input_data_set_first_input_id(data, peer_input_id);
-
-					node->rpc_handle_receive_input.rpc(
-							node->get_network_interface(),
-							peer_id,
-							data);
-				}
+		for (int peer_id : peers_simulating_this_controller) {
+			if (peer_id == node->peer_id) {
+				continue;
 			}
+
+			// Convert the `input_id` to peer_id :: input_id.
+			// So the peer can properly read the data.
+			const uint32_t peer_input_id = convert_input_id_to(peer_id, input_id);
+
+			if (peer_input_id == UINT32_MAX) {
+				SceneSynchronizerDebugger::singleton()->debug_print(node->network_interface, "The `input_id` conversion failed for the peer `" + itos(peer_id) + "`. This is expected untill the client is fully initialized.", true);
+				continue;
+			}
+
+			node->__input_data_set_first_input_id(data, peer_input_id);
+
+			node->rpc_handle_receive_input.rpc(
+					node->get_network_interface(),
+					peer_id,
+					data);
 		}
 	}
 

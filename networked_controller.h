@@ -221,6 +221,9 @@ public: // ---------------------------------------------------------------- APIs
 	/// Returns the pretended delta used by the player.
 	real_t player_get_pretended_delta() const;
 
+	void server_set_peer_simulating_this_controller(int p_peer, bool p_simulating);
+	bool server_is_peer_simulating_this_controller(int p_peer) const;
+
 public: // -------------------------------------------------------------- Events
 	bool has_another_instant_to_process_after(int p_i) const;
 	void process(double p_delta);
@@ -347,6 +350,8 @@ public:
 
 struct ServerController : public RemotelyControlledController {
 	uint32_t additional_fps_notif_timer = 0;
+
+	std::vector<int> peers_simulating_this_controller;
 
 	uint32_t previous_frame_received_timestamp = UINT32_MAX;
 	NS::StatisticalRingBuffer<uint32_t> network_watcher;

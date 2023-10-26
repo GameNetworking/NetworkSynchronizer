@@ -590,8 +590,8 @@ SyncGroupId GdSceneSynchronizer::sync_group_get_peer_group(int p_peer_id) const 
 	return scene_synchronizer.sync_group_get_peer_group(p_peer_id);
 }
 
-const LocalVector<int> *GdSceneSynchronizer::sync_group_get_peers(SyncGroupId p_group_id) const {
-	return scene_synchronizer.sync_group_get_peers(p_group_id);
+const std::vector<int> *GdSceneSynchronizer::sync_group_get_listening_peers(SyncGroupId p_group_id) const {
+	return scene_synchronizer.sync_group_get_listening_peers(p_group_id);
 }
 
 void GdSceneSynchronizer::sync_group_set_trickled_update_rate_by_id(uint32_t p_net_id, SyncGroupId p_group_id, real_t p_update_rate) {
