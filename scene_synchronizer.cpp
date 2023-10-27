@@ -1875,9 +1875,7 @@ void ServerSynchronizer::process_trickled_sync(real_t p_delta) {
 
 	Variant r;
 
-	for (int g = 0; g < int(sync_groups.size()); ++g) {
-		NS::SyncGroup &group = sync_groups[g];
-
+	for (auto &group : sync_groups) {
 		if (group.get_listening_peers().empty()) {
 			// No one is interested to this group.
 			continue;
@@ -1897,42 +1895,44 @@ void ServerSynchronizer::process_trickled_sync(real_t p_delta) {
 		global_buffer.begin_write(0);
 		global_buffer.add_uint(epoch, DataBuffer::COMPRESSION_LEVEL_1);
 
-		for (int i = 0; i < int(objects_info.size()); ++i) {
+		for (auto &object_info : objects_info) {
 			bool send = true;
-			if (objects_info[i]._update_priority < 1.0 || update_node_count >= scene_synchronizer->max_trickled_objects_per_update) {
-				send = false;
-			}
-
-			if (objects_info[i].od->get_net_id().id > UINT16_MAX) {
-				SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "[FATAL] The `process_trickled_sync` found a node with ID `" + itos(objects_info[i].od->get_net_id().id) + "::" + objects_info[i].od->object_name.c_str() + "` that exceedes the max ID this function can network at the moment. Please report this, we will consider improving this function.");
-				send = false;
-			}
-
-			if (!objects_info[i].od->func_trickled_collect) {
-				SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_trickled_sync` found a node `" + itos(objects_info[i].od->get_net_id().id) + "::" + objects_info[i].od->object_name.c_str() + "` with an invalid function `func_trickled_collect`. Please use `setup_deferred_sync` to correctly initialize this node for deferred sync.");
+			if (object_info._update_priority < 1.0 || update_node_count >= scene_synchronizer->max_trickled_objects_per_update) {
 				send = false;
 			}
 
 			if (send) {
-				objects_info[i]._update_priority = 0.0;
+				// TODO use `DEBUG_ENABLED` here?
+				if (object_info.od->get_net_id().id > UINT16_MAX) {
+					SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "[FATAL] The `process_trickled_sync` found a node with ID `" + itos(object_info.od->get_net_id().id) + "::" + object_info.od->object_name.c_str() + "` that exceedes the max ID this function can network at the moment. Please report this, we will consider improving this function.");
+					continue;
+				}
+
+				// TODO use `DEBUG_ENABLED` here?
+				if (!object_info.od->func_trickled_collect) {
+					SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_trickled_sync` found a node `" + itos(object_info.od->get_net_id().id) + "::" + object_info.od->object_name.c_str() + "` with an invalid function `func_trickled_collect`. Please use `setup_deferred_sync` to correctly initialize this node for deferred sync.");
+					continue;
+				}
+
+				object_info._update_priority = 0.0;
 
 				// Read the state and write into the tmp_buffer:
 				tmp_buffer->begin_write(0);
 
-				objects_info[i].od->func_trickled_collect(*tmp_buffer, objects_info[i].update_rate);
+				object_info.od->func_trickled_collect(*tmp_buffer, object_info.update_rate);
 				if (tmp_buffer->total_size() > UINT16_MAX) {
-					SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_trickled_sync` failed because the method `trickled_collect` for the node `" + itos(objects_info[i].od->get_net_id().id) + "::" + objects_info[i].od->object_name.c_str() + "` collected more than " + itos(UINT16_MAX) + " bits. Please optimize your netcode to send less data.");
+					SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_trickled_sync` failed because the method `trickled_collect` for the node `" + itos(object_info.od->get_net_id().id) + "::" + object_info.od->object_name.c_str() + "` collected more than " + itos(UINT16_MAX) + " bits. Please optimize your netcode to send less data.");
 					continue;
 				}
 
 				++update_node_count;
 
-				if (objects_info[i].od->get_net_id().id > UINT8_MAX) {
+				if (object_info.od->get_net_id().id > UINT8_MAX) {
 					global_buffer.add_bool(true);
-					global_buffer.add_uint(objects_info[i].od->get_net_id().id, DataBuffer::COMPRESSION_LEVEL_2);
+					global_buffer.add_uint(object_info.od->get_net_id().id, DataBuffer::COMPRESSION_LEVEL_2);
 				} else {
 					global_buffer.add_bool(false);
-					global_buffer.add_uint(objects_info[i].od->get_net_id().id, DataBuffer::COMPRESSION_LEVEL_3);
+					global_buffer.add_uint(object_info.od->get_net_id().id, DataBuffer::COMPRESSION_LEVEL_3);
 				}
 
 				// Collapse the two DataBuffer.
@@ -1940,7 +1940,7 @@ void ServerSynchronizer::process_trickled_sync(real_t p_delta) {
 				global_buffer.add_bits(tmp_buffer->get_buffer().get_bytes().ptr(), tmp_buffer->total_size());
 
 			} else {
-				objects_info[i]._update_priority += objects_info[i].update_rate;
+				object_info._update_priority += object_info.update_rate;
 			}
 		}
 
@@ -2848,8 +2848,8 @@ void ClientSynchronizer::receive_trickled_sync_data(const Vector<uint8_t> &p_dat
 		const int current_offset = future_epoch_buffer.get_bit_offset();
 		const int expected_bit_offset_after_apply = current_offset + buffer_bit_count;
 
-		NS::ObjectData *nd = scene_synchronizer->get_object_data(node_id, false);
-		if (nd == nullptr) {
+		NS::ObjectData *od = scene_synchronizer->get_object_data(node_id, false);
+		if (od == nullptr) {
 			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The function `receive_trickled_sync_data` is skipping the node with ID `" + itos(node_id.id) + "` as it was not found locally.");
 			future_epoch_buffer.seek(expected_bit_offset_after_apply);
 			continue;
@@ -2860,14 +2860,14 @@ void ClientSynchronizer::receive_trickled_sync_data(const Vector<uint8_t> &p_dat
 		future_epoch_buffer.read_bits(future_buffer_data.ptrw(), buffer_bit_count);
 		CRASH_COND_MSG(future_epoch_buffer.get_bit_offset() != expected_bit_offset_after_apply, "At this point the buffer is expected to be exactly at this bit.");
 
-		int64_t index = trickled_sync_array.find(nd);
+		int64_t index = trickled_sync_array.find(od);
 		if (index == -1) {
 			index = trickled_sync_array.size();
-			trickled_sync_array.push_back(TrickledSyncInterpolationData(nd));
+			trickled_sync_array.push_back(TrickledSyncInterpolationData(od));
 		}
 		TrickledSyncInterpolationData &stream = trickled_sync_array[index];
 #ifdef DEBUG_ENABLED
-		CRASH_COND(stream.od != nd);
+		CRASH_COND(stream.od != od);
 #endif
 		stream.future_epoch_buffer.copy(future_buffer_data);
 
@@ -2882,8 +2882,13 @@ void ClientSynchronizer::receive_trickled_sync_data(const Vector<uint8_t> &p_dat
 			continue;
 		}
 
-		stream.od->func_trickled_collect(*db, 1.0);
-		stream.past_epoch_buffer.copy(*db);
+		if (stream.past_epoch != UINT32_MAX) {
+			stream.od->func_trickled_collect(*db, 1.0);
+			stream.past_epoch_buffer.copy(*db);
+		} else {
+			// Streaming not started.
+			stream.past_epoch_buffer.copy(stream.future_epoch_buffer);
+		}
 
 		// 3. Initialize the past_epoch and the future_epoch.
 		stream.past_epoch = stream.future_epoch;
