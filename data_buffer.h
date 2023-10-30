@@ -307,6 +307,14 @@ public:
 	/// Parse the next data as Variant and returns it.
 	Variant read_variant();
 
+	/// Add a nullable variant. This is a packet size optimization for null cases.
+	/// If that first bool is false, the original variant value was null
+	Variant add_often_null_variant(const Variant &p_input);
+
+	/// Parse the next data as an encoded nullable Variant and returns it.
+	/// If that first bool is false, the original variant value was null
+	Variant read_often_null_variant();
+
 	/// Add a data buffer to this buffer.
 	void add_data_buffer(const DataBuffer &p_db);
 	void read_data_buffer(DataBuffer &r_db);
@@ -357,6 +365,7 @@ public:
 	int read_vector3_size(CompressionLevel p_compression);
 	int read_normalized_vector3_size(CompressionLevel p_compression);
 	int read_variant_size();
+	int read_often_null_variant_size();
 	int read_buffer_size();
 
 	static int get_bit_taken(DataType p_data_type, CompressionLevel p_compression);
