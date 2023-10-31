@@ -922,26 +922,11 @@ Variant DataBuffer::add_variant(const Variant &p_input) {
 
 /// This is an optimization for when we want a null Variant to be a single bit in the buffer.
 Variant DataBuffer::add_optional_variant(const Variant &p_input) {
-	if ( p_input.is_null() ){
-		WARN_PRINT(vformat("add_optional_variant's is_null call: %s", "TRUE"));
-		add_bool(true);
-		return p_input;
-	} else {
-		WARN_PRINT(vformat("add_optional_variant's is_null call: %s", "FALSE"));
-		add_bool(false);
-	}
 	return add_variant(p_input);
 }
 
 Variant DataBuffer::read_optional_variant() {
-	const bool is_null = read_bool();
-	if ( is_null ){
-		WARN_PRINT(vformat("read_optional_variant's is_null bool: %s", "TRUE"));
-		return Variant();
-	} else{
-		WARN_PRINT(vformat("read_optional_variant's is_null bool: %s", "FALSE"));
-		return read_variant();
-	}
+	return read_variant();
 }
 
 Variant DataBuffer::read_variant() {
@@ -1236,14 +1221,7 @@ int DataBuffer::read_variant_size() {
 
 
 int DataBuffer::read_optional_variant_size() {
-	const bool is_null = read_bool();
-	if (is_null) {
-		WARN_PRINT(vformat("read_optional_variant_SIZE's is_null bool: %s", "TRUE"));
-		return get_bool_size();
-	} else {
-		WARN_PRINT(vformat("read_optional_variant_SIZE's is_null bool: %s", "FALSE"));
-		return get_bool_size() + read_variant_size();
-	}
+	return read_variant_size();
 }
 
 int DataBuffer::get_bit_taken(DataType p_data_type, CompressionLevel p_compression) {
