@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<class name="NetworkedController" inherits="Node" version="4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+<class name="GdNetworkedController" inherits="Node" version="4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
 	<brief_description>
 	</brief_description>
 	<description>
@@ -56,30 +56,6 @@
 		</method>
 		<method name="is_server_controller" qualifiers="const">
 			<return type="bool" />
-			<description>
-			</description>
-		</method>
-		<method name="on_peer_status_updated">
-			<return type="void" />
-			<param index="0" name="_unnamed_arg0" type="Node" />
-			<param index="1" name="_unnamed_arg1" type="int" />
-			<param index="2" name="_unnamed_arg2" type="int" />
-			<param index="3" name="_unnamed_arg3" type="bool" />
-			<param index="4" name="_unnamed_arg4" type="bool" />
-			<description>
-			</description>
-		</method>
-		<method name="on_rewind_frame_begin">
-			<return type="void" />
-			<param index="0" name="_unnamed_arg0" type="int" />
-			<param index="1" name="_unnamed_arg1" type="int" />
-			<param index="2" name="_unnamed_arg2" type="int" />
-			<description>
-			</description>
-		</method>
-		<method name="on_state_validated">
-			<return type="void" />
-			<param index="0" name="_unnamed_arg0" type="int" />
 			<description>
 			</description>
 		</method>

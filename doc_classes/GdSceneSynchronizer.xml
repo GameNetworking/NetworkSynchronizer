@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<class name="SceneSynchronizer" inherits="Node" version="4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+<class name="GdSceneSynchronizer" inherits="Node" version="4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
 	<brief_description>
-		The `SceneSynchronizer` is used to synchronize all the peers using server authoritative networking model.
 	</brief_description>
 	<description>
 	</description>
@@ -10,12 +9,6 @@
 	<methods>
 		<method name="_update_nodes_relevancy" qualifiers="virtual">
 			<return type="void" />
-			<description>
-			</description>
-		</method>
-		<method name="apply_scene_changes">
-			<return type="void" />
-			<param index="0" name="sync_data" type="Variant" />
 			<description>
 			</description>
 		</method>
@@ -101,12 +94,6 @@
 			<description>
 			</description>
 		</method>
-		<method name="pop_scene_changes" qualifiers="const">
-			<return type="Variant" />
-			<param index="0" name="diff_handle" type="Object" />
-			<description>
-			</description>
-		</method>
 		<method name="register_node">
 			<return type="int" />
 			<param index="0" name="node" type="Node" />
@@ -114,7 +101,7 @@
 			</description>
 		</method>
 		<method name="register_process">
-			<return type="void" />
+			<return type="int" />
 			<param index="0" name="node" type="Node" />
 			<param index="1" name="phase" type="int" enum="ProcessPhase" />
 			<param index="2" name="function" type="Callable" />
@@ -125,8 +112,6 @@
 			<return type="void" />
 			<param index="0" name="node" type="Node" />
 			<param index="1" name="variable" type="StringName" />
-			<param index="2" name="on_change_notify" type="StringName" default="&amp;&quot;&quot;" />
-			<param index="3" name="flags" type="int" enum="NetEventFlag" default="17" />
 			<description>
 			</description>
 		</method>
@@ -167,18 +152,6 @@
 			<param index="0" name="node" type="Node" />
 			<param index="1" name="collect_epoch_func" type="Callable" />
 			<param index="2" name="apply_epoch_func" type="Callable" />
-			<description>
-			</description>
-		</method>
-		<method name="start_tracking_scene_changes" qualifiers="const">
-			<return type="void" />
-			<param index="0" name="diff_handle" type="Object" />
-			<description>
-			</description>
-		</method>
-		<method name="stop_tracking_scene_changes" qualifiers="const">
-			<return type="void" />
-			<param index="0" name="diff_handle" type="Object" />
 			<description>
 			</description>
 		</method>
@@ -225,12 +198,11 @@
 			</description>
 		</method>
 		<method name="track_variable_changes">
-			<return type="void" />
-			<param index="0" name="node" type="Node" />
-			<param index="1" name="variable" type="StringName" />
-			<param index="2" name="object" type="Object" />
-			<param index="3" name="method" type="StringName" />
-			<param index="4" name="flags" type="int" enum="NetEventFlag" default="17" />
+			<return type="int" />
+			<param index="0" name="nodes" type="Array" />
+			<param index="1" name="variables" type="Array" />
+			<param index="2" name="callable" type="Callable" />
+			<param index="3" name="flags" type="int" enum="NetEventFlag" default="17" />
 			<description>
 			</description>
 		</method>
@@ -244,7 +216,7 @@
 			<return type="void" />
 			<param index="0" name="node" type="Node" />
 			<param index="1" name="phase" type="int" enum="ProcessPhase" />
-			<param index="2" name="function" type="Callable" />
+			<param index="2" name="function" type="int" />
 			<description>
 			</description>
 		</method>
@@ -257,10 +229,7 @@
 		</method>
 		<method name="untrack_variable_changes">
 			<return type="void" />
-			<param index="0" name="node" type="Node" />
-			<param index="1" name="variable" type="StringName" />
-			<param index="2" name="object" type="Object" />
-			<param index="3" name="method" type="StringName" />
+			<param index="0" name="handle" type="int" />
 			<description>
 			</description>
 		</method>
@@ -314,7 +283,7 @@
 		</signal>
 	</signals>
 	<constants>
-		<constant name="GLOBAL_SYNC_GROUP_ID" value="0">
+		<constant name="NS::SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID" value="0">
 		</constant>
 		<constant name="CHANGE" value="1" enum="NetEventFlag">
 		</constant>

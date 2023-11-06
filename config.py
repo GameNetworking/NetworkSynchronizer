@@ -13,10 +13,9 @@ def get_doc_path():
 def get_doc_classes():
     return [
         "DataBuffer",
+        "GdNetworkedController",
+        "GdSceneSynchronizer",
         "InputNetworkEncoder",
-        "NetworkedController",
-        "SceneDiff",
-        "SceneSynchronizer",
     ]
 
 
