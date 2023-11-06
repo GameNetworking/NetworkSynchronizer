@@ -34,6 +34,12 @@
 			<description>
 			</description>
 		</method>
+		<method name="add_optional_variant">
+			<return type="Variant" />
+			<param index="0" name="value" type="Variant" />
+			<description>
+			</description>
+		</method>
 		<method name="add_positive_unit_real">
 			<return type="float" />
 			<param index="0" name="value" type="float" />
@@ -194,6 +200,16 @@
 		<method name="read_normalized_vector3_size">
 			<return type="int" />
 			<param index="0" name="compression_level" type="int" enum="DataBuffer.CompressionLevel" default="1" />
+			<description>
+			</description>
+		</method>
+		<method name="read_optional_variant">
+			<return type="Variant" />
+			<description>
+			</description>
+		</method>
+		<method name="read_optional_variant_size">
+			<return type="int" />
 			<description>
 			</description>
 		</method>

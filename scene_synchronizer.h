@@ -20,8 +20,6 @@
 #include <memory>
 #include <vector>
 
-class SceneDiff;
-
 NS_NAMESPACE_BEGIN
 
 class NetworkedControllerBase;
@@ -133,7 +131,6 @@ class SceneSynchronizerBase {
 	friend class ServerSynchronizer;
 	friend class ClientSynchronizer;
 	friend class NoNetSynchronizer;
-	friend SceneDiff;
 
 public:
 	enum SynchronizerType {
