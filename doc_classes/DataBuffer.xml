@@ -37,6 +37,7 @@
 		<method name="add_optional_variant">
 			<return type="Variant" />
 			<param index="0" name="value" type="Variant" />
+			<param index="1" name="default_value" type="Variant" />
 			<description>
 			</description>
 		</method>
@@ -205,11 +206,13 @@
 		</method>
 		<method name="read_optional_variant">
 			<return type="Variant" />
+			<param index="0" name="default" type="Variant" />
 			<description>
 			</description>
 		</method>
 		<method name="read_optional_variant_size">
 			<return type="int" />
+			<param index="0" name="default_value" type="Variant" />
 			<description>
 			</description>
 		</method>
@@ -317,6 +320,12 @@
 			<description>
 			</description>
 		</method>
+		<method name="skip_optional_variant">
+			<return type="void" />
+			<param index="0" name="default_value" type="Variant" />
+			<description>
+			</description>
+		</method>
 		<method name="skip_real">
 			<return type="void" />
 			<param index="0" name="compression_level" type="int" enum="DataBuffer.CompressionLevel" default="1" />
@@ -332,6 +341,11 @@
 		<method name="skip_unit_real">
 			<return type="void" />
 			<param index="0" name="compression_level" type="int" enum="DataBuffer.CompressionLevel" default="1" />
+			<description>
+			</description>
+		</method>
+		<method name="skip_variant">
+			<return type="void" />
 			<description>
 			</description>
 		</method>

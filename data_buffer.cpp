@@ -123,7 +123,7 @@ void DataBuffer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("read_vector3", "compression_level"), &DataBuffer::read_vector3, DEFVAL(COMPRESSION_LEVEL_1));
 	ClassDB::bind_method(D_METHOD("read_normalized_vector3", "compression_level"), &DataBuffer::read_normalized_vector3, DEFVAL(COMPRESSION_LEVEL_1));
 	ClassDB::bind_method(D_METHOD("read_variant"), &DataBuffer::read_variant);
-	ClassDB::bind_method(D_METHOD("read_optional_variant"), &DataBuffer::read_optional_variant);
+	ClassDB::bind_method(D_METHOD("read_optional_variant", "default"), &DataBuffer::read_optional_variant);
 
 	ClassDB::bind_method(D_METHOD("skip_bool"), &DataBuffer::skip_bool);
 	ClassDB::bind_method(D_METHOD("skip_int", "compression_level"), &DataBuffer::skip_int, DEFVAL(COMPRESSION_LEVEL_1));
