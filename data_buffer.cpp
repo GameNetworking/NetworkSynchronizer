@@ -110,7 +110,7 @@ void DataBuffer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("add_vector3", "value", "compression_level"), &DataBuffer::add_vector3, DEFVAL(COMPRESSION_LEVEL_1));
 	ClassDB::bind_method(D_METHOD("add_normalized_vector3", "value", "compression_level"), &DataBuffer::add_normalized_vector3, DEFVAL(COMPRESSION_LEVEL_1));
 	ClassDB::bind_method(D_METHOD("add_variant", "value"), &DataBuffer::add_variant);
-	ClassDB::bind_method(D_METHOD("add_optional_variant", "value"), &DataBuffer::add_optional_variant);
+	ClassDB::bind_method(D_METHOD("add_optional_variant", "value", "default_value"), &DataBuffer::add_optional_variant);
 
 	ClassDB::bind_method(D_METHOD("read_bool"), &DataBuffer::read_bool);
 	ClassDB::bind_method(D_METHOD("read_int", "compression_level"), &DataBuffer::read_int, DEFVAL(COMPRESSION_LEVEL_1));
@@ -134,6 +134,8 @@ void DataBuffer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("skip_normalized_vector2", "compression_level"), &DataBuffer::skip_normalized_vector2, DEFVAL(COMPRESSION_LEVEL_1));
 	ClassDB::bind_method(D_METHOD("skip_vector3", "compression_level"), &DataBuffer::skip_vector3, DEFVAL(COMPRESSION_LEVEL_1));
 	ClassDB::bind_method(D_METHOD("skip_normalized_vector3", "compression_level"), &DataBuffer::skip_normalized_vector3, DEFVAL(COMPRESSION_LEVEL_1));
+	ClassDB::bind_method(D_METHOD("skip_variant"), &DataBuffer::skip_variant);
+	ClassDB::bind_method(D_METHOD("skip_optional_variant", "default_value"), &DataBuffer::skip_optional_variant);
 
 	ClassDB::bind_method(D_METHOD("get_bool_size"), &DataBuffer::get_bool_size);
 	ClassDB::bind_method(D_METHOD("get_int_size", "compression_level"), &DataBuffer::get_int_size, DEFVAL(COMPRESSION_LEVEL_1));
@@ -155,7 +157,7 @@ void DataBuffer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("read_vector3_size", "compression_level"), &DataBuffer::read_vector3_size, DEFVAL(COMPRESSION_LEVEL_1));
 	ClassDB::bind_method(D_METHOD("read_normalized_vector3_size", "compression_level"), &DataBuffer::read_normalized_vector3_size, DEFVAL(COMPRESSION_LEVEL_1));
 	ClassDB::bind_method(D_METHOD("read_variant_size"), &DataBuffer::read_variant_size);
-	ClassDB::bind_method(D_METHOD("read_optional_variant_size"), &DataBuffer::read_optional_variant_size);
+	ClassDB::bind_method(D_METHOD("read_optional_variant_size", "default_value"), &DataBuffer::read_optional_variant_size);
 
 	ClassDB::bind_method(D_METHOD("begin_read"), &DataBuffer::begin_read);
 	ClassDB::bind_method(D_METHOD("begin_write", "meta_size"), &DataBuffer::begin_write);
@@ -921,12 +923,25 @@ Variant DataBuffer::add_variant(const Variant &p_input) {
 }
 
 /// This is an optimization for when we want a null Variant to be a single bit in the buffer.
-Variant DataBuffer::add_optional_variant(const Variant &p_input) {
-	return add_variant(p_input);
+Variant DataBuffer::add_optional_variant(const Variant &p_input, const Variant &p_default) {
+	if (p_input == p_default) {
+		add(true);
+		return p_default;
+	} else {
+		add(false);
+		add_variant(p_input);
+		return p_input;
+	}
 }
 
-Variant DataBuffer::read_optional_variant() {
-	return read_variant();
+Variant DataBuffer::read_optional_variant(const Variant &p_default) {
+	bool is_def = true;
+	read(is_def);
+	if (is_def) {
+		return p_default;
+	} else {
+		return read_variant();
+	}
 }
 
 Variant DataBuffer::read_variant() {
@@ -1087,6 +1102,16 @@ void DataBuffer::skip_normalized_vector3(CompressionLevel p_compression) {
 	skip(bits);
 }
 
+void DataBuffer::skip_variant() {
+	// This already seek the offset as `skip` does.
+	read_variant_size();
+}
+
+void DataBuffer::skip_optional_variant(const Variant &p_def) {
+	// This already seek the offset as `skip` does.
+	read_optional_variant_size(p_def);
+}
+
 int DataBuffer::get_bool_size() const {
 	return DataBuffer::get_bit_taken(DATA_TYPE_BOOL, COMPRESSION_LEVEL_0);
 }
@@ -1188,12 +1213,11 @@ int DataBuffer::read_normalized_vector3_size(CompressionLevel p_compression) {
 }
 
 int DataBuffer::read_variant_size() {
-	int len = 0;
-
 	Variant ret;
 
 	// The Variant is always written starting from the beginning of the byte.
-	const bool success = pad_to_next_byte();
+	int padding_bits;
+	const bool success = pad_to_next_byte(&padding_bits);
 	ERR_FAIL_COND_V_MSG(success == false, Variant(), "Padding failed.");
 
 #ifdef DEBUG_ENABLED
@@ -1202,6 +1226,7 @@ int DataBuffer::read_variant_size() {
 	CRASH_COND((bit_offset % 8) != 0);
 #endif
 
+	int len = 0;
 	const Error read_err = decode_variant(
 			ret,
 			buffer.get_bytes().ptr() + (bit_offset / 8),
@@ -1216,12 +1241,20 @@ int DataBuffer::read_variant_size() {
 
 	bit_offset += len * 8;
 
-	return len * 8;
+	return padding_bits + (len * 8);
 }
 
+int DataBuffer::read_optional_variant_size(const Variant &p_def) {
+	int len = get_bool_size();
 
-int DataBuffer::read_optional_variant_size() {
-	return read_variant_size();
+	bool is_def = true;
+	read(is_def);
+
+	if (!is_def) {
+		len += read_variant_size();
+	}
+
+	return len;
 }
 
 int DataBuffer::get_bit_taken(DataType p_data_type, CompressionLevel p_compression) {
@@ -1383,12 +1416,15 @@ void DataBuffer::make_room_pad_to_next_byte() {
 	bit_offset += bits_to_next_byte;
 }
 
-bool DataBuffer::pad_to_next_byte() {
+bool DataBuffer::pad_to_next_byte(int *p_bits_to_next_byte) {
 	const int bits_to_next_byte = ((bit_offset + 7) & ~7) - bit_offset;
 	ERR_FAIL_COND_V_MSG(
 			bit_offset + bits_to_next_byte > buffer.size_in_bits(),
 			false,
 			"");
 	bit_offset += bits_to_next_byte;
+	if (p_bits_to_next_byte) {
+		*p_bits_to_next_byte = bits_to_next_byte;
+	}
 	return true;
 }

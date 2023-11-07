@@ -307,13 +307,14 @@ public:
 	/// Parse the next data as Variant and returns it.
 	Variant read_variant();
 
-	/// Add a nullable variant. This is a packet size optimization for null cases.
-	/// If that first bool is false, the original variant value was null
-	Variant add_optional_variant(const Variant &p_input);
+	/// This function differ from the `add_variant` because when the variant passed
+	/// equals to the default one: the variant is not encoded into the data buffer
+	/// and takes no space.
+	Variant add_optional_variant(const Variant &p_input, const Variant &p_def);
 
-	/// Parse the next data as an encoded nullable Variant and returns it.
-	/// If that first bool is false, the original variant value was null
-	Variant read_optional_variant();
+	/// Returns the variant encoded using `add_optinal_variant`.
+	/// Make sure `p_def` equals to the one passed to `add_optional_variant`.
+	Variant read_optional_variant(const Variant &p_def);
 
 	/// Add a data buffer to this buffer.
 	void add_data_buffer(const DataBuffer &p_db);
@@ -338,6 +339,8 @@ public:
 	void skip_normalized_vector2(CompressionLevel p_compression);
 	void skip_vector3(CompressionLevel p_compression);
 	void skip_normalized_vector3(CompressionLevel p_compression);
+	void skip_variant();
+	void skip_optional_variant(const Variant &p_def);
 
 	/** Just returns the size of a specific type. */
 
@@ -365,7 +368,7 @@ public:
 	int read_vector3_size(CompressionLevel p_compression);
 	int read_normalized_vector3_size(CompressionLevel p_compression);
 	int read_variant_size();
-	int read_optional_variant_size();
+	int read_optional_variant_size(const Variant &p_def);
 	int read_buffer_size();
 
 	static int get_bit_taken(DataType p_data_type, CompressionLevel p_compression);
@@ -378,7 +381,7 @@ private:
 
 	void make_room_in_bits(int p_dim);
 	void make_room_pad_to_next_byte();
-	bool pad_to_next_byte();
+	bool pad_to_next_byte(int *p_bits_to_next_byte = nullptr);
 };
 
 VARIANT_ENUM_CAST(DataBuffer::DataType)
