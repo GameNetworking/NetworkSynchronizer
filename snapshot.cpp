@@ -111,6 +111,7 @@ NS::Snapshot NS::Snapshot::make_copy(const Snapshot &p_other) {
 
 void NS::Snapshot::copy(const Snapshot &p_other) {
 	input_id = p_other.input_id;
+	simulated_objects = p_other.simulated_objects;
 	object_vars.resize(p_other.object_vars.size());
 	for (std::size_t i = 0; i < p_other.object_vars.size(); i++) {
 		object_vars[i].resize(p_other.object_vars[i].size());
@@ -137,6 +138,30 @@ bool NS::Snapshot::compare(
 #ifdef DEBUG_ENABLED
 	bool is_equal = true;
 #endif
+
+	if (p_snap_A.simulated_objects.size() != p_snap_B.simulated_objects.size()) {
+		if (r_differences_info) {
+			r_differences_info->push_back("Difference detected: simulated_object count is different snapA: " + itos(p_snap_A.simulated_objects.size()) + " snapB: " + itos(p_snap_B.simulated_objects.size()) + ".");
+		}
+#ifdef DEBUG_ENABLED
+		is_equal = false;
+#else
+		return false;
+#endif
+	} else {
+		for (size_t i = 0; i < p_snap_A.simulated_objects.size(); i++) {
+			if (p_snap_A.simulated_objects[i] != p_snap_B.simulated_objects[i]) {
+				if (r_differences_info) {
+					r_differences_info->push_back("Difference detected: simulated object index `" + itos(i) + "` value is snapA `" + itos(p_snap_A.simulated_objects[i].id) + "` snapB `" + itos(p_snap_B.simulated_objects[i].id) + "`.");
+				}
+#ifdef DEBUG_ENABLED
+				is_equal = false;
+#else
+				return false;
+#endif
+			}
+		}
+	}
 
 	if (p_snap_A.has_custom_data != p_snap_B.has_custom_data) {
 		if (r_differences_info) {

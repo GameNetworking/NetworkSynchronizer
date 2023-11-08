@@ -369,6 +369,8 @@ public: // ---------------------------------------------------------------- APIs
 	void change_event_add(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old);
 	void change_events_flush();
 
+	const std::vector<ObjectNetId> *client_get_simulated_objects() const;
+
 public: // ------------------------------------------------------------ INTERNAL
 	void update_objects_relevancy();
 
@@ -520,6 +522,7 @@ public:
 class ClientSynchronizer : public Synchronizer {
 	friend class SceneSynchronizerBase;
 
+	std::vector<ObjectNetId> simulated_objects;
 	NS::ObjectData *player_controller_object_data = nullptr;
 	std::map<ObjectNetId, std::string> objects_names;
 
@@ -638,7 +641,7 @@ public:
 			void (*p_input_id_parse)(void *p_user_pointer, uint32_t p_input_id),
 			void (*p_controller_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
 			void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, VarData &&p_value),
-			void (*p_object_activation_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, bool p_is_active));
+			void (*p_simulated_objects_parse)(void *p_user_pointer, std::vector<ObjectNetId> &&p_simulated_objects));
 
 	void set_enabled(bool p_enabled);
 
@@ -687,10 +690,11 @@ private:
 	void notify_server_full_snapshot_is_needed();
 
 	void update_client_snapshot(NS::Snapshot &p_snapshot);
+	void update_simulated_objects_list(const std::vector<ObjectNetId> &p_simulated_objects);
 	void apply_snapshot(
 			const NS::Snapshot &p_snapshot,
 			int p_flag,
-			LocalVector<String> *r_applied_data_info,
+			std::vector<std::string> *r_applied_data_info,
 			bool p_skip_custom_data = false);
 };
 

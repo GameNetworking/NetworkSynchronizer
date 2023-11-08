@@ -15,6 +15,7 @@
 #include "modules/network_synchronizer/data_buffer.h"
 #include "modules/network_synchronizer/net_utilities.h"
 #include "modules/network_synchronizer/networked_controller.h"
+#include "modules/network_synchronizer/scene_synchronizer.h"
 #include "modules/network_synchronizer/snapshot.h"
 #include "scene_synchronizer_debugger.h"
 #include <limits>
@@ -1077,6 +1078,11 @@ void SceneSynchronizerBase::change_events_flush() {
 	end_sync = false;
 }
 
+const std::vector<ObjectNetId> *SceneSynchronizerBase::client_get_simulated_objects() const {
+	ERR_FAIL_COND_V_MSG(!is_client(), nullptr, "This function CAN be used only on the client.");
+	return &(static_cast<ClientSynchronizer *>(synchronizer)->simulated_objects);
+}
+
 void SceneSynchronizerBase::drop_object_data(NS::ObjectData &p_object_data) {
 	synchronizer_manager->on_drop_object_data(p_object_data);
 
@@ -2128,11 +2134,6 @@ void ClientSynchronizer::store_controllers_snapshot(
 		std::deque<NS::Snapshot> &r_snapshot_storage) {
 	// Put the parsed snapshot into the queue.
 
-	if (p_snapshot.input_id == UINT32_MAX && player_controller_object_data != nullptr) {
-		// The snapshot doesn't have any info for this controller; Skip it.
-		return;
-	}
-
 	if (p_snapshot.input_id == UINT32_MAX) {
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The Client received the server snapshot WITHOUT `input_id`.", true);
 		// The controller node is not registered so just assume this snapshot is the most up-to-date.
@@ -2383,7 +2384,7 @@ void ClientSynchronizer::__pcr__sync__rewind() {
 	// Apply the server snapshot so to go back in time till that moment,
 	// so to be able to correctly reply the movements.
 
-	LocalVector<String> applied_data_info;
+	std::vector<std::string> applied_data_info;
 
 	const NS::Snapshot &server_snapshot = server_snapshots.front();
 	apply_snapshot(
@@ -2394,7 +2395,7 @@ void ClientSynchronizer::__pcr__sync__rewind() {
 	if (applied_data_info.size() > 0) {
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "Full reset:");
 		for (int i = 0; i < int(applied_data_info.size()); i++) {
-			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|- " + applied_data_info[i]);
+			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|- " + String(applied_data_info[i].c_str()));
 		}
 	}
 }
@@ -2450,7 +2451,7 @@ void ClientSynchronizer::__pcr__sync__no_rewind(const NS::Snapshot &p_no_rewind_
 	CRASH_COND_MSG(p_no_rewind_recover.input_id != 0, "This function is never called unless there is something to recover without rewinding.");
 
 	// Apply found differences without rewind.
-	LocalVector<String> applied_data_info;
+	std::vector<std::string> applied_data_info;
 
 	apply_snapshot(
 			p_no_rewind_recover,
@@ -2462,7 +2463,7 @@ void ClientSynchronizer::__pcr__sync__no_rewind(const NS::Snapshot &p_no_rewind_
 	if (applied_data_info.size() > 0) {
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "Partial reset:");
 		for (int i = 0; i < int(applied_data_info.size()); i++) {
-			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|- " + applied_data_info[i]);
+			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|- " + String(applied_data_info[i].c_str()));
 		}
 	}
 
@@ -2492,7 +2493,7 @@ void ClientSynchronizer::process_paused_controller_recovery(real_t p_delta) {
 #ifdef DEBUG_ENABLED
 	CRASH_COND(server_snapshots.empty());
 #endif
-	LocalVector<String> applied_data_info;
+	std::vector<std::string> applied_data_info;
 
 	apply_snapshot(
 			server_snapshots.front(),
@@ -2504,7 +2505,7 @@ void ClientSynchronizer::process_paused_controller_recovery(real_t p_delta) {
 	if (applied_data_info.size() > 0) {
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "Paused controller recover:");
 		for (int i = 0; i < int(applied_data_info.size()); i++) {
-			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|- " + applied_data_info[i]);
+			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|- " + String(applied_data_info[i].c_str()));
 		}
 	}
 }
@@ -2578,7 +2579,7 @@ bool ClientSynchronizer::parse_sync_data(
 		void (*p_input_id_parse)(void *p_user_pointer, uint32_t p_input_id),
 		void (*p_controller_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
 		void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, VarData &&p_value),
-		void (*p_node_activation_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, bool p_is_active)) {
+		void (*p_simulated_objects_parse)(void *p_user_pointer, std::vector<ObjectNetId> &&p_simulated_objects)) {
 	// The snapshot is a DataBuffer that contains the scene informations.
 	// NOTE: Check generate_snapshot to see the DataBuffer format.
 
@@ -2588,30 +2589,35 @@ bool ClientSynchronizer::parse_sync_data(
 		return true;
 	}
 
-	std::vector<ObjectNetId> active_objects;
+	{
+		// Fetch the `InputID`.
+		std::uint32_t input_id;
+		p_snapshot.read(input_id);
+		ERR_FAIL_COND_V_MSG(p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as the `InputID` expected is not set.");
+		p_input_id_parse(p_user_pointer, input_id);
 
-	// Fetch the `InputID`.
-	std::uint32_t input_id;
-	p_snapshot.read(input_id);
-	ERR_FAIL_COND_V_MSG(p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as the `InputID` expected is not set.");
-	p_input_id_parse(p_user_pointer, input_id);
+		// Fetch `active_node_list_byte_array`.
+		bool has_active_list_array;
+		p_snapshot.read(has_active_list_array);
+		ERR_FAIL_COND_V_MSG(p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as the `has_active_list_array` boolean expected is not set.");
+		if (has_active_list_array) {
+			std::vector<ObjectNetId> simulated_objects;
+			simulated_objects.reserve(scene_synchronizer->get_all_object_data().size());
 
-	// Fetch `active_node_list_byte_array`.
-	bool has_active_list_array;
-	p_snapshot.read(has_active_list_array);
-	ERR_FAIL_COND_V_MSG(p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as the `has_active_list_array` boolean expected is not set.");
-	if (has_active_list_array) {
-		// Fetch the array.
-		while (true) {
-			ObjectNetId id;
-			p_snapshot.read(id.id);
-			ERR_FAIL_COND_V_MSG(p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `ObjectNetId` failed.");
+			// Fetch the array.
+			while (true) {
+				ObjectNetId id;
+				p_snapshot.read(id.id);
+				ERR_FAIL_COND_V_MSG(p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `ObjectNetId` failed.");
 
-			if (id == ObjectNetId::NONE) {
-				// The end.
-				break;
+				if (id == ObjectNetId::NONE) {
+					// The end.
+					break;
+				}
+				simulated_objects.push_back(id);
 			}
-			active_objects.push_back(id);
+
+			p_simulated_objects_parse(p_user_pointer, std::move(simulated_objects));
 		}
 	}
 
@@ -2742,31 +2748,6 @@ bool ClientSynchronizer::parse_sync_data(
 				}
 			}
 		}
-	}
-
-	// Fetch the active node list, and execute the callback to notify if the
-	// node is active or not.
-	if (has_active_list_array) {
-		for (ObjectData *od : scene_synchronizer->objects_data_storage.get_sorted_objects_data()) {
-			if (od) {
-				auto active_it = VecFunc::find(active_objects, od->get_net_id());
-				const bool is_active = active_it != active_objects.end();
-
-				if (is_active) {
-					// Remove it from the active list.
-					active_objects.erase(active_it);
-				}
-
-				p_node_activation_parse(p_user_pointer, od, is_active);
-			}
-		}
-	}
-
-	if (!active_objects.empty()) {
-		// There are some objects lefts into the active objects list, which means this
-		// peer doesn't have all the objects registered by the server.
-		SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "This client received an active object data that is not registered. Requested full snapshot.");
-		notify_server_full_snapshot_is_needed();
 	}
 
 	return true;
@@ -3040,19 +3021,9 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 			},
 
 			// Parse node activation:
-			[](void *p_user_pointer, NS::ObjectData *p_object_data, bool p_is_active) {
+			[](void *p_user_pointer, std::vector<ObjectNetId> &&p_simulated_objects) {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
-				if (p_object_data->realtime_sync_enabled_on_client != p_is_active) {
-					p_object_data->realtime_sync_enabled_on_client = p_is_active;
-
-					// Make sure the process_function cache is cleared.
-					pd->scene_synchronizer->process_functions__clear();
-				}
-
-				// Make sure this node is not into the trickled sync list.
-				if (p_is_active) {
-					pd->client_synchronizer->remove_object_from_trickled_sync(p_object_data);
-				}
+				pd->snapshot.simulated_objects = std::move(p_simulated_objects);
 			});
 
 	if (success == false) {
@@ -3120,14 +3091,35 @@ void ClientSynchronizer::update_client_snapshot(NS::Snapshot &r_snapshot) {
 	}
 }
 
+void ClientSynchronizer::update_simulated_objects_list(const std::vector<ObjectNetId> &p_simulated_objects) {
+	// Reset the simulated object first.
+	for (auto od : scene_synchronizer->get_all_object_data()) {
+		const bool is_simulating = NS::VecFunc::has(p_simulated_objects, od->get_net_id());
+		if (od->realtime_sync_enabled_on_client != is_simulating) {
+			od->realtime_sync_enabled_on_client = is_simulating;
+
+			// Make sure the process_function cache is cleared.
+			scene_synchronizer->process_functions__clear();
+
+			// Make sure this node is NOT into the trickled sync list.
+			if (is_simulating) {
+				remove_object_from_trickled_sync(od);
+			}
+		}
+	}
+	simulated_objects = p_simulated_objects;
+}
+
 void ClientSynchronizer::apply_snapshot(
 		const NS::Snapshot &p_snapshot,
 		int p_flag,
-		LocalVector<String> *r_applied_data_info,
+		std::vector<std::string> *r_applied_data_info,
 		bool p_skip_custom_data) {
 	const std::vector<NS::NameAndVar> *objects_vars = p_snapshot.object_vars.data();
 
 	scene_synchronizer->change_events_begin(p_flag);
+
+	update_simulated_objects_list(p_snapshot.simulated_objects);
 
 	for (ObjectNetId net_node_id = { 0 }; net_node_id < ObjectNetId{ uint32_t(p_snapshot.object_vars.size()) }; net_node_id += 1) {
 		NS::ObjectData *nd = scene_synchronizer->get_object_data(net_node_id);
@@ -3148,7 +3140,7 @@ void ClientSynchronizer::apply_snapshot(
 		const NS::NameAndVar *vars_ptr = vars.data();
 
 		if (r_applied_data_info) {
-			r_applied_data_info->push_back("Applied snapshot data on the node: " + String(nd->object_name.c_str()));
+			r_applied_data_info->push_back("Applied snapshot data on the node: " + std::string(nd->object_name.c_str()));
 		}
 
 		// NOTE: The vars may not contain ALL the variables: it depends on how
@@ -3175,7 +3167,7 @@ void ClientSynchronizer::apply_snapshot(
 						current_val);
 
 				if (r_applied_data_info) {
-					r_applied_data_info->push_back(String() + " |- Variable: " + vars_ptr[v.id].name.c_str() + " New value: " + SceneSynchronizerBase::var_data_stringify(vars_ptr[v.id].value).c_str());
+					r_applied_data_info->push_back(std::string() + " |- Variable: " + vars_ptr[v.id].name + " New value: " + SceneSynchronizerBase::var_data_stringify(vars_ptr[v.id].value));
 				}
 			}
 		}

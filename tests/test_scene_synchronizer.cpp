@@ -296,7 +296,7 @@ void test_state_notify() {
 			peer_1_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
 			peer_2_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
 
-			// Process two times to make sure all the peers are initialized at thie time.
+			// Process three times to make sure all the peers are initialized at thie time.
 			for (int j = 0; j < 2; j++) {
 				server_scene.process(delta);
 				peer_1_scene.process(delta);
