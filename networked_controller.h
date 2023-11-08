@@ -250,6 +250,7 @@ public: // -------------------------------------------------------------- Events
 public:
 	void set_inputs_buffer(const BitArray &p_new_buffer, uint32_t p_metadata_size_in_bit, uint32_t p_size_in_bit);
 
+	void unregister_with_synchronizer(NS::SceneSynchronizerBase *p_synchronizer);
 	void notify_registered_with_synchronizer(NS::SceneSynchronizerBase *p_synchronizer, NS::ObjectData &p_nd);
 	NS::SceneSynchronizerBase *get_scene_synchronizer() const;
 	bool has_scene_synchronizer() const;

@@ -277,46 +277,53 @@ void NetworkedControllerBase::set_inputs_buffer(const BitArray &p_new_buffer, ui
 	inputs_buffer->shrink_to(p_metadata_size_in_bit, p_size_in_bit);
 }
 
-void NetworkedControllerBase::notify_registered_with_synchronizer(NS::SceneSynchronizerBase *p_synchronizer, NS::ObjectData &p_nd) {
-	if (scene_synchronizer) {
-		scene_synchronizer->event_peer_status_updated.unbind(event_handler_peer_status_updated);
-		scene_synchronizer->event_state_validated.unbind(event_handler_state_validated);
-		scene_synchronizer->event_rewind_frame_begin.unbind(event_handler_rewind_frame_begin);
-		event_handler_rewind_frame_begin = NS::NullPHandler;
-		event_handler_state_validated = NS::NullPHandler;
-		event_handler_peer_status_updated = NS::NullPHandler;
-		scene_synchronizer->unregister_process(
-				scene_synchronizer->find_object_local_id(*this),
-				PROCESSPHASE_PROCESS,
-				process_handler_process);
-		process_handler_process = NS::NullPHandler;
+void NetworkedControllerBase::unregister_with_synchronizer(NS::SceneSynchronizerBase *p_synchronizer) {
+	if (scene_synchronizer == nullptr) {
+		// Nothing to unregister.
+		return;
 	}
+	ERR_FAIL_COND_MSG(p_synchronizer != scene_synchronizer, "Cannot unregister because the given `SceneSynchronizer` is not the old one. This is a bug, one `SceneSynchronizer` should not try to unregister another one's controller.");
+	// Unregister the event processors with the scene synchronizer.
+	scene_synchronizer->event_peer_status_updated.unbind(event_handler_peer_status_updated);
+	scene_synchronizer->event_state_validated.unbind(event_handler_state_validated);
+	scene_synchronizer->event_rewind_frame_begin.unbind(event_handler_rewind_frame_begin);
+	event_handler_rewind_frame_begin = NS::NullPHandler;
+	event_handler_state_validated = NS::NullPHandler;
+	event_handler_peer_status_updated = NS::NullPHandler;
+	// Unregister the process handler with the scene synchronizer.
+	NS::ObjectLocalId local_id = scene_synchronizer->find_object_local_id(*this);
+	scene_synchronizer->unregister_process(local_id, PROCESSPHASE_PROCESS, process_handler_process);
+	process_handler_process = NS::NullPHandler;
+	// Empty the network controller variables.
+	net_id = ObjectNetId::NONE;
+	scene_synchronizer = nullptr;
+}
 
+void NetworkedControllerBase::notify_registered_with_synchronizer(NS::SceneSynchronizerBase *p_synchronizer, NS::ObjectData &p_nd) {
+	ERR_FAIL_COND_MSG(scene_synchronizer != nullptr, "Cannot register with a new `SceneSynchronizer` because this controller is already registered with one. This is a bug, one controller should not be registered with two `SceneSynchronizer`s.");
 	net_id = ObjectNetId::NONE;
 	scene_synchronizer = p_synchronizer;
 
-	if (scene_synchronizer) {
-		process_handler_process =
-				scene_synchronizer->register_process(
-						p_nd.get_local_id(),
-						PROCESSPHASE_PROCESS,
-						[this](float p_delta) -> void { process(p_delta); });
+	process_handler_process =
+			scene_synchronizer->register_process(
+					p_nd.get_local_id(),
+					PROCESSPHASE_PROCESS,
+					[this](float p_delta) -> void { process(p_delta); });
 
-		event_handler_peer_status_updated =
-				scene_synchronizer->event_peer_status_updated.bind([this](const NS::ObjectData *p_object_data, int p_peer_id, bool p_connected, bool p_enabled) -> void {
-					on_peer_status_updated(p_object_data, p_peer_id, p_connected, p_enabled);
-				});
+	event_handler_peer_status_updated =
+			scene_synchronizer->event_peer_status_updated.bind([this](const NS::ObjectData *p_object_data, int p_peer_id, bool p_connected, bool p_enabled) -> void {
+				on_peer_status_updated(p_object_data, p_peer_id, p_connected, p_enabled);
+			});
 
-		event_handler_state_validated =
-				scene_synchronizer->event_state_validated.bind([this](uint32_t p_input_id) -> void {
-					on_state_validated(p_input_id);
-				});
+	event_handler_state_validated =
+			scene_synchronizer->event_state_validated.bind([this](uint32_t p_input_id) -> void {
+				on_state_validated(p_input_id);
+			});
 
-		event_handler_rewind_frame_begin =
-				scene_synchronizer->event_rewind_frame_begin.bind([this](uint32_t p_input_id, int p_index, int p_count) -> void {
-					on_rewind_frame_begin(p_input_id, p_index, p_count);
-				});
-	}
+	event_handler_rewind_frame_begin =
+			scene_synchronizer->event_rewind_frame_begin.bind([this](uint32_t p_input_id, int p_index, int p_count) -> void {
+				on_rewind_frame_begin(p_input_id, p_index, p_count);
+			});
 }
 
 NS::SceneSynchronizerBase *NetworkedControllerBase::get_scene_synchronizer() const {

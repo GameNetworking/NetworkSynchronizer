@@ -1092,7 +1092,7 @@ void SceneSynchronizerBase::drop_object_data(NS::ObjectData &p_object_data) {
 
 	if (p_object_data.get_controller()) {
 		// This is a controller, make sure to reset the peers.
-		p_object_data.get_controller()->notify_registered_with_synchronizer(nullptr, p_object_data);
+		p_object_data.get_controller()->unregister_with_synchronizer(this);
 		dirty_peers();
 	}
 
