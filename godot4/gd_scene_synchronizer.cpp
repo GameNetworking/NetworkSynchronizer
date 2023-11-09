@@ -2,6 +2,7 @@
 
 #include "core/object/object.h"
 #include "core/string/string_name.h"
+#include "core/string/ustring.h"
 #include "modules/network_synchronizer/core/core.h"
 #include "modules/network_synchronizer/core/processor.h"
 #include "modules/network_synchronizer/data_buffer.h"
@@ -15,6 +16,7 @@
 #include "scene/main/node.h"
 #include "scene/main/window.h"
 #include <cstring>
+#include <string>
 #include <vector>
 
 void GdSceneSynchronizer::_bind_methods() {
@@ -1026,10 +1028,23 @@ bool GdSceneSynchronizer::compare(const Variant &p_first, const Variant &p_secon
 
 // This was needed to optimize the godot stringify for byte arrays.. it was slowing down perfs.
 String stringify_byte_array_fast(const Vector<uint8_t> &p_array) {
-	CharString str;
-	str.resize(p_array.size());
-	memcpy(str.ptrw(), p_array.ptr(), p_array.size());
-	return String(str);
+	// At the moment printing the bytes is way to heavy. Need to find a better way.
+	if (true) {
+		return String("Bytes (" + itos(p_array.size()) + ") ");
+	} else {
+		// NOTE: std::to_string() is faster than itos().
+		std::string str;
+		str.reserve((p_array.size() * 7) + 50);
+		str.append("Bytes (" + std::to_string(p_array.size()) + "): ");
+
+		const uint8_t *array_ptr = p_array.ptr();
+		for (int i = 0; i < p_array.size(); i++) {
+			str.append(std::to_string(array_ptr[i]));
+			str.append(", ");
+		}
+
+		return String(str.c_str());
+	}
 }
 
 std::string GdSceneSynchronizer::stringify(const NS::VarData &p_var_data) {

@@ -3095,6 +3095,9 @@ void ClientSynchronizer::update_client_snapshot(NS::Snapshot &r_snapshot) {
 void ClientSynchronizer::update_simulated_objects_list(const std::vector<ObjectNetId> &p_simulated_objects) {
 	// Reset the simulated object first.
 	for (auto od : scene_synchronizer->get_all_object_data()) {
+		if (!od) {
+			continue;
+		}
 		const bool is_simulating = NS::VecFunc::has(p_simulated_objects, od->get_net_id());
 		if (od->realtime_sync_enabled_on_client != is_simulating) {
 			od->realtime_sync_enabled_on_client = is_simulating;
