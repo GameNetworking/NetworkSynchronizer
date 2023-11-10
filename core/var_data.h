@@ -26,7 +26,14 @@ struct VarData {
 			double y;
 			double z;
 			double w;
-		};
+		} vec;
+
+		struct {
+			std::int64_t ix;
+			std::int64_t iy;
+			std::int64_t iz;
+			std::int64_t iw;
+		} ivec;
 
 		struct {
 			double x;
@@ -41,13 +48,6 @@ struct VarData {
 			double z;
 			double w;
 		} rows[4];
-
-		struct {
-			std::int64_t ix;
-			std::int64_t iy;
-			std::int64_t iz;
-			std::int64_t iw;
-		};
 	} data;
 
 	// Eventually shared buffer across many `VarData`.

@@ -270,6 +270,7 @@ public: // ---------------------------------------------------------------- APIs
 	ObjectHandle get_app_object_from_id(ObjectNetId p_id, bool p_expected = true);
 	ObjectHandle get_app_object_from_id_const(ObjectNetId p_id, bool p_expected = true) const;
 
+	const std::vector<ObjectData *> &get_sorted_objects_data() const;
 	const std::vector<ObjectData *> &get_all_object_data() const;
 
 	/// Returns the variable ID relative to the `Object`.

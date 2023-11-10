@@ -6,12 +6,67 @@
 #include "local_scene.h"
 #include "modules/network_synchronizer/core/core.h"
 #include "modules/network_synchronizer/core/var_data.h"
+#include "modules/network_synchronizer/data_buffer.h"
 #include "modules/network_synchronizer/net_utilities.h"
 #include "modules/network_synchronizer/tests/local_network.h"
+#include "modules/network_synchronizer/tests/local_scene.h"
+#include "modules/network_synchronizer/tests/test_math_lib.h"
+#include "test_math_lib.h"
 
 namespace NS_Test {
 
 const float delta = 1.0 / 60.0;
+
+class MagnetSceneObject : public NS::LocalSceneObject {
+public:
+	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
+
+	virtual void on_scene_entry() override {
+		set_weight(1.0);
+		set_position(Vec3());
+
+		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
+	}
+
+	virtual void setup_synchronizer(NS::LocalSceneSynchronizer &p_scene_sync, NS::ObjectLocalId p_id) override {
+		local_id = p_id;
+		p_scene_sync.register_variable(p_id, "weight");
+		p_scene_sync.register_variable(p_id, "position");
+	}
+
+	virtual void on_scene_exit() override {
+		get_scene()->scene_sync->on_app_object_removed(get_scene()->scene_sync->to_handle(this));
+	}
+
+	void set_weight(float w) {
+		NS::VarData vd;
+		vd.data.f32 = w;
+		NS::MapFunc::assign(variables, std::string("weight"), std::move(vd));
+	}
+
+	float get_weight() const {
+		const NS::VarData *vd = NS::MapFunc::at(variables, std::string("weight"));
+		if (vd) {
+			return vd->data.f32;
+		} else {
+			return 1.0;
+		}
+	}
+
+	void set_position(const Vec3 &p_pos) {
+		NS::VarData vd = p_pos;
+		NS::MapFunc::assign(variables, std::string("position"), std::move(vd));
+	}
+
+	Vec3 get_position() const {
+		const NS::VarData *vd = NS::MapFunc::at(variables, std::string("position"));
+		if (vd) {
+			return Vec3::from(*vd);
+		} else {
+			return Vec3();
+		}
+	}
+};
 
 class LocalNetworkedController : public NS::NetworkedController<NS::LocalNetworkInterface>, public NS::NetworkedControllerManager, public NS::LocalSceneObject {
 public:
@@ -24,7 +79,8 @@ public:
 		get_network_interface().init(get_scene()->get_network(), name, authoritative_peer_id);
 		setup(*this);
 
-		variables.insert(std::make_pair("position", NS::VarData()));
+		set_weight(1.0);
+		set_position(Vec3());
 
 		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
 	}
@@ -35,48 +91,249 @@ public:
 
 	virtual void setup_synchronizer(NS::LocalSceneSynchronizer &p_scene_sync, NS::ObjectLocalId p_id) override {
 		local_id = p_id;
+		p_scene_sync.register_variable(p_id, "weight");
 		p_scene_sync.register_variable(p_id, "position");
 	}
 
-	virtual void collect_inputs(double p_delta, DataBuffer &r_buffer) override {
-		r_buffer.add_bool(true);
+	void set_weight(float w) {
+		NS::VarData vd;
+		vd.data.f32 = w;
+		NS::MapFunc::assign(variables, std::string("weight"), std::move(vd));
 	}
 
-	virtual void controller_process(double p_delta, DataBuffer &p_buffer) override {
-		if (p_buffer.read_bool()) {
-			const float one_meter = 1.0;
-			variables["position"].data.f32 += p_delta * one_meter;
+	float get_weight() const {
+		const NS::VarData *vd = NS::MapFunc::at(variables, std::string("weight"));
+		if (vd) {
+			return vd->data.f32;
+		} else {
+			return 1.0;
 		}
 	}
 
+	void set_position(const Vec3 &p_pos) {
+		NS::VarData vd = p_pos;
+		NS::MapFunc::assign(variables, std::string("position"), std::move(vd));
+	}
+
+	Vec3 get_position() const {
+		const NS::VarData *vd = NS::MapFunc::at(variables, std::string("position"));
+		if (vd) {
+			return Vec3::from(*vd);
+		} else {
+			return Vec3();
+		}
+	}
+
+	// ------------------------------------------------- NetController interface
+	const Vec3 inputs[20] = {
+		Vec3(1.0, 0.0, 0.0),
+		Vec3(0.0, 1.0, 0.0),
+		Vec3(0.0, 0.0, 1.0),
+		Vec3(0.0, 1.0, 0.0),
+		Vec3(1.0, 0.0, 0.0),
+		Vec3(1.0, 0.0, 0.0),
+		Vec3(1.0, 0.0, 0.0),
+		Vec3(0.0, 0.0, 1.0),
+		Vec3(0.0, 0.0, 1.0),
+		Vec3(0.0, 0.0, 1.0),
+		Vec3(0.0, 1.0, 0.0),
+		Vec3(1.0, 0.0, 0.0),
+		Vec3(0.0, 0.0, 1.0),
+		Vec3(1.0, 0.0, 0.0),
+		Vec3(1.0, 0.0, 0.0),
+		Vec3(1.0, 0.0, 0.0),
+		Vec3(1.0, 0.0, 0.0),
+		Vec3(1.0, 0.0, 0.0),
+		Vec3(1.0, 0.0, 0.0),
+		Vec3(0.0, 1.0, 0.0)
+	};
+
+	virtual void collect_inputs(double p_delta, DataBuffer &r_buffer) override {
+		const int index = get_current_input_id() % 20;
+		r_buffer.add_normalized_vector3(Vector3(inputs[index].x, inputs[index].y, inputs[index].z), DataBuffer::COMPRESSION_LEVEL_3);
+	}
+
+	virtual void controller_process(double p_delta, DataBuffer &p_buffer) override {
+		const float speed = 1.0;
+		const Vector3 v = p_buffer.read_normalized_vector3(DataBuffer::COMPRESSION_LEVEL_3);
+		const Vec3 input(v.x, v.y, v.z);
+		set_position(get_position() + (input * speed * p_delta));
+	}
+
 	virtual bool are_inputs_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B) override {
-		return p_buffer_A.read_bool() != p_buffer_B.read_bool();
+		const Vector3 v1 = p_buffer_A.read_normalized_vector3(DataBuffer::COMPRESSION_LEVEL_3);
+		const Vector3 v2 = p_buffer_B.read_normalized_vector3(DataBuffer::COMPRESSION_LEVEL_3);
+		return v1 != v2;
 	}
 
 	virtual uint32_t count_input_size(DataBuffer &p_buffer) override {
-		return p_buffer.get_bool_size();
+		return p_buffer.get_normalized_vector2_size(DataBuffer::COMPRESSION_LEVEL_3);
 	}
 };
 
-void test_rewinding() {
-	NS::LocalScene server_scene;
-	server_scene.start_as_server();
+void process_magnet_simulation(NS::LocalSceneSynchronizer &scene_sync, float p_delta, MagnetSceneObject &p_mag) {
+	const float pushing_force = 200.0;
 
-	NS::LocalScene peer_1_scene;
-	peer_1_scene.start_as_client(server_scene);
+	for (const NS::ObjectData *od : scene_sync.get_sorted_objects_data()) {
+		if (!od) {
+			continue;
+		}
 
-	NS::ObjectLocalId server_obj_1_oh = server_scene.add_object<TestSceneObject>("obj_1", server_scene.get_peer())->find_local_id();
-	server_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
-	NS::ObjectLocalId p1_obj_1_oh = peer_1_scene.add_object<TestSceneObject>("obj_1", server_scene.get_peer())->find_local_id();
-	peer_1_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
+		NS::LocalSceneObject *lso = scene_sync.from_handle(od->app_object_handle);
+		LocalNetworkedController *controller = dynamic_cast<LocalNetworkedController *>(lso);
+		if (controller) {
+			{
+				const Vec3 mag_to_controller_dir = (controller->get_position() - p_mag.get_position()).normalized();
+				controller->set_position(controller->get_position() + (mag_to_controller_dir * ((pushing_force / controller->get_weight()) * p_delta)));
+			}
+
+			{
+				const Vec3 controller_dir_to_mag = (p_mag.get_position() - controller->get_position()).normalized();
+				p_mag.set_position(p_mag.get_position() + (controller_dir_to_mag * ((pushing_force / p_mag.get_weight()) * p_delta)));
+			}
+		}
+	}
 }
+
+void process_magnets_simulation(NS::LocalSceneSynchronizer &scene_sync, float p_delta) {
+	for (const NS::ObjectData *od : scene_sync.get_sorted_objects_data()) {
+		if (!od) {
+			continue;
+		}
+
+		NS::LocalSceneObject *lso = scene_sync.from_handle(od->app_object_handle);
+		MagnetSceneObject *mso = dynamic_cast<MagnetSceneObject *>(lso);
+		if (mso) {
+			process_magnet_simulation(scene_sync, p_delta, *mso);
+		}
+	}
+}
+
+/// This class is responsible to verify that the client and the server can run
+/// the same simulation.
+/// This class is made in a way which allows to be overriden to test the sync
+/// still works under bad conditions.
+struct TestSimulationBase {
+	NS::LocalScene server_scene;
+	NS::LocalScene peer_1_scene;
+	LocalNetworkedController *controller_server = nullptr;
+	LocalNetworkedController *controller_p1 = nullptr;
+
+	int process_until_frame = 300;
+	int process_until_frame_timeout = 20;
+
+private:
+	virtual void on_scenes_initialized() {}
+	virtual void on_process(float p_delta) {}
+
+public:
+	void do_test() {
+		// Create a server
+		server_scene.start_as_server();
+
+		// and a client connected to the server.
+		peer_1_scene.start_as_client(server_scene);
+
+		// Add the scene sync
+		server_scene.scene_sync =
+				server_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+		peer_1_scene.scene_sync =
+				peer_1_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+
+		// Then compose the scene: 1 controller and 2 magnets.
+		controller_server = server_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
+		controller_p1 = peer_1_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
+
+		MagnetSceneObject *light_magnet_server = server_scene.add_object<MagnetSceneObject>("magnet_1", server_scene.get_peer());
+		MagnetSceneObject *light_magnet_p1 = peer_1_scene.add_object<MagnetSceneObject>("magnet_1", server_scene.get_peer());
+
+		MagnetSceneObject *heavy_magnet_server = server_scene.add_object<MagnetSceneObject>("magnet_2", server_scene.get_peer());
+		MagnetSceneObject *heavy_magnet_p1 = peer_1_scene.add_object<MagnetSceneObject>("magnet_2", server_scene.get_peer());
+
+		// Register the process
+		server_scene.scene_sync->register_process(controller_server->local_id, PROCESSPHASE_LATE, [=](float p_delta) -> void {
+			process_magnets_simulation(*server_scene.scene_sync, p_delta);
+		});
+		peer_1_scene.scene_sync->register_process(controller_p1->local_id, PROCESSPHASE_LATE, [=](float p_delta) -> void {
+			process_magnets_simulation(*peer_1_scene.scene_sync, p_delta);
+		});
+
+		on_scenes_initialized();
+
+		// Set the weight of each object:
+		controller_server->set_position(Vec3(1.0, 1.0, 1.0));
+		controller_p1->set_position(Vec3(1.0, 1.0, 1.0));
+		controller_server->set_weight(70.0);
+		controller_p1->set_weight(70.0);
+
+		light_magnet_server->set_position(Vec3(2.0, 1.0, 1.0));
+		light_magnet_p1->set_position(Vec3(2.0, 1.0, 1.0));
+		light_magnet_server->set_weight(1.0);
+		light_magnet_p1->set_weight(1.0);
+
+		heavy_magnet_server->set_position(Vec3(1.0, 1.0, 2.0));
+		heavy_magnet_p1->set_position(Vec3(1.0, 1.0, 2.0));
+		heavy_magnet_server->set_weight(200.0);
+		heavy_magnet_p1->set_weight(200.0);
+
+		bool server_reached_target_frame = false;
+		bool p1_reached_target_frame = false;
+
+		Vec3 controller_server_position_at_target_frame;
+		Vec3 light_mag_server_position_at_target_frame;
+		Vec3 heavy_mag_server_position_at_target_frame;
+		Vec3 controller_p1_position_at_target_frame;
+		Vec3 light_mag_p1_position_at_target_frame;
+		Vec3 heavy_mag_p1_position_at_target_frame;
+
+		while (true) {
+			server_scene.process(delta);
+			peer_1_scene.process(delta);
+
+			on_process(delta);
+
+			if (controller_server->get_current_input_id() == process_until_frame) {
+				server_reached_target_frame = true;
+				controller_server_position_at_target_frame = controller_server->get_position();
+				light_mag_server_position_at_target_frame = light_magnet_server->get_position();
+				heavy_mag_server_position_at_target_frame = heavy_magnet_server->get_position();
+			}
+			if (controller_p1->get_current_input_id() == process_until_frame) {
+				p1_reached_target_frame = true;
+				controller_p1_position_at_target_frame = controller_p1->get_position();
+				light_mag_p1_position_at_target_frame = light_magnet_p1->get_position();
+				heavy_mag_p1_position_at_target_frame = heavy_magnet_p1->get_position();
+			}
+
+			if (server_reached_target_frame && p1_reached_target_frame) {
+				break;
+			}
+
+			CRASH_COND(controller_server->get_current_input_id() >= (process_until_frame + process_until_frame_timeout) && controller_server->get_current_input_id() != UINT32_MAX);
+			CRASH_COND(controller_p1->get_current_input_id() >= (process_until_frame + process_until_frame_timeout) && controller_p1->get_current_input_id() != UINT32_MAX);
+		}
+
+		//                  ---- Validation phase ----
+		// First make sure all positions have changed at all.
+		CRASH_COND(controller_server->get_position().distance_to(Vec3(1, 1, 1)) <= 0.0001);
+		CRASH_COND(light_magnet_server->get_position().distance_to(Vec3(2, 1, 1)) <= 0.0001);
+		CRASH_COND(heavy_magnet_server->get_position().distance_to(Vec3(1, 1, 2)) <= 0.0001);
+
+		// Now, make sure the client and server positions are the same: ensuring the
+		// sync worked.
+		CRASH_COND(controller_server_position_at_target_frame.distance_to(controller_p1_position_at_target_frame) >= 0.0001);
+		CRASH_COND(light_mag_server_position_at_target_frame.distance_to(light_mag_p1_position_at_target_frame) >= 0.0001);
+		CRASH_COND(heavy_mag_server_position_at_target_frame.distance_to(heavy_mag_p1_position_at_target_frame) >= 0.0001);
+	}
+};
 
 void test_doll_simulation_rewindings() {
 	// TODO implement this.
 }
 
 void test_simulation() {
-	test_rewinding();
+	TestSimulationBase().do_test();
+
 	test_doll_simulation_rewindings();
 }
 }; //namespace NS_Test
