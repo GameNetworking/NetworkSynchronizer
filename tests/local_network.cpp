@@ -200,7 +200,7 @@ void NS_Test::test_local_network() {
 				CRASH_COND(a != true);
 				CRASH_COND(b != 22);
 				CRASH_COND(c != 44.0);
-				CRASH_COND(Vector3(d.data.x, d.data.y, d.data.z).distance_to(Vector3(1, 2, 3)) > 0.001);
+				CRASH_COND(Vector3(d.data.vec.x, d.data.vec.y, d.data.vec.z).distance_to(Vector3(1, 2, 3)) > 0.001);
 				CRASH_COND(e.size() != 3);
 				CRASH_COND(e[0] != 1);
 				CRASH_COND(e[1] != 2);
@@ -219,7 +219,7 @@ void NS_Test::test_local_network() {
 				CRASH_COND(a != true);
 				CRASH_COND(b != 22);
 				CRASH_COND(c != 44.0);
-				CRASH_COND(Vector3(d.data.x, d.data.y, d.data.z).distance_to(Vector3(1, 2, 3)) > 0.001);
+				CRASH_COND(Vector3(d.data.vec.x, d.data.vec.y, d.data.vec.z).distance_to(Vector3(1, 2, 3)) > 0.001);
 				CRASH_COND(e.size() != 3);
 				CRASH_COND(e[0] != 1);
 				CRASH_COND(e[1] != 2);

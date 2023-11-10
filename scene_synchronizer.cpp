@@ -366,6 +366,10 @@ ObjectHandle SceneSynchronizerBase::get_app_object_from_id_const(ObjectNetId p_i
 	}
 }
 
+const std::vector<ObjectData *> &SceneSynchronizerBase::get_sorted_objects_data() const {
+	return objects_data_storage.get_sorted_objects_data();
+}
+
 const std::vector<ObjectData *> &SceneSynchronizerBase::get_all_object_data() const {
 	return objects_data_storage.get_objects_data();
 }

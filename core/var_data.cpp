@@ -6,10 +6,10 @@
 NS_NAMESPACE_BEGIN
 
 VarData::VarData(double x, double y, double z, double w) {
-	data.x = x;
-	data.y = y;
-	data.z = z;
-	data.w = w;
+	data.vec.x = x;
+	data.vec.y = y;
+	data.vec.z = z;
+	data.vec.w = w;
 }
 
 VarData::VarData(VarData &&p_other) :

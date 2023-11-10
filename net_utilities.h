@@ -9,6 +9,7 @@
 #include <map>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 typedef uint32_t SyncGroupId;
@@ -50,6 +51,24 @@ const V *at(const std::map<K, V> &p_map, const K &p_key) {
 	} catch ([[maybe_unused]] std::out_of_range &e) {
 		return nullptr;
 	}
+}
+
+/// Insert or assign the `p_val` into the map at index `p_key`.
+template <class K, class V>
+void assign(std::map<K, V> &p_map, const K &p_key, const V &p_val) {
+	p_map.insert_or_assign(p_key, p_val);
+}
+
+/// Insert or assign the `p_val` into the map at index `p_key`.
+template <class K, class V>
+void assign(std::map<K, V> &p_map, const K &p_key, V &&p_val) {
+	p_map.insert_or_assign(p_key, std::move(p_val));
+}
+
+/// Insert `p_val` only if `p_key` doesn't exists.
+template <class K, class V>
+void insert_if_new(std::map<K, V> &p_map, const K &p_key, const V &p_val) {
+	p_map.insert(std::make_pair(p_key, p_val));
 }
 }; //namespace MapFunc
 
