@@ -366,15 +366,7 @@ void test_snapshot_generation() {
 	// TODO implement this.
 }
 
-void test_rewinding() {
-	// TODO implement this.
-}
-
 void test_state_notify_for_no_rewind_properties() {
-	// TODO implement this.
-}
-
-void test_doll_simulation_rewindings() {
 	// TODO implement this.
 }
 
@@ -671,9 +663,7 @@ void test_scene_synchronizer() {
 	test_state_notify();
 	test_processing_with_late_controller_registration();
 	test_snapshot_generation();
-	test_rewinding();
 	test_state_notify_for_no_rewind_properties();
-	test_doll_simulation_rewindings();
 	test_variable_change_event();
 	test_controller_processing();
 	test_streaming();
