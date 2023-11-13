@@ -13,6 +13,7 @@
 #include "modules/network_synchronizer/tests/local_scene.h"
 #include "modules/network_synchronizer/tests/test_math_lib.h"
 #include "test_math_lib.h"
+#include <string>
 
 namespace NS_Test {
 
@@ -41,6 +42,7 @@ public:
 
 	void set_weight(float w) {
 		NS::VarData vd;
+		vd.type = 1;
 		vd.data.f32 = w;
 		NS::MapFunc::assign(variables, std::string("weight"), std::move(vd));
 	}
@@ -56,6 +58,7 @@ public:
 
 	void set_position(const Vec3 &p_pos) {
 		NS::VarData vd = p_pos;
+		vd.type = 2;
 		NS::MapFunc::assign(variables, std::string("position"), std::move(vd));
 	}
 
@@ -69,11 +72,11 @@ public:
 	}
 };
 
-class LocalNetworkedController : public NS::NetworkedController<NS::LocalNetworkInterface>, public NS::NetworkedControllerManager, public NS::LocalSceneObject {
+class TSLocalNetworkedController : public NS::NetworkedController<NS::LocalNetworkInterface>, public NS::NetworkedControllerManager, public NS::LocalSceneObject {
 public:
 	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
 
-	LocalNetworkedController() = default;
+	TSLocalNetworkedController() = default;
 
 	virtual void on_scene_entry() override {
 		// Setup the NetworkInterface.
@@ -99,6 +102,7 @@ public:
 	void set_weight(float w) {
 		NS::VarData vd;
 		vd.data.f32 = w;
+		vd.type = 1;
 		NS::MapFunc::assign(variables, std::string("weight"), std::move(vd));
 	}
 
@@ -113,6 +117,7 @@ public:
 
 	void set_position(const Vec3 &p_pos) {
 		NS::VarData vd = p_pos;
+		vd.type = 2;
 		NS::MapFunc::assign(variables, std::string("position"), std::move(vd));
 	}
 
@@ -155,6 +160,16 @@ public:
 	}
 
 	virtual void controller_process(double p_delta, DataBuffer &p_buffer) override {
+		if (is_player_controller()) {
+			if (get_scene_synchronizer()->is_rewinding()) {
+				print_line(String() + "Client PROCESS rewiding: " + get_scene_synchronizer()->var_data_stringify(variables["position"]).c_str());
+			} else {
+				print_line(String() + "Client PROCESS: " + get_scene_synchronizer()->var_data_stringify(variables["position"]).c_str());
+			}
+		} else {
+			print_line(String() + "Client PROCESS");
+		}
+
 		const float speed = 1.0;
 		const Vector3 v = p_buffer.read_normalized_vector3(DataBuffer::COMPRESSION_LEVEL_3);
 		const Vec3 input(v.x, v.y, v.z);
@@ -181,7 +196,7 @@ void process_magnet_simulation(NS::LocalSceneSynchronizer &scene_sync, float p_d
 		}
 
 		NS::LocalSceneObject *lso = scene_sync.from_handle(od->app_object_handle);
-		LocalNetworkedController *controller = dynamic_cast<LocalNetworkedController *>(lso);
+		TSLocalNetworkedController *controller = dynamic_cast<TSLocalNetworkedController *>(lso);
 		if (controller) {
 			{
 				const Vec3 mag_to_controller_dir = (controller->get_position() - p_mag.get_position()).normalized();
@@ -217,15 +232,17 @@ void process_magnets_simulation(NS::LocalSceneSynchronizer &scene_sync, float p_
 struct TestSimulationBase {
 	NS::LocalScene server_scene;
 	NS::LocalScene peer_1_scene;
-	LocalNetworkedController *controller_server = nullptr;
-	LocalNetworkedController *controller_p1 = nullptr;
+	TSLocalNetworkedController *controller_server = nullptr;
+	TSLocalNetworkedController *controller_p1 = nullptr;
 
 	int process_until_frame = 300;
 	int process_until_frame_timeout = 20;
 
 private:
 	virtual void on_scenes_initialized() {}
-	virtual void on_process(float p_delta) {}
+	virtual void on_server_process(float p_delta) {}
+	virtual void on_client_process(float p_delta) {}
+	virtual void on_scenes_processed(float p_delta) {}
 	virtual void on_scenes_done() {}
 
 public:
@@ -243,8 +260,8 @@ public:
 				peer_1_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
 
 		// Then compose the scene: 1 controller and 2 magnets.
-		controller_server = server_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
-		controller_p1 = peer_1_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
+		controller_server = server_scene.add_object<TSLocalNetworkedController>("controller_1", peer_1_scene.get_peer());
+		controller_p1 = peer_1_scene.add_object<TSLocalNetworkedController>("controller_1", peer_1_scene.get_peer());
 
 		MagnetSceneObject *light_magnet_server = server_scene.add_object<MagnetSceneObject>("magnet_1", server_scene.get_peer());
 		MagnetSceneObject *light_magnet_p1 = peer_1_scene.add_object<MagnetSceneObject>("magnet_1", server_scene.get_peer());
@@ -253,11 +270,17 @@ public:
 		MagnetSceneObject *heavy_magnet_p1 = peer_1_scene.add_object<MagnetSceneObject>("magnet_2", server_scene.get_peer());
 
 		// Register the process
-		server_scene.scene_sync->register_process(controller_server->local_id, PROCESSPHASE_LATE, [=](float p_delta) -> void {
+		server_scene.scene_sync->register_process(controller_server->local_id, PROCESSPHASE_POST, [=](float p_delta) -> void {
 			process_magnets_simulation(*server_scene.scene_sync, p_delta);
 		});
-		peer_1_scene.scene_sync->register_process(controller_p1->local_id, PROCESSPHASE_LATE, [=](float p_delta) -> void {
+		peer_1_scene.scene_sync->register_process(controller_p1->local_id, PROCESSPHASE_POST, [=](float p_delta) -> void {
 			process_magnets_simulation(*peer_1_scene.scene_sync, p_delta);
+		});
+		server_scene.scene_sync->register_process(controller_server->local_id, PROCESSPHASE_LATE, [=](float p_delta) -> void {
+			on_server_process(p_delta);
+		});
+		peer_1_scene.scene_sync->register_process(controller_p1->local_id, PROCESSPHASE_LATE, [=](float p_delta) -> void {
+			on_client_process(p_delta);
 		});
 
 		on_scenes_initialized();
@@ -292,7 +315,7 @@ public:
 			server_scene.process(delta);
 			peer_1_scene.process(delta);
 
-			on_process(delta);
+			on_scenes_processed(delta);
 
 			if (controller_server->get_current_input_id() == process_until_frame) {
 				server_reached_target_frame = true;
@@ -355,15 +378,28 @@ public:
 		});
 	}
 
-	virtual void on_process(float p_delta) override {
+	virtual void on_server_process(float p_delta) override {
 		if (controller_server->get_current_input_id() == reset_position_on_frame) {
 			// Reset the character position only on the server, to simulate a desync.
 			controller_server->set_position(Vec3(0.0, 0.0, 0.0));
+
 			server_scene.scene_sync->event_sent_snapshot.bind([this](uint32_t p_input_id, int p_peer) {
 				correction_snapshot_sent = p_input_id;
+
 				// Make sure this function is not called once again.
 				server_scene.scene_sync->event_sent_snapshot.clear();
 			});
+		}
+	}
+
+	virtual void on_scenes_processed(float p_delta) override {
+		if (controller_server->get_current_input_id() >= 100 || controller_server->get_current_input_id() <= 103) {
+			print_line("///////////");
+			print_line(String() + "Server ID: " + std::to_string(controller_server->get_current_input_id()).c_str());
+			print_line(String() + "Controller position: " + server_scene.scene_sync->var_data_stringify(controller_server->variables["position"]).c_str());
+			print_line(String() + "Magnet 1 position: " + server_scene.scene_sync->var_data_stringify(server_scene.fetch_object<MagnetSceneObject>("magnet_1")->variables["position"]).c_str());
+			print_line(String() + "Magnet 2 position: " + server_scene.scene_sync->var_data_stringify(server_scene.fetch_object<MagnetSceneObject>("magnet_2")->variables["position"]).c_str());
+			print_line("///////////");
 		}
 	}
 
