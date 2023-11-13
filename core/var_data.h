@@ -54,7 +54,7 @@ struct VarData {
 	std::shared_ptr<void> shared_buffer;
 
 public:
-	VarData() = default;
+	VarData();
 	VarData(double x, double y = 0.0, double z = 0.0, double w = 0.0);
 
 	VarData(const VarData &p_other) = delete;

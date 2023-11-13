@@ -5,6 +5,10 @@
 
 NS_NAMESPACE_BEGIN
 
+VarData::VarData() {
+	memset(&data, 0, sizeof(data));
+}
+
 VarData::VarData(double x, double y, double z, double w) {
 	data.vec.x = x;
 	data.vec.y = y;
