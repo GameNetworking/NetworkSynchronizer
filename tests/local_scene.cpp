@@ -2,6 +2,7 @@
 #include "modules/network_synchronizer/core/core.h"
 #include "modules/network_synchronizer/networked_controller.h"
 #include <memory>
+#include <string>
 
 NS_NAMESPACE_BEGIN
 
@@ -32,10 +33,16 @@ void LocalSceneSynchronizer::register_local_sync() {
 				p_buffer.read_bits(reinterpret_cast<uint8_t *>(&r_val.data), sizeof(r_val.data) * 8);
 			},
 			[](const NS::VarData &p_A, const NS::VarData &p_B) -> bool {
-				return p_A.data.i32 == p_B.data.i32;
+				return memcmp(&p_A.data, &p_B.data, sizeof(p_A.data)) == 0;
 			},
 			[](const NS::VarData &p_var_data) -> std::string {
-				return std::string("[No stringify supported by the NS test]");
+				if (p_var_data.type == 1) {
+					return std::to_string(p_var_data.data.f32);
+				} else if (p_var_data.type == 2) {
+					return std::string("[" + std::to_string(p_var_data.data.vec.x) + ", " + std::to_string(p_var_data.data.vec.y) + ", " + std::to_string(p_var_data.data.vec.z) + "]");
+				} else {
+					return std::string("[No stringify supported for this VarData type: `" + std::to_string(p_var_data.type) + "`]");
+				}
 			});
 }
 

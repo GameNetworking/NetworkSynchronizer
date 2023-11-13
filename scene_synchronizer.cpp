@@ -4,6 +4,7 @@
 #include "core/error/error_macros.h"
 #include "core/object/object.h"
 #include "core/os/os.h"
+#include "core/string/print_string.h"
 #include "core/templates/oa_hash_map.h"
 #include "core/variant/variant.h"
 #include "input_network_encoder.h"
@@ -1712,6 +1713,8 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 				input_id = controller->get_current_input_id();
 			}
 
+			print_line(String() + "--- Generating snapshot ID: " + std::to_string(input_id).c_str());
+
 			DataBuffer *snap;
 			if (peer->need_full_snapshot) {
 				peer->need_full_snapshot = false;
@@ -1874,6 +1877,15 @@ void ServerSynchronizer::generate_snapshot_object_data(
 			var_has_value = false;
 		}
 
+		// TODO remove this.
+		VarData current_val;
+		scene_synchronizer->get_synchronizer_manager().get_variable(
+				p_object_data->app_object_handle,
+				var.var.name.c_str(),
+				current_val);
+		print_line(String() + "--- " + var.var.name.c_str() + ": " + scene_synchronizer->var_data_stringify(current_val).c_str() + " var.var.value: " + scene_synchronizer->var_data_stringify(var.var.value).c_str());
+		CRASH_COND(!scene_synchronizer->var_data_compare(current_val, var.var.value));
+
 		r_snapshot_db.add(var_has_value);
 		if (var_has_value) {
 			SceneSynchronizerBase::var_data_encode(r_snapshot_db, var.var.value);
@@ -2033,6 +2045,10 @@ void ClientSynchronizer::receive_snapshot(DataBuffer &p_snapshot) {
 	if (success == false) {
 		return;
 	}
+
+	print_line("Received snapshot #####");
+	print_line(String(last_received_snapshot));
+	print_line("#####");
 
 	// Finalize data.
 
@@ -2272,6 +2288,15 @@ void ClientSynchronizer::process_received_server_state(real_t p_delta) {
 
 	if (need_rewind) {
 		scene_synchronizer->event_desync_detected.broadcast(checkable_input_id);
+
+		print_line("|||||||||||||");
+		print_line("|||||||||||||");
+		print_line("Comparing, server: ");
+		print_line(String(server_snapshots.front()));
+		print_line("Comparing, client: ");
+		print_line(String(client_snapshots.front()));
+		print_line("|||||||||||||");
+		print_line("|||||||||||||");
 	}
 
 	// Popout the client snapshot.
@@ -2446,7 +2471,11 @@ void ClientSynchronizer::__pcr__rewind(
 		scene_synchronizer->detect_and_signal_changed_variables(NetEventFlag::SYNC_RECOVER | NetEventFlag::SYNC_REWIND);
 
 		// Step 4 -- Update snapshots.
+		print_line("---- Rewind on client A: ");
+		print_line(client_snapshots[i].operator String());
 		update_client_snapshot(client_snapshots[i]);
+		print_line("---- Rewind on client B: ");
+		print_line(client_snapshots[i].operator String());
 	}
 
 #ifdef DEBUG_ENABLED
@@ -3128,59 +3157,77 @@ void ClientSynchronizer::apply_snapshot(
 		int p_flag,
 		std::vector<std::string> *r_applied_data_info,
 		bool p_skip_custom_data) {
-	const std::vector<NS::NameAndVar> *objects_vars = p_snapshot.object_vars.data();
+	const std::vector<NS::NameAndVar> *snap_objects_vars = p_snapshot.object_vars.data();
 
 	scene_synchronizer->change_events_begin(p_flag);
 
 	update_simulated_objects_list(p_snapshot.simulated_objects);
 
 	for (ObjectNetId net_node_id = { 0 }; net_node_id < ObjectNetId{ uint32_t(p_snapshot.object_vars.size()) }; net_node_id += 1) {
-		NS::ObjectData *nd = scene_synchronizer->get_object_data(net_node_id);
+		NS::ObjectData *object_data = scene_synchronizer->get_object_data(net_node_id);
 
-		if (nd == nullptr) {
+		if (object_data == nullptr) {
 			// This can happen, and it's totally expected, because the server
 			// doesn't always sync ALL the node_data: so that will result in a
 			// not registered node.
 			continue;
 		}
 
-		if (nd->realtime_sync_enabled_on_client == false) {
+		if (object_data->realtime_sync_enabled_on_client == false) {
 			// This node sync is disabled.
 			continue;
 		}
 
-		const std::vector<NS::NameAndVar> &vars = objects_vars[net_node_id.id];
-		const NS::NameAndVar *vars_ptr = vars.data();
+		const std::vector<NS::NameAndVar> &snap_object_vars = snap_objects_vars[net_node_id.id];
 
 		if (r_applied_data_info) {
-			r_applied_data_info->push_back("Applied snapshot data on the node: " + std::string(nd->object_name.c_str()));
+			r_applied_data_info->push_back("Applied snapshot data on the node: " + std::string(object_data->object_name.c_str()));
 		}
 
 		// NOTE: The vars may not contain ALL the variables: it depends on how
 		//       the snapshot was captured.
-		for (VarId v = { 0 }; v < VarId{ uint32_t(vars.size()) }; v += 1) {
-			if (vars_ptr[v.id].name.empty()) {
+		for (VarId v = { 0 }; v < VarId{ uint32_t(snap_object_vars.size()) }; v += 1) {
+			if (snap_object_vars[v.id].name.empty()) {
 				// This variable was not set, skip it.
 				continue;
 			}
 
-			VarData current_val;
-			const bool get_var_success = scene_synchronizer->synchronizer_manager->get_variable(nd->app_object_handle, nd->vars[v.id].var.name.c_str(), current_val);
+#ifdef DEBUG_ENABLED
+			CRASH_COND_MSG(snap_object_vars[v.id].name != object_data->vars[v.id].var.name, String() + "The variable name, on both snapshot and client scene_sync, are supposed to be exactly the same at this point. Snapshot `" + snap_object_vars[v.id].name.c_str() + "` ClientSceneSync `" + object_data->vars[v.id].var.name.c_str() + "`");
+#endif
 
-			if (!get_var_success || !SceneSynchronizerBase::var_data_compare(current_val, vars_ptr[v.id].value)) {
-				nd->vars[v.id].var.value.copy(vars_ptr[v.id].value);
+			const std::string &variable_name = snap_object_vars[v.id].name;
+			const VarData &snap_value = snap_object_vars[v.id].value;
+			VarData current_val;
+			const bool get_var_success = scene_synchronizer->synchronizer_manager->get_variable(
+					object_data->app_object_handle,
+					variable_name.c_str(),
+					current_val);
+
+			if (!get_var_success || !SceneSynchronizerBase::var_data_compare(current_val, snap_value)) {
+				object_data->vars[v.id].var.value.copy(snap_value);
 
 				scene_synchronizer->synchronizer_manager->set_variable(
-						nd->app_object_handle,
-						vars_ptr[v.id].name.c_str(),
-						vars_ptr[v.id].value);
+						object_data->app_object_handle,
+						variable_name.c_str(),
+						snap_value);
+
 				scene_synchronizer->change_event_add(
-						nd,
+						object_data,
 						v,
 						current_val);
 
+#ifdef DEBUG_ENABLED
+				// Make sure the set value matches the one just set.
+				scene_synchronizer->synchronizer_manager->get_variable(
+						object_data->app_object_handle,
+						variable_name.c_str(),
+						current_val);
+				CRASH_COND(!SceneSynchronizerBase::var_data_compare(current_val, snap_value));
+#endif
+
 				if (r_applied_data_info) {
-					r_applied_data_info->push_back(std::string() + " |- Variable: " + vars_ptr[v.id].name + " New value: " + SceneSynchronizerBase::var_data_stringify(vars_ptr[v.id].value));
+					r_applied_data_info->push_back(std::string() + " |- Variable: " + variable_name + " New value: " + SceneSynchronizerBase::var_data_stringify(snap_value));
 				}
 			}
 		}
