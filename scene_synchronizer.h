@@ -191,8 +191,10 @@ public: // -------------------------------------------------------------- Events
 	Processor<> event_sync_paused;
 	Processor<const NS::ObjectData * /*p_object_data*/, int /*p_peer*/, bool /*p_connected*/, bool /*p_enabled*/> event_peer_status_updated;
 	Processor<uint32_t /*p_input_id*/> event_state_validated;
+	Processor<uint32_t /*p_input_id*/, int /*p_peer*/> event_sent_snapshot;
 	Processor<uint32_t /*p_input_id*/, int /*p_index*/, int /*p_count*/> event_rewind_frame_begin;
-	Processor<uint32_t /*p_input_id*/, ObjectHandle /*p_app_object_handle*/, const std::vector<std::string> & /*p_var_names*/, const std::vector<VarData> & /*p_client_values*/, const std::vector<VarData> & /*p_server_values*/> event_desync_detected;
+	Processor<uint32_t /*p_input_id*/> event_desync_detected;
+	Processor<uint32_t /*p_input_id*/, ObjectHandle /*p_app_object_handle*/, const std::vector<std::string> & /*p_var_names*/, const std::vector<VarData> & /*p_client_values*/, const std::vector<VarData> & /*p_server_values*/> event_desync_detected_with_info;
 
 private:
 	// This is private so this class can be created only from

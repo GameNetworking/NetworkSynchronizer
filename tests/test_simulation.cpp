@@ -5,6 +5,7 @@
 #include "core/variant/variant.h"
 #include "local_scene.h"
 #include "modules/network_synchronizer/core/core.h"
+#include "modules/network_synchronizer/core/processor.h"
 #include "modules/network_synchronizer/core/var_data.h"
 #include "modules/network_synchronizer/data_buffer.h"
 #include "modules/network_synchronizer/net_utilities.h"
@@ -72,7 +73,7 @@ class LocalNetworkedController : public NS::NetworkedController<NS::LocalNetwork
 public:
 	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
 
-	LocalNetworkedController() {}
+	LocalNetworkedController() = default;
 
 	virtual void on_scene_entry() override {
 		// Setup the NetworkInterface.
@@ -225,6 +226,7 @@ struct TestSimulationBase {
 private:
 	virtual void on_scenes_initialized() {}
 	virtual void on_process(float p_delta) {}
+	virtual void on_scenes_done() {}
 
 public:
 	void do_test() {
@@ -324,6 +326,50 @@ public:
 		CRASH_COND(controller_server_position_at_target_frame.distance_to(controller_p1_position_at_target_frame) >= 0.0001);
 		CRASH_COND(light_mag_server_position_at_target_frame.distance_to(light_mag_p1_position_at_target_frame) >= 0.0001);
 		CRASH_COND(heavy_mag_server_position_at_target_frame.distance_to(heavy_mag_p1_position_at_target_frame) >= 0.0001);
+
+		on_scenes_done();
+	}
+};
+
+/// This test was build to verify that the NetSync is able to immediately re-sync
+/// a scene.
+/// It manually de-sync the server by teleporting the controller, and then
+/// make sure the client was immediately re-sync with a single rewinding action.
+struct TestSimulationWithRewind : public TestSimulationBase {
+	int reset_position_on_frame = 100;
+	float notify_state_interval = 0.0;
+
+public:
+	std::vector<int> client_rewinded_frames;
+	// The ID of snapshot sent by the server.
+	uint32_t correction_snapshot_sent = 0;
+
+	TestSimulationWithRewind(float p_notify_state_interval) :
+			notify_state_interval(p_notify_state_interval) {}
+
+	virtual void on_scenes_initialized() override {
+		server_scene.scene_sync->set_server_notify_state_interval(notify_state_interval);
+
+		controller_p1->get_scene_synchronizer()->event_desync_detected.bind([this](uint32_t p_input_id) {
+			client_rewinded_frames.push_back(p_input_id);
+		});
+	}
+
+	virtual void on_process(float p_delta) override {
+		if (controller_server->get_current_input_id() == reset_position_on_frame) {
+			// Reset the character position only on the server, to simulate a desync.
+			controller_server->set_position(Vec3(0.0, 0.0, 0.0));
+			server_scene.scene_sync->event_sent_snapshot.bind([this](uint32_t p_input_id, int p_peer) {
+				correction_snapshot_sent = p_input_id;
+				// Make sure this function is not called once again.
+				server_scene.scene_sync->event_sent_snapshot.clear();
+			});
+		}
+	}
+
+	virtual void on_scenes_done() override {
+		CRASH_COND(client_rewinded_frames.size() != 1);
+		CRASH_COND(client_rewinded_frames[0] != correction_snapshot_sent);
 	}
 };
 
@@ -333,6 +379,8 @@ void test_doll_simulation_rewindings() {
 
 void test_simulation() {
 	TestSimulationBase().do_test();
+	TestSimulationWithRewind(0.0).do_test();
+	TestSimulationWithRewind(1.0).do_test();
 
 	test_doll_simulation_rewindings();
 }

@@ -1740,6 +1740,7 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 					scene_synchronizer->get_network_interface(),
 					peer_id,
 					*snap);
+			scene_synchronizer->event_sent_snapshot.broadcast(input_id, peer_id);
 
 			if (controller_od) {
 				NetworkedControllerBase *controller = controller_od->get_controller();
@@ -2269,6 +2270,10 @@ void ClientSynchronizer::process_received_server_state(real_t p_delta) {
 			checkable_input_id,
 			no_rewind_recover);
 
+	if (need_rewind) {
+		scene_synchronizer->event_desync_detected.broadcast(checkable_input_id);
+	}
+
 	// Popout the client snapshot.
 	client_snapshots.pop_front();
 
@@ -2361,7 +2366,7 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 				}
 			}
 
-			scene_synchronizer->event_desync_detected.broadcast(p_input_id, rew_node_data->app_object_handle, variable_names, client_values, server_values);
+			scene_synchronizer->event_desync_detected_with_info.broadcast(p_input_id, rew_node_data->app_object_handle, variable_names, client_values, server_values);
 		}
 	}
 #else
@@ -2411,24 +2416,24 @@ void ClientSynchronizer::__pcr__rewind(
 		NetworkedControllerBase *p_local_controller,
 		PlayerController *p_local_player_controller) {
 	scene_synchronizer->event_state_validated.broadcast(p_checkable_input_id);
-	const int remaining_inputs = p_local_player_controller->get_frames_input_count();
+	const int frames_to_rewind = p_local_player_controller->get_frames_input_count();
 
 #ifdef DEBUG_ENABLED
 	// Unreachable because the SceneSynchronizer and the PlayerController
 	// have the same stored data at this point.
-	CRASH_COND_MSG(client_snapshots.size() != size_t(remaining_inputs), "Beware that `client_snapshots.size()` (" + itos(client_snapshots.size()) + ") and `remaining_inputs` (" + itos(remaining_inputs) + ") should be the same.");
+	CRASH_COND_MSG(client_snapshots.size() != size_t(frames_to_rewind), "Beware that `client_snapshots.size()` (" + itos(client_snapshots.size()) + ") and `remaining_inputs` (" + itos(frames_to_rewind) + ") should be the same.");
 #endif
 
 #ifdef DEBUG_ENABLED
 	// Used to double check all the instants have been processed.
 	bool has_next = false;
 #endif
-	for (int i = 0; i < remaining_inputs; i += 1) {
+	for (int i = 0; i < frames_to_rewind; i += 1) {
 		scene_synchronizer->change_events_begin(NetEventFlag::SYNC_RECOVER | NetEventFlag::SYNC_REWIND);
 
 		// Step 1 -- Notify the local controller about the instant to process
 		//           on the next process.
-		scene_synchronizer->event_rewind_frame_begin.broadcast(p_local_player_controller->get_stored_input_id(i), i, remaining_inputs);
+		scene_synchronizer->event_rewind_frame_begin.broadcast(p_local_player_controller->get_stored_input_id(i), i, frames_to_rewind);
 #ifdef DEBUG_ENABLED
 		has_next = p_local_controller->has_another_instant_to_process_after(i);
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "Rewind, processed controller: " + String(p_local_controller_node->object_name.c_str()), !scene_synchronizer->debug_rewindings_enabled);

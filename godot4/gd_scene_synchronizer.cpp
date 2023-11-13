@@ -163,7 +163,7 @@ GdSceneSynchronizer::GdSceneSynchronizer() :
 			});
 
 	event_handler_desync_detected =
-			scene_synchronizer.event_desync_detected.bind([this](uint32_t p_input_id, NS::ObjectHandle p_app_object, const std::vector<std::string> &p_var_names, const std::vector<NS::VarData> &p_client_values, const std::vector<NS::VarData> &p_server_values) -> void {
+			scene_synchronizer.event_desync_detected_with_info.bind([this](uint32_t p_input_id, NS::ObjectHandle p_app_object, const std::vector<std::string> &p_var_names, const std::vector<NS::VarData> &p_client_values, const std::vector<NS::VarData> &p_server_values) -> void {
 				Vector<String> var_names;
 				Vector<Variant> client_values;
 				Vector<Variant> server_values;
@@ -200,7 +200,7 @@ GdSceneSynchronizer::~GdSceneSynchronizer() {
 	scene_synchronizer.event_rewind_frame_begin.unbind(event_handler_rewind_frame_begin);
 	event_handler_rewind_frame_begin = NS::NullPHandler;
 
-	scene_synchronizer.event_desync_detected.unbind(event_handler_desync_detected);
+	scene_synchronizer.event_desync_detected_with_info.unbind(event_handler_desync_detected);
 	event_handler_desync_detected = NS::NullPHandler;
 }
 
