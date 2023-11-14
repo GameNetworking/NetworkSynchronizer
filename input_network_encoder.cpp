@@ -225,6 +225,155 @@ void InputNetworkEncoder::reset_inputs_to_defaults(LocalVector<Variant> &r_input
 	}
 }
 
+bool compare(const Vector2 &p_first, const Vector2 &p_second, real_t p_tolerance) {
+	return Math::is_equal_approx(p_first.x, p_second.x, p_tolerance) &&
+			Math::is_equal_approx(p_first.y, p_second.y, p_tolerance);
+}
+
+bool compare(const Vector3 &p_first, const Vector3 &p_second, real_t p_tolerance) {
+	return Math::is_equal_approx(p_first.x, p_second.x, p_tolerance) &&
+			Math::is_equal_approx(p_first.y, p_second.y, p_tolerance) &&
+			Math::is_equal_approx(p_first.z, p_second.z, p_tolerance);
+}
+
+bool compare(const Variant &p_first, const Variant &p_second, real_t p_tolerance) {
+	if (p_first.get_type() != p_second.get_type()) {
+		return false;
+	}
+
+	// Custom evaluation methods
+	switch (p_first.get_type()) {
+		case Variant::FLOAT: {
+			return Math::is_equal_approx(p_first, p_second, p_tolerance);
+		}
+		case Variant::VECTOR2: {
+			return compare(Vector2(p_first), Vector2(p_second), p_tolerance);
+		}
+		case Variant::RECT2: {
+			const Rect2 a(p_first);
+			const Rect2 b(p_second);
+			if (compare(a.position, b.position, p_tolerance)) {
+				if (compare(a.size, b.size, p_tolerance)) {
+					return true;
+				}
+			}
+			return false;
+		}
+		case Variant::TRANSFORM2D: {
+			const Transform2D a(p_first);
+			const Transform2D b(p_second);
+			if (compare(a.columns[0], b.columns[0], p_tolerance)) {
+				if (compare(a.columns[1], b.columns[1], p_tolerance)) {
+					if (compare(a.columns[2], b.columns[2], p_tolerance)) {
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+		case Variant::VECTOR3: {
+			return compare(Vector3(p_first), Vector3(p_second), p_tolerance);
+		}
+		case Variant::QUATERNION: {
+			const Quaternion a = p_first;
+			const Quaternion b = p_second;
+			const Quaternion r(a - b); // Element wise subtraction.
+			return (r.x * r.x + r.y * r.y + r.z * r.z + r.w * r.w) <= (p_tolerance * p_tolerance);
+		}
+		case Variant::PLANE: {
+			const Plane a(p_first);
+			const Plane b(p_second);
+			if (Math::is_equal_approx(a.d, b.d, p_tolerance)) {
+				if (compare(a.normal, b.normal, p_tolerance)) {
+					return true;
+				}
+			}
+			return false;
+		}
+		case Variant::AABB: {
+			const AABB a(p_first);
+			const AABB b(p_second);
+			if (compare(a.position, b.position, p_tolerance)) {
+				if (compare(a.size, b.size, p_tolerance)) {
+					return true;
+				}
+			}
+			return false;
+		}
+		case Variant::BASIS: {
+			const Basis a = p_first;
+			const Basis b = p_second;
+			if (compare(a.rows[0], b.rows[0], p_tolerance)) {
+				if (compare(a.rows[1], b.rows[1], p_tolerance)) {
+					if (compare(a.rows[2], b.rows[2], p_tolerance)) {
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+		case Variant::TRANSFORM3D: {
+			const Transform3D a = p_first;
+			const Transform3D b = p_second;
+			if (compare(a.origin, b.origin, p_tolerance)) {
+				if (compare(a.basis.rows[0], b.basis.rows[0], p_tolerance)) {
+					if (compare(a.basis.rows[1], b.basis.rows[1], p_tolerance)) {
+						if (compare(a.basis.rows[2], b.basis.rows[2], p_tolerance)) {
+							return true;
+						}
+					}
+				}
+			}
+			return false;
+		}
+		case Variant::ARRAY: {
+			const Array a = p_first;
+			const Array b = p_second;
+			if (a.size() != b.size()) {
+				return false;
+			}
+			for (int i = 0; i < a.size(); i += 1) {
+				if (compare(a[i], b[i], p_tolerance) == false) {
+					return false;
+				}
+			}
+			return true;
+		}
+		case Variant::DICTIONARY: {
+			const Dictionary a = p_first;
+			const Dictionary b = p_second;
+
+			if (a.size() != b.size()) {
+				return false;
+			}
+
+			List<Variant> l;
+			a.get_key_list(&l);
+
+			for (const List<Variant>::Element *key = l.front(); key; key = key->next()) {
+				if (b.has(key->get()) == false) {
+					return false;
+				}
+
+				if (compare(
+							a.get(key->get(), Variant()),
+							b.get(key->get(), Variant()),
+							p_tolerance) == false) {
+					return false;
+				}
+			}
+
+			return true;
+		}
+		default:
+			return p_first == p_second;
+	}
+}
+
+bool compare(const Variant &p_first, const Variant &p_second) {
+	return compare(p_first, p_second, FLT_EPSILON);
+}
+
 bool InputNetworkEncoder::are_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B) const {
 	for (uint32_t i = 0; i < input_info.size(); i += 1) {
 		const NetworkedInputInfo &info = input_info[i];
@@ -262,22 +411,22 @@ bool InputNetworkEncoder::are_different(DataBuffer &p_buffer_A, DataBuffer &p_bu
 					are_equals = Math::is_equal_approx(p_buffer_A.read_unit_real(info.compression_level), p_buffer_B.read_unit_real(info.compression_level), info.comparison_floating_point_precision);
 					break;
 				case DataBuffer::DATA_TYPE_VECTOR2:
-					are_equals = GdSceneSynchronizer::compare(p_buffer_A.read_vector2(info.compression_level), p_buffer_B.read_vector2(info.compression_level), info.comparison_floating_point_precision);
+					are_equals = compare(p_buffer_A.read_vector2(info.compression_level), p_buffer_B.read_vector2(info.compression_level), info.comparison_floating_point_precision);
 					break;
 				case DataBuffer::DATA_TYPE_NORMALIZED_VECTOR2:
-					are_equals = GdSceneSynchronizer::compare(p_buffer_A.read_normalized_vector2(info.compression_level), p_buffer_B.read_normalized_vector2(info.compression_level), info.comparison_floating_point_precision);
+					are_equals = compare(p_buffer_A.read_normalized_vector2(info.compression_level), p_buffer_B.read_normalized_vector2(info.compression_level), info.comparison_floating_point_precision);
 					break;
 				case DataBuffer::DATA_TYPE_VECTOR3:
-					are_equals = GdSceneSynchronizer::compare(p_buffer_A.read_vector3(info.compression_level), p_buffer_B.read_vector3(info.compression_level), info.comparison_floating_point_precision);
+					are_equals = compare(p_buffer_A.read_vector3(info.compression_level), p_buffer_B.read_vector3(info.compression_level), info.comparison_floating_point_precision);
 					break;
 				case DataBuffer::DATA_TYPE_NORMALIZED_VECTOR3:
-					are_equals = GdSceneSynchronizer::compare(p_buffer_A.read_normalized_vector3(info.compression_level), p_buffer_B.read_normalized_vector3(info.compression_level), info.comparison_floating_point_precision);
+					are_equals = compare(p_buffer_A.read_normalized_vector3(info.compression_level), p_buffer_B.read_normalized_vector3(info.compression_level), info.comparison_floating_point_precision);
 					break;
 				case DataBuffer::DATA_TYPE_BITS:
 					CRASH_NOW_MSG("Not supported.");
 					break;
 				case DataBuffer::DATA_TYPE_VARIANT:
-					are_equals = GdSceneSynchronizer::compare(p_buffer_A.read_variant(), p_buffer_B.read_variant(), info.comparison_floating_point_precision);
+					are_equals = compare(p_buffer_A.read_variant(), p_buffer_B.read_variant(), info.comparison_floating_point_precision);
 					break;
 			};
 		}
