@@ -1,6 +1,7 @@
 #include "var_data.h"
 
 #include <stdlib.h>
+#include <string.h> // Needed to include `memset` in linux.
 #include <utility>
 
 NS_NAMESPACE_BEGIN

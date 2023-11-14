@@ -236,6 +236,9 @@ private:
 	virtual void on_scenes_done() {}
 
 public:
+	TestSimulationBase() {}
+	virtual ~TestSimulationBase() {}
+
 	void do_test() {
 		// Create a server
 		server_scene.start_as_server();
@@ -353,7 +356,7 @@ struct TestSimulationWithRewind : public TestSimulationBase {
 	float notify_state_interval = 0.0;
 
 public:
-	std::vector<int> client_rewinded_frames;
+	std::vector<uint32_t> client_rewinded_frames;
 	// The ID of snapshot sent by the server.
 	uint32_t correction_snapshot_sent = 0;
 

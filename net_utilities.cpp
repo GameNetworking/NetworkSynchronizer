@@ -111,7 +111,7 @@ void NS::SyncGroup::remove_sync_object(std::size_t p_index, bool p_is_simulated)
 
 void NS::SyncGroup::remove_sync_object(const ObjectData &p_object_data) {
 	{
-		const int index = find_simulated(p_object_data);
+		const std::size_t index = find_simulated(p_object_data);
 		if (index != std::numeric_limits<std::size_t>::max()) {
 			remove_sync_object(index, true);
 			// No need to check the trickled array. Nodes can be in 1 single array.
@@ -120,7 +120,7 @@ void NS::SyncGroup::remove_sync_object(const ObjectData &p_object_data) {
 	}
 
 	{
-		const int index = find_trickled(p_object_data);
+		const std::size_t index = find_trickled(p_object_data);
 		if (index != std::numeric_limits<std::size_t>::max()) {
 			remove_sync_object(index, false);
 		}
