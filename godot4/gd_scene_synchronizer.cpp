@@ -114,7 +114,8 @@ void GdSceneSynchronizer::_bind_methods() {
 }
 
 GdSceneSynchronizer::GdSceneSynchronizer() :
-		Node() {
+		Node(),
+		scene_synchronizer(false) {
 	rpc_id(1, "");
 
 	Dictionary rpc_config_reliable;
@@ -874,7 +875,8 @@ bool GdSceneSynchronizer::compare(const NS::VarData &p_A, const NS::VarData &p_B
 	Variant vB;
 	convert(vA, p_A);
 	convert(vB, p_B);
-	return compare(vA, vB, FLT_EPSILON);
+	return vA == vB;
+	//return compare(vA, vB, FLT_EPSILON);
 }
 
 bool GdSceneSynchronizer::compare(const Variant &p_first, const Variant &p_second) {
@@ -1027,13 +1029,13 @@ bool GdSceneSynchronizer::compare(const Variant &p_first, const Variant &p_secon
 }
 
 // This was needed to optimize the godot stringify for byte arrays.. it was slowing down perfs.
-String stringify_byte_array_fast(const Vector<uint8_t> &p_array) {
-	// At the moment printing the bytes is way to heavy. Need to find a better way.
-	if (true) {
-		return String("Bytes (" + itos(p_array.size()) + ") ");
+std::string stringify_byte_array_fast(const Vector<uint8_t> &p_array, bool p_verbose) {
+	std::string str;
+	if (!p_verbose) {
+		str = "Bytes (" + std::to_string(p_array.size()) + ") ";
 	} else {
+		// At the moment printing the bytes is way to heavy. Need to find a better way.
 		// NOTE: std::to_string() is faster than itos().
-		std::string str;
 		str.reserve((p_array.size() * 7) + 50);
 		str.append("Bytes (" + std::to_string(p_array.size()) + "): ");
 
@@ -1042,13 +1044,16 @@ String stringify_byte_array_fast(const Vector<uint8_t> &p_array) {
 			str.append(std::to_string(array_ptr[i]));
 			str.append(", ");
 		}
-
-		return String(str.c_str());
 	}
+	return str;
 }
 
-std::string GdSceneSynchronizer::stringify(const NS::VarData &p_var_data) {
+std::string GdSceneSynchronizer::stringify(const NS::VarData &p_var_data, bool p_verbose) {
 	Variant v;
 	convert(v, p_var_data);
-	return std::string((v.get_type() == Variant::PACKED_BYTE_ARRAY ? stringify_byte_array_fast(v) : v.stringify()).utf8());
+	if (v.get_type() == Variant::PACKED_BYTE_ARRAY) {
+		return stringify_byte_array_fast(v, p_verbose);
+	} else {
+		return std::string(v.stringify().utf8());
+	}
 }

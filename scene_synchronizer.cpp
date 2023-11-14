@@ -30,9 +30,10 @@ const SyncGroupId SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID = 0;
 void (*SceneSynchronizerBase::var_data_encode_func)(DataBuffer &r_buffer, const NS::VarData &p_val) = nullptr;
 void (*SceneSynchronizerBase::var_data_decode_func)(NS::VarData &r_val, DataBuffer &p_buffer) = nullptr;
 bool (*SceneSynchronizerBase::var_data_compare_func)(const VarData &p_A, const VarData &p_B) = nullptr;
-std::string (*SceneSynchronizerBase::var_data_stringify_func)(const VarData &p_var_data) = nullptr;
+std::string (*SceneSynchronizerBase::var_data_stringify_func)(const VarData &p_var_data, bool p_verbose) = nullptr;
 
-SceneSynchronizerBase::SceneSynchronizerBase(NetworkInterface *p_network_interface) :
+SceneSynchronizerBase::SceneSynchronizerBase(NetworkInterface *p_network_interface, bool p_pedantic_checks) :
+		pedantic_checks(p_pedantic_checks),
 		network_interface(p_network_interface),
 		objects_data_storage(*this) {
 	// Avoid too much useless re-allocations.
@@ -49,7 +50,7 @@ void SceneSynchronizerBase::register_var_data_functions(
 		void (*p_var_data_encode_func)(DataBuffer &r_buffer, const NS::VarData &p_val),
 		void (*p_var_data_decode_func)(NS::VarData &r_val, DataBuffer &p_buffer),
 		bool (*p_var_data_compare_func)(const VarData &p_A, const VarData &p_B),
-		std::string (*p_var_data_stringify_func)(const VarData &p_var_data)) {
+		std::string (*p_var_data_stringify_func)(const VarData &p_var_data, bool p_verbose)) {
 	var_data_encode_func = p_var_data_encode_func;
 	var_data_decode_func = p_var_data_decode_func;
 	var_data_compare_func = p_var_data_compare_func;
@@ -154,8 +155,8 @@ bool SceneSynchronizerBase::var_data_compare(const VarData &p_A, const VarData &
 	return var_data_compare_func(p_A, p_B);
 }
 
-std::string SceneSynchronizerBase::var_data_stringify(const VarData &p_var_data) {
-	return var_data_stringify_func(p_var_data);
+std::string SceneSynchronizerBase::var_data_stringify(const VarData &p_var_data, bool p_verbose) {
+	return var_data_stringify_func(p_var_data, p_verbose);
 }
 
 void SceneSynchronizerBase::set_max_trickled_objects_per_update(int p_rate) {
@@ -1713,8 +1714,6 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 				input_id = controller->get_current_input_id();
 			}
 
-			print_line(String() + "--- Generating snapshot ID: " + std::to_string(input_id).c_str());
-
 			DataBuffer *snap;
 			if (peer->need_full_snapshot) {
 				peer->need_full_snapshot = false;
@@ -1877,14 +1876,17 @@ void ServerSynchronizer::generate_snapshot_object_data(
 			var_has_value = false;
 		}
 
-		// TODO remove this.
-		VarData current_val;
-		scene_synchronizer->get_synchronizer_manager().get_variable(
-				p_object_data->app_object_handle,
-				var.var.name.c_str(),
-				current_val);
-		print_line(String() + "--- " + var.var.name.c_str() + ": " + scene_synchronizer->var_data_stringify(current_val).c_str() + " var.var.value: " + scene_synchronizer->var_data_stringify(var.var.value).c_str());
-		CRASH_COND(!scene_synchronizer->var_data_compare(current_val, var.var.value));
+#ifdef DEBUG_ENABLED
+		if (scene_synchronizer->pedantic_checks) {
+			// Make sure the value read from `var.var.value` equals to the one set on the scene.
+			VarData current_val;
+			scene_synchronizer->get_synchronizer_manager().get_variable(
+					p_object_data->app_object_handle,
+					var.var.name.c_str(),
+					current_val);
+			CRASH_COND(!scene_synchronizer->var_data_compare(current_val, var.var.value));
+		}
+#endif
 
 		r_snapshot_db.add(var_has_value);
 		if (var_has_value) {
@@ -2045,10 +2047,6 @@ void ClientSynchronizer::receive_snapshot(DataBuffer &p_snapshot) {
 	if (success == false) {
 		return;
 	}
-
-	print_line("Received snapshot #####");
-	print_line(String(last_received_snapshot));
-	print_line("#####");
 
 	// Finalize data.
 
@@ -2288,15 +2286,6 @@ void ClientSynchronizer::process_received_server_state(real_t p_delta) {
 
 	if (need_rewind) {
 		scene_synchronizer->event_desync_detected.broadcast(checkable_input_id);
-
-		print_line("|||||||||||||");
-		print_line("|||||||||||||");
-		print_line("Comparing, server: ");
-		print_line(String(server_snapshots.front()));
-		print_line("Comparing, client: ");
-		print_line(String(client_snapshots.front()));
-		print_line("|||||||||||||");
-		print_line("|||||||||||||");
 	}
 
 	// Popout the client snapshot.
@@ -2471,11 +2460,7 @@ void ClientSynchronizer::__pcr__rewind(
 		scene_synchronizer->detect_and_signal_changed_variables(NetEventFlag::SYNC_RECOVER | NetEventFlag::SYNC_REWIND);
 
 		// Step 4 -- Update snapshots.
-		print_line("---- Rewind on client A: ");
-		print_line(client_snapshots[i].operator String());
 		update_client_snapshot(client_snapshots[i]);
-		print_line("---- Rewind on client B: ");
-		print_line(client_snapshots[i].operator String());
 	}
 
 #ifdef DEBUG_ENABLED
@@ -3218,12 +3203,14 @@ void ClientSynchronizer::apply_snapshot(
 						current_val);
 
 #ifdef DEBUG_ENABLED
-				// Make sure the set value matches the one just set.
-				scene_synchronizer->synchronizer_manager->get_variable(
-						object_data->app_object_handle,
-						variable_name.c_str(),
-						current_val);
-				CRASH_COND(!SceneSynchronizerBase::var_data_compare(current_val, snap_value));
+				if (scene_synchronizer->pedantic_checks) {
+					// Make sure the set value matches the one just set.
+					scene_synchronizer->synchronizer_manager->get_variable(
+							object_data->app_object_handle,
+							variable_name.c_str(),
+							current_val);
+					CRASH_COND_MSG(!SceneSynchronizerBase::var_data_compare(current_val, snap_value), String() + "There was a fatal error while setting the propertly `" + variable_name.c_str() + "` on the object `" + object_data->object_name.c_str() + "`. The set data differs from the property set by the NetSync: set data `" + scene_synchronizer->var_data_stringify(current_val, true).c_str() + "` NetSync data `" + scene_synchronizer->var_data_stringify(snap_value, true).c_str() + "`");
+				}
 #endif
 
 				if (r_applied_data_info) {

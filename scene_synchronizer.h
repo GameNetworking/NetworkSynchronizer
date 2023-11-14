@@ -147,7 +147,9 @@ private:
 	static void (*var_data_encode_func)(DataBuffer &r_buffer, const NS::VarData &p_val);
 	static void (*var_data_decode_func)(NS::VarData &r_val, DataBuffer &p_buffer);
 	static bool (*var_data_compare_func)(const VarData &p_A, const VarData &p_B);
-	static std::string (*var_data_stringify_func)(const VarData &p_var_data);
+	static std::string (*var_data_stringify_func)(const VarData &p_var_data, bool p_verbose);
+
+	const bool pedantic_checks = false;
 
 	class NetworkInterface *network_interface = nullptr;
 	SynchronizerManager *synchronizer_manager = nullptr;
@@ -199,7 +201,7 @@ public: // -------------------------------------------------------------- Events
 private:
 	// This is private so this class can be created only from
 	// `SceneSynchronizer<BaseClass>` and the user is forced to define a base class.
-	SceneSynchronizerBase(NetworkInterface *p_network_interface);
+	SceneSynchronizerBase(NetworkInterface *p_network_interface, bool p_pedantic_checks);
 
 public:
 	~SceneSynchronizerBase();
@@ -209,7 +211,7 @@ public: // -------------------------------------------------------- Manager APIs
 			void (*p_var_data_encode_func)(DataBuffer &r_buffer, const NS::VarData &p_val),
 			void (*p_var_data_decode_func)(NS::VarData &r_val, DataBuffer &p_buffer),
 			bool (*p_var_data_compare_func)(const VarData &p_A, const VarData &p_B),
-			std::string (*p_var_data_stringify_func)(const VarData &p_var_data));
+			std::string (*p_var_data_stringify_func)(const VarData &p_var_data, bool p_verbose));
 
 	/// Setup the synchronizer
 	void setup(SynchronizerManager &p_synchronizer_manager);
@@ -227,7 +229,7 @@ public:
 	static void var_data_encode(DataBuffer &r_buffer, const NS::VarData &p_val);
 	static void var_data_decode(NS::VarData &r_val, DataBuffer &p_buffer);
 	static bool var_data_compare(const VarData &p_A, const VarData &p_B);
-	static std::string var_data_stringify(const VarData &p_var_data);
+	static std::string var_data_stringify(const VarData &p_var_data, bool p_verbose = false);
 
 	NS::NetworkInterface &get_network_interface() {
 		return *network_interface;
@@ -708,8 +710,8 @@ class SceneSynchronizer : public SceneSynchronizerBase {
 	NetInterfaceClass custom_network_interface;
 
 public:
-	SceneSynchronizer() :
-			SceneSynchronizerBase(&custom_network_interface) {}
+	SceneSynchronizer(bool p_pedantic_checks) :
+			SceneSynchronizerBase(&custom_network_interface, p_pedantic_checks) {}
 
 	NetInterfaceClass &get_network_interface() {
 		return custom_network_interface;
