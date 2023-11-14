@@ -33,7 +33,9 @@ bool (*SceneSynchronizerBase::var_data_compare_func)(const VarData &p_A, const V
 std::string (*SceneSynchronizerBase::var_data_stringify_func)(const VarData &p_var_data, bool p_verbose) = nullptr;
 
 SceneSynchronizerBase::SceneSynchronizerBase(NetworkInterface *p_network_interface, bool p_pedantic_checks) :
+#ifdef DEBUG_ENABLED
 		pedantic_checks(p_pedantic_checks),
+#endif
 		network_interface(p_network_interface),
 		objects_data_storage(*this) {
 	// Avoid too much useless re-allocations.

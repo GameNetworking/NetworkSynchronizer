@@ -149,7 +149,9 @@ private:
 	static bool (*var_data_compare_func)(const VarData &p_A, const VarData &p_B);
 	static std::string (*var_data_stringify_func)(const VarData &p_var_data, bool p_verbose);
 
+#ifdef DEBUG_ENABLED
 	const bool pedantic_checks = false;
+#endif
 
 	class NetworkInterface *network_interface = nullptr;
 	SynchronizerManager *synchronizer_manager = nullptr;
