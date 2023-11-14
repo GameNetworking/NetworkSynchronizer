@@ -182,14 +182,7 @@ public: // ---------------------------------------------------------------- APIs
 	static void convert(Variant &r_variant, const NS::VarData &p_vd);
 	static void convert(NS::VarData &r_vd, const Variant &p_variant);
 
-	static bool compare(const Variant &p_first, const Variant &p_second);
-
 	static bool compare(const NS::VarData &p_A, const NS::VarData &p_B);
-	static bool compare(const Vector2 &p_first, const Vector2 &p_second, real_t p_tolerance);
-	/// Returns true when the vectors are the same.
-	static bool compare(const Vector3 &p_first, const Vector3 &p_second, real_t p_tolerance);
-	/// Returns true when the variants are the same.
-	static bool compare(const Variant &p_first, const Variant &p_second, real_t p_tolerance);
 
 	static std::string stringify(const NS::VarData &p_var_data, bool p_verbose);
 };
