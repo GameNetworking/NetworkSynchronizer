@@ -13,7 +13,7 @@ struct VarData {
 
 	/// The data.
 	union {
-		void *ptr = nullptr;
+		void *ptr;
 
 		bool boolean;
 		std::int32_t i32;

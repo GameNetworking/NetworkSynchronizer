@@ -191,7 +191,7 @@ public: // ---------------------------------------------------------------- APIs
 	/// Returns true when the variants are the same.
 	static bool compare(const Variant &p_first, const Variant &p_second, real_t p_tolerance);
 
-	static std::string stringify(const NS::VarData &p_var_data);
+	static std::string stringify(const NS::VarData &p_var_data, bool p_verbose);
 };
 
 VARIANT_ENUM_CAST(NetEventFlag)

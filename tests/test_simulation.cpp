@@ -156,20 +156,10 @@ public:
 
 	virtual void collect_inputs(double p_delta, DataBuffer &r_buffer) override {
 		const int index = get_current_input_id() % 20;
-		r_buffer.add_normalized_vector3(Vector3(inputs[index].x, inputs[index].y, inputs[index].z), DataBuffer::COMPRESSION_LEVEL_3);
+		std::ignore = r_buffer.add_normalized_vector3(Vector3(inputs[index].x, inputs[index].y, inputs[index].z), DataBuffer::COMPRESSION_LEVEL_3);
 	}
 
 	virtual void controller_process(double p_delta, DataBuffer &p_buffer) override {
-		if (is_player_controller()) {
-			if (get_scene_synchronizer()->is_rewinding()) {
-				print_line(String() + "Client PROCESS rewiding: " + get_scene_synchronizer()->var_data_stringify(variables["position"]).c_str());
-			} else {
-				print_line(String() + "Client PROCESS: " + get_scene_synchronizer()->var_data_stringify(variables["position"]).c_str());
-			}
-		} else {
-			print_line(String() + "Client PROCESS");
-		}
-
 		const float speed = 1.0;
 		const Vector3 v = p_buffer.read_normalized_vector3(DataBuffer::COMPRESSION_LEVEL_3);
 		const Vec3 input(v.x, v.y, v.z);
@@ -334,8 +324,8 @@ public:
 				break;
 			}
 
-			CRASH_COND(controller_server->get_current_input_id() >= (process_until_frame + process_until_frame_timeout) && controller_server->get_current_input_id() != UINT32_MAX);
-			CRASH_COND(controller_p1->get_current_input_id() >= (process_until_frame + process_until_frame_timeout) && controller_p1->get_current_input_id() != UINT32_MAX);
+			CRASH_COND(controller_server->get_current_input_id() >= uint32_t(process_until_frame + process_until_frame_timeout) && controller_server->get_current_input_id() != UINT32_MAX);
+			CRASH_COND(controller_p1->get_current_input_id() >= uint32_t(process_until_frame + process_until_frame_timeout) && controller_p1->get_current_input_id() != UINT32_MAX);
 		}
 
 		//                  ---- Validation phase ----
@@ -393,14 +383,6 @@ public:
 	}
 
 	virtual void on_scenes_processed(float p_delta) override {
-		if (controller_server->get_current_input_id() >= 100 || controller_server->get_current_input_id() <= 103) {
-			print_line("///////////");
-			print_line(String() + "Server ID: " + std::to_string(controller_server->get_current_input_id()).c_str());
-			print_line(String() + "Controller position: " + server_scene.scene_sync->var_data_stringify(controller_server->variables["position"]).c_str());
-			print_line(String() + "Magnet 1 position: " + server_scene.scene_sync->var_data_stringify(server_scene.fetch_object<MagnetSceneObject>("magnet_1")->variables["position"]).c_str());
-			print_line(String() + "Magnet 2 position: " + server_scene.scene_sync->var_data_stringify(server_scene.fetch_object<MagnetSceneObject>("magnet_2")->variables["position"]).c_str());
-			print_line("///////////");
-		}
 	}
 
 	virtual void on_scenes_done() override {
@@ -410,7 +392,7 @@ public:
 };
 
 void test_doll_simulation_rewindings() {
-	// TODO implement this.
+	// TODO implement this
 }
 
 void test_simulation() {

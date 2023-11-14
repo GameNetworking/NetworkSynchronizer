@@ -471,9 +471,6 @@ bool NetworkedControllerBase::__input_data_parse(
 	DataBuffer *pir = memnew(DataBuffer);
 	pir->copy(p_data);
 	pir->begin_read();
-	// TODO this is for 3.2
-	//pir.get_buffer_mut().resize_in_bytes(data_len);
-	//memcpy(pir.get_buffer_mut().get_bytes_mut().ptrw(), p_data.ptr(), data_len);
 
 	while (ofs < data_len) {
 		ERR_FAIL_COND_V_MSG(ofs + 1 > data_len, false, "The arrived packet size doesn't meet the expected size.");

@@ -15,7 +15,8 @@ NS::ObjectLocalId LocalSceneObject::find_local_id() const {
 	return NS::ObjectLocalId::NONE;
 }
 
-LocalSceneSynchronizer::LocalSceneSynchronizer() {
+LocalSceneSynchronizer::LocalSceneSynchronizer() :
+		SceneSynchronizer<LocalSceneObject, LocalNetworkInterface>(true) {
 }
 
 LocalSceneSynchronizer::~LocalSceneSynchronizer() {}
@@ -35,7 +36,7 @@ void LocalSceneSynchronizer::register_local_sync() {
 			[](const NS::VarData &p_A, const NS::VarData &p_B) -> bool {
 				return memcmp(&p_A.data, &p_B.data, sizeof(p_A.data)) == 0;
 			},
-			[](const NS::VarData &p_var_data) -> std::string {
+			[](const NS::VarData &p_var_data, bool p_verbose) -> std::string {
 				if (p_var_data.type == 1) {
 					return std::to_string(p_var_data.data.f32);
 				} else if (p_var_data.type == 2) {
