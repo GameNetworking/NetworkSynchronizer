@@ -156,6 +156,7 @@ private:
 	class NetworkInterface *network_interface = nullptr;
 	SynchronizerManager *synchronizer_manager = nullptr;
 
+	RpcHandle<> rpc_handler_ping;
 	RpcHandle<DataBuffer &> rpc_handler_state;
 	RpcHandle<> rpc_handler_notify_need_full_snapshot;
 	RpcHandle<bool> rpc_handler_set_network_enabled;
@@ -163,9 +164,11 @@ private:
 	RpcHandle<const Vector<uint8_t> &> rpc_handler_trickled_sync_data;
 
 	int max_trickled_objects_per_update = 30;
-	real_t server_notify_state_interval = 1.0;
+	float server_notify_state_interval = 1.0;
 	/// Can be 0.0 to update the relevancy each frame.
-	real_t objects_relevancy_update_time = 0.5;
+	float objects_relevancy_update_time = 0.5;
+	/// Update the ping each 3 seconds.
+	float ping_update_rate = 3.0;
 
 	SynchronizerType synchronizer_type = SYNCHRONIZER_TYPE_NULL;
 	Synchronizer *synchronizer = nullptr;
@@ -250,15 +253,19 @@ public:
 	void set_max_trickled_objects_per_update(int p_rate);
 	int get_max_trickled_objects_per_update() const;
 
-	void set_server_notify_state_interval(real_t p_interval);
-	real_t get_server_notify_state_interval() const;
+	void set_server_notify_state_interval(float p_interval);
+	float get_server_notify_state_interval() const;
 
-	void set_objects_relevancy_update_time(real_t p_time);
-	real_t get_objects_relevancy_update_time() const;
+	void set_objects_relevancy_update_time(float p_time);
+	float get_objects_relevancy_update_time() const;
+
+	void set_ping_update_rate(float p_rate_seconds);
+	float get_ping_update_rate() const;
 
 	bool is_variable_registered(ObjectLocalId p_id, const StringName &p_variable) const;
 
 public: // ---------------------------------------------------------------- RPCs
+	void rpc_ping();
 	void rpc_receive_state(DataBuffer &p_snapshot);
 	void rpc__notify_need_full_snapshot();
 	void rpc_set_network_enabled(bool p_enabled);
@@ -396,6 +403,8 @@ public: // ------------------------------------------------------------ INTERNAL
 	NetworkedControllerBase *get_controller_for_peer(int p_peer, bool p_expected = true);
 	const NetworkedControllerBase *get_controller_for_peer(int p_peer, bool p_expected = true) const;
 
+	const std::map<int, NS::PeerData> &get_peers() const;
+	std::map<int, NS::PeerData> &get_peers();
 	PeerData *get_peer_for_controller(const NetworkedControllerBase &p_controller, bool p_expected = true);
 	const PeerData *get_peer_for_controller(const NetworkedControllerBase &p_controller, bool p_expected = true) const;
 
@@ -524,6 +533,8 @@ public:
 			DataBuffer &r_snapshot_db) const;
 
 	void process_trickled_sync(real_t p_delta);
+	void process_ping_update(real_t p_delta);
+	void notify_ping_received(int p_peer);
 };
 
 class ClientSynchronizer : public Synchronizer {
@@ -646,7 +657,7 @@ public:
 			void (*p_custom_data_parse)(void *p_user_pointer, VarData &&p_custom_data),
 			void (*p_ode_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
 			void (*p_input_id_parse)(void *p_user_pointer, uint32_t p_input_id),
-			void (*p_controller_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
+			void (*p_controller_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, std::uint16_t p_ping),
 			void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, VarData &&p_value),
 			void (*p_simulated_objects_parse)(void *p_user_pointer, std::vector<ObjectNetId> &&p_simulated_objects));
 

@@ -141,7 +141,7 @@ private:
 
 	bool has_player_new_input = false;
 
-	// Peer controlling this controller.
+	// Peer controlling this controller [SERVER ONLY]
 	int peer_id = -1;
 
 	ObjectNetId net_id = ObjectNetId::NONE;
@@ -223,6 +223,8 @@ public: // ---------------------------------------------------------------- APIs
 
 	void server_set_peer_simulating_this_controller(int p_peer, bool p_simulating);
 	bool server_is_peer_simulating_this_controller(int p_peer) const;
+
+	int server_get_associated_peer() const { return peer_id; }
 
 public: // -------------------------------------------------------------- Events
 	bool has_another_instant_to_process_after(int p_i) const;

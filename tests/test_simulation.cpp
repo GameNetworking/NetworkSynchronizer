@@ -394,15 +394,9 @@ public:
 	}
 };
 
-void test_doll_simulation_rewindings() {
-	// TODO implement this
-}
-
 void test_simulation() {
 	TestSimulationBase().do_test();
 	TestSimulationWithRewind(0.0).do_test();
 	TestSimulationWithRewind(1.0).do_test();
-
-	test_doll_simulation_rewindings();
 }
 }; //namespace NS_Test

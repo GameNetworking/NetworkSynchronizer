@@ -37,6 +37,7 @@ void NS::SyncGroup::mark_changes_as_notified() {
 	}
 	simulated_sync_objects_list_changed = false;
 	trickled_sync_objects_list_changed = false;
+	peers_with_newly_calculated_ping.clear();
 }
 
 void NS::SyncGroup::add_listening_peer(int p_peer) {
@@ -50,6 +51,15 @@ void NS::SyncGroup::remove_listening_peer(int p_peer) {
 }
 
 uint32_t NS::SyncGroup::add_new_sync_object(ObjectData *p_object_data, bool p_is_simulated) {
+	if (p_object_data->get_controller()) {
+		// This is a controller with an associated peer, update the networked_peer list.
+		// Regardless if it's simulated or not.
+		const int peer = p_object_data->get_controller()->server_get_associated_peer();
+		if (NS::VecFunc::insert_unique(networked_peers, peer)) {
+			NS::VecFunc::insert_unique(peers_with_newly_calculated_ping, peer);
+		}
+	}
+
 	if (p_is_simulated) {
 		// Make sure the node is not contained into the trickled sync.
 		const int tso_index = trickled_sync_objects.find(p_object_data);
@@ -99,13 +109,26 @@ uint32_t NS::SyncGroup::add_new_sync_object(ObjectData *p_object_data, bool p_is
 }
 
 void NS::SyncGroup::remove_sync_object(std::size_t p_index, bool p_is_simulated) {
+	int associted_peer = 0;
+
 	if (p_is_simulated) {
+		if (simulated_sync_objects[p_index].od->get_controller()) {
+			associted_peer = simulated_sync_objects[p_index].od->get_controller()->server_get_associated_peer();
+		}
 		notify_controller_about_simulating_peers(simulated_sync_objects[p_index].od, false);
 		simulated_sync_objects.remove_at_unordered(p_index);
 		simulated_sync_objects_list_changed = true;
 	} else {
+		if (trickled_sync_objects[p_index].od->get_controller()) {
+			associted_peer = trickled_sync_objects[p_index].od->get_controller()->server_get_associated_peer();
+		}
 		trickled_sync_objects.remove_at_unordered(p_index);
 		trickled_sync_objects_list_changed = true;
+	}
+
+	if (associted_peer != 0) {
+		NS::VecFunc::remove_unordered(networked_peers, associted_peer);
+		NS::VecFunc::remove_unordered(peers_with_newly_calculated_ping, associted_peer);
 	}
 }
 
@@ -231,6 +254,12 @@ void NS::SyncGroup::sort_trickled_node_by_update_priority() {
 	};
 
 	trickled_sync_objects.sort_custom<DNIComparator>();
+}
+
+void NS::SyncGroup::notify_peer_has_newly_calculated_ping(int p_peer) {
+	if (NS::VecFunc::has(networked_peers, p_peer)) {
+		NS::VecFunc::insert_unique(peers_with_newly_calculated_ping, p_peer);
+	}
 }
 
 void NS::SyncGroup::notify_controller_about_simulating_peers(struct ObjectData *p_object_data, bool p_simulating) {
