@@ -66,7 +66,7 @@ void LocalNetwork::rpc_send(String p_object_name, int p_peer_recipient, bool p_r
 	std::shared_ptr<PendingPacket> packet = std::make_shared<PendingPacket>();
 
 	if (network_properties) {
-		packet->delay = network_properties->rtt_seconds;
+		packet->delay = network_properties->rtt_seconds * 0.5;
 		if (!p_reliable && network_properties->reorder > frand()) {
 			const float reorder_delay = 0.5;
 			packet->delay += reorder_delay * ((frand() - 0.5) / 0.5);
@@ -315,7 +315,7 @@ void NS_Test::test_local_network() {
 	CRASH_COND(!peer_2_rpc_executed_by.empty());
 
 	// -------------------------------------------------------Now test `latency`
-	network_properties.rtt_seconds = 1.0;
+	network_properties.rtt_seconds = 2.0;
 	rpc_handle_2_obj_1.rpc(peer_2_obj_1, peer_2_obj_1.get_server_peer(), true, 22, 44.0, NS::VarData(1, 2, 3), vec);
 
 	CRASH_COND(server_rpc_executed_by.size() != 1);

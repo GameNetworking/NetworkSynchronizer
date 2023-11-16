@@ -396,8 +396,16 @@ struct PeerData {
 	SyncGroupId sync_group_id = 0;
 
 	// The ping between this peer and the server in ms.
-	std::uint16_t ping = 0;
 	std::chrono::high_resolution_clock::time_point ping_timestamp;
+	bool ping_calculation_in_progress = false;
+
+	void set_ping(int p_ping);
+	int get_ping() const;
+	void set_compressed_ping(std::uint8_t p_compressed_ping) { compressed_ping = p_compressed_ping; }
+	std::uint8_t get_compressed_ping() const { return compressed_ping; }
+
+private:
+	std::uint8_t compressed_ping = 0;
 };
 
 struct SyncGroup {
@@ -471,6 +479,7 @@ public:
 public:
 	bool is_realtime_node_list_changed() const;
 	bool is_trickled_node_list_changed() const;
+	const std::vector<int> get_peers_with_newly_calculated_ping() const;
 
 	const LocalVector<NS::SyncGroup::SimulatedObjectInfo> &get_simulated_sync_objects() const;
 	const LocalVector<NS::SyncGroup::TrickledObjectInfo> &get_trickled_sync_objects() const;

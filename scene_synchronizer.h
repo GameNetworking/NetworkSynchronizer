@@ -657,7 +657,7 @@ public:
 			void (*p_custom_data_parse)(void *p_user_pointer, VarData &&p_custom_data),
 			void (*p_ode_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
 			void (*p_input_id_parse)(void *p_user_pointer, uint32_t p_input_id),
-			void (*p_controller_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, std::uint16_t p_ping),
+			void (*p_controller_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
 			void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, VarData &&p_value),
 			void (*p_simulated_objects_parse)(void *p_user_pointer, std::vector<ObjectNetId> &&p_simulated_objects));
 

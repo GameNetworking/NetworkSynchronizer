@@ -1819,6 +1819,18 @@ void ServerSynchronizer::generate_snapshot(
 		r_snapshot_db.add(false);
 	}
 
+	// Network the peers ping.
+	for (int peer : p_group.get_peers_with_newly_calculated_ping()) {
+		const PeerData *pd = NS::MapFunc::at(scene_synchronizer->get_peers(), peer);
+		if (pd) {
+			r_snapshot_db.add(true);
+			r_snapshot_db.add(peer);
+			const std::uint8_t compressed_ping = pd->get_compressed_ping();
+			r_snapshot_db.add(compressed_ping);
+		}
+	}
+	r_snapshot_db.add(false);
+
 	// Calling this function to allow customize the snapshot per group.
 	NS::VarData vd;
 	if (scene_synchronizer->synchronizer_manager->snapshot_get_custom_data(&p_group, vd)) {
@@ -1885,18 +1897,6 @@ void ServerSynchronizer::generate_snapshot_object_data(
 	} else {
 		// This node is already known on clients, just set the node ID.
 		r_snapshot_db.add(false); // Has the object name?
-	}
-
-	if (p_object_data->get_controller()) {
-		// This is a controller,
-		r_snapshot_db.add(true);
-		// so include the ping between the server and the client controlling it.
-		const PeerData *pd = scene_synchronizer->get_peer_for_controller(*p_object_data->get_controller(), true);
-		const std::uint8_t compressed_ping = std::round(std::min(float(pd->ping), 1000.0f) / 4.0f);
-		r_snapshot_db.add(compressed_ping);
-	} else {
-		// This is not a controller.
-		r_snapshot_db.add(false);
 	}
 
 	const bool allow_vars =
@@ -2037,12 +2037,16 @@ void ServerSynchronizer::process_ping_update(real_t p_delta) {
 	const std::chrono::high_resolution_clock::time_point now = std::chrono::high_resolution_clock::now();
 
 	for (auto &[peer, peer_data] : scene_synchronizer->get_peers()) {
+		if (peer_data.ping_calculation_in_progress) {
+			continue;
+		}
 		const auto interval = std::chrono::duration_cast<std::chrono::milliseconds>(now - peer_data.ping_timestamp);
 		if (interval.count() >= (scene_synchronizer->ping_update_rate * 1000.0)) {
 			scene_synchronizer->rpc_handler_ping.rpc(
 					scene_synchronizer->get_network_interface(),
 					peer);
 			peer_data.ping_timestamp = now;
+			peer_data.ping_calculation_in_progress = true;
 		}
 	}
 }
@@ -2055,7 +2059,9 @@ void ServerSynchronizer::notify_ping_received(int p_peer) {
 		const auto rtt_interval = std::chrono::duration_cast<std::chrono::milliseconds>(now - peer_data->ping_timestamp);
 		// Clamping to 1k as 1k ms ping is way too high to matter anyway.
 		std::uint64_t rtt = rtt_interval.count();
-		peer_data->ping = std::min(rtt, std::uint64_t(1000));
+		peer_data->set_ping(rtt);
+		peer_data->ping_calculation_in_progress = false;
+		peer_data->ping_timestamp = now;
 
 		// Notify all sync groups about this peer having newly calculated ping.
 		for (auto &group : sync_groups) {
@@ -2681,7 +2687,7 @@ bool ClientSynchronizer::parse_sync_data(
 		void (*p_custom_data_parse)(void *p_user_pointer, VarData &&p_custom_data),
 		void (*p_node_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
 		void (*p_input_id_parse)(void *p_user_pointer, uint32_t p_input_id),
-		void (*p_controller_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, std::uint16_t p_ping),
+		void (*p_controller_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
 		void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, VarData &&p_value),
 		void (*p_simulated_objects_parse)(void *p_user_pointer, std::vector<ObjectNetId> &&p_simulated_objects)) {
 	// The snapshot is a DataBuffer that contains the scene informations.
@@ -2726,6 +2732,29 @@ bool ClientSynchronizer::parse_sync_data(
 	}
 
 	{
+		// Fetch pings
+		while (true) {
+			bool has_next_ping = false;
+			p_snapshot.read(has_next_ping);
+			ERR_FAIL_COND_V_MSG(p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `has_next_ping` failed.");
+			if (has_next_ping) {
+				int peer;
+				p_snapshot.read(peer);
+				ERR_FAIL_COND_V_MSG(p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `peer` failed.");
+				std::uint8_t compressed_ping;
+				p_snapshot.read(compressed_ping);
+				ERR_FAIL_COND_V_MSG(p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `compressed_ping` failed.");
+				PeerData *pd = NS::MapFunc::at(scene_synchronizer->peer_data, peer);
+				if (pd) {
+					pd->set_compressed_ping(compressed_ping);
+				}
+			} else {
+				break;
+			}
+		}
+	}
+
+	{
 		bool has_custom_data = false;
 		p_snapshot.read(has_custom_data);
 		if (has_custom_data) {
@@ -2738,7 +2767,6 @@ bool ClientSynchronizer::parse_sync_data(
 	while (true) {
 		// First extract the object data
 		NS::ObjectData *synchronizer_object_data = nullptr;
-		std::uint16_t controller_ping = 0;
 		{
 			ObjectNetId net_id = ObjectNetId::NONE;
 			p_snapshot.read(net_id.id);
@@ -2761,16 +2789,6 @@ bool ClientSynchronizer::parse_sync_data(
 
 				// Associate the ID with the path.
 				objects_names.insert(std::pair(net_id, object_name));
-			}
-
-			bool is_controller;
-			p_snapshot.read(is_controller);
-			ERR_FAIL_COND_V_MSG(p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `is_controller` was expected at this point.");
-			if (is_controller) {
-				std::uint8_t compressed_ping = 0;
-				p_snapshot.read(compressed_ping);
-				ERR_FAIL_COND_V_MSG(p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `compressed_ping` was expected at this point.");
-				controller_ping = compressed_ping * 4;
 			}
 
 			// Fetch the ObjectData.
@@ -2825,7 +2843,7 @@ bool ClientSynchronizer::parse_sync_data(
 			p_node_parse(p_user_pointer, synchronizer_object_data);
 
 			if (synchronizer_object_data->get_controller()) {
-				p_controller_parse(p_user_pointer, synchronizer_object_data, controller_ping);
+				p_controller_parse(p_user_pointer, synchronizer_object_data);
 			}
 		}
 
@@ -3120,13 +3138,7 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 			},
 
 			// Parse controller:
-			[](void *p_user_pointer, NS::ObjectData *p_object_data, std::uint16_t p_ping) {
-				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
-				PeerData *peer_data = pd->scene_synchronizer->get_peer_for_controller(*p_object_data->get_controller(), false);
-				if (peer_data) {
-					peer_data->ping = p_ping;
-				}
-			},
+			[](void *p_user_pointer, NS::ObjectData *p_object_data) {},
 
 			// Parse variable:
 			[](void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, VarData &&p_value) {

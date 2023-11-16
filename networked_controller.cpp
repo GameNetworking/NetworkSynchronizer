@@ -201,6 +201,10 @@ bool NetworkedControllerBase::server_is_peer_simulating_this_controller(int p_pe
 	return VecFunc::has(get_server_controller()->peers_simulating_this_controller, p_peer);
 }
 
+int NetworkedControllerBase::server_get_associated_peer() const {
+	return network_interface->get_unit_authority();
+}
+
 bool NetworkedControllerBase::has_another_instant_to_process_after(int p_i) const {
 	ERR_FAIL_COND_V_MSG(is_player_controller() == false, false, "Can be executed only on player controllers.");
 	return static_cast<PlayerController *>(controller)->has_another_instant_to_process_after(p_i);
@@ -340,12 +344,6 @@ void NetworkedControllerBase::on_peer_status_updated(const NS::ObjectData *p_obj
 	}
 
 	if (p_object_data->get_controller() == this) {
-		if (p_connected) {
-			peer_id = p_peer_id;
-		} else {
-			peer_id = -1;
-		}
-
 		if (is_server_controller()) {
 			get_server_controller()->on_peer_update(p_connected && p_enabled);
 		}
@@ -927,7 +925,7 @@ bool ServerController::receive_inputs(const Vector<uint8_t> &p_data) {
 
 		// The input parsing succeded on the server, now ping pong this to all the dolls.
 		for (int peer_id : peers_simulating_this_controller) {
-			if (peer_id == node->peer_id) {
+			if (peer_id == node->server_get_associated_peer()) {
 				continue;
 			}
 
@@ -954,7 +952,7 @@ bool ServerController::receive_inputs(const Vector<uint8_t> &p_data) {
 
 uint32_t ServerController::convert_input_id_to(int p_other_peer, uint32_t p_input_id) const {
 	ERR_FAIL_COND_V(p_input_id == UINT32_MAX, UINT32_MAX);
-	CRASH_COND(node->peer_id == p_other_peer); // This function must never be called for the same peer controlling this Character.
+	CRASH_COND(node->server_get_associated_peer() == p_other_peer); // This function must never be called for the same peer controlling this Character.
 	const uint32_t current = get_current_input_id();
 	const int64_t diff = int64_t(p_input_id) - int64_t(current);
 

@@ -6,12 +6,24 @@
 #include "networked_controller.h"
 #include <limits>
 
+void NS::PeerData::set_ping(int p_ping) {
+	compressed_ping = std::round(float(std::min(p_ping, 1000)) / 4.0);
+}
+
+int NS::PeerData::get_ping() const {
+	return compressed_ping * 4.0;
+}
+
 bool NS::SyncGroup::is_realtime_node_list_changed() const {
 	return simulated_sync_objects_list_changed;
 }
 
 bool NS::SyncGroup::is_trickled_node_list_changed() const {
 	return trickled_sync_objects_list_changed;
+}
+
+const std::vector<int> NS::SyncGroup::get_peers_with_newly_calculated_ping() const {
+	return peers_with_newly_calculated_ping;
 }
 
 const LocalVector<NS::SyncGroup::SimulatedObjectInfo> &NS::SyncGroup::get_simulated_sync_objects() const {
