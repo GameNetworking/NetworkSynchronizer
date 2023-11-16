@@ -8,6 +8,7 @@
 #include "modules/network_synchronizer/data_buffer.h"
 #include "modules/network_synchronizer/godot4/gd_network_interface.h"
 #include "modules/network_synchronizer/godot4/gd_networked_controller.h"
+#include "modules/network_synchronizer/godot4/gd_scene_synchronizer.h"
 #include "modules/network_synchronizer/net_utilities.h"
 #include "modules/network_synchronizer/scene_synchronizer.h"
 #include "modules/network_synchronizer/scene_synchronizer_debugger.h"
@@ -53,6 +54,7 @@ void GdSceneSynchronizer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_nodes_relevancy_update_time"), &GdSceneSynchronizer::get_nodes_relevancy_update_time);
 
 	ClassDB::bind_method(D_METHOD("register_node", "node"), &GdSceneSynchronizer::register_node_gdscript);
+	ClassDB::bind_method(D_METHOD("register_node_as_controller_by_peer", "node", "peer"), &GdSceneSynchronizer::register_node_as_controller_by_peer);
 	ClassDB::bind_method(D_METHOD("unregister_node", "node"), &GdSceneSynchronizer::unregister_node);
 	ClassDB::bind_method(D_METHOD("get_node_id", "node"), &GdSceneSynchronizer::get_node_id);
 	ClassDB::bind_method(D_METHOD("get_node_from_id", "id", "expected"), &GdSceneSynchronizer::get_node_from_id, DEFVAL(true));
@@ -424,6 +426,10 @@ NS::ObjectLocalId GdSceneSynchronizer::register_node(Node *p_node) {
 uint32_t GdSceneSynchronizer::register_node_gdscript(Node *p_node) {
 	const NS::ObjectLocalId id = register_node(p_node);
 	return id.id;
+}
+
+void GdSceneSynchronizer::register_node_as_controller_by_peer(Node *p_node, int p_peer) {
+	scene_synchronizer.register_app_object_as_controlled_by_peer(scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node)), p_peer);
 }
 
 void GdSceneSynchronizer::unregister_node(Node *p_node) {

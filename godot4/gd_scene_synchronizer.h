@@ -86,6 +86,7 @@ public: // ---------------------------------------------------------------- APIs
 	/// Register a new node and returns its `NodeData`.
 	NS::ObjectLocalId register_node(Node *p_node);
 	uint32_t register_node_gdscript(Node *p_node);
+	void register_node_as_controller_by_peer(Node *p_node, int p_peer);
 	void unregister_node(Node *p_node);
 
 	/// Returns the node ID.

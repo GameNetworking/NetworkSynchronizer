@@ -6,6 +6,7 @@
 #include "core/processor.h"
 #include "core/templates/local_vector.h"
 #include "core/var_data.h"
+#include <chrono>
 #include <map>
 #include <stdexcept>
 #include <string>
@@ -90,10 +91,12 @@ bool has(const std::vector<V> &p_vec, const T &p_val) {
 }
 
 template <class V, typename T>
-void insert_unique(std::vector<V> &r_vec, const T &p_val) {
+bool insert_unique(std::vector<V> &r_vec, const T &p_val) {
 	if (!has(r_vec, p_val)) {
 		r_vec.push_back(p_val);
+		return true;
 	}
+	return false;
 }
 
 template <class V, typename T>
@@ -390,7 +393,19 @@ struct PeerData {
 	// Used to know if the peer is enabled.
 	bool enabled = true;
 	// The Sync group this peer is in.
-	SyncGroupId sync_group_id;
+	SyncGroupId sync_group_id = 0;
+
+	// The ping between this peer and the server in ms.
+	std::chrono::high_resolution_clock::time_point ping_timestamp;
+	bool ping_calculation_in_progress = false;
+
+	void set_ping(int p_ping);
+	int get_ping() const;
+	void set_compressed_ping(std::uint8_t p_compressed_ping) { compressed_ping = p_compressed_ping; }
+	std::uint8_t get_compressed_ping() const { return compressed_ping; }
+
+private:
+	std::uint8_t compressed_ping = 0;
 };
 
 struct SyncGroup {
@@ -451,6 +466,9 @@ private:
 	bool trickled_sync_objects_list_changed = false;
 	LocalVector<TrickledObjectInfo> trickled_sync_objects;
 
+	std::vector<int> networked_peers;
+	std::vector<int> peers_with_newly_calculated_ping;
+
 	std::vector<int> listening_peers;
 
 public:
@@ -461,6 +479,7 @@ public:
 public:
 	bool is_realtime_node_list_changed() const;
 	bool is_trickled_node_list_changed() const;
+	const std::vector<int> get_peers_with_newly_calculated_ping() const;
 
 	const LocalVector<NS::SyncGroup::SimulatedObjectInfo> &get_simulated_sync_objects() const;
 	const LocalVector<NS::SyncGroup::TrickledObjectInfo> &get_trickled_sync_objects() const;
@@ -486,6 +505,8 @@ public:
 	real_t get_trickled_update_rate(const struct ObjectData *p_object_data) const;
 
 	void sort_trickled_node_by_update_priority();
+
+	void notify_peer_has_newly_calculated_ping(int p_peer);
 
 private:
 	void notify_controller_about_simulating_peers(struct ObjectData *p_object_data, bool p_simulating);

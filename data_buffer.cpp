@@ -38,6 +38,7 @@
 #include "core/io/marshalls.h"
 #include "core/math/vector2.h"
 #include "core/variant/variant.h"
+#include "modules/network_synchronizer/data_buffer.h"
 #include "scene_synchronizer_debugger.h"
 #include <cstddef>
 #include <cstdint>
@@ -286,6 +287,14 @@ void DataBuffer::add(std::uint32_t p_input) {
 
 void DataBuffer::read(std::uint32_t &r_out) {
 	r_out = read_uint(COMPRESSION_LEVEL_1);
+}
+
+void DataBuffer::add(int p_input) {
+	add_int(p_input, COMPRESSION_LEVEL_1);
+}
+
+void DataBuffer::read(int &r_out) {
+	r_out = read_int(COMPRESSION_LEVEL_1);
 }
 
 void DataBuffer::add(std::uint64_t p_input) {

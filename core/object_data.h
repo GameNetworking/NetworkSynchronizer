@@ -49,6 +49,8 @@ private:
 	class NetworkedControllerBase *controller = nullptr;
 
 public:
+	int controlled_by_peer = -1;
+
 	uint64_t instance_id = 0; // TODO remove this?
 	std::string object_name;
 	// The local application object handle associated to this `NodeData`.

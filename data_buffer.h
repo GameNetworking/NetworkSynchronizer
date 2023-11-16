@@ -191,6 +191,9 @@ public:
 	void add(std::uint32_t p_input);
 	void read(std::uint32_t &r_out);
 
+	void add(int p_input);
+	void read(int &r_out);
+
 	void add(std::uint64_t p_input);
 	void read(std::uint64_t &r_out);
 
