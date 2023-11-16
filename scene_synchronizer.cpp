@@ -287,6 +287,15 @@ void SceneSynchronizerBase::unregister_app_object(ObjectLocalId p_id) {
 	drop_object_data(*od);
 }
 
+void SceneSynchronizerBase::register_app_object_as_controlled_by_peer(ObjectLocalId p_id, int p_peer) {
+	ERR_FAIL_COND(p_id == ObjectLocalId::NONE);
+
+	NS::ObjectData *object_data = get_object_data(p_id);
+	ERR_FAIL_COND(object_data == nullptr);
+
+	object_data->controlled_by_peer = p_peer;
+}
+
 void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const std::string &p_variable) {
 	ERR_FAIL_COND(p_id == ObjectLocalId::NONE);
 	ERR_FAIL_COND(p_variable.empty());

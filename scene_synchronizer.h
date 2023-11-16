@@ -275,6 +275,7 @@ public: // ---------------------------------------------------------------- RPCs
 public: // ---------------------------------------------------------------- APIs
 	void register_app_object(ObjectHandle p_app_object_handle, ObjectLocalId *out_id = nullptr);
 	void unregister_app_object(ObjectLocalId p_id);
+	void register_app_object_as_controlled_by_peer(ObjectLocalId p_id, int p_peer);
 	void register_variable(ObjectLocalId p_id, const std::string &p_variable);
 	void unregister_variable(ObjectLocalId p_id, const std::string &p_variable);
 
