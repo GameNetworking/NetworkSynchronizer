@@ -217,8 +217,11 @@ void GdSceneSynchronizer::_notification(int p_what) {
 				reset_synchronizer_mode();
 			}
 
-			const int lowest_priority_number = INT32_MAX;
-			ERR_FAIL_COND_MSG(get_process_priority() != lowest_priority_number, "The process priority MUST not be changed, it's likely there is a better way of doing what you are trying to do, if you really need it please open an issue.");
+			// Note: This is disabled because this failure condition is always hit as of
+			// Godot 4.1's scene node processing threading refactor (godotengine/godot#75901).
+			// In the future, re-evaluate what this check is supposed to prevent from happening.
+			//const int lowest_priority_number = INT32_MAX;
+			//ERR_FAIL_COND_MSG(get_process_priority() != lowest_priority_number, "The process priority MUST not be changed, it's likely there is a better way of doing what you are trying to do, if you really need it please open an issue.");
 
 			scene_synchronizer.process();
 		} break;
