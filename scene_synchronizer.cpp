@@ -293,7 +293,7 @@ void SceneSynchronizerBase::register_app_object_as_controlled_by_peer(ObjectLoca
 	NS::ObjectData *object_data = get_object_data(p_id);
 	ERR_FAIL_COND(object_data == nullptr);
 
-	object_data->controlled_by_peer = p_peer;
+	object_data->set_controlled_by_peer(p_peer);
 }
 
 void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const std::string &p_variable) {
@@ -400,6 +400,10 @@ const std::vector<ObjectData *> &SceneSynchronizerBase::get_sorted_objects_data(
 
 const std::vector<ObjectData *> &SceneSynchronizerBase::get_all_object_data() const {
 	return objects_data_storage.get_objects_data();
+}
+
+const std::vector<ObjectData *> *SceneSynchronizerBase::get_peer_controlled_objects_data(int p_peer) const {
+	return objects_data_storage.get_peer_controlled_objects_data(p_peer);
 }
 
 VarId SceneSynchronizerBase::get_variable_id(ObjectLocalId p_id, const StringName &p_variable) {

@@ -128,6 +128,8 @@ public: // ---------------------------------------------------------------- APIs
 	/// is streamed and not simulated.
 	void setup_trickled_sync(Node *p_node, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func);
 
+	Array local_controller_get_controlled_nodes() const;
+
 	/// Creates a realtime sync group containing a list of nodes.
 	/// The Peers listening to this group will receive the updates only
 	/// from the nodes within this group.

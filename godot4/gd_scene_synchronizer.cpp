@@ -4,6 +4,7 @@
 #include "core/string/string_name.h"
 #include "core/string/ustring.h"
 #include "modules/network_synchronizer/core/core.h"
+#include "modules/network_synchronizer/core/object_data.h"
 #include "modules/network_synchronizer/core/processor.h"
 #include "modules/network_synchronizer/data_buffer.h"
 #include "modules/network_synchronizer/godot4/gd_network_interface.h"
@@ -70,6 +71,8 @@ void GdSceneSynchronizer::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("register_process", "node", "phase", "function"), &GdSceneSynchronizer::register_process);
 	ClassDB::bind_method(D_METHOD("unregister_process", "node", "phase", "function"), &GdSceneSynchronizer::unregister_process);
+
+	ClassDB::bind_method(D_METHOD("local_controller_get_controlled_nodes"), &GdSceneSynchronizer::local_controller_get_controlled_nodes);
 
 	ClassDB::bind_method(D_METHOD("setup_trickled_sync", "node", "collect_epoch_func", "apply_epoch_func"), &GdSceneSynchronizer::setup_trickled_sync);
 
@@ -557,6 +560,20 @@ void GdSceneSynchronizer::setup_trickled_sync(Node *p_node, const Callable &p_co
 				a.push_back(&db_to);
 				p_apply_epoch_func.callv(a);
 			});
+}
+
+Array GdSceneSynchronizer::local_controller_get_controlled_nodes() const {
+	Array a;
+
+	const std::vector<NS::ObjectData *> *objects = scene_synchronizer.get_peer_controlled_objects_data(scene_synchronizer.get_network_interface().fetch_local_peer_id());
+	if (objects) {
+		for (auto object : *objects) {
+			Node *n = scene_synchronizer.from_handle(object->app_object_handle);
+			a.push_back(n);
+		}
+	}
+
+	return a;
 }
 
 SyncGroupId GdSceneSynchronizer::sync_group_create() {

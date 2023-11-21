@@ -3,6 +3,7 @@
 #include "core.h"
 #include "modules/network_synchronizer/core/object_data.h"
 #include "modules/network_synchronizer/net_utilities.h"
+#include <map>
 #include <vector>
 
 NS_NAMESPACE_BEGIN
@@ -20,6 +21,8 @@ class ObjectDataStorage {
 
 	// All the controller nodes.
 	std::vector<ObjectData *> objects_data_controllers;
+
+	std::map<int, std::vector<ObjectData *>> objects_data_controlled_by_peers;
 
 public:
 	ObjectDataStorage(class SceneSynchronizerBase &p_sync);
@@ -44,11 +47,14 @@ public:
 	const std::vector<ObjectData *> &get_objects_data() const;
 	const std::vector<ObjectData *> &get_controllers_objects_data() const;
 	const std::vector<ObjectData *> &get_sorted_objects_data() const;
+	const std::map<int, std::vector<ObjectData *>> &get_peers_controlled_objects_data() const;
+	const std::vector<ObjectData *> *get_peer_controlled_objects_data(int p_peer) const;
 
 	ObjectNetId generate_net_id() const;
 	bool is_empty() const;
 
 	void notify_set_controller(ObjectData &p_object);
+	void notify_set_controlled_by_peer(int p_old_peer, ObjectData &p_object);
 };
 
 NS_NAMESPACE_END

@@ -4,8 +4,10 @@
 #include "core/os/memory.h"
 #include "modules/network_synchronizer/core/core.h"
 #include "modules/network_synchronizer/core/object_data.h"
+#include "modules/network_synchronizer/core/var_data.h"
 #include "modules/network_synchronizer/net_utilities.h"
 #include "modules/network_synchronizer/scene_synchronizer.h"
+#include <vector>
 
 NS_NAMESPACE_BEGIN
 
@@ -24,6 +26,7 @@ ObjectDataStorage::~ObjectDataStorage() {
 	objects_data.clear();
 	objects_data_organized_by_netid.clear();
 	objects_data_controllers.clear();
+	objects_data_controlled_by_peers.clear();
 }
 
 ObjectData *ObjectDataStorage::allocate_object_data() {
@@ -63,6 +66,11 @@ void ObjectDataStorage::deallocate_object_data(ObjectData &p_object_data) {
 		p_object_data.controller = nullptr;
 		notify_set_controller(p_object_data);
 	}
+
+	// Clear the peers array.
+	const int cbp = p_object_data.controlled_by_peer;
+	p_object_data.controlled_by_peer = -1;
+	notify_set_controlled_by_peer(cbp, p_object_data);
 
 	delete (&p_object_data);
 
@@ -185,6 +193,14 @@ const std::vector<ObjectData *> &ObjectDataStorage::get_sorted_objects_data() co
 	return objects_data_organized_by_netid;
 }
 
+const std::map<int, std::vector<ObjectData *>> &ObjectDataStorage::get_peers_controlled_objects_data() const {
+	return objects_data_controlled_by_peers;
+}
+
+const std::vector<ObjectData *> *ObjectDataStorage::get_peer_controlled_objects_data(int p_peer) const {
+	return NS::MapFunc::at(objects_data_controlled_by_peers, p_peer);
+}
+
 ObjectNetId ObjectDataStorage::generate_net_id() const {
 	uint32_t i = 0;
 	for (auto od : objects_data_organized_by_netid) {
@@ -219,6 +235,23 @@ void ObjectDataStorage::notify_set_controller(ObjectData &p_object) {
 		if (it != objects_data_controllers.end()) {
 			objects_data_controllers.erase(it);
 		}
+	}
+}
+
+void ObjectDataStorage::notify_set_controlled_by_peer(int p_old_peer, ObjectData &p_object) {
+	if (p_old_peer != -1) {
+		std::vector<ObjectData *> *objects = NS::MapFunc::at(objects_data_controlled_by_peers, p_old_peer);
+		if (objects) {
+			NS::VecFunc::remove_unordered(*objects, &p_object);
+		}
+	}
+
+	if (p_object.get_controlled_by_peer() != -1) {
+		std::map<int, std::vector<ObjectData *>>::iterator objects_it = NS::MapFunc::insert_if_new(
+				objects_data_controlled_by_peers,
+				p_object.get_controlled_by_peer(),
+				std::vector<ObjectData *>());
+		NS::VecFunc::insert_unique(objects_it->second, &p_object);
 	}
 }
 

@@ -68,8 +68,11 @@ void assign(std::map<K, V> &p_map, const K &p_key, V &&p_val) {
 
 /// Insert `p_val` only if `p_key` doesn't exists.
 template <class K, class V>
-void insert_if_new(std::map<K, V> &p_map, const K &p_key, const V &p_val) {
-	p_map.insert(std::make_pair(p_key, p_val));
+typename std::map<K, V>::iterator insert_if_new(std::map<K, V> &p_map, const K &p_key, const V &p_val) {
+	auto res = p_map.insert(std::make_pair(p_key, p_val));
+	auto it = res.first;
+	const bool inserted = res.second;
+	return it;
 }
 }; //namespace MapFunc
 

@@ -286,6 +286,7 @@ public: // ---------------------------------------------------------------- APIs
 
 	const std::vector<ObjectData *> &get_sorted_objects_data() const;
 	const std::vector<ObjectData *> &get_all_object_data() const;
+	const std::vector<ObjectData *> *get_peer_controlled_objects_data(int p_peer) const;
 
 	/// Returns the variable ID relative to the `Object`.
 	/// This may return `NONE` in various cases:

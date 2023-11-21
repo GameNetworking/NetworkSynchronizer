@@ -51,6 +51,21 @@ bool ObjectData::can_trickled_sync() const {
 	return func_trickled_collect && func_trickled_apply;
 }
 
+void ObjectData::set_controlled_by_peer(int p_peer) {
+	if (p_peer == controlled_by_peer) {
+		return;
+	}
+
+	const int old_peer = controlled_by_peer;
+	controlled_by_peer = p_peer;
+
+	storage.notify_set_controlled_by_peer(old_peer, *this);
+}
+
+int ObjectData::get_controlled_by_peer() const {
+	return controlled_by_peer;
+}
+
 void ObjectData::set_controller(NetworkedControllerBase *p_controller) {
 	if (controller == p_controller) {
 		return;

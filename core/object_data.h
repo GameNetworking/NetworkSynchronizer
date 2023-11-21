@@ -44,13 +44,12 @@ private:
 	// ID used to reference this NodeData in the networked calls.
 	ObjectNetId net_id = ObjectNetId::NONE;
 	ObjectLocalId local_id = ObjectLocalId::NONE;
+	int controlled_by_peer = -1;
 
 	/// Associated controller.
 	class NetworkedControllerBase *controller = nullptr;
 
 public:
-	int controlled_by_peer = -1;
-
 	uint64_t instance_id = 0; // TODO remove this?
 	std::string object_name;
 	// The local application object handle associated to this `NodeData`.
@@ -74,6 +73,9 @@ public:
 
 	bool has_registered_process_functions() const;
 	bool can_trickled_sync() const;
+
+	void set_controlled_by_peer(int p_peer);
+	int get_controlled_by_peer() const;
 
 	void set_controller(class NetworkedControllerBase *p_controller);
 	class NetworkedControllerBase *get_controller() const;
