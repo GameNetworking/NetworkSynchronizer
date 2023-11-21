@@ -54,7 +54,7 @@ public:
 	}
 
 	int get_xi() const {
-		const NS::VarData *vd = NS::MapFunc::at(variables, std::string("xi"));
+		const NS::VarData *vd = NS::MapFunc::get_or_null(variables, std::string("xi"));
 		if (vd) {
 			return vd->data.i32;
 		} else {

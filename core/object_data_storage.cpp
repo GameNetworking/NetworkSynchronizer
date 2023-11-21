@@ -198,7 +198,7 @@ const std::map<int, std::vector<ObjectData *>> &ObjectDataStorage::get_peers_con
 }
 
 const std::vector<ObjectData *> *ObjectDataStorage::get_peer_controlled_objects_data(int p_peer) const {
-	return NS::MapFunc::at(objects_data_controlled_by_peers, p_peer);
+	return NS::MapFunc::get_or_null(objects_data_controlled_by_peers, p_peer);
 }
 
 ObjectNetId ObjectDataStorage::generate_net_id() const {
@@ -240,7 +240,7 @@ void ObjectDataStorage::notify_set_controller(ObjectData &p_object) {
 
 void ObjectDataStorage::notify_set_controlled_by_peer(int p_old_peer, ObjectData &p_object) {
 	if (p_old_peer != -1) {
-		std::vector<ObjectData *> *objects = NS::MapFunc::at(objects_data_controlled_by_peers, p_old_peer);
+		std::vector<ObjectData *> *objects = NS::MapFunc::get_or_null(objects_data_controlled_by_peers, p_old_peer);
 		if (objects) {
 			NS::VecFunc::remove_unordered(*objects, &p_object);
 		}

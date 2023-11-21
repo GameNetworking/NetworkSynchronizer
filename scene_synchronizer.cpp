@@ -606,7 +606,7 @@ void SceneSynchronizerBase::sync_group_remove_all_objects(SyncGroupId p_group_id
 void SceneSynchronizerBase::sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id) {
 	ERR_FAIL_COND_MSG(!is_server(), "This function CAN be used only on the server.");
 
-	NS::PeerData *pd = MapFunc::at(peer_data, p_peer_id);
+	NS::PeerData *pd = MapFunc::get_or_null(peer_data, p_peer_id);
 	ERR_FAIL_COND_MSG(pd == nullptr, "The PeerData doesn't exist. This looks like a bug. Are you sure the peer_id `" + itos(p_peer_id) + "` exists?");
 
 	if (pd->sync_group_id == p_group_id) {
@@ -622,7 +622,7 @@ void SceneSynchronizerBase::sync_group_move_peer_to(int p_peer_id, SyncGroupId p
 SyncGroupId SceneSynchronizerBase::sync_group_get_peer_group(int p_peer_id) const {
 	ERR_FAIL_COND_V_MSG(!is_server(), UINT32_MAX, "This function CAN be used only on the server.");
 
-	const NS::PeerData *pd = MapFunc::at(peer_data, p_peer_id);
+	const NS::PeerData *pd = MapFunc::get_or_null(peer_data, p_peer_id);
 	ERR_FAIL_COND_V_MSG(pd == nullptr, UINT32_MAX, "The PeerData doesn't exist. This looks like a bug. Are you sure the peer_id `" + itos(p_peer_id) + "` exists?");
 
 	return pd->sync_group_id;
@@ -738,7 +738,7 @@ void SceneSynchronizerBase::set_peer_networking_enable(int p_peer, bool p_enable
 	if (synchronizer_type == SYNCHRONIZER_TYPE_SERVER) {
 		ERR_FAIL_COND_MSG(p_peer == 1, "Disable the server is not possible.");
 
-		NS::PeerData *pd = MapFunc::at(peer_data, p_peer);
+		NS::PeerData *pd = MapFunc::get_or_null(peer_data, p_peer);
 		ERR_FAIL_COND_MSG(pd == nullptr, "The peer: " + itos(p_peer) + " is not know. [bug]");
 
 		if (pd->enabled == p_enable) {
@@ -774,7 +774,7 @@ bool SceneSynchronizerBase::is_peer_networking_enable(int p_peer) const {
 			return true;
 		}
 
-		const NS::PeerData *pd = MapFunc::at(peer_data, p_peer);
+		const NS::PeerData *pd = MapFunc::get_or_null(peer_data, p_peer);
 		ERR_FAIL_COND_V_MSG(pd == nullptr, false, "The peer: " + itos(p_peer) + " is not know. [bug]");
 		return pd->enabled;
 	} else {
@@ -796,7 +796,7 @@ void SceneSynchronizerBase::on_peer_connected(int p_peer) {
 
 void SceneSynchronizerBase::on_peer_disconnected(int p_peer) {
 	// Emit a signal notifying this peer is gone.
-	NS::PeerData *pd = MapFunc::at(peer_data, p_peer);
+	NS::PeerData *pd = MapFunc::get_or_null(peer_data, p_peer);
 	ObjectNetId id = ObjectNetId::NONE;
 	NS::ObjectData *node_data = nullptr;
 	if (pd) {
@@ -958,7 +958,7 @@ void SceneSynchronizerBase::rpc__notify_need_full_snapshot() {
 	ERR_FAIL_COND_MSG(is_server() == false, "Only the server can receive the request to send a full snapshot.");
 
 	const int sender_peer = network_interface->rpc_get_sender();
-	NS::PeerData *pd = MapFunc::at(peer_data, sender_peer);
+	NS::PeerData *pd = MapFunc::get_or_null(peer_data, sender_peer);
 	ERR_FAIL_COND(pd == nullptr);
 	pd->need_full_snapshot = true;
 }
@@ -1170,7 +1170,7 @@ void SceneSynchronizerBase::notify_object_data_net_id_changed(ObjectData &p_obje
 }
 
 NetworkedControllerBase *SceneSynchronizerBase::fetch_controller_by_peer(int peer) {
-	const NS::PeerData *data = MapFunc::at(peer_data, peer);
+	const NS::PeerData *data = MapFunc::get_or_null(peer_data, peer);
 	if (data && data->controller_id != ObjectNetId::NONE) {
 		NS::ObjectData *nd = get_object_data(data->controller_id);
 		if (nd) {
@@ -1265,7 +1265,7 @@ const ObjectData *SceneSynchronizerBase::get_object_data(ObjectNetId p_id, bool 
 }
 
 NetworkedControllerBase *SceneSynchronizerBase::get_controller_for_peer(int p_peer, bool p_expected) {
-	const NS::PeerData *pd = MapFunc::at(peer_data, p_peer);
+	const NS::PeerData *pd = MapFunc::get_or_null(peer_data, p_peer);
 	if (p_expected) {
 		ERR_FAIL_COND_V_MSG(pd == nullptr, nullptr, "The peer is unknown `" + itos(p_peer) + "`.");
 	}
@@ -1277,7 +1277,7 @@ NetworkedControllerBase *SceneSynchronizerBase::get_controller_for_peer(int p_pe
 }
 
 const NetworkedControllerBase *SceneSynchronizerBase::get_controller_for_peer(int p_peer, bool p_expected) const {
-	const NS::PeerData *pd = MapFunc::at(peer_data, p_peer);
+	const NS::PeerData *pd = MapFunc::get_or_null(peer_data, p_peer);
 	if (p_expected) {
 		ERR_FAIL_COND_V_MSG(pd == nullptr, nullptr, "The peer is unknown `" + itos(p_peer) + "`.");
 	}
@@ -1634,7 +1634,7 @@ void ServerSynchronizer::sync_group_move_peer_to(int p_peer_id, SyncGroupId p_gr
 	sync_groups[p_group_id].add_listening_peer(p_peer_id);
 
 	// Also mark the peer as need full snapshot, as it's into a new group now.
-	NS::PeerData *pd = MapFunc::at(scene_synchronizer->peer_data, p_peer_id);
+	NS::PeerData *pd = MapFunc::get_or_null(scene_synchronizer->peer_data, p_peer_id);
 	ERR_FAIL_COND(pd == nullptr);
 	pd->force_notify_snapshot = true;
 	pd->need_full_snapshot = true;
@@ -1742,7 +1742,7 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 		delta_snapshot.begin_write(MD_SIZE);
 
 		for (int peer_id : group.get_listening_peers()) {
-			NS::PeerData *peer = MapFunc::at(scene_synchronizer->peer_data, peer_id);
+			NS::PeerData *peer = MapFunc::get_or_null(scene_synchronizer->peer_data, peer_id);
 			if (peer == nullptr) {
 				ERR_PRINT("The `process_snapshot_notificator` failed to lookup the peer_id `" + itos(peer_id) + "`. Was it removed but never cleared from sync_groups. Report this error, as this is a bug.");
 				continue;
@@ -1834,7 +1834,7 @@ void ServerSynchronizer::generate_snapshot(
 
 	// Network the peers ping.
 	for (int peer : p_group.get_peers_with_newly_calculated_ping()) {
-		const PeerData *pd = NS::MapFunc::at(scene_synchronizer->get_peers(), peer);
+		const PeerData *pd = NS::MapFunc::get_or_null(scene_synchronizer->get_peers(), peer);
 		if (pd) {
 			r_snapshot_db.add(true);
 			r_snapshot_db.add(peer);
@@ -2067,7 +2067,7 @@ void ServerSynchronizer::process_ping_update(real_t p_delta) {
 void ServerSynchronizer::notify_ping_received(int p_peer) {
 	const std::chrono::high_resolution_clock::time_point now = std::chrono::high_resolution_clock::now();
 
-	PeerData *peer_data = NS::MapFunc::at(scene_synchronizer->get_peers(), p_peer);
+	PeerData *peer_data = NS::MapFunc::get_or_null(scene_synchronizer->get_peers(), p_peer);
 	if (peer_data) {
 		const auto rtt_interval = std::chrono::duration_cast<std::chrono::milliseconds>(now - peer_data->ping_timestamp);
 		// Clamping to 1k as 1k ms ping is way too high to matter anyway.
@@ -2757,7 +2757,7 @@ bool ClientSynchronizer::parse_sync_data(
 				std::uint8_t compressed_ping;
 				p_snapshot.read(compressed_ping);
 				ERR_FAIL_COND_V_MSG(p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `compressed_ping` failed.");
-				PeerData *pd = NS::MapFunc::at(scene_synchronizer->peer_data, peer);
+				PeerData *pd = NS::MapFunc::get_or_null(scene_synchronizer->peer_data, peer);
 				if (pd) {
 					pd->set_compressed_ping(compressed_ping);
 				}
@@ -2811,7 +2811,7 @@ bool ClientSynchronizer::parse_sync_data(
 
 				if (object_name.empty()) {
 					// The object_name was not specified by this snapshot, so fetch it
-					const std::string *object_name_ptr = NS::MapFunc::at(objects_names, net_id);
+					const std::string *object_name_ptr = NS::MapFunc::get_or_null(objects_names, net_id);
 
 					if (object_name_ptr == nullptr) {
 						// The name for this `NodeId` doesn't exists yet.
