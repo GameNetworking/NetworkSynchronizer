@@ -36,21 +36,19 @@ class NetworkedControllerBase;
 namespace MapFunc {
 
 template <class K, class V>
-V *at(std::map<K, V> &p_map, const K &p_key) {
-	try {
-		return &p_map.at(p_key);
-	} catch ([[maybe_unused]] std::out_of_range &e) {
+V *get_or_null(std::map<K, V> &p_map, const K &p_key) {
+	if (p_map.count(p_key) == 0) {
 		return nullptr;
 	}
+	return &p_map.at(p_key);
 }
 
 template <class K, class V>
-const V *at(const std::map<K, V> &p_map, const K &p_key) {
-	try {
-		return &p_map.at(p_key);
-	} catch ([[maybe_unused]] std::out_of_range &e) {
+const V *get_or_null(const std::map<K, V> &p_map, const K &p_key) {
+	if (p_map.count(p_key) == 0) {
 		return nullptr;
 	}
+	return &p_map.at(p_key);
 }
 
 /// Insert or assign the `p_val` into the map at index `p_key`.

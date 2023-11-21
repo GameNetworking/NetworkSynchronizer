@@ -48,7 +48,7 @@ public:
 	}
 
 	float get_weight() const {
-		const NS::VarData *vd = NS::MapFunc::at(variables, std::string("weight"));
+		const NS::VarData *vd = NS::MapFunc::get_or_null(variables, std::string("weight"));
 		if (vd) {
 			return vd->data.f32;
 		} else {
@@ -63,7 +63,7 @@ public:
 	}
 
 	Vec3 get_position() const {
-		const NS::VarData *vd = NS::MapFunc::at(variables, std::string("position"));
+		const NS::VarData *vd = NS::MapFunc::get_or_null(variables, std::string("position"));
 		if (vd) {
 			return Vec3::from(*vd);
 		} else {
@@ -107,7 +107,7 @@ public:
 	}
 
 	float get_weight() const {
-		const NS::VarData *vd = NS::MapFunc::at(variables, std::string("weight"));
+		const NS::VarData *vd = NS::MapFunc::get_or_null(variables, std::string("weight"));
 		if (vd) {
 			return vd->data.f32;
 		} else {
@@ -122,7 +122,7 @@ public:
 	}
 
 	Vec3 get_position() const {
-		const NS::VarData *vd = NS::MapFunc::at(variables, std::string("position"));
+		const NS::VarData *vd = NS::MapFunc::get_or_null(variables, std::string("position"));
 		if (vd) {
 			return Vec3::from(*vd);
 		} else {
