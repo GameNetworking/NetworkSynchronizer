@@ -6,7 +6,12 @@
 
 NS_NAMESPACE_BEGIN
 
-LocalSceneObject::~LocalSceneObject() {}
+LocalSceneObject::~LocalSceneObject() {
+	const NS::ObjectLocalId id = find_local_id();
+	if (get_scene() && get_scene()->scene_sync && id != NS::ObjectLocalId::NONE) {
+		get_scene()->scene_sync->unregister_app_object(id);
+	}
+}
 
 NS::ObjectLocalId LocalSceneObject::find_local_id() const {
 	if (get_scene()) {
