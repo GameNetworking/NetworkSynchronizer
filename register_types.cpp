@@ -67,7 +67,7 @@ void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
 	} else if (p_level == MODULE_INITIALIZATION_LEVEL_EDITOR) {
 #ifdef DEBUG_ENABLED
 		List<String> args = OS::get_singleton()->get_cmdline_args();
-		if (args.find("--editor")) {
+		if (args.find("--unit-test-netsync")) {
 			NS_GD_Test::test_var_data_conversin();
 			NS_Test::test_all();
 		}
