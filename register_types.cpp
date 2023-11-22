@@ -66,8 +66,11 @@ void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
 		GLOBAL_DEF("NetworkSynchronizer/debugger/log_debug_fps_warnings", true);
 	} else if (p_level == MODULE_INITIALIZATION_LEVEL_EDITOR) {
 #ifdef DEBUG_ENABLED
-		NS_GD_Test::test_var_data_conversin();
-		NS_Test::test_all();
+		List<String> args = OS::get_singleton()->get_cmdline_args();
+		if (args.find("--editor")) {
+			NS_GD_Test::test_var_data_conversin();
+			NS_Test::test_all();
+		}
 #endif
 	}
 }
