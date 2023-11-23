@@ -306,7 +306,7 @@ bool GdNetworkedController::is_nonet_controller() const {
 }
 
 void GdNetworkedController::collect_inputs(double p_delta, DataBuffer &r_buffer) {
-	PROFILE_NODE
+	NS_PROFILE_NODE
 
 	const bool executed = GDVIRTUAL_CALL(_collect_inputs, p_delta, &r_buffer);
 	if (executed == false) {
@@ -315,7 +315,7 @@ void GdNetworkedController::collect_inputs(double p_delta, DataBuffer &r_buffer)
 }
 
 void GdNetworkedController::controller_process(double p_delta, DataBuffer &p_buffer) {
-	PROFILE_NODE
+	NS_PROFILE_NODE
 
 	const bool executed = GDVIRTUAL_CALL(
 			_controller_process,
@@ -328,7 +328,7 @@ void GdNetworkedController::controller_process(double p_delta, DataBuffer &p_buf
 }
 
 bool GdNetworkedController::are_inputs_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B) {
-	PROFILE_NODE
+	NS_PROFILE_NODE
 
 	bool are_different = true;
 	const bool executed = GDVIRTUAL_CALL(
@@ -346,7 +346,7 @@ bool GdNetworkedController::are_inputs_different(DataBuffer &p_buffer_A, DataBuf
 }
 
 uint32_t GdNetworkedController::count_input_size(DataBuffer &p_buffer) {
-	PROFILE_NODE
+	NS_PROFILE_NODE
 
 	int input_size = 0;
 	const bool executed = GDVIRTUAL_CALL(_count_input_size, &p_buffer, input_size);

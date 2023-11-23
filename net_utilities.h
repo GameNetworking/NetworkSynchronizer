@@ -15,6 +15,33 @@
 
 typedef uint32_t SyncGroupId;
 
+#ifdef TRACY_ENABLE
+
+#include "modules/godot_tracy/profiler.h"
+
+#define NS_PROFILE \
+	ZoneScoped;
+
+#define NS_PROFILE_WITH_INFO(str) \
+	ZoneScoped;                   \
+	ZoneText(str.c_str(), str.size());
+
+#define NS_PROFILE_NODE                                          \
+	ZoneScoped;                                                  \
+	CharString c = String(get_path()).utf8();                    \
+	if (c.size() >= std::numeric_limits<std::uint16_t>::max()) { \
+		c.resize(std::numeric_limits<std::uint16_t>::max() - 1); \
+	}                                                            \
+	ZoneText(c.ptr(), c.size());
+
+#else
+
+#define NS_PROFILE
+#define NS_PROFILE_WITH_INFO(str)
+#define NS_PROFILE_NODE
+
+#endif
+
 #ifdef DEBUG_ENABLED
 #define NET_DEBUG_PRINT(msg)                                                                                  \
 	if (ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/log_debug_warnings_and_messages")) \
@@ -208,28 +235,6 @@ struct ListenerHandle {
 	}
 };
 inline static const ListenerHandle nulllistenerhandle = { 0 };
-
-#ifdef TRACY_ENABLE
-
-#include "godot_tracy/profiler.h"
-
-#define PROFILE \
-	ZoneScoped;
-
-#define PROFILE_NODE                                        \
-	ZoneScoped;                                             \
-	CharString c = String(get_path()).utf8();               \
-	if (c.size() >= std::numeric_limits<uint16_t>::max()) { \
-		c.resize(std::numeric_limits<uint16_t>::max() - 1); \
-	}                                                       \
-	ZoneText(c.ptr(), c.size());
-
-#else
-
-#define PROFILE
-#define PROFILE_NODE
-
-#endif
 
 template <class T>
 class StatisticalRingBuffer {

@@ -137,7 +137,7 @@ void SceneSynchronizerBase::conclude() {
 }
 
 void SceneSynchronizerBase::process() {
-	PROFILE_NODE
+	NS_PROFILE
 
 #ifdef DEBUG_ENABLED
 	CRASH_COND_MSG(synchronizer == nullptr, "Never execute this function unless this synchronizer is ready.");
@@ -1210,6 +1210,9 @@ void SceneSynchronizerBase::process_functions__clear() {
 }
 
 void SceneSynchronizerBase::process_functions__execute(const double p_delta) {
+	const std::string info = "delta: " + std::to_string(p_delta);
+	NS_PROFILE_WITH_INFO(info);
+
 	if (cached_process_functions_valid == false) {
 		// Clear the process_functions.
 		for (int process_phase = PROCESSPHASE_EARLY; process_phase < PROCESSPHASE_COUNT; ++process_phase) {
@@ -1236,6 +1239,8 @@ void SceneSynchronizerBase::process_functions__execute(const double p_delta) {
 	SceneSynchronizerDebugger::singleton()->debug_print(network_interface, "Process functions START", true);
 
 	for (int process_phase = PROCESSPHASE_EARLY; process_phase < PROCESSPHASE_COUNT; ++process_phase) {
+		const std::string info = "process phase: " + std::to_string(process_phase);
+		NS_PROFILE_WITH_INFO(info);
 		cached_process_functions[process_phase].broadcast(p_delta);
 	}
 }
@@ -2103,6 +2108,8 @@ void ClientSynchronizer::clear() {
 }
 
 void ClientSynchronizer::process() {
+	NS_PROFILE
+
 	SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "ClientSynchronizer::process", true);
 
 	const float physics_ticks_per_second = Engine::get_singleton()->get_physics_ticks_per_second();
@@ -2280,6 +2287,7 @@ void ClientSynchronizer::store_controllers_snapshot(
 }
 
 void ClientSynchronizer::process_server_sync(float p_delta) {
+	NS_PROFILE
 	process_received_server_state(p_delta);
 
 	// Now trigger the END_SYNC event.
@@ -2634,6 +2642,8 @@ void ClientSynchronizer::process_paused_controller_recovery(real_t p_delta) {
 }
 
 void ClientSynchronizer::process_simulation(real_t p_delta, real_t p_physics_ticks_per_second) {
+	NS_PROFILE
+
 	if (unlikely(player_controller_object_data == nullptr || enabled == false)) {
 		// No player controller so can't process the simulation.
 		// TODO Remove this constraint?
@@ -2667,6 +2677,7 @@ void ClientSynchronizer::process_simulation(real_t p_delta, real_t p_physics_tic
 	}
 
 	while (sub_ticks > 0) {
+		NS_PROFILE
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "ClientSynchronizer::process::sub_process " + itos(sub_ticks), true);
 		SceneSynchronizerDebugger::singleton()->scene_sync_process_start(scene_synchronizer);
 
@@ -2724,8 +2735,8 @@ bool ClientSynchronizer::parse_sync_data(
 		p_snapshot.read(has_active_list_array);
 		ERR_FAIL_COND_V_MSG(p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as the `has_active_list_array` boolean expected is not set.");
 		if (has_active_list_array) {
-			std::vector<ObjectNetId> simulated_objects;
-			simulated_objects.reserve(scene_synchronizer->get_all_object_data().size());
+			std::vector<ObjectNetId> sd_simulated_objects;
+			sd_simulated_objects.reserve(scene_synchronizer->get_all_object_data().size());
 
 			// Fetch the array.
 			while (true) {
@@ -2737,10 +2748,10 @@ bool ClientSynchronizer::parse_sync_data(
 					// The end.
 					break;
 				}
-				simulated_objects.push_back(id);
+				sd_simulated_objects.push_back(id);
 			}
 
-			p_simulated_objects_parse(p_user_pointer, std::move(simulated_objects));
+			p_simulated_objects_parse(p_user_pointer, std::move(sd_simulated_objects));
 		}
 	}
 
@@ -3036,6 +3047,8 @@ void ClientSynchronizer::receive_trickled_sync_data(const Vector<uint8_t> &p_dat
 }
 
 void ClientSynchronizer::process_trickled_sync(real_t p_delta) {
+	NS_PROFILE
+
 	DataBuffer *db1 = memnew(DataBuffer);
 	DataBuffer *db2 = memnew(DataBuffer);
 

@@ -9,6 +9,9 @@ Import("env_modules")
 
 env_network_synchronizer = env_modules.Clone()
 
+if "tracy_enable" in env and env["tracy_enable"] == "yes":
+    env_network_synchronizer.Append(CPPDEFINES=["TRACY_ENABLE"])
+
 env_network_synchronizer.add_source_files(env.modules_sources, "core/**.cpp")
 env_network_synchronizer.add_source_files(env.modules_sources, "godot4/**.cpp")
 env_network_synchronizer.add_source_files(env.modules_sources, "*.cpp")
