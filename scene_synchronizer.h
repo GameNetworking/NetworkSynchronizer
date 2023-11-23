@@ -457,6 +457,7 @@ public:
 	virtual void on_variable_added(NS::ObjectData *p_object_data, const std::string &p_var_name) {}
 	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) {}
 	virtual void on_controller_reset(NS::ObjectData *p_object_data) {}
+	virtual const std::vector<ObjectData *> &get_active_objects() const = 0;
 };
 
 class NoNetSynchronizer : public Synchronizer {
@@ -464,12 +465,16 @@ class NoNetSynchronizer : public Synchronizer {
 
 	bool enabled = true;
 	uint32_t frame_count = 0;
+	std::vector<ObjectData *> active_objects;
 
 public:
 	NoNetSynchronizer(SceneSynchronizerBase *p_ss);
 
 	virtual void clear() override;
 	virtual void process() override;
+	virtual void on_object_data_added(NS::ObjectData *p_object_data) override;
+	virtual void on_object_data_removed(NS::ObjectData &p_object_data) override;
+	virtual const std::vector<ObjectData *> &get_active_objects() const override { return active_objects; }
 
 	void set_enabled(bool p_enabled);
 	bool is_enabled() const;
@@ -482,6 +487,7 @@ class ServerSynchronizer : public Synchronizer {
 	uint32_t epoch = 0;
 	/// This array contains a map between the peers and the relevant objects.
 	LocalVector<NS::SyncGroup> sync_groups;
+	std::vector<ObjectData *> active_objects;
 
 	enum SnapshotGenerationMode {
 		/// The shanpshot will include The NetId and the object name and all the changed variables.
@@ -503,6 +509,7 @@ public:
 	virtual void on_object_data_removed(NS::ObjectData &p_object_data) override;
 	virtual void on_variable_added(NS::ObjectData *p_object_data, const std::string &p_var_name) override;
 	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) override;
+	virtual const std::vector<ObjectData *> &get_active_objects() const override { return active_objects; }
 
 	SyncGroupId sync_group_create();
 	const NS::SyncGroup *sync_group_get(SyncGroupId p_group_id) const;
@@ -543,6 +550,7 @@ class ClientSynchronizer : public Synchronizer {
 	friend class SceneSynchronizerBase;
 
 	std::vector<ObjectNetId> simulated_objects;
+	std::vector<ObjectData *> active_objects;
 	NS::ObjectData *player_controller_object_data = nullptr;
 	std::map<ObjectNetId, std::string> objects_names;
 
@@ -651,6 +659,7 @@ public:
 	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) override;
 	void signal_end_sync_changed_variables_events();
 	virtual void on_controller_reset(NS::ObjectData *p_object_data) override;
+	virtual const std::vector<ObjectData *> &get_active_objects() const override;
 
 	void receive_snapshot(DataBuffer &p_snapshot);
 	bool parse_sync_data(

@@ -153,18 +153,22 @@ void SceneSynchronizerBase::on_app_object_removed(ObjectHandle p_app_object_hand
 }
 
 void SceneSynchronizerBase::var_data_encode(DataBuffer &r_buffer, const NS::VarData &p_val) {
+	NS_PROFILE
 	var_data_encode_func(r_buffer, p_val);
 }
 
 void SceneSynchronizerBase::var_data_decode(NS::VarData &r_val, DataBuffer &p_buffer) {
+	NS_PROFILE
 	var_data_decode_func(r_val, p_buffer);
 }
 
 bool SceneSynchronizerBase::var_data_compare(const VarData &p_A, const VarData &p_B) {
+	NS_PROFILE
 	return var_data_compare_func(p_A, p_B);
 }
 
 std::string SceneSynchronizerBase::var_data_stringify(const VarData &p_var_data, bool p_verbose) {
+	NS_PROFILE
 	return var_data_stringify_func(p_var_data, p_verbose);
 }
 
@@ -1035,13 +1039,20 @@ void SceneSynchronizerBase::clear_peers() {
 }
 
 void SceneSynchronizerBase::detect_and_signal_changed_variables(int p_flags) {
+	const std::vector<ObjectData *> &active_objects = synchronizer->get_active_objects();
+
+#ifdef NS_PROFILING_ENABLED
+	const std::string info = "objects count: " + std::to_string(active_objects.size());
+	NS_PROFILE_WITH_INFO(info);
+#endif
+
 	// Pull the changes.
 	if (event_flag != p_flags) {
 		// The flag was not set yet.
 		change_events_begin(p_flags);
 	}
 
-	for (auto od : objects_data_storage.get_objects_data()) {
+	for (auto od : active_objects) {
 		if (od) {
 			pull_object_changes(od);
 		}
@@ -1050,6 +1061,8 @@ void SceneSynchronizerBase::detect_and_signal_changed_variables(int p_flags) {
 }
 
 void SceneSynchronizerBase::change_events_begin(int p_flag) {
+	NS_PROFILE
+
 #ifdef DEBUG_ENABLED
 	// This can't happen because at the end these are reset.
 	CRASH_COND(recover_in_progress);
@@ -1065,6 +1078,8 @@ void SceneSynchronizerBase::change_events_begin(int p_flag) {
 }
 
 void SceneSynchronizerBase::change_event_add(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old) {
+	NS_PROFILE
+
 	for (int i = 0; i < int(p_object_data->vars[p_var_id.id].changes_listeners.size()); i += 1) {
 		ChangesListener *listener = p_object_data->vars[p_var_id.id].changes_listeners[i];
 		// This can't be `nullptr` because when the changes listener is dropped
@@ -1099,6 +1114,8 @@ void SceneSynchronizerBase::change_event_add(NS::ObjectData *p_object_data, VarI
 }
 
 void SceneSynchronizerBase::change_events_flush() {
+	NS_PROFILE
+
 	for (uint32_t listener_i = 0; listener_i < changes_listeners.size(); listener_i += 1) {
 		ChangesListener &listener = *changes_listeners[listener_i];
 		if (listener.emitted) {
@@ -1389,6 +1406,8 @@ void SceneSynchronizerBase::reset_controller(NS::ObjectData *p_controller_nd) {
 }
 
 void SceneSynchronizerBase::pull_object_changes(NS::ObjectData *p_object_data) {
+	NS_PROFILE
+
 	for (VarId var_id = { 0 }; var_id < VarId{ uint32_t(p_object_data->vars.size()) }; var_id += 1) {
 		if (p_object_data->vars[var_id.id].enabled == false) {
 			continue;
@@ -1396,10 +1415,13 @@ void SceneSynchronizerBase::pull_object_changes(NS::ObjectData *p_object_data) {
 
 		const VarData &old_val = p_object_data->vars[var_id.id].var.value;
 		VarData new_val;
-		synchronizer_manager->get_variable(
-				p_object_data->app_object_handle,
-				p_object_data->vars[var_id.id].var.name.c_str(),
-				new_val);
+		{
+			NS_PROFILE_NAMED("get_variable")
+			synchronizer_manager->get_variable(
+					p_object_data->app_object_handle,
+					p_object_data->vars[var_id.id].var.name.c_str(),
+					new_val);
+		}
 
 		if (!SceneSynchronizerBase::var_data_compare(old_val, new_val)) {
 			change_event_add(
@@ -1447,6 +1469,14 @@ void NoNetSynchronizer::process() {
 	SceneSynchronizerDebugger::singleton()->scene_sync_process_end(scene_synchronizer);
 	SceneSynchronizerDebugger::singleton()->write_dump(0, frame_index);
 	SceneSynchronizerDebugger::singleton()->start_new_frame();
+}
+
+void NoNetSynchronizer::on_object_data_added(NS::ObjectData *p_object_data) {
+	NS::VecFunc::insert_unique(active_objects, p_object_data);
+}
+
+void NoNetSynchronizer::on_object_data_removed(NS::ObjectData &p_object_data) {
+	NS::VecFunc::remove_unordered(active_objects, &p_object_data);
 }
 
 void NoNetSynchronizer::set_enabled(bool p_enabled) {
@@ -1541,6 +1571,8 @@ void ServerSynchronizer::on_object_data_added(NS::ObjectData *p_object_data) {
 	CRASH_COND(p_object_data->get_net_id() == ObjectNetId::NONE);
 #endif
 
+	NS::VecFunc::insert_unique(active_objects, p_object_data);
+
 	sync_groups[SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID].add_new_sync_object(p_object_data, true);
 
 	if (p_object_data->get_controller()) {
@@ -1555,6 +1587,8 @@ void ServerSynchronizer::on_object_data_added(NS::ObjectData *p_object_data) {
 }
 
 void ServerSynchronizer::on_object_data_removed(NS::ObjectData &p_object_data) {
+	NS::VecFunc::remove_unordered(active_objects, &p_object_data);
+
 	// Make sure to remove this `NodeData` from any sync group.
 	for (uint32_t i = 0; i < sync_groups.size(); ++i) {
 		sync_groups[i].remove_sync_object(p_object_data);
@@ -2195,6 +2229,8 @@ void ClientSynchronizer::on_variable_changed(NS::ObjectData *p_object_data, VarI
 }
 
 void ClientSynchronizer::signal_end_sync_changed_variables_events() {
+	NS_PROFILE
+
 	scene_synchronizer->change_events_begin(NetEventFlag::END_SYNC);
 	for (auto &e : sync_end_events) {
 		// Check if the values between the variables before the sync and the
@@ -2235,6 +2271,16 @@ void ClientSynchronizer::on_controller_reset(NS::ObjectData *p_object_data) {
 			server_snapshots.clear();
 			client_snapshots.clear();
 		}
+	}
+}
+
+const std::vector<ObjectData *> &ClientSynchronizer::get_active_objects() const {
+	if (player_controller_object_data && enabled) [[likely]] {
+		return active_objects;
+	} else {
+		// Since there is no player controller or the sync is disabled, this
+		// assumes that all registered objects are relevant and simulated.
+		return scene_synchronizer->get_all_object_data();
 	}
 }
 
@@ -2295,6 +2341,8 @@ void ClientSynchronizer::process_server_sync(float p_delta) {
 }
 
 void ClientSynchronizer::process_received_server_state(real_t p_delta) {
+	NS_PROFILE
+
 	// --- Phase one: find the snapshot to check. ---
 	if (server_snapshots.empty()) {
 		// No snapshots to recover for this controller. Nothing to do.
@@ -2438,6 +2486,7 @@ void ClientSynchronizer::process_received_server_state(real_t p_delta) {
 bool ClientSynchronizer::__pcr__fetch_recovery_info(
 		const uint32_t p_input_id,
 		NS::Snapshot &r_no_rewind_recover) {
+	NS_PROFILE
 	LocalVector<String> differences_info;
 
 #ifdef DEBUG_ENABLED
@@ -2512,6 +2561,7 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 }
 
 void ClientSynchronizer::__pcr__sync__rewind() {
+	NS_PROFILE
 	// Apply the server snapshot so to go back in time till that moment,
 	// so to be able to correctly reply the movements.
 
@@ -2537,6 +2587,7 @@ void ClientSynchronizer::__pcr__rewind(
 		NS::ObjectData *p_local_controller_node,
 		NetworkedControllerBase *p_local_controller,
 		PlayerController *p_local_player_controller) {
+	NS_PROFILE
 	scene_synchronizer->event_state_validated.broadcast(p_checkable_input_id);
 	const int frames_to_rewind = p_local_player_controller->get_frames_input_count();
 
@@ -2551,6 +2602,8 @@ void ClientSynchronizer::__pcr__rewind(
 	bool has_next = false;
 #endif
 	for (int i = 0; i < frames_to_rewind; i += 1) {
+		NS_PROFILE_NAMED_WITH_INFO("Rewinding frame", std::to_string(i));
+
 		scene_synchronizer->change_events_begin(NetEventFlag::SYNC_RECOVER | NetEventFlag::SYNC_REWIND);
 
 		// Step 1 -- Notify the local controller about the instant to process
@@ -2562,13 +2615,22 @@ void ClientSynchronizer::__pcr__rewind(
 #endif
 
 		// Step 2 -- Process the scene.
-		scene_synchronizer->process_functions__execute(p_delta);
+		{
+			NS_PROFILE_NAMED("process_functions__execute");
+			scene_synchronizer->process_functions__execute(p_delta);
+		}
 
 		// Step 3 -- Pull node changes.
-		scene_synchronizer->detect_and_signal_changed_variables(NetEventFlag::SYNC_RECOVER | NetEventFlag::SYNC_REWIND);
+		{
+			NS_PROFILE_NAMED("detect_and_signal_changed_variables");
+			scene_synchronizer->detect_and_signal_changed_variables(NetEventFlag::SYNC_RECOVER | NetEventFlag::SYNC_REWIND);
+		}
 
 		// Step 4 -- Update snapshots.
-		update_client_snapshot(client_snapshots[i]);
+		{
+			NS_PROFILE_NAMED("update_client_snapshot");
+			update_client_snapshot(client_snapshots[i]);
+		}
 	}
 
 #ifdef DEBUG_ENABLED
@@ -2579,6 +2641,7 @@ void ClientSynchronizer::__pcr__rewind(
 }
 
 void ClientSynchronizer::__pcr__sync__no_rewind(const NS::Snapshot &p_no_rewind_recover) {
+	NS_PROFILE
 	CRASH_COND_MSG(p_no_rewind_recover.input_id != 0, "This function is never called unless there is something to recover without rewinding.");
 
 	// Apply found differences without rewind.
@@ -2607,10 +2670,13 @@ void ClientSynchronizer::__pcr__sync__no_rewind(const NS::Snapshot &p_no_rewind_
 void ClientSynchronizer::__pcr__no_rewind(
 		const uint32_t p_checkable_input_id,
 		PlayerController *p_player_controller) {
+	NS_PROFILE
 	scene_synchronizer->event_state_validated.broadcast(p_checkable_input_id);
 }
 
 void ClientSynchronizer::process_paused_controller_recovery(real_t p_delta) {
+	NS_PROFILE
+
 #ifdef DEBUG_ENABLED
 	CRASH_COND(server_snapshots.empty());
 	CRASH_COND(client_snapshots.empty() == false);
@@ -3252,6 +3318,8 @@ void ClientSynchronizer::update_client_snapshot(NS::Snapshot &r_snapshot) {
 }
 
 void ClientSynchronizer::update_simulated_objects_list(const std::vector<ObjectNetId> &p_simulated_objects) {
+	NS_PROFILE
+
 	// Reset the simulated object first.
 	for (auto od : scene_synchronizer->get_all_object_data()) {
 		if (!od) {
@@ -3270,7 +3338,12 @@ void ClientSynchronizer::update_simulated_objects_list(const std::vector<ObjectN
 			}
 		}
 	}
+
 	simulated_objects = p_simulated_objects;
+	active_objects.clear();
+	for (ObjectNetId id : simulated_objects) {
+		active_objects.push_back(scene_synchronizer->get_object_data(id));
+	}
 }
 
 void ClientSynchronizer::apply_snapshot(
@@ -3278,6 +3351,8 @@ void ClientSynchronizer::apply_snapshot(
 		int p_flag,
 		std::vector<std::string> *r_applied_data_info,
 		bool p_skip_custom_data) {
+	NS_PROFILE
+
 	const std::vector<NS::NameAndVar> *snap_objects_vars = p_snapshot.object_vars.data();
 
 	scene_synchronizer->change_events_begin(p_flag);
