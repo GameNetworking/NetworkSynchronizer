@@ -346,6 +346,11 @@ void GdSceneSynchronizer::set_variable(NS::ObjectHandle p_app_object_handle, con
 }
 
 bool GdSceneSynchronizer::get_variable(NS::ObjectHandle p_app_object_handle, const char *p_name, NS::VarData &r_val) const {
+#ifdef NS_PROFILING_ENABLED
+	std::string info = std::string("Var name: ") + p_name;
+	NS_PROFILE_WITH_INFO(info);
+#endif
+
 	const Node *node = scene_synchronizer.from_handle(p_app_object_handle);
 	bool valid = false;
 	Variant val = node->get(StringName(p_name), &valid);
@@ -803,6 +808,11 @@ void GdSceneSynchronizer::convert(Variant &r_variant, const NS::VarData &p_vd) {
 	std::memcpy(&vardata.data.ptr, &v, sizeof(v));
 
 void GdSceneSynchronizer::convert(NS::VarData &r_vd, const Variant &p_variant) {
+#ifdef NS_PROFILING_ENABLED
+	std::string info = std::string("Var type: ") + Variant::get_type_name(p_variant.get_type()).utf8().ptr();
+	NS_PROFILE_WITH_INFO(info)
+#endif
+
 	r_vd.type = static_cast<std::uint8_t>(p_variant.get_type());
 	switch (p_variant.get_type()) {
 		case Variant::NIL: {

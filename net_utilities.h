@@ -19,11 +19,20 @@ typedef uint32_t SyncGroupId;
 
 #include "modules/godot_tracy/profiler.h"
 
+#define NS_PROFILING_ENABLED
+
 #define NS_PROFILE \
 	ZoneScoped;
 
 #define NS_PROFILE_WITH_INFO(str) \
 	ZoneScoped;                   \
+	ZoneText(str.c_str(), str.size());
+
+#define NS_PROFILE_NAMED(name) \
+	ZoneScopedN(name);
+
+#define NS_PROFILE_NAMED_WITH_INFO(name, str) \
+	ZoneScopedN(name);                        \
 	ZoneText(str.c_str(), str.size());
 
 #define NS_PROFILE_NODE                                          \
@@ -38,6 +47,8 @@ typedef uint32_t SyncGroupId;
 
 #define NS_PROFILE
 #define NS_PROFILE_WITH_INFO(str)
+#define NS_PROFILE_NAMED(name)
+#define NS_PROFILE_NAMED_WITH_INFO(name, str)
 #define NS_PROFILE_NODE
 
 #endif
