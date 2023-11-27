@@ -34,6 +34,7 @@
 #include "../bit_array.h"
 
 #include "tests/test_macros.h"
+#include <limits>
 
 namespace test_netsync_BitArray {
 
@@ -41,7 +42,7 @@ TEST_CASE("[NetSync][BitArray] Read and write") {
 	BitArray array;
 	int offset = 0;
 	int bits = {};
-	uint64_t value = {};
+	std::uint64_t value = {};
 
 	SUBCASE("[NetSync][BitArray] One bit") {
 		bits = 1;
@@ -88,11 +89,13 @@ TEST_CASE("[NetSync][BitArray] Read and write") {
 
 	array.resize_in_bits(offset + bits);
 	array.store_bits(offset, value, bits);
-	CHECK_MESSAGE(array.read_bits(offset, bits) == value, "Should read the same value");
+	std::uint64_t buffer_val = 0;
+	CHECK_MESSAGE(array.read_bits(offset, bits, buffer_val), "Reading failed.");
+	CHECK_MESSAGE((buffer_val == value), "Should read the same value");
 }
 
 TEST_CASE("[NetSync][BitArray] Constructing from Vector") {
-	Vector<uint8_t> data;
+	Vector<std::uint8_t> data;
 	data.push_back(-1);
 	data.push_back(0);
 	data.push_back(1);
@@ -101,19 +104,23 @@ TEST_CASE("[NetSync][BitArray] Constructing from Vector") {
 	CHECK_MESSAGE(array.size_in_bits() == data.size() * 8.0, "Number of bits must be equal to size of original data");
 	CHECK_MESSAGE(array.size_in_bytes() == data.size(), "Number of bytes must be equal to size of original data");
 	for (int i = 0; i < data.size(); ++i) {
-		CHECK_MESSAGE(array.read_bits(i * 8, 8) == data[i], "Readed bits should be equal to the original");
+		std::uint64_t buffer_val = 0;
+		CHECK_MESSAGE(array.read_bits(i * 8, 8, buffer_val), "Reading should never fail.");
+		CHECK_MESSAGE(std::uint8_t(buffer_val) == data[i], "Readed bits should be equal to the original");
 	}
 }
 
 TEST_CASE("[NetSync][BitArray] Pre-allocation and zeroing") {
-	constexpr uint64_t value = UINT64_MAX;
+	constexpr std::uint64_t value = std::numeric_limits<std::uint64_t>::max();
 	constexpr int bits = sizeof(value);
 
 	BitArray array(bits);
 	CHECK_MESSAGE(array.size_in_bits() == bits, "Number of bits must be equal to allocated");
 	array.store_bits(0, value, bits);
 	array.zero();
-	CHECK_MESSAGE(array.read_bits(0, bits) == 0, "Should read zero");
+	std::uint64_t buffer_val = 0;
+	CHECK_MESSAGE(array.read_bits(0, bits, buffer_val), "Reading should never fail.");
+	CHECK_MESSAGE(buffer_val == 0, "Should read zero");
 }
 } //namespace test_netsync_BitArray
 
