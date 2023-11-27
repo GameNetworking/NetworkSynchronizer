@@ -6,14 +6,13 @@
 #include "core/processor.h"
 #include "core/templates/local_vector.h"
 #include "core/var_data.h"
+#include "modules/network_synchronizer/core/core.h"
 #include <chrono>
 #include <map>
 #include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
-
-typedef uint32_t SyncGroupId;
 
 #ifdef TRACY_ENABLE
 
@@ -121,7 +120,7 @@ template <class K, class V>
 typename std::map<K, V>::iterator insert_if_new(std::map<K, V> &p_map, const K &p_key, const V &p_val) {
 	auto res = p_map.insert(std::make_pair(p_key, p_val));
 	auto it = res.first;
-	const bool inserted = res.second;
+	//const bool inserted = res.second;
 	return it;
 }
 }; //namespace MapFunc
@@ -424,7 +423,7 @@ struct PeerData {
 	// Used to know if the peer is enabled.
 	bool enabled = true;
 	// The Sync group this peer is in.
-	SyncGroupId sync_group_id = 0;
+	SyncGroupId sync_group_id = SyncGroupId::GLOBAL;
 
 	// The ping between this peer and the server in ms.
 	std::chrono::high_resolution_clock::time_point ping_timestamp;

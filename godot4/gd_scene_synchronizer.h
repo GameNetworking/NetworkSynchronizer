@@ -15,6 +15,9 @@ class GdSceneSynchronizer : public Node, public NS::SynchronizerManager {
 	GDCLASS(GdSceneSynchronizer, Node);
 
 public:
+	static const uint32_t GLOBAL_SYNC_GROUP_ID;
+
+public:
 	static void _bind_methods();
 
 	GDVIRTUAL0(_update_nodes_relevancy);
@@ -133,36 +136,36 @@ public: // ---------------------------------------------------------------- APIs
 	/// Creates a realtime sync group containing a list of nodes.
 	/// The Peers listening to this group will receive the updates only
 	/// from the nodes within this group.
-	virtual SyncGroupId sync_group_create();
-	const NS::SyncGroup *sync_group_get(SyncGroupId p_group_id) const;
+	virtual uint32_t sync_group_create();
+	const NS::SyncGroup *sync_group_get(uint32_t p_group_id) const;
 
-	void sync_group_add_node_by_id(uint32_t p_net_id, SyncGroupId p_group_id, bool p_realtime);
-	void sync_group_add_node(NS::ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime);
-	void sync_group_remove_node_by_id(uint32_t p_net_id, SyncGroupId p_group_id);
-	void sync_group_remove_node(NS::ObjectData *p_object_data, SyncGroupId p_group_id);
+	void sync_group_add_node_by_id(uint32_t p_net_id, uint32_t p_group_id, bool p_realtime);
+	void sync_group_add_node(NS::ObjectData *p_object_data, uint32_t p_group_id, bool p_realtime);
+	void sync_group_remove_node_by_id(uint32_t p_net_id, uint32_t p_group_id);
+	void sync_group_remove_node(NS::ObjectData *p_object_data, uint32_t p_group_id);
 
 	/// Use `std::move()` to transfer `p_new_realtime_nodes` and `p_new_trickled_nodes`.
-	void sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes);
+	void sync_group_replace_nodes(uint32_t p_group_id, LocalVector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes);
 
-	void sync_group_remove_all_nodes(SyncGroupId p_group_id);
-	void sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id);
-	SyncGroupId sync_group_get_peer_group(int p_peer_id) const;
-	const std::vector<int> *sync_group_get_listening_peers(SyncGroupId p_group_id) const;
+	void sync_group_remove_all_nodes(uint32_t p_group_id);
+	void sync_group_move_peer_to(int p_peer_id, uint32_t p_group_id);
+	uint32_t sync_group_get_peer_group(int p_peer_id) const;
+	const std::vector<int> *sync_group_get_listening_peers(uint32_t p_group_id) const;
 
-	void sync_group_set_trickled_update_rate_by_id(uint32_t p_node_id, SyncGroupId p_group_id, real_t p_update_rate);
-	void sync_group_set_trickled_update_rate(NS::ObjectData *p_object_data, SyncGroupId p_group_id, real_t p_update_rate);
-	real_t sync_group_get_trickled_update_rate_by_id(uint32_t p_node_id, SyncGroupId p_group_id) const;
-	real_t sync_group_get_trickled_update_rate(const NS::ObjectData *p_object_data, SyncGroupId p_group_id) const;
+	void sync_group_set_trickled_update_rate_by_id(uint32_t p_node_id, uint32_t p_group_id, real_t p_update_rate);
+	void sync_group_set_trickled_update_rate(NS::ObjectData *p_object_data, uint32_t p_group_id, real_t p_update_rate);
+	real_t sync_group_get_trickled_update_rate_by_id(uint32_t p_node_id, uint32_t p_group_id) const;
+	real_t sync_group_get_trickled_update_rate(const NS::ObjectData *p_object_data, uint32_t p_group_id) const;
 
-	void sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_ptr);
-	uint64_t sync_group_get_user_data(SyncGroupId p_group_id) const;
+	void sync_group_set_user_data(uint32_t p_group_id, uint64_t p_user_ptr);
+	uint64_t sync_group_get_user_data(uint32_t p_group_id) const;
 
 	bool is_recovered() const;
 	bool is_resetted() const;
 	bool is_rewinding() const;
 	bool is_end_sync() const;
 
-	void force_state_notify(SyncGroupId p_sync_group_id);
+	void force_state_notify(uint32_t p_sync_group_id);
 	void force_state_notify_all();
 
 	void set_enabled(bool p_enable);

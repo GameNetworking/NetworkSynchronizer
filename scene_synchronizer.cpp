@@ -27,7 +27,6 @@
 
 NS_NAMESPACE_BEGIN
 
-const SyncGroupId SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID = 0;
 void (*SceneSynchronizerBase::var_data_encode_func)(DataBuffer &r_buffer, const NS::VarData &p_val) = nullptr;
 void (*SceneSynchronizerBase::var_data_decode_func)(NS::VarData &r_val, DataBuffer &p_buffer) = nullptr;
 bool (*SceneSynchronizerBase::var_data_compare_func)(const VarData &p_A, const VarData &p_B) = nullptr;
@@ -566,7 +565,7 @@ void SceneSynchronizerBase::set_trickled_sync(
 }
 
 SyncGroupId SceneSynchronizerBase::sync_group_create() {
-	ERR_FAIL_COND_V_MSG(!is_server(), UINT32_MAX, "This function CAN be used only on the server.");
+	ERR_FAIL_COND_V_MSG(!is_server(), SyncGroupId::NONE, "This function CAN be used only on the server.");
 	const SyncGroupId id = static_cast<ServerSynchronizer *>(synchronizer)->sync_group_create();
 	synchronizer_manager->on_sync_group_created(id);
 	return id;
@@ -624,10 +623,10 @@ void SceneSynchronizerBase::sync_group_move_peer_to(int p_peer_id, SyncGroupId p
 }
 
 SyncGroupId SceneSynchronizerBase::sync_group_get_peer_group(int p_peer_id) const {
-	ERR_FAIL_COND_V_MSG(!is_server(), UINT32_MAX, "This function CAN be used only on the server.");
+	ERR_FAIL_COND_V_MSG(!is_server(), SyncGroupId::NONE, "This function CAN be used only on the server.");
 
 	const NS::PeerData *pd = MapFunc::get_or_null(peer_data, p_peer_id);
-	ERR_FAIL_COND_V_MSG(pd == nullptr, UINT32_MAX, "The PeerData doesn't exist. This looks like a bug. Are you sure the peer_id `" + itos(p_peer_id) + "` exists?");
+	ERR_FAIL_COND_V_MSG(pd == nullptr, SyncGroupId::NONE, "The PeerData doesn't exist. This looks like a bug. Are you sure the peer_id `" + itos(p_peer_id) + "` exists?");
 
 	return pd->sync_group_id;
 }
@@ -692,8 +691,8 @@ void SceneSynchronizerBase::force_state_notify(SyncGroupId p_sync_group_id) {
 	ServerSynchronizer *r = static_cast<ServerSynchronizer *>(synchronizer);
 	// + 1.0 is just a ridiculous high number to be sure to avoid float
 	// precision error.
-	ERR_FAIL_COND_MSG(p_sync_group_id >= r->sync_groups.size(), "The group id `" + itos(p_sync_group_id) + "` doesn't exist.");
-	r->sync_groups[p_sync_group_id].state_notifier_timer = get_server_notify_state_interval() + 1.0;
+	ERR_FAIL_COND_MSG(p_sync_group_id.id >= r->sync_groups.size(), "The group id `" + itos(p_sync_group_id.id) + "` doesn't exist.");
+	r->sync_groups[p_sync_group_id.id].state_notifier_timer = get_server_notify_state_interval() + 1.0;
 }
 
 void SceneSynchronizerBase::force_state_notify_all() {
@@ -758,7 +757,7 @@ void SceneSynchronizerBase::set_peer_networking_enable(int p_peer, bool p_enable
 		if (p_enable) {
 			static_cast<ServerSynchronizer *>(synchronizer)->sync_group_move_peer_to(p_peer, pd->sync_group_id);
 		} else {
-			static_cast<ServerSynchronizer *>(synchronizer)->sync_group_move_peer_to(p_peer, UINT32_MAX);
+			static_cast<ServerSynchronizer *>(synchronizer)->sync_group_move_peer_to(p_peer, SyncGroupId::NONE);
 		}
 
 		dirty_peers();
@@ -1500,7 +1499,7 @@ bool NoNetSynchronizer::is_enabled() const {
 
 ServerSynchronizer::ServerSynchronizer(SceneSynchronizerBase *p_node) :
 		Synchronizer(p_node) {
-	CRASH_COND(SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID != sync_group_create());
+	CRASH_COND(NS::SyncGroupId::GLOBAL != sync_group_create());
 }
 
 void ServerSynchronizer::clear() {
@@ -1554,7 +1553,7 @@ void ServerSynchronizer::process() {
 }
 
 void ServerSynchronizer::on_peer_connected(int p_peer_id) {
-	sync_group_move_peer_to(p_peer_id, SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID);
+	sync_group_move_peer_to(p_peer_id, SyncGroupId::GLOBAL);
 }
 
 void ServerSynchronizer::on_peer_disconnected(int p_peer_id) {
@@ -1573,7 +1572,7 @@ void ServerSynchronizer::on_object_data_added(NS::ObjectData *p_object_data) {
 
 	NS::VecFunc::insert_unique(active_objects, p_object_data);
 
-	sync_groups[SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID].add_new_sync_object(p_object_data, true);
+	sync_groups[SyncGroupId::GLOBAL.id].add_new_sync_object(p_object_data, true);
 
 	if (p_object_data->get_controller()) {
 		// It was added a new NodeData with a controller, make sure to mark
@@ -1622,40 +1621,41 @@ void ServerSynchronizer::on_variable_changed(NS::ObjectData *p_object_data, VarI
 }
 
 SyncGroupId ServerSynchronizer::sync_group_create() {
-	const SyncGroupId id = sync_groups.size();
-	sync_groups.resize(id + 1);
+	SyncGroupId id;
+	id.id = sync_groups.size();
+	sync_groups.resize(id.id + 1);
 	return id;
 }
 
 const NS::SyncGroup *ServerSynchronizer::sync_group_get(SyncGroupId p_group_id) const {
-	ERR_FAIL_COND_V_MSG(p_group_id >= sync_groups.size(), nullptr, "The group id `" + itos(p_group_id) + "` doesn't exist.");
-	return &sync_groups[p_group_id];
+	ERR_FAIL_COND_V_MSG(p_group_id.id >= sync_groups.size(), nullptr, "The group id `" + itos(p_group_id.id) + "` doesn't exist.");
+	return &sync_groups[p_group_id.id];
 }
 
 void ServerSynchronizer::sync_group_add_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime) {
 	ERR_FAIL_COND(p_object_data == nullptr);
-	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
-	ERR_FAIL_COND_MSG(p_group_id == SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID, "You can't change this SyncGroup in any way. Create a new one.");
-	sync_groups[p_group_id].add_new_sync_object(p_object_data, p_realtime);
+	ERR_FAIL_COND_MSG(p_group_id.id >= sync_groups.size(), "The group id `" + itos(p_group_id.id) + "` doesn't exist.");
+	ERR_FAIL_COND_MSG(p_group_id == SyncGroupId::GLOBAL, "You can't change this SyncGroup in any way. Create a new one.");
+	sync_groups[p_group_id.id].add_new_sync_object(p_object_data, p_realtime);
 }
 
 void ServerSynchronizer::sync_group_remove_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id) {
 	ERR_FAIL_COND(p_object_data == nullptr);
-	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
-	ERR_FAIL_COND_MSG(p_group_id == SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID, "You can't change this SyncGroup in any way. Create a new one.");
-	sync_groups[p_group_id].remove_sync_object(*p_object_data);
+	ERR_FAIL_COND_MSG(p_group_id.id >= sync_groups.size(), "The group id `" + itos(p_group_id.id) + "` doesn't exist.");
+	ERR_FAIL_COND_MSG(p_group_id == SyncGroupId::GLOBAL, "You can't change this SyncGroup in any way. Create a new one.");
+	sync_groups[p_group_id.id].remove_sync_object(*p_object_data);
 }
 
 void ServerSynchronizer::sync_group_replace_object(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes) {
-	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
-	ERR_FAIL_COND_MSG(p_group_id == SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID, "You can't change this SyncGroup in any way. Create a new one.");
-	sync_groups[p_group_id].replace_objects(std::move(p_new_realtime_nodes), std::move(p_new_trickled_nodes));
+	ERR_FAIL_COND_MSG(p_group_id.id >= sync_groups.size(), "The group id `" + itos(p_group_id.id) + "` doesn't exist.");
+	ERR_FAIL_COND_MSG(p_group_id == SyncGroupId::GLOBAL, "You can't change this SyncGroup in any way. Create a new one.");
+	sync_groups[p_group_id.id].replace_objects(std::move(p_new_realtime_nodes), std::move(p_new_trickled_nodes));
 }
 
 void ServerSynchronizer::sync_group_remove_all_objects(SyncGroupId p_group_id) {
-	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
-	ERR_FAIL_COND_MSG(p_group_id == SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID, "You can't change this SyncGroup in any way. Create a new one.");
-	sync_groups[p_group_id].remove_all_nodes();
+	ERR_FAIL_COND_MSG(p_group_id.id >= sync_groups.size(), "The group id `" + itos(p_group_id.id) + "` doesn't exist.");
+	ERR_FAIL_COND_MSG(p_group_id == SyncGroupId::GLOBAL, "You can't change this SyncGroup in any way. Create a new one.");
+	sync_groups[p_group_id.id].remove_all_nodes();
 }
 
 void ServerSynchronizer::sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id) {
@@ -1664,13 +1664,13 @@ void ServerSynchronizer::sync_group_move_peer_to(int p_peer_id, SyncGroupId p_gr
 		sync_groups[i].remove_listening_peer(p_peer_id);
 	}
 
-	if (p_group_id == UINT32_MAX) {
+	if (p_group_id == SyncGroupId::NONE) {
 		// This peer is not listening to anything.
 		return;
 	}
 
-	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
-	sync_groups[p_group_id].add_listening_peer(p_peer_id);
+	ERR_FAIL_COND_MSG(p_group_id.id >= sync_groups.size(), "The group id `" + itos(p_group_id.id) + "` doesn't exist.");
+	sync_groups[p_group_id.id].add_listening_peer(p_peer_id);
 
 	// Also mark the peer as need full snapshot, as it's into a new group now.
 	NS::PeerData *pd = MapFunc::get_or_null(scene_synchronizer->peer_data, p_peer_id);
@@ -1686,32 +1686,32 @@ void ServerSynchronizer::sync_group_move_peer_to(int p_peer_id, SyncGroupId p_gr
 }
 
 const std::vector<int> *ServerSynchronizer::sync_group_get_listening_peers(SyncGroupId p_group_id) const {
-	ERR_FAIL_COND_V_MSG(p_group_id >= sync_groups.size(), nullptr, "The group id `" + itos(p_group_id) + "` doesn't exist.");
-	return &sync_groups[p_group_id].get_listening_peers();
+	ERR_FAIL_COND_V_MSG(p_group_id.id >= sync_groups.size(), nullptr, "The group id `" + itos(p_group_id.id) + "` doesn't exist.");
+	return &sync_groups[p_group_id.id].get_listening_peers();
 }
 
 void ServerSynchronizer::sync_group_set_trickled_update_rate(NS::ObjectData *p_object_data, SyncGroupId p_group_id, real_t p_update_rate) {
 	ERR_FAIL_COND(p_object_data == nullptr);
-	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
-	ERR_FAIL_COND_MSG(p_group_id == SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID, "You can't change this SyncGroup in any way. Create a new one.");
-	sync_groups[p_group_id].set_trickled_update_rate(p_object_data, p_update_rate);
+	ERR_FAIL_COND_MSG(p_group_id.id >= sync_groups.size(), "The group id `" + itos(p_group_id.id) + "` doesn't exist.");
+	ERR_FAIL_COND_MSG(p_group_id == SyncGroupId::GLOBAL, "You can't change this SyncGroup in any way. Create a new one.");
+	sync_groups[p_group_id.id].set_trickled_update_rate(p_object_data, p_update_rate);
 }
 
 real_t ServerSynchronizer::sync_group_get_trickled_update_rate(const NS::ObjectData *p_object_data, SyncGroupId p_group_id) const {
 	ERR_FAIL_COND_V(p_object_data == nullptr, 0.0);
-	ERR_FAIL_COND_V_MSG(p_group_id >= sync_groups.size(), 0.0, "The group id `" + itos(p_group_id) + "` doesn't exist.");
-	ERR_FAIL_COND_V_MSG(p_group_id == SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID, 0.0, "You can't change this SyncGroup in any way. Create a new one.");
-	return sync_groups[p_group_id].get_trickled_update_rate(p_object_data);
+	ERR_FAIL_COND_V_MSG(p_group_id.id >= sync_groups.size(), 0.0, "The group id `" + itos(p_group_id.id) + "` doesn't exist.");
+	ERR_FAIL_COND_V_MSG(p_group_id == SyncGroupId::GLOBAL, 0.0, "You can't change this SyncGroup in any way. Create a new one.");
+	return sync_groups[p_group_id.id].get_trickled_update_rate(p_object_data);
 }
 
 void ServerSynchronizer::sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_data) {
-	ERR_FAIL_COND_MSG(p_group_id >= sync_groups.size(), "The group id `" + itos(p_group_id) + "` doesn't exist.");
-	sync_groups[p_group_id].user_data = p_user_data;
+	ERR_FAIL_COND_MSG(p_group_id.id >= sync_groups.size(), "The group id `" + itos(p_group_id.id) + "` doesn't exist.");
+	sync_groups[p_group_id.id].user_data = p_user_data;
 }
 
 uint64_t ServerSynchronizer::sync_group_get_user_data(SyncGroupId p_group_id) const {
-	ERR_FAIL_COND_V_MSG(p_group_id >= sync_groups.size(), 0, "The group id `" + itos(p_group_id) + "` doesn't exist.");
-	return sync_groups[p_group_id].user_data;
+	ERR_FAIL_COND_V_MSG(p_group_id.id >= sync_groups.size(), 0, "The group id `" + itos(p_group_id.id) + "` doesn't exist.");
+	return sync_groups[p_group_id.id].user_data;
 }
 
 void ServerSynchronizer::sync_group_debug_print() {

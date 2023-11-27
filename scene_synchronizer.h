@@ -140,9 +140,6 @@ public:
 		SYNCHRONIZER_TYPE_SERVER
 	};
 
-	/// This SyncGroup contains ALL the registered ObjectData.
-	static const SyncGroupId GLOBAL_SYNC_GROUP_ID;
-
 private:
 	static void (*var_data_encode_func)(DataBuffer &r_buffer, const NS::VarData &p_val);
 	static void (*var_data_decode_func)(NS::VarData &r_val, DataBuffer &p_buffer);

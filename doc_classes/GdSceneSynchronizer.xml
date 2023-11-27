@@ -283,7 +283,7 @@
 		</signal>
 	</signals>
 	<constants>
-		<constant name="NS::SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID" value="0">
+		<constant name="GLOBAL_SYNC_GROUP_ID" value="0">
 		</constant>
 		<constant name="CHANGE" value="1" enum="NetEventFlag">
 		</constant>

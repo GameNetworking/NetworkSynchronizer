@@ -21,8 +21,10 @@
 #include <string>
 #include <vector>
 
+const uint32_t GdSceneSynchronizer::GLOBAL_SYNC_GROUP_ID = NS::SyncGroupId::GLOBAL.id;
+
 void GdSceneSynchronizer::_bind_methods() {
-	BIND_CONSTANT(NS::SceneSynchronizerBase::GLOBAL_SYNC_GROUP_ID)
+	BIND_CONSTANT(GLOBAL_SYNC_GROUP_ID)
 
 	BIND_ENUM_CONSTANT(CHANGE)
 	BIND_ENUM_CONSTANT(SYNC_RECOVER)
@@ -578,72 +580,72 @@ Array GdSceneSynchronizer::local_controller_get_controlled_nodes() const {
 	return a;
 }
 
-SyncGroupId GdSceneSynchronizer::sync_group_create() {
-	return scene_synchronizer.sync_group_create();
+uint32_t GdSceneSynchronizer::sync_group_create() {
+	return scene_synchronizer.sync_group_create().id;
 }
 
-const NS::SyncGroup *GdSceneSynchronizer::sync_group_get(SyncGroupId p_group_id) const {
-	return scene_synchronizer.sync_group_get(p_group_id);
+const NS::SyncGroup *GdSceneSynchronizer::sync_group_get(uint32_t p_group_id) const {
+	return scene_synchronizer.sync_group_get(NS::SyncGroupId{ p_group_id });
 }
 
-void GdSceneSynchronizer::sync_group_add_node_by_id(uint32_t p_net_id, SyncGroupId p_group_id, bool p_realtime) {
-	scene_synchronizer.sync_group_add_object_by_id({ p_net_id }, p_group_id, p_realtime);
+void GdSceneSynchronizer::sync_group_add_node_by_id(uint32_t p_net_id, uint32_t p_group_id, bool p_realtime) {
+	scene_synchronizer.sync_group_add_object_by_id({ p_net_id }, NS::SyncGroupId{ p_group_id }, p_realtime);
 }
 
-void GdSceneSynchronizer::sync_group_add_node(NS::ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime) {
-	scene_synchronizer.sync_group_add_object(p_object_data, p_group_id, p_realtime);
+void GdSceneSynchronizer::sync_group_add_node(NS::ObjectData *p_object_data, uint32_t p_group_id, bool p_realtime) {
+	scene_synchronizer.sync_group_add_object(p_object_data, NS::SyncGroupId{ p_group_id }, p_realtime);
 }
 
-void GdSceneSynchronizer::sync_group_remove_node_by_id(uint32_t p_net_id, SyncGroupId p_group_id) {
-	scene_synchronizer.sync_group_remove_object_by_id({ p_net_id }, p_group_id);
+void GdSceneSynchronizer::sync_group_remove_node_by_id(uint32_t p_net_id, uint32_t p_group_id) {
+	scene_synchronizer.sync_group_remove_object_by_id({ p_net_id }, NS::SyncGroupId{ p_group_id });
 }
 
-void GdSceneSynchronizer::sync_group_remove_node(NS::ObjectData *p_object_data, SyncGroupId p_group_id) {
-	scene_synchronizer.sync_group_remove_object(p_object_data, p_group_id);
+void GdSceneSynchronizer::sync_group_remove_node(NS::ObjectData *p_object_data, uint32_t p_group_id) {
+	scene_synchronizer.sync_group_remove_object(p_object_data, NS::SyncGroupId{ p_group_id });
 }
 
-void GdSceneSynchronizer::sync_group_replace_nodes(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes) {
-	scene_synchronizer.sync_group_replace_objects(p_group_id, std::move(p_new_realtime_nodes), std::move(p_new_trickled_nodes));
+void GdSceneSynchronizer::sync_group_replace_nodes(uint32_t p_group_id, LocalVector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes) {
+	scene_synchronizer.sync_group_replace_objects(NS::SyncGroupId{ p_group_id }, std::move(p_new_realtime_nodes), std::move(p_new_trickled_nodes));
 }
 
-void GdSceneSynchronizer::sync_group_remove_all_nodes(SyncGroupId p_group_id) {
-	scene_synchronizer.sync_group_remove_all_objects(p_group_id);
+void GdSceneSynchronizer::sync_group_remove_all_nodes(uint32_t p_group_id) {
+	scene_synchronizer.sync_group_remove_all_objects(NS::SyncGroupId{ p_group_id });
 }
 
-void GdSceneSynchronizer::sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id) {
-	scene_synchronizer.sync_group_move_peer_to(p_peer_id, p_group_id);
+void GdSceneSynchronizer::sync_group_move_peer_to(int p_peer_id, uint32_t p_group_id) {
+	scene_synchronizer.sync_group_move_peer_to(p_peer_id, NS::SyncGroupId{ p_group_id });
 }
 
-SyncGroupId GdSceneSynchronizer::sync_group_get_peer_group(int p_peer_id) const {
-	return scene_synchronizer.sync_group_get_peer_group(p_peer_id);
+uint32_t GdSceneSynchronizer::sync_group_get_peer_group(int p_peer_id) const {
+	return scene_synchronizer.sync_group_get_peer_group(p_peer_id).id;
 }
 
-const std::vector<int> *GdSceneSynchronizer::sync_group_get_listening_peers(SyncGroupId p_group_id) const {
-	return scene_synchronizer.sync_group_get_listening_peers(p_group_id);
+const std::vector<int> *GdSceneSynchronizer::sync_group_get_listening_peers(uint32_t p_group_id) const {
+	return scene_synchronizer.sync_group_get_listening_peers(NS::SyncGroupId{ p_group_id });
 }
 
-void GdSceneSynchronizer::sync_group_set_trickled_update_rate_by_id(uint32_t p_net_id, SyncGroupId p_group_id, real_t p_update_rate) {
-	scene_synchronizer.sync_group_set_trickled_update_rate(NS::ObjectNetId{ p_net_id }, p_group_id, p_update_rate);
+void GdSceneSynchronizer::sync_group_set_trickled_update_rate_by_id(uint32_t p_net_id, uint32_t p_group_id, real_t p_update_rate) {
+	scene_synchronizer.sync_group_set_trickled_update_rate(NS::ObjectNetId{ p_net_id }, NS::SyncGroupId{ p_group_id }, p_update_rate);
 }
 
-void GdSceneSynchronizer::sync_group_set_trickled_update_rate(NS::ObjectData *p_object_data, SyncGroupId p_group_id, real_t p_update_rate) {
-	scene_synchronizer.sync_group_set_trickled_update_rate(p_object_data->get_local_id(), p_group_id, p_update_rate);
+void GdSceneSynchronizer::sync_group_set_trickled_update_rate(NS::ObjectData *p_object_data, uint32_t p_group_id, real_t p_update_rate) {
+	scene_synchronizer.sync_group_set_trickled_update_rate(p_object_data->get_local_id(), NS::SyncGroupId{ p_group_id }, p_update_rate);
 }
 
-real_t GdSceneSynchronizer::sync_group_get_trickled_update_rate_by_id(uint32_t p_net_id, SyncGroupId p_group_id) const {
-	return scene_synchronizer.sync_group_get_trickled_update_rate(NS::ObjectNetId{ p_net_id }, p_group_id);
+real_t GdSceneSynchronizer::sync_group_get_trickled_update_rate_by_id(uint32_t p_net_id, uint32_t p_group_id) const {
+	return scene_synchronizer.sync_group_get_trickled_update_rate(NS::ObjectNetId{ p_net_id }, NS::SyncGroupId{ p_group_id });
 }
 
-real_t GdSceneSynchronizer::sync_group_get_trickled_update_rate(const NS::ObjectData *p_object_data, SyncGroupId p_group_id) const {
-	return scene_synchronizer.sync_group_get_trickled_update_rate(p_object_data->get_local_id(), p_group_id);
+real_t GdSceneSynchronizer::sync_group_get_trickled_update_rate(const NS::ObjectData *p_object_data, uint32_t p_group_id) const {
+	return scene_synchronizer.sync_group_get_trickled_update_rate(p_object_data->get_local_id(), NS::SyncGroupId{ p_group_id });
 }
 
-void GdSceneSynchronizer::sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_data) {
-	scene_synchronizer.sync_group_set_user_data(p_group_id, p_user_data);
+void GdSceneSynchronizer::sync_group_set_user_data(uint32_t p_group_id, uint64_t p_user_data) {
+	scene_synchronizer.sync_group_set_user_data(NS::SyncGroupId{ p_group_id }, p_user_data);
 }
 
-uint64_t GdSceneSynchronizer::sync_group_get_user_data(SyncGroupId p_group_id) const {
-	return scene_synchronizer.sync_group_get_user_data(p_group_id);
+uint64_t GdSceneSynchronizer::sync_group_get_user_data(uint32_t p_group_id) const {
+	return scene_synchronizer.sync_group_get_user_data(NS::SyncGroupId{ p_group_id });
 }
 
 bool GdSceneSynchronizer::is_recovered() const {
@@ -662,8 +664,8 @@ bool GdSceneSynchronizer::is_end_sync() const {
 	return scene_synchronizer.is_end_sync();
 }
 
-void GdSceneSynchronizer::force_state_notify(SyncGroupId p_sync_group_id) {
-	scene_synchronizer.force_state_notify(p_sync_group_id);
+void GdSceneSynchronizer::force_state_notify(uint32_t p_sync_group_id) {
+	scene_synchronizer.force_state_notify(NS::SyncGroupId{ p_sync_group_id });
 }
 
 void GdSceneSynchronizer::force_state_notify_all() {

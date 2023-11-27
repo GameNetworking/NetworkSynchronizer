@@ -87,6 +87,11 @@ struct IdMaker {
 	}
 };
 
+struct SyncGroupId : public IdMaker<SyncGroupId, std::uint32_t> {
+	static const SyncGroupId NONE;
+	/// This SyncGroup contains ALL the registered ObjectData.
+	static const SyncGroupId GLOBAL;
+};
 struct VarId : public IdMaker<VarId, uint32_t> { // TODO use `uint8_t` instead?
 	static const VarId NONE;
 };

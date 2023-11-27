@@ -4,6 +4,8 @@
 
 NS_NAMESPACE_BEGIN
 
+const SyncGroupId SyncGroupId::NONE = { std::numeric_limits<std::uint32_t>::max() };
+const SyncGroupId SyncGroupId::GLOBAL = { 0 };
 const VarId VarId::NONE = { std::numeric_limits<uint32_t>::max() };
 const ObjectLocalId ObjectLocalId::NONE = { std::numeric_limits<uint32_t>::max() };
 const ObjectNetId ObjectNetId::NONE = { std::numeric_limits<uint32_t>::max() };
