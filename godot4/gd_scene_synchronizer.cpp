@@ -44,6 +44,12 @@ void GdSceneSynchronizer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("reset_synchronizer_mode"), &GdSceneSynchronizer::reset_synchronizer_mode);
 	ClassDB::bind_method(D_METHOD("clear"), &GdSceneSynchronizer::clear);
 
+	ClassDB::bind_method(D_METHOD("set_tick_speedup_notification_delay", "delay_in_ms"), &GdSceneSynchronizer::set_tick_speedup_notification_delay);
+	ClassDB::bind_method(D_METHOD("get_tick_speedup_notification_delay"), &GdSceneSynchronizer::get_tick_speedup_notification_delay);
+
+	ClassDB::bind_method(D_METHOD("set_tick_acceleration", "acceleration"), &GdSceneSynchronizer::set_tick_acceleration);
+	ClassDB::bind_method(D_METHOD("get_tick_acceleration"), &GdSceneSynchronizer::get_tick_acceleration);
+
 	ClassDB::bind_method(D_METHOD("set_max_trickled_nodes_per_update", "rate"), &GdSceneSynchronizer::set_max_trickled_nodes_per_update);
 	ClassDB::bind_method(D_METHOD("get_max_trickled_nodes_per_update"), &GdSceneSynchronizer::get_max_trickled_nodes_per_update);
 
@@ -105,6 +111,9 @@ void GdSceneSynchronizer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_rpc_net_sync_unreliable"), &GdSceneSynchronizer::_rpc_net_sync_unreliable);
 
 	GDVIRTUAL_BIND(_update_nodes_relevancy);
+
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "tick_speedup_notification_delay", PROPERTY_HINT_RANGE, "0,10,0.001"), "set_tick_speedup_notification_delay", "get_tick_speedup_notification_delay");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "tick_acceleration", PROPERTY_HINT_RANGE, "0.1,20.0,0.01"), "set_tick_acceleration", "get_tick_acceleration");
 
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "server_notify_state_interval", PROPERTY_HINT_RANGE, "0.001,10.0,0.0001"), "set_server_notify_state_interval", "get_server_notify_state_interval");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "comparison_float_tolerance", PROPERTY_HINT_RANGE, "0.000001,0.01,0.000001"), "set_comparison_float_tolerance", "get_comparison_float_tolerance");
@@ -250,12 +259,6 @@ void GdSceneSynchronizer::_notification(int p_what) {
 }
 
 void GdSceneSynchronizer::on_init_synchronizer(bool p_was_generating_ids) {
-	NS::SceneSynchronizerBase::register_var_data_functions(
-			GdSceneSynchronizer::encode,
-			GdSceneSynchronizer::decode,
-			GdSceneSynchronizer::compare,
-			GdSceneSynchronizer::stringify);
-
 	// Always runs the SceneSynchronizer last.
 	const int lowest_priority_number = INT32_MAX;
 	set_process_priority(lowest_priority_number);
@@ -374,6 +377,22 @@ const NS::NetworkedControllerBase *GdSceneSynchronizer::extract_network_controll
 		return c->get_networked_controller();
 	}
 	return nullptr;
+}
+
+void GdSceneSynchronizer::set_tick_speedup_notification_delay(float p_delay) {
+	scene_synchronizer.set_tick_speedup_notification_delay(p_delay);
+}
+
+float GdSceneSynchronizer::get_tick_speedup_notification_delay() const {
+	return scene_synchronizer.get_tick_speedup_notification_delay();
+}
+
+void GdSceneSynchronizer::set_tick_acceleration(double p_acceleration) {
+	scene_synchronizer.set_tick_acceleration(p_acceleration);
+}
+
+double GdSceneSynchronizer::get_tick_acceleration() const {
+	return scene_synchronizer.get_tick_acceleration();
 }
 
 void GdSceneSynchronizer::set_max_trickled_nodes_per_update(int p_rate) {

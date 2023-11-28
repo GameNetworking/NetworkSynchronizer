@@ -102,10 +102,6 @@ private:
 	/// they are sent in an unreliable way.
 	int max_redundant_inputs = 6;
 
-	/// Time in seconds between each `tick_speedup` that the server sends to the
-	/// client. In ms.
-	int tick_speedup_notification_delay = 600;
-
 	/// The connection quality is established by watching the time passed
 	/// between each input is received.
 	/// The more this time is the same the more the connection health is good.
@@ -126,9 +122,6 @@ private:
 	int min_frames_delay = 2;
 	int max_frames_delay = 7;
 
-	/// Amount of additional frames produced per second.
-	double tick_acceleration = 5.0;
-
 	ControllerType controller_type = CONTROLLER_TYPE_NULL;
 	Controller *controller = nullptr;
 	// Created using `memnew` into the constructor:
@@ -147,7 +140,6 @@ private:
 
 	RpcHandle<const Vector<uint8_t> &> rpc_handle_receive_input;
 	RpcHandle<bool> rpc_handle_set_server_controlled;
-	RpcHandle<const Vector<uint8_t> &> rpc_handle_notify_fps_acceleration;
 
 	NS::PHandler process_handler_process = NS::NullPHandler;
 
@@ -190,9 +182,6 @@ public: // ---------------------------------------------------------------- APIs
 	void set_max_redundant_inputs(int p_max);
 	int get_max_redundant_inputs() const;
 
-	void set_tick_speedup_notification_delay(int p_delay_in_ms);
-	int get_tick_speedup_notification_delay() const;
-
 	void set_network_traced_frames(int p_size);
 	int get_network_traced_frames() const;
 
@@ -201,9 +190,6 @@ public: // ---------------------------------------------------------------- APIs
 
 	void set_max_frames_delay(int p_val);
 	int get_max_frames_delay() const;
-
-	void set_tick_acceleration(double p_acceleration);
-	double get_tick_acceleration() const;
 
 	uint32_t get_current_input_id() const;
 
@@ -214,9 +200,6 @@ public: // ---------------------------------------------------------------- APIs
 	DataBuffer &get_inputs_buffer_mut() {
 		return *inputs_buffer;
 	}
-
-	/// Returns the pretended delta used by the player.
-	real_t player_get_pretended_delta() const;
 
 	void server_set_peer_simulating_this_controller(int p_peer, bool p_simulating);
 	bool server_is_peer_simulating_this_controller(int p_peer) const;
@@ -230,6 +213,8 @@ public: // -------------------------------------------------------------- Events
 	/// Returns the server controller or nullptr if this is not a server.
 	ServerController *get_server_controller();
 	const ServerController *get_server_controller() const;
+	ServerController *get_server_controller_unchecked();
+	const ServerController *get_server_controller_unchecked() const;
 	/// Returns the player controller or nullptr if this is not a player.
 	PlayerController *get_player_controller();
 	const PlayerController *get_player_controller() const;
@@ -263,7 +248,6 @@ public:
 
 	/* On client rpc functions. */
 	void rpc_set_server_controlled(bool p_server_controlled);
-	void rpc_notify_fps_acceleration(const Vector<uint8_t> &p_data);
 
 	void player_set_has_new_input(bool p_has);
 	bool player_has_new_input() const;
@@ -349,7 +333,7 @@ public:
 };
 
 struct ServerController : public RemotelyControlledController {
-	uint32_t additional_fps_notif_timer = 0;
+	float additional_fps_notif_timer = 0;
 
 	std::vector<int> peers_simulating_this_controller;
 
@@ -373,18 +357,7 @@ struct ServerController : public RemotelyControlledController {
 
 	uint32_t convert_input_id_to(int p_other_peer, uint32_t p_input_id) const;
 
-	/// This function updates the `tick_additional_fps` so that the `frames_inputs`
-	/// size is enough to reduce the missing packets to 0.
-	///
-	/// When the internet connection is bad, the packets need more time to arrive.
-	/// To heal this problem, the server tells the client to speed up a little bit
-	/// so it send the inputs a bit earlier than the usual.
-	///
-	/// If the `frames_inputs` size is too big the input lag between the client and
-	/// the server is artificial and no more dependent on the internet. For this
-	/// reason the server tells the client to slowdown so to keep the `frames_inputs`
-	/// size moderate to the needs.
-	virtual void adjust_player_tick_rate(double p_delta);
+	std::int8_t compute_client_tick_rate_distance_to_optimal(double p_delta);
 };
 
 struct AutonomousServerController : public ServerController {
@@ -394,17 +367,12 @@ struct AutonomousServerController : public ServerController {
 	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;
 	virtual int get_inputs_count() const override;
 	virtual bool fetch_next_input(real_t p_delta) override;
-	virtual void adjust_player_tick_rate(double p_delta) override;
 };
 
 struct PlayerController : public Controller {
 	uint32_t current_input_id;
 	uint32_t input_buffers_counter;
-	double time_bank = 0.0;
-	double acceleration_fps_speed = 0.0;
-	double acceleration_fps_timer = 1.0;
 	bool streaming_paused = false;
-	double pretended_delta = 1.0;
 
 	std::deque<FrameSnapshot> frames_snapshot;
 	LocalVector<uint8_t> cached_packet_data;
@@ -412,8 +380,6 @@ struct PlayerController : public Controller {
 
 	PlayerController(NetworkedControllerBase *p_node);
 
-	/// Returns the amount of frames to process for this frame.
-	int calculates_sub_ticks(const double p_delta, const double p_iteration_per_seconds);
 	virtual void notify_input_checked(uint32_t p_input_id) override;
 	int get_frames_input_count() const;
 	uint32_t last_known_input() const;

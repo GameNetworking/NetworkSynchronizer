@@ -4,16 +4,18 @@
 #include "core/config/project_settings.h"
 #include "core/error/error_macros.h"
 #include "core/io/marshalls.h"
+#include "core/print.h"
+#include "core/processor.h"
 #include "core/templates/vector.h"
 #include "godot4/gd_network_interface.h"
-#include "modules/network_synchronizer/core/core.h"
-#include "modules/network_synchronizer/core/processor.h"
-#include "modules/network_synchronizer/net_utilities.h"
+#include "net_utilities.h"
+#include "networked_controller.h"
 #include "scene/main/multiplayer_api.h"
 #include "scene_synchronizer.h"
 #include "scene_synchronizer_debugger.h"
 #include <algorithm>
 #include <functional>
+#include <string>
 
 #define METADATA_SIZE 1
 
@@ -50,12 +52,6 @@ void NetworkedControllerBase::setup(NetworkedControllerManager &p_controller_man
 					std::function<void(bool)>(std::bind(&NetworkedControllerBase::rpc_set_server_controlled, this, std::placeholders::_1)),
 					true,
 					false);
-
-	rpc_handle_notify_fps_acceleration =
-			network_interface->rpc_config(
-					std::function<void(const Vector<uint8_t> &)>(std::bind(&NetworkedControllerBase::rpc_notify_fps_acceleration, this, std::placeholders::_1)),
-					false,
-					false);
 }
 
 void NetworkedControllerBase::conclude() {
@@ -64,7 +60,6 @@ void NetworkedControllerBase::conclude() {
 
 	rpc_handle_receive_input.reset();
 	rpc_handle_set_server_controlled.reset();
-	rpc_handle_notify_fps_acceleration.reset();
 }
 
 void NetworkedControllerBase::set_server_controlled(bool p_server_controlled) {
@@ -137,14 +132,6 @@ int NetworkedControllerBase::get_max_redundant_inputs() const {
 	return max_redundant_inputs;
 }
 
-void NetworkedControllerBase::set_tick_speedup_notification_delay(int p_delay) {
-	tick_speedup_notification_delay = p_delay;
-}
-
-int NetworkedControllerBase::get_tick_speedup_notification_delay() const {
-	return tick_speedup_notification_delay;
-}
-
 void NetworkedControllerBase::set_network_traced_frames(int p_size) {
 	network_traced_frames = p_size;
 }
@@ -169,22 +156,9 @@ int NetworkedControllerBase::get_max_frames_delay() const {
 	return max_frames_delay;
 }
 
-void NetworkedControllerBase::set_tick_acceleration(double p_acceleration) {
-	tick_acceleration = p_acceleration;
-}
-
-double NetworkedControllerBase::get_tick_acceleration() const {
-	return tick_acceleration;
-}
-
 uint32_t NetworkedControllerBase::get_current_input_id() const {
 	ERR_FAIL_NULL_V(controller, 0);
 	return controller->get_current_input_id();
-}
-
-real_t NetworkedControllerBase::player_get_pretended_delta() const {
-	ERR_FAIL_COND_V_MSG(is_player_controller() == false, 1.0, "This function can be called only on client.");
-	return get_player_controller()->pretended_delta;
 }
 
 void NetworkedControllerBase::server_set_peer_simulating_this_controller(int p_peer, bool p_simulating) {
@@ -223,6 +197,14 @@ ServerController *NetworkedControllerBase::get_server_controller() {
 
 const ServerController *NetworkedControllerBase::get_server_controller() const {
 	ERR_FAIL_COND_V_MSG(is_server_controller() == false, nullptr, "This controller is not a server controller.");
+	return static_cast<const ServerController *>(controller);
+}
+
+ServerController *NetworkedControllerBase::get_server_controller_unchecked() {
+	return static_cast<ServerController *>(controller);
+}
+
+const ServerController *NetworkedControllerBase::get_server_controller_unchecked() const {
 	return static_cast<const ServerController *>(controller);
 }
 
@@ -374,42 +356,6 @@ void NetworkedControllerBase::rpc_set_server_controlled(bool p_server_controlled
 
 	ERR_FAIL_COND_MSG(scene_synchronizer == nullptr, "The server controller is supposed to be set on the client at this point.");
 	scene_synchronizer->notify_controller_control_mode_changed(this);
-}
-
-void NetworkedControllerBase::rpc_notify_fps_acceleration(const Vector<uint8_t> &p_data) {
-	ERR_FAIL_COND(is_player_controller() == false);
-	ERR_FAIL_COND(p_data.size() != 1);
-
-	int8_t additional_frames_to_produce;
-	memcpy(
-			&additional_frames_to_produce,
-			&p_data[0],
-			sizeof(int8_t));
-
-	PlayerController *player_controller = static_cast<PlayerController *>(controller);
-
-	// Slowdown the acceleration when near the target.
-	player_controller->acceleration_fps_speed = CLAMP(double(additional_frames_to_produce) / get_tick_acceleration(), -1.0, 1.0) * get_tick_acceleration();
-	const double acceleration_fps_speed_ABS = ABS(player_controller->acceleration_fps_speed);
-
-	if (acceleration_fps_speed_ABS >= CMP_EPSILON2) {
-		const double acceleration_time = double(ABS(additional_frames_to_produce)) / acceleration_fps_speed_ABS;
-		player_controller->acceleration_fps_timer = acceleration_time;
-	} else {
-		player_controller->acceleration_fps_timer = 0.0;
-	}
-
-#ifdef DEBUG_ENABLED
-	const bool debug = ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/debug_server_speedup");
-	if (debug) {
-		print_line(
-				String() +
-				"Client received speedup." +
-				" Frames to produce: `" + itos(additional_frames_to_produce) + "`" +
-				" Acceleration fps: `" + rtos(player_controller->acceleration_fps_speed) + "`" +
-				" Acceleration time: `" + rtos(player_controller->acceleration_fps_timer) + "`");
-	}
-#endif
 }
 
 void NetworkedControllerBase::player_set_has_new_input(bool p_has) {
@@ -860,8 +806,15 @@ ServerController::ServerController(
 void ServerController::process(double p_delta) {
 	RemotelyControlledController::process(p_delta);
 
-	if (streaming_paused == false) {
-		adjust_player_tick_rate(p_delta);
+	if (!streaming_paused) {
+		// Update the consecutive inputs.
+		int consecutive_inputs = 0;
+		for (std::size_t i = 0; i < snapshots.size(); i += 1) {
+			if (snapshots[i].id == (current_input_buffer_id + consecutive_inputs + 1)) {
+				consecutive_inputs += 1;
+			}
+		}
+		consecutive_input_watcher.push(consecutive_inputs);
 	}
 }
 
@@ -965,76 +918,44 @@ uint32_t ServerController::convert_input_id_to(int p_other_peer, uint32_t p_inpu
 }
 
 int ceil_with_tolerance(double p_value, double p_tolerance) {
-	return Math::ceil(p_value - p_tolerance);
+	return std::ceil(p_value - p_tolerance);
 }
 
-void ServerController::adjust_player_tick_rate(double p_delta) {
-	// Update the consecutive inputs.
-	{
-		int consecutive_inputs = 0;
-		for (uint32_t i = 0; i < snapshots.size(); i += 1) {
-			if (snapshots[i].id == (current_input_buffer_id + consecutive_inputs + 1)) {
-				consecutive_inputs += 1;
-			}
-		}
-		consecutive_input_watcher.push(consecutive_inputs);
-	}
+std::int8_t ServerController::compute_client_tick_rate_distance_to_optimal(double p_delta) {
+	const float min_frames_delay = node->get_min_frames_delay();
+	const float max_frames_delay = node->get_max_frames_delay();
 
-	const uint32_t now = OS::get_singleton()->get_ticks_msec();
+	// `worst_receival_time` is in ms and indicates the maximum time passed to receive a consecutive
+	// input in the last `network_traced_frames` frames.
+	const std::uint32_t worst_receival_time_ms = network_watcher.max();
 
-	if ((additional_fps_notif_timer + node->get_tick_speedup_notification_delay()) < now) {
-		// Time to tell the client a new speedup.
+	const double worst_receival_time = double(worst_receival_time_ms) / 1000.0;
 
-		additional_fps_notif_timer = now;
+	const int optimal_frame_delay_unclamped = ceil_with_tolerance(
+			worst_receival_time / p_delta,
+			p_delta * 0.05); // Tolerance of 5% of frame time.
 
-		const real_t min_frames_delay = node->get_min_frames_delay();
-		const real_t max_frames_delay = node->get_max_frames_delay();
+	const int optimal_frame_delay = CLAMP(optimal_frame_delay_unclamped, min_frames_delay, max_frames_delay);
 
-		// `worst_receival_time` is in ms and indicates the maximum time passed to receive a consecutive
-		// input in the last `network_traced_frames` frames.
-		const uint32_t worst_receival_time_ms = network_watcher.max();
+	const int consecutive_inputs = consecutive_input_watcher.average_rounded();
 
-		const double worst_receival_time = double(worst_receival_time_ms) / 1000.0;
-
-		const int optimal_frame_delay_unclamped = ceil_with_tolerance(
-				worst_receival_time / p_delta,
-				p_delta * 0.05); // Tolerance of 5% of frame time.
-
-		const int optimal_frame_delay = CLAMP(optimal_frame_delay_unclamped, min_frames_delay, max_frames_delay);
-
-		const int consecutive_inputs = consecutive_input_watcher.average_rounded();
-
-		const int8_t distance_to_optimal = CLAMP(optimal_frame_delay - consecutive_inputs, INT8_MIN, INT8_MAX);
-
-		uint8_t compressed_distance;
-		memcpy(
-				&compressed_distance,
-				&distance_to_optimal,
-				sizeof(uint8_t));
+	const std::int8_t distance_to_optimal = CLAMP(optimal_frame_delay - consecutive_inputs, INT8_MIN, INT8_MAX);
 
 #ifdef DEBUG_ENABLED
-		const bool debug = ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/debug_server_speedup");
-		const int current_frame_delay = consecutive_inputs;
-		if (debug) {
-			print_line(
-					"Worst receival time (ms): `" + itos(worst_receival_time_ms) +
-					"` Optimal frame delay: `" + itos(optimal_frame_delay) +
-					"` Current frame delay: `" + itos(current_frame_delay) +
-					"` Distance to optimal: `" + itos(distance_to_optimal) +
-					"`");
-		}
-		node->event_client_speedup_adjusted.broadcast(worst_receival_time_ms, optimal_frame_delay, current_frame_delay, distance_to_optimal);
+	const bool debug = ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/debug_server_speedup");
+	const int current_frame_delay = consecutive_inputs;
+	if (debug) {
+		NS::print_line(
+				"Worst receival time (ms): `" + std::to_string(worst_receival_time_ms) +
+				"` Optimal frame delay: `" + std::to_string(optimal_frame_delay) +
+				"` Current frame delay: `" + std::to_string(current_frame_delay) +
+				"` Distance to optimal: `" + std::to_string(distance_to_optimal) +
+				"`");
+	}
+	node->event_client_speedup_adjusted.broadcast(worst_receival_time_ms, optimal_frame_delay, current_frame_delay, distance_to_optimal);
 #endif
 
-		Vector<uint8_t>
-				packet_data;
-		packet_data.push_back(compressed_distance);
-
-		node->rpc_handle_notify_fps_acceleration.rpc(
-				node->get_network_interface(),
-				node->network_interface->get_unit_authority(),
-				packet_data);
-	}
+	return distance_to_optimal;
 }
 
 AutonomousServerController::AutonomousServerController(
@@ -1074,45 +995,10 @@ bool AutonomousServerController::fetch_next_input(real_t p_delta) {
 	return true;
 }
 
-void AutonomousServerController::adjust_player_tick_rate(double p_delta) {
-	// Nothing to do, since the inputs are being collected on the server already.
-}
-
 PlayerController::PlayerController(NetworkedControllerBase *p_node) :
 		Controller(p_node),
 		current_input_id(UINT32_MAX),
-		input_buffers_counter(0),
-		acceleration_fps_timer(0.0) {
-}
-
-int PlayerController::calculates_sub_ticks(const double p_delta, const double p_iteration_per_seconds) {
-	// Extract the frame acceleration:
-	// 1. convert the Accelerated Tick Hz to second.
-	const double fully_accelerated_delta = 1.0 / (p_iteration_per_seconds + acceleration_fps_speed);
-
-	// 2. Subtract the `accelerated delta - delta` to obtain the acceleration magnitude.
-	const double acceleration_delta = ABS(fully_accelerated_delta - p_delta);
-
-	// 3. Avoids overshots by taking the smallest value between `acceleration_delta` and the `remaining timer`.
-	const double frame_acceleration_delta = MIN(acceleration_delta, acceleration_fps_timer);
-
-	// Updates the timer by removing the extra accelration.
-	acceleration_fps_timer = MAX(acceleration_fps_timer - frame_acceleration_delta, 0.0);
-
-	// Calculates the pretended delta.
-	pretended_delta = p_delta + (frame_acceleration_delta * SIGN(acceleration_fps_speed));
-
-	// Add the current delta to the bank
-	time_bank += pretended_delta;
-
-	const int sub_ticks = int(time_bank / p_delta);
-
-	time_bank -= static_cast<double>(sub_ticks) * p_delta;
-	if (unlikely(time_bank < 0.0)) {
-		time_bank = 0.0;
-	}
-
-	return sub_ticks;
+		input_buffers_counter(0) {
 }
 
 void PlayerController::notify_input_checked(uint32_t p_input_id) {

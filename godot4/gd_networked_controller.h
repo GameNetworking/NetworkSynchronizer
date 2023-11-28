@@ -95,9 +95,6 @@ public:
 	void set_max_redundant_inputs(int p_max);
 	int get_max_redundant_inputs() const;
 
-	void set_tick_speedup_notification_delay(int p_delay_in_ms);
-	int get_tick_speedup_notification_delay() const;
-
 	void set_network_traced_frames(int p_size);
 	int get_network_traced_frames() const;
 
@@ -107,13 +104,7 @@ public:
 	void set_max_frames_delay(int p_val);
 	int get_max_frames_delay() const;
 
-	void set_tick_acceleration(double p_acceleration);
-	double get_tick_acceleration() const;
-
 	uint32_t get_current_input_id() const;
-
-	/// Returns the pretended delta used by the player.
-	real_t player_get_pretended_delta() const;
 
 	bool is_networking_initialized() const;
 	bool is_server_controller() const;

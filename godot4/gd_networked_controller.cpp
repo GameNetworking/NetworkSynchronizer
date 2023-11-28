@@ -55,9 +55,6 @@ void GdNetworkedController::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_max_redundant_inputs", "max_redundant_inputs"), &GdNetworkedController::set_max_redundant_inputs);
 	ClassDB::bind_method(D_METHOD("get_max_redundant_inputs"), &GdNetworkedController::get_max_redundant_inputs);
 
-	ClassDB::bind_method(D_METHOD("set_tick_speedup_notification_delay", "delay_in_ms"), &GdNetworkedController::set_tick_speedup_notification_delay);
-	ClassDB::bind_method(D_METHOD("get_tick_speedup_notification_delay"), &GdNetworkedController::get_tick_speedup_notification_delay);
-
 	ClassDB::bind_method(D_METHOD("set_network_traced_frames", "size"), &GdNetworkedController::set_network_traced_frames);
 	ClassDB::bind_method(D_METHOD("get_network_traced_frames"), &GdNetworkedController::get_network_traced_frames);
 
@@ -67,12 +64,7 @@ void GdNetworkedController::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_max_frames_delay", "val"), &GdNetworkedController::set_max_frames_delay);
 	ClassDB::bind_method(D_METHOD("get_max_frames_delay"), &GdNetworkedController::get_max_frames_delay);
 
-	ClassDB::bind_method(D_METHOD("set_tick_acceleration", "acceleration"), &GdNetworkedController::set_tick_acceleration);
-	ClassDB::bind_method(D_METHOD("get_tick_acceleration"), &GdNetworkedController::get_tick_acceleration);
-
 	ClassDB::bind_method(D_METHOD("get_current_input_id"), &GdNetworkedController::get_current_input_id);
-
-	ClassDB::bind_method(D_METHOD("player_get_pretended_delta"), &GdNetworkedController::player_get_pretended_delta);
 
 	ClassDB::bind_method(D_METHOD("is_server_controller"), &GdNetworkedController::is_server_controller);
 	ClassDB::bind_method(D_METHOD("is_player_controller"), &GdNetworkedController::is_player_controller);
@@ -91,11 +83,9 @@ void GdNetworkedController::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "input_storage_size", PROPERTY_HINT_RANGE, "5,2000,1"), "set_player_input_storage_size", "get_player_input_storage_size");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "max_redundant_inputs", PROPERTY_HINT_RANGE, "0,1000,1"), "set_max_redundant_inputs", "get_max_redundant_inputs");
 
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "tick_speedup_notification_delay", PROPERTY_HINT_RANGE, "0,5000,1"), "set_tick_speedup_notification_delay", "get_tick_speedup_notification_delay");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "network_traced_frames", PROPERTY_HINT_RANGE, "1,1000,1"), "set_network_traced_frames", "get_network_traced_frames");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "min_frames_delay", PROPERTY_HINT_RANGE, "0,100,1"), "set_min_frames_delay", "get_min_frames_delay");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "max_frames_delay", PROPERTY_HINT_RANGE, "0,100,1"), "set_max_frames_delay", "get_max_frames_delay");
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "tick_acceleration", PROPERTY_HINT_RANGE, "0.1,20.0,0.01"), "set_tick_acceleration", "get_tick_acceleration");
 
 	ADD_SIGNAL(MethodInfo("controller_reset"));
 	ADD_SIGNAL(MethodInfo("input_missed", PropertyInfo(Variant::INT, "missing_input_id")));
@@ -237,14 +227,6 @@ int GdNetworkedController::get_max_redundant_inputs() const {
 	return networked_controller.get_max_redundant_inputs();
 }
 
-void GdNetworkedController::set_tick_speedup_notification_delay(int p_delay) {
-	networked_controller.set_tick_speedup_notification_delay(p_delay);
-}
-
-int GdNetworkedController::get_tick_speedup_notification_delay() const {
-	return networked_controller.get_tick_speedup_notification_delay();
-}
-
 void GdNetworkedController::set_network_traced_frames(int p_size) {
 	networked_controller.set_network_traced_frames(p_size);
 }
@@ -269,20 +251,8 @@ int GdNetworkedController::get_max_frames_delay() const {
 	return networked_controller.get_max_frames_delay();
 }
 
-void GdNetworkedController::set_tick_acceleration(double p_acceleration) {
-	networked_controller.set_tick_acceleration(p_acceleration);
-}
-
-double GdNetworkedController::get_tick_acceleration() const {
-	return networked_controller.get_tick_acceleration();
-}
-
 uint32_t GdNetworkedController::get_current_input_id() const {
 	return networked_controller.get_current_input_id();
-}
-
-real_t GdNetworkedController::player_get_pretended_delta() const {
-	return networked_controller.player_get_pretended_delta();
 }
 
 bool GdNetworkedController::is_networking_initialized() const {

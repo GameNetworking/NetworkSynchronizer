@@ -36,10 +36,12 @@
 
 #include "core/config/engine.h"
 #include "core/config/project_settings.h"
+#include "core/error/error_macros.h"
 #include "data_buffer.h"
 #include "godot4/gd_networked_controller.h"
 #include "godot4/gd_scene_synchronizer.h"
 #include "input_network_encoder.h"
+#include "modules/network_synchronizer/core/core.h"
 #include "modules/network_synchronizer/godot4/gd_network_interface.h"
 #include "scene_synchronizer_debugger.h"
 
@@ -49,6 +51,24 @@
 
 void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
 	if (p_level == MODULE_INITIALIZATION_LEVEL_SERVERS) {
+		NS::SceneSynchronizerBase::install_synchronizer(
+				GdSceneSynchronizer::encode,
+				GdSceneSynchronizer::decode,
+				GdSceneSynchronizer::compare,
+				GdSceneSynchronizer::stringify,
+				[](const std::string &p_str) {
+					print_line(p_str.c_str());
+				},
+				[](const char *p_function, const char *p_file, int p_line, const std::string &p_error, const std::string &p_message, NS::PrintMessageType p_type) {
+					_err_print_error(
+							p_function,
+							p_file,
+							p_line,
+							String(p_error.c_str()),
+							String(p_message.c_str()),
+							p_type == NS::PrintMessageType::ERROR ? ERR_HANDLER_ERROR : ERR_HANDLER_WARNING);
+				});
+
 		GDREGISTER_CLASS(DataBuffer);
 		GDREGISTER_CLASS(GdNetworkedController);
 		GDREGISTER_CLASS(GdSceneSynchronizer);

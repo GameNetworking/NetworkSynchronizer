@@ -58,6 +58,12 @@ const char *get_process_phase_name(ProcessPhase pp);
 
 NS_NAMESPACE_BEGIN
 
+enum class PrintMessageType {
+	INFO,
+	WARNING,
+	ERROR
+};
+
 template <typename T, typename TheIdType>
 struct IdMaker {
 	typedef TheIdType IdType;
@@ -104,5 +110,10 @@ struct ObjectLocalId : public IdMaker<ObjectLocalId, uint32_t> { // TODO use `in
 struct ObjectHandle : public IdMaker<ObjectHandle, std::intptr_t> {
 	static const ObjectHandle NONE;
 };
+
+template <typename T>
+constexpr const T sign(const T m_v) {
+	return m_v == 0 ? 0.0f : (m_v < 0 ? -1.0f : +1.0f);
+}
 
 NS_NAMESPACE_END

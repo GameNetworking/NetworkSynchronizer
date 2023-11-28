@@ -42,6 +42,9 @@
 	}                                                            \
 	ZoneText(c.ptr(), c.size());
 
+#define NS_PROFILE_SET_INFO(str) \
+	ZoneText(str.c_str(), str.size());
+
 #else
 
 #define NS_PROFILE
@@ -49,6 +52,7 @@
 #define NS_PROFILE_NAMED(name)
 #define NS_PROFILE_NAMED_WITH_INFO(name, str)
 #define NS_PROFILE_NODE
+#define NS_PROFILE_SET_INFO(str)
 
 #endif
 

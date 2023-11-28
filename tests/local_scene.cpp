@@ -27,7 +27,7 @@ LocalSceneSynchronizer::LocalSceneSynchronizer() :
 LocalSceneSynchronizer::~LocalSceneSynchronizer() {}
 
 void LocalSceneSynchronizer::register_local_sync() {
-	register_var_data_functions(
+	install_synchronizer(
 			[](DataBuffer &r_buffer, const NS::VarData &p_val) {
 				r_buffer.add(p_val.type);
 				r_buffer.add_bits(reinterpret_cast<const uint8_t *>(&p_val.data), sizeof(p_val.data) * 8);
@@ -49,7 +49,9 @@ void LocalSceneSynchronizer::register_local_sync() {
 				} else {
 					return std::string("[No stringify supported for this VarData type: `" + std::to_string(p_var_data.type) + "`]");
 				}
-			});
+			},
+			print_line_func,
+			print_code_message_func);
 }
 
 void LocalSceneSynchronizer::on_scene_entry() {

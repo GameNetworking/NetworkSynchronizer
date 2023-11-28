@@ -59,11 +59,6 @@
 			<description>
 			</description>
 		</method>
-		<method name="player_get_pretended_delta" qualifiers="const">
-			<return type="float" />
-			<description>
-			</description>
-		</method>
 	</methods>
 	<members>
 		<member name="input_storage_size" type="int" setter="set_player_input_storage_size" getter="get_player_input_storage_size" default="180">
@@ -79,8 +74,6 @@
 		<member name="server_controlled" type="bool" setter="set_server_controlled" getter="get_server_controlled" default="false">
 		</member>
 		<member name="tick_acceleration" type="float" setter="set_tick_acceleration" getter="get_tick_acceleration" default="5.0">
-		</member>
-		<member name="tick_speedup_notification_delay" type="int" setter="set_tick_speedup_notification_delay" getter="get_tick_speedup_notification_delay" default="600">
 		</member>
 	</members>
 	<signals>

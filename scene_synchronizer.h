@@ -140,11 +140,14 @@ public:
 		SYNCHRONIZER_TYPE_SERVER
 	};
 
-private:
+protected:
 	static void (*var_data_encode_func)(DataBuffer &r_buffer, const NS::VarData &p_val);
 	static void (*var_data_decode_func)(NS::VarData &r_val, DataBuffer &p_buffer);
 	static bool (*var_data_compare_func)(const VarData &p_A, const VarData &p_B);
 	static std::string (*var_data_stringify_func)(const VarData &p_var_data, bool p_verbose);
+
+	static void (*print_line_func)(const std::string &p_str);
+	static void (*print_code_message_func)(const char *p_function, const char *p_file, int p_line, const std::string &p_error, const std::string &p_message, NS::PrintMessageType p_type);
 
 #ifdef DEBUG_ENABLED
 	const bool pedantic_checks = false;
@@ -159,6 +162,21 @@ private:
 	RpcHandle<bool> rpc_handler_set_network_enabled;
 	RpcHandle<bool> rpc_handler_notify_peer_status;
 	RpcHandle<const Vector<uint8_t> &> rpc_handler_trickled_sync_data;
+	RpcHandle<const Vector<uint8_t> &> rpc_handle_notify_fps_acceleration;
+
+	/// This number is used to clamp the maximum amount of frames that is
+	/// possible to produce per frame by the client;
+	/// To avoid generating way too many frames, eroding the client perf.
+	/// NOTE: The client may want to generate more frames in case of:
+	///       - The server asks for a speedup.
+	///       - The client FPS are under the networking tick rate.
+	std::uint8_t max_sub_process_per_frame = 4;
+	/// Amount of additional frames produced per second.
+	double tick_acceleration = 5.0;
+
+	/// Time in seconds between each `tick_speedup` that the server sends to the
+	/// client. In seconds
+	float tick_speedup_notification_delay = 0.6;
 
 	int max_trickled_objects_per_update = 30;
 	float server_notify_state_interval = 1.0;
@@ -209,11 +227,13 @@ public:
 	~SceneSynchronizerBase();
 
 public: // -------------------------------------------------------- Manager APIs
-	static void register_var_data_functions(
+	static void install_synchronizer(
 			void (*p_var_data_encode_func)(DataBuffer &r_buffer, const NS::VarData &p_val),
 			void (*p_var_data_decode_func)(NS::VarData &r_val, DataBuffer &p_buffer),
 			bool (*p_var_data_compare_func)(const VarData &p_A, const VarData &p_B),
-			std::string (*p_var_data_stringify_func)(const VarData &p_var_data, bool p_verbose));
+			std::string (*p_var_data_stringify_func)(const VarData &p_var_data, bool p_verbose),
+			void (*p_print_line_func)(const std::string &p_str),
+			void (*p_print_code_message_func)(const char *p_function, const char *p_file, int p_line, const std::string &p_error, const std::string &p_message, NS::PrintMessageType p_type));
 
 	/// Setup the synchronizer
 	void setup(SynchronizerManager &p_synchronizer_manager);
@@ -232,6 +252,8 @@ public:
 	static void var_data_decode(NS::VarData &r_val, DataBuffer &p_buffer);
 	static bool var_data_compare(const VarData &p_A, const VarData &p_B);
 	static std::string var_data_stringify(const VarData &p_var_data, bool p_verbose = false);
+	static void print_line(const std::string &p_str);
+	static void print_code_message(const char *p_function, const char *p_file, int p_line, const std::string &p_error, const std::string &p_message, NS::PrintMessageType p_type);
 
 	NS::NetworkInterface &get_network_interface() {
 		return *network_interface;
@@ -246,6 +268,15 @@ public:
 	const NS::SynchronizerManager &get_synchronizer_manager() const {
 		return *synchronizer_manager;
 	}
+
+	void set_max_sub_process_per_frame(std::uint8_t p_max_sub_process_per_frame);
+	std::uint8_t get_max_sub_process_per_frame() const;
+
+	void set_tick_acceleration(double p_acceleration);
+	double get_tick_acceleration() const;
+
+	void set_tick_speedup_notification_delay(float p_delay_in_ms);
+	float get_tick_speedup_notification_delay() const;
 
 	void set_max_trickled_objects_per_update(int p_rate);
 	int get_max_trickled_objects_per_update() const;
@@ -268,6 +299,7 @@ public: // ---------------------------------------------------------------- RPCs
 	void rpc_set_network_enabled(bool p_enabled);
 	void rpc_notify_peer_status(bool p_enabled);
 	void rpc_trickled_sync_data(const Vector<uint8_t> &p_data);
+	void rpc_notify_fps_acceleration(const Vector<uint8_t> &p_data);
 
 public: // ---------------------------------------------------------------- APIs
 	void register_app_object(ObjectHandle p_app_object_handle, ObjectLocalId *out_id = nullptr);
@@ -541,10 +573,29 @@ public:
 	void process_trickled_sync(real_t p_delta);
 	void process_ping_update(real_t p_delta);
 	void notify_ping_received(int p_peer);
+
+	/// This function updates the `tick_additional_fps` so that the `frames_inputs`
+	/// size is enough to reduce the missing packets to 0.
+	///
+	/// When the internet connection is bad, the packets need more time to arrive.
+	/// To heal this problem, the server tells the client to speed up a little bit
+	/// so it send the inputs a bit earlier than the usual.
+	///
+	/// If the `frames_inputs` size is too big the input lag between the client and
+	/// the server is artificial and no more dependent on the internet. For this
+	/// reason the server tells the client to slowdown so to keep the `frames_inputs`
+	/// size moderate to the needs.
+	void process_adjust_clients_controller_tick_rate(double p_delta);
+	void process_adjust_client_controller_tick_rate(double p_delta, int p_controller_peer, NetworkedControllerBase &p_controller);
 };
 
 class ClientSynchronizer : public Synchronizer {
 	friend class SceneSynchronizerBase;
+
+	double time_bank = 0.0;
+	double acceleration_fps_speed = 0.0;
+	double acceleration_fps_timer = 0.0;
+	double pretended_delta = 1.0;
 
 	std::vector<ObjectNetId> simulated_objects;
 	std::vector<ObjectData *> active_objects;
@@ -709,6 +760,8 @@ private:
 
 	void process_paused_controller_recovery(real_t p_delta);
 
+	/// Returns the amount of frames to process for this frame.
+	int calculates_sub_ticks(const double p_delta, const double p_iteration_per_seconds);
 	void process_simulation(real_t p_delta, real_t p_physics_ticks_per_second);
 
 	bool parse_snapshot(DataBuffer &p_snapshot);

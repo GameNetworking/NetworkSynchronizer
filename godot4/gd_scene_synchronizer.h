@@ -44,6 +44,12 @@ public:
 	void _notification(int p_what);
 
 public: // ---------------------------------------------------------- Properties
+	void set_tick_speedup_notification_delay(float p_delay_in_ms);
+	float get_tick_speedup_notification_delay() const;
+
+	void set_tick_acceleration(double p_acceleration);
+	double get_tick_acceleration() const;
+
 	void set_max_trickled_nodes_per_update(int p_rate);
 	int get_max_trickled_nodes_per_update() const;
 
