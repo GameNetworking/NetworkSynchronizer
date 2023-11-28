@@ -8,7 +8,8 @@
 #include "test_simulation.h"
 
 void NS_Test::test_all() {
-	NS::LocalSceneSynchronizer::register_local_sync();
+	NS::LocalSceneSynchronizer::install_local_scene_sync();
+
 	// TODO test DataBuffer.
 	test_data_buffer();
 	test_processor();
@@ -16,4 +17,6 @@ void NS_Test::test_all() {
 	test_scene_synchronizer();
 	test_simulation();
 	test_doll_simulation();
+
+	NS::LocalSceneSynchronizer::uninstall_local_scene_sync();
 }

@@ -36,7 +36,8 @@ public:
 	LocalSceneSynchronizer();
 	virtual ~LocalSceneSynchronizer();
 
-	static void register_local_sync();
+	static void install_local_scene_sync();
+	static void uninstall_local_scene_sync();
 
 	virtual void on_scene_entry() override;
 	virtual void setup_synchronizer(class LocalSceneSynchronizer &p_scene_sync, ObjectLocalId p_id) override;

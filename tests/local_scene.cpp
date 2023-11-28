@@ -1,6 +1,7 @@
 #include "local_scene.h"
 #include "modules/network_synchronizer/core/core.h"
 #include "modules/network_synchronizer/networked_controller.h"
+#include "modules/network_synchronizer/scene_synchronizer.h"
 #include <memory>
 #include <string>
 
@@ -26,7 +27,18 @@ LocalSceneSynchronizer::LocalSceneSynchronizer() :
 
 LocalSceneSynchronizer::~LocalSceneSynchronizer() {}
 
-void LocalSceneSynchronizer::register_local_sync() {
+void (*prev_var_data_encode_func)(DataBuffer &r_buffer, const NS::VarData &p_val) = nullptr;
+void (*prev_var_data_decode_func)(NS::VarData &r_val, DataBuffer &p_buffer) = nullptr;
+bool (*prev_var_data_compare_func)(const VarData &p_A, const VarData &p_B) = nullptr;
+std::string (*prev_var_data_stringify_func)(const VarData &p_var_data, bool p_verbose) = nullptr;
+
+void LocalSceneSynchronizer::install_local_scene_sync() {
+	// Store the already set functions, so we can restore it again after the tests are done.
+	prev_var_data_encode_func = SceneSynchronizerBase::var_data_encode_func;
+	prev_var_data_decode_func = SceneSynchronizerBase::var_data_decode_func;
+	prev_var_data_compare_func = SceneSynchronizerBase::var_data_compare_func;
+	prev_var_data_stringify_func = SceneSynchronizerBase::var_data_stringify_func;
+
 	install_synchronizer(
 			[](DataBuffer &r_buffer, const NS::VarData &p_val) {
 				r_buffer.add(p_val.type);
@@ -52,6 +64,22 @@ void LocalSceneSynchronizer::register_local_sync() {
 			},
 			print_line_func,
 			print_code_message_func);
+}
+
+void LocalSceneSynchronizer::uninstall_local_scene_sync() {
+	// Restore the previously set functions.
+	install_synchronizer(
+			prev_var_data_encode_func,
+			prev_var_data_decode_func,
+			prev_var_data_compare_func,
+			prev_var_data_stringify_func,
+			print_line_func,
+			print_code_message_func);
+
+	prev_var_data_encode_func = nullptr;
+	prev_var_data_decode_func = nullptr;
+	prev_var_data_compare_func = nullptr;
+	prev_var_data_stringify_func = nullptr;
 }
 
 void LocalSceneSynchronizer::on_scene_entry() {
