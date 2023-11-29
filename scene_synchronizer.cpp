@@ -2736,13 +2736,17 @@ void ClientSynchronizer::__pcr__rewind(
 	bool has_next = false;
 #endif
 	for (int i = 0; i < frames_to_rewind; i += 1) {
-		NS_PROFILE_NAMED_WITH_INFO("Rewinding frame", std::to_string(i));
+		const std::uint32_t frame_id_to_process = p_local_player_controller->get_stored_input_id(i);
+#ifdef NS_PROFILING_ENABLED
+		std::string prof_info = "Index: " + std::to_string(i) + " Frame ID: " + std::to_string(frame_id_to_process);
+		NS_PROFILE_NAMED_WITH_INFO("Rewinding frame", prof_info);
+#endif
 
 		scene_synchronizer->change_events_begin(NetEventFlag::SYNC_RECOVER | NetEventFlag::SYNC_REWIND);
 
 		// Step 1 -- Notify the local controller about the instant to process
 		//           on the next process.
-		scene_synchronizer->event_rewind_frame_begin.broadcast(p_local_player_controller->get_stored_input_id(i), i, frames_to_rewind);
+		scene_synchronizer->event_rewind_frame_begin.broadcast(frame_id_to_process, i, frames_to_rewind);
 #ifdef DEBUG_ENABLED
 		has_next = p_local_controller->has_another_instant_to_process_after(i);
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "Rewind, processed controller: " + String(p_local_controller_node->object_name.c_str()), !scene_synchronizer->debug_rewindings_enabled);
