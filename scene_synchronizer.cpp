@@ -2417,6 +2417,8 @@ const std::vector<ObjectData *> &ClientSynchronizer::get_active_objects() const 
 }
 
 void ClientSynchronizer::store_snapshot() {
+	NS_PROFILE
+
 	NetworkedControllerBase *controller = player_controller_object_data->get_controller();
 
 #ifdef DEBUG_ENABLED
@@ -3465,18 +3467,30 @@ void ClientSynchronizer::notify_server_full_snapshot_is_needed() {
 }
 
 void ClientSynchronizer::update_client_snapshot(NS::Snapshot &r_snapshot) {
+	NS_PROFILE
+
 	r_snapshot.simulated_objects = simulated_objects;
 
-	r_snapshot.has_custom_data = scene_synchronizer->synchronizer_manager->snapshot_get_custom_data(nullptr, r_snapshot.custom_data);
+	{
+		NS_PROFILE_NAMED("Fetch `custom_data`");
+		r_snapshot.has_custom_data = scene_synchronizer->synchronizer_manager->snapshot_get_custom_data(nullptr, r_snapshot.custom_data);
+	}
 
 	// Make sure we have room for all the NodeData.
 	r_snapshot.object_vars.resize(scene_synchronizer->objects_data_storage.get_sorted_objects_data().size());
 
 	// Fetch the data.
 	for (const NS::ObjectData *od : scene_synchronizer->objects_data_storage.get_sorted_objects_data()) {
+		NS_PROFILE_NAMED("Update object data");
+
 		if (od == nullptr || od->realtime_sync_enabled_on_client == false) {
 			continue;
 		}
+
+#ifdef NS_PROFILING_ENABLED
+		std::string perf_info = "Object Name: " + od->object_name;
+		NS_PROFILE_SET_INFO(perf_info);
+#endif
 
 		// Make sure this ID is valid.
 		ERR_FAIL_COND_MSG(od->get_net_id() == ObjectNetId::NONE, "[BUG] It's not expected that the client has an uninitialized NetNodeId into the `organized_node_data` ");
@@ -3489,7 +3503,11 @@ void ClientSynchronizer::update_client_snapshot(NS::Snapshot &r_snapshot) {
 		snap_node_vars->resize(od->vars.size());
 
 		NS::NameAndVar *snap_node_vars_ptr = snap_node_vars->data();
-		for (uint32_t v = 0; v < od->vars.size(); v += 1) {
+		for (std::size_t v = 0; v < od->vars.size(); v += 1) {
+#ifdef NS_PROFILING_ENABLED
+			std::string sub_perf_info = "Var: " + od->vars[v].var.name;
+			NS_PROFILE_NAMED_WITH_INFO("Update object data variable", sub_perf_info);
+#endif
 			if (od->vars[v].enabled) {
 				snap_node_vars_ptr[v].name = od->vars[v].var.name;
 				snap_node_vars_ptr[v].value.copy(od->vars[v].var.value);
