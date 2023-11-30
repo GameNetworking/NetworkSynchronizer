@@ -228,7 +228,10 @@ public:
 	/* On client rpc functions. */
 	void rpc_set_server_controlled(bool p_server_controlled);
 
+private:
 	void player_set_has_new_input(bool p_has);
+
+public:
 	bool player_has_new_input() const;
 
 	bool is_realtime_enabled();

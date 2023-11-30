@@ -451,7 +451,7 @@ public: // ------------------------------------------------------------ INTERNAL
 	void update_objects_relevancy();
 
 	void process_functions__clear();
-	void process_functions__execute(const double p_delta);
+	void process_functions__execute();
 
 	ObjectLocalId find_object_local_id(ObjectHandle p_app_object) const;
 	ObjectLocalId find_object_local_id(const NetworkedControllerBase &p_controller) const;
@@ -592,7 +592,7 @@ public:
 
 	void sync_group_debug_print();
 
-	void process_snapshot_notificator(double p_delta);
+	void process_snapshot_notificator();
 
 	void generate_snapshot(
 			bool p_force_full_snapshot,
@@ -605,7 +605,7 @@ public:
 			const NS::SyncGroup::Change &p_change,
 			DataBuffer &r_snapshot_db) const;
 
-	void process_trickled_sync();
+	void process_trickled_sync(double p_delta);
 	void process_ping_update();
 	void notify_ping_received(int p_peer);
 

@@ -160,6 +160,7 @@ public:
 	}
 
 	virtual void controller_process(double p_delta, DataBuffer &p_buffer) override {
+		CRASH_COND(p_delta != delta);
 		const float speed = 1.0;
 		const Vector3 v = p_buffer.read_normalized_vector3(DataBuffer::COMPRESSION_LEVEL_3);
 		const Vec3 input(v.x, v.y, v.z);
@@ -178,6 +179,7 @@ public:
 };
 
 void process_magnet_simulation(NS::LocalSceneSynchronizer &scene_sync, float p_delta, MagnetSceneObject &p_mag) {
+	CRASH_COND(p_delta != delta);
 	const float pushing_force = 200.0;
 
 	for (const NS::ObjectData *od : scene_sync.get_sorted_objects_data()) {
@@ -238,6 +240,10 @@ private:
 public:
 	TestSimulationBase() {}
 	virtual ~TestSimulationBase() {}
+
+	double rand_range(double M, double N) {
+		return M + (rand() / (RAND_MAX / (N - M)));
+	}
 
 	void do_test() {
 		// Create a server
@@ -305,10 +311,13 @@ public:
 		Vec3 heavy_mag_p1_position_at_target_frame;
 
 		while (true) {
-			server_scene.process(delta);
-			peer_1_scene.process(delta);
+			// Use a random delta, to make sure the NetSync can be processed
+			// by a normal process loop with dynamic `delta_time`.
+			const float rand_delta = rand_range(0.005, delta);
+			server_scene.process(rand_delta);
+			peer_1_scene.process(rand_delta);
 
-			on_scenes_processed(delta);
+			on_scenes_processed(rand_delta);
 
 			if (controller_server->get_current_input_id() == process_until_frame) {
 				server_reached_target_frame = true;
@@ -365,6 +374,13 @@ public:
 
 	virtual void on_scenes_initialized() override {
 		server_scene.scene_sync->set_frame_confirmation_timespan(notify_state_interval);
+		// Make sure the client can predicts as many frames it needs (no need to add some more noise on this test).
+		server_scene.scene_sync->set_max_predicted_intervals(20);
+
+		controller_server->event_input_missed.bind([](std::uint32_t p_input_id) {
+			// The input should be never missing!
+			CRASH_NOW();
+		});
 
 		controller_p1->get_scene_synchronizer()->event_desync_detected.bind([this](uint32_t p_input_id) {
 			client_rewinded_frames.push_back(p_input_id);
@@ -390,6 +406,7 @@ public:
 
 	virtual void on_scenes_done() override {
 		CRASH_COND(client_rewinded_frames.size() != 1);
+		CRASH_COND(client_rewinded_frames[0] < reset_position_on_frame);
 		CRASH_COND(client_rewinded_frames[0] != correction_snapshot_sent);
 	}
 };
