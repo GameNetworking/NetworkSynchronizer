@@ -49,9 +49,6 @@ void GdNetworkedController::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_server_controlled", "server_controlled"), &GdNetworkedController::set_server_controlled);
 	ClassDB::bind_method(D_METHOD("get_server_controlled"), &GdNetworkedController::get_server_controlled);
 
-	ClassDB::bind_method(D_METHOD("set_player_input_storage_size", "size"), &GdNetworkedController::set_player_input_storage_size);
-	ClassDB::bind_method(D_METHOD("get_player_input_storage_size"), &GdNetworkedController::get_player_input_storage_size);
-
 	ClassDB::bind_method(D_METHOD("set_max_redundant_inputs", "max_redundant_inputs"), &GdNetworkedController::set_max_redundant_inputs);
 	ClassDB::bind_method(D_METHOD("get_max_redundant_inputs"), &GdNetworkedController::get_max_redundant_inputs);
 
@@ -209,14 +206,6 @@ void GdNetworkedController::set_server_controlled(bool p_server_controlled) {
 
 bool GdNetworkedController::get_server_controlled() const {
 	return networked_controller.get_server_controlled();
-}
-
-void GdNetworkedController::set_player_input_storage_size(int p_size) {
-	networked_controller.set_player_input_storage_size(p_size);
-}
-
-int GdNetworkedController::get_player_input_storage_size() const {
-	return networked_controller.get_player_input_storage_size();
 }
 
 void GdNetworkedController::set_max_redundant_inputs(int p_max) {

@@ -73,7 +73,7 @@ public:
 ///
 /// The server is authoritative and it can't never be wrong. For this reason
 /// the `SceneSynchronizer` on the server sends at a fixed interval (defined by
-/// `server_notify_state_interval`) a snapshot to all peers.
+/// `frame_confirmation_timespan`) a snapshot to all peers.
 ///
 /// The clients receives the server snapshot, so it compares with the local
 /// snapshot and if it's necessary perform the recovery.
@@ -164,6 +164,10 @@ protected:
 	RpcHandle<const Vector<uint8_t> &> rpc_handler_trickled_sync_data;
 	RpcHandle<const Vector<uint8_t> &> rpc_handle_notify_fps_acceleration;
 
+	/// Fixed rate at which the NetSync has to produce frames.
+	int frames_per_seconds = 60;
+	double fixed_frame_delta = 1.0 / frames_per_seconds;
+
 	/// This number is used to clamp the maximum amount of frames that is
 	/// possible to produce per frame by the client;
 	/// To avoid generating way too many frames, eroding the client perf.
@@ -179,9 +183,22 @@ protected:
 	float tick_speedup_notification_delay = 0.6;
 
 	int max_trickled_objects_per_update = 30;
-	float server_notify_state_interval = 1.0;
+	float max_trickled_interpolation_alpha = 1.2;
+
+	/// How much time passes between each snapshot sent by the server to confirm
+	/// a set of frames predicted by the client.
+	float frame_confirmation_timespan = 1.0;
+
+	/// This parameter is used to defines how many intervals the client can ever
+	/// predict.
+	/// The NetSync stops recording more frames, if the clients overflow this span.
+	/// - This is a way to keep the rewinginds smaller.
+	/// - This is a way to avoid the client to go too ahead the server.
+	float max_predicted_intervals = 3.0;
+
 	/// Can be 0.0 to update the relevancy each frame.
 	float objects_relevancy_update_time = 0.5;
+
 	/// Update the ping each 3 seconds.
 	float ping_update_rate = 3.0;
 
@@ -242,7 +259,7 @@ public: // -------------------------------------------------------- Manager APIs
 	void conclude();
 
 	/// Process the SceneSync.
-	void process();
+	void process(double p_delta);
 
 	/// Call this function when a networked app object is destroyed.
 	void on_app_object_removed(ObjectHandle p_app_object_handle);
@@ -269,6 +286,12 @@ public:
 		return *synchronizer_manager;
 	}
 
+	void set_frames_per_seconds(int p_fps);
+	int get_frames_per_seconds() const;
+
+	// The tick delta time used to step the networking processing.
+	double get_fixed_frame_delta() const;
+
 	void set_max_sub_process_per_frame(std::uint8_t p_max_sub_process_per_frame);
 	std::uint8_t get_max_sub_process_per_frame() const;
 
@@ -281,8 +304,14 @@ public:
 	void set_max_trickled_objects_per_update(int p_rate);
 	int get_max_trickled_objects_per_update() const;
 
-	void set_server_notify_state_interval(float p_interval);
-	float get_server_notify_state_interval() const;
+	void set_max_trickled_interpolation_alpha(float p_int_alpha);
+	float get_max_trickled_interpolation_alpha() const;
+
+	void set_frame_confirmation_timespan(float p_interval);
+	float get_frame_confirmation_timespan() const;
+
+	void set_max_predicted_intervals(float p_max_predicted_intevals);
+	float get_max_predicted_intervals() const;
 
 	void set_objects_relevancy_update_time(float p_time);
 	float get_objects_relevancy_update_time() const;
@@ -383,6 +412,8 @@ public: // ---------------------------------------------------------------- APIs
 	bool is_rewinding() const;
 	bool is_end_sync() const;
 
+	std::size_t get_client_max_frames_storage_size() const;
+
 	/// This function works only on server.
 	void force_state_notify(SyncGroupId p_sync_group_id);
 	void force_state_notify_all();
@@ -478,7 +509,7 @@ public:
 
 	virtual void clear() = 0;
 
-	virtual void process() = 0;
+	virtual void process(double p_delta) = 0;
 	virtual void on_peer_connected(int p_peer_id) {}
 	virtual void on_peer_disconnected(int p_peer_id) {}
 	virtual void on_object_data_added(NS::ObjectData *p_object_data) {}
@@ -492,6 +523,7 @@ public:
 class NoNetSynchronizer : public Synchronizer {
 	friend class SceneSynchronizerBase;
 
+	double time_bank = 0.0;
 	bool enabled = true;
 	uint32_t frame_count = 0;
 	std::vector<ObjectData *> active_objects;
@@ -500,18 +532,21 @@ public:
 	NoNetSynchronizer(SceneSynchronizerBase *p_ss);
 
 	virtual void clear() override;
-	virtual void process() override;
+	virtual void process(double p_delta) override;
 	virtual void on_object_data_added(NS::ObjectData *p_object_data) override;
 	virtual void on_object_data_removed(NS::ObjectData &p_object_data) override;
 	virtual const std::vector<ObjectData *> &get_active_objects() const override { return active_objects; }
 
 	void set_enabled(bool p_enabled);
 	bool is_enabled() const;
+
+	int fetch_sub_processes_count(double p_delta);
 };
 
 class ServerSynchronizer : public Synchronizer {
 	friend class SceneSynchronizerBase;
 
+	double time_bank = 0.0;
 	real_t objects_relevancy_update_timer = 0.0;
 	uint32_t epoch = 0;
 	/// This array contains a map between the peers and the relevant objects.
@@ -531,7 +566,7 @@ public:
 	ServerSynchronizer(SceneSynchronizerBase *p_ss);
 
 	virtual void clear() override;
-	virtual void process() override;
+	virtual void process(double p_delta) override;
 	virtual void on_peer_connected(int p_peer_id) override;
 	virtual void on_peer_disconnected(int p_peer_id) override;
 	virtual void on_object_data_added(NS::ObjectData *p_object_data) override;
@@ -557,7 +592,7 @@ public:
 
 	void sync_group_debug_print();
 
-	void process_snapshot_notificator(real_t p_delta);
+	void process_snapshot_notificator(double p_delta);
 
 	void generate_snapshot(
 			bool p_force_full_snapshot,
@@ -570,8 +605,8 @@ public:
 			const NS::SyncGroup::Change &p_change,
 			DataBuffer &r_snapshot_db) const;
 
-	void process_trickled_sync(real_t p_delta);
-	void process_ping_update(real_t p_delta);
+	void process_trickled_sync();
+	void process_ping_update();
 	void notify_ping_received(int p_peer);
 
 	/// This function updates the `tick_additional_fps` so that the `frames_inputs`
@@ -587,6 +622,8 @@ public:
 	/// size moderate to the needs.
 	void process_adjust_clients_controller_tick_rate(double p_delta);
 	void process_adjust_client_controller_tick_rate(double p_delta, int p_controller_peer, NetworkedControllerBase &p_controller);
+
+	int fetch_sub_processes_count(double p_delta);
 };
 
 class ClientSynchronizer : public Synchronizer {
@@ -658,15 +695,15 @@ class ClientSynchronizer : public Synchronizer {
 
 		uint32_t past_epoch = UINT32_MAX;
 		uint32_t future_epoch = UINT32_MAX;
-		real_t alpha_advacing_per_epoch = 1.0;
-		real_t alpha = 0.0;
+		float epochs_timespan = 1.0;
+		float alpha = 0.0;
 
 		TrickledSyncInterpolationData() = default;
 		TrickledSyncInterpolationData(const TrickledSyncInterpolationData &p_dss) :
 				od(p_dss.od),
 				past_epoch(p_dss.past_epoch),
 				future_epoch(p_dss.future_epoch),
-				alpha_advacing_per_epoch(p_dss.alpha_advacing_per_epoch),
+				epochs_timespan(p_dss.epochs_timespan),
 				alpha(p_dss.alpha) {
 			past_epoch_buffer.copy(p_dss.past_epoch_buffer);
 			future_epoch_buffer.copy(p_dss.future_epoch_buffer);
@@ -677,7 +714,7 @@ class ClientSynchronizer : public Synchronizer {
 			future_epoch_buffer.copy(p_dss.future_epoch_buffer);
 			past_epoch = p_dss.past_epoch;
 			future_epoch = p_dss.future_epoch;
-			alpha_advacing_per_epoch = p_dss.alpha_advacing_per_epoch;
+			epochs_timespan = p_dss.epochs_timespan;
 			alpha = p_dss.alpha;
 			return *this;
 		}
@@ -701,7 +738,7 @@ public:
 
 	virtual void clear() override;
 
-	virtual void process() override;
+	virtual void process(double p_delta) override;
 	virtual void on_object_data_added(NS::ObjectData *p_object_data) override;
 	virtual void on_object_data_removed(NS::ObjectData &p_object_data) override;
 	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) override;
@@ -723,7 +760,7 @@ public:
 	void set_enabled(bool p_enabled);
 
 	void receive_trickled_sync_data(const Vector<uint8_t> &p_data);
-	void process_trickled_sync(real_t p_delta);
+	void process_trickled_sync(double p_delta);
 
 	void remove_object_from_trickled_sync(NS::ObjectData *p_object_data);
 
@@ -735,8 +772,8 @@ private:
 			const NS::Snapshot &p_snapshot,
 			std::deque<NS::Snapshot> &r_snapshot_storage);
 
-	void process_server_sync(float p_delta);
-	void process_received_server_state(real_t p_delta);
+	void process_server_sync();
+	void process_received_server_state();
 
 	bool __pcr__fetch_recovery_info(
 			const uint32_t p_input_id,
@@ -745,7 +782,6 @@ private:
 	void __pcr__sync__rewind();
 
 	void __pcr__rewind(
-			real_t p_delta,
 			const uint32_t p_checkable_input_id,
 			NS::ObjectData *p_local_controller_object,
 			NetworkedControllerBase *p_controller,
@@ -758,11 +794,11 @@ private:
 			const uint32_t p_checkable_input_id,
 			PlayerController *p_player_controller);
 
-	void process_paused_controller_recovery(real_t p_delta);
+	void process_paused_controller_recovery();
 
 	/// Returns the amount of frames to process for this frame.
-	int calculates_sub_ticks(const double p_delta, const double p_iteration_per_seconds);
-	void process_simulation(real_t p_delta, real_t p_physics_ticks_per_second);
+	int calculates_sub_ticks(const double p_delta);
+	void process_simulation(double p_delta);
 
 	bool parse_snapshot(DataBuffer &p_snapshot);
 

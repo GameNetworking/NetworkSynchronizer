@@ -53,8 +53,8 @@ public: // ---------------------------------------------------------- Properties
 	void set_max_trickled_nodes_per_update(int p_rate);
 	int get_max_trickled_nodes_per_update() const;
 
-	void set_server_notify_state_interval(real_t p_interval);
-	real_t get_server_notify_state_interval() const;
+	void set_frame_confirmation_timespan(real_t p_interval);
+	real_t get_frame_confirmation_timespan() const;
 
 	void set_comparison_float_tolerance(real_t p_tolerance);
 	real_t get_comparison_float_tolerance() const;

@@ -186,7 +186,7 @@ void test_ping() {
 	TestDollSimulationBase test;
 	test.init_test();
 
-	test.server_scene.scene_sync->set_server_notify_state_interval(0.0);
+	test.server_scene.scene_sync->set_frame_confirmation_timespan(0.0);
 	test.server_scene.scene_sync->set_ping_update_rate(0.05);
 
 	const int peer1 = test.peer_1_scene.get_peer();

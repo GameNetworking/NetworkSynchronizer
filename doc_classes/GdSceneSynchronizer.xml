@@ -239,7 +239,7 @@
 		</member>
 		<member name="nodes_relevancy_update_time" type="float" setter="set_nodes_relevancy_update_time" getter="get_nodes_relevancy_update_time" default="0.5">
 		</member>
-		<member name="server_notify_state_interval" type="float" setter="set_server_notify_state_interval" getter="get_server_notify_state_interval" default="1.0">
+		<member name="frame_confirmation_timespan" type="float" setter="set_frame_confirmation_timespan" getter="get_frame_confirmation_timespan" default="1.0">
 		</member>
 	</members>
 	<signals>
