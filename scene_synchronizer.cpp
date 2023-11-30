@@ -150,7 +150,7 @@ void SceneSynchronizerBase::conclude() {
 	rpc_handle_notify_fps_acceleration.reset();
 }
 
-void SceneSynchronizerBase::process() {
+void SceneSynchronizerBase::process(double p_delta) {
 	NS_PROFILE
 
 #ifdef DEBUG_ENABLED
@@ -159,7 +159,7 @@ void SceneSynchronizerBase::process() {
 	synchronizer_manager->debug_only_validate_objects();
 #endif
 
-	synchronizer->process();
+	synchronizer->process(p_delta);
 }
 
 void SceneSynchronizerBase::on_app_object_removed(ObjectHandle p_app_object_handle) {
@@ -194,6 +194,19 @@ void SceneSynchronizerBase::print_code_message(const char *p_function, const cha
 	print_code_message_func(p_function, p_file, p_line, p_error, p_message, p_type);
 }
 
+void SceneSynchronizerBase::set_frames_per_seconds(int p_fps) {
+	frames_per_seconds = std::max(p_fps, 1);
+	fixed_frame_delta = 1.0 / frames_per_seconds;
+}
+
+int SceneSynchronizerBase::get_frames_per_seconds() const {
+	return frames_per_seconds;
+}
+
+double SceneSynchronizerBase::get_fixed_frame_delta() const {
+	return fixed_frame_delta;
+}
+
 void SceneSynchronizerBase::set_max_sub_process_per_frame(std::uint8_t p_max_sub_process_per_frame) {
 	max_sub_process_per_frame = p_max_sub_process_per_frame;
 }
@@ -226,12 +239,28 @@ int SceneSynchronizerBase::get_max_trickled_objects_per_update() const {
 	return max_trickled_objects_per_update;
 }
 
-void SceneSynchronizerBase::set_server_notify_state_interval(real_t p_interval) {
-	server_notify_state_interval = p_interval;
+void SceneSynchronizerBase::set_max_trickled_interpolation_alpha(float p_int_alpha) {
+	max_trickled_interpolation_alpha = std::max(p_int_alpha, 1.0f);
 }
 
-real_t SceneSynchronizerBase::get_server_notify_state_interval() const {
-	return server_notify_state_interval;
+float SceneSynchronizerBase::get_max_trickled_interpolation_alpha() const {
+	return max_trickled_interpolation_alpha;
+}
+
+void SceneSynchronizerBase::set_frame_confirmation_timespan(real_t p_interval) {
+	frame_confirmation_timespan = p_interval;
+}
+
+float SceneSynchronizerBase::get_frame_confirmation_timespan() const {
+	return frame_confirmation_timespan;
+}
+
+void SceneSynchronizerBase::set_max_predicted_intervals(float p_max_predicted_intevals) {
+	max_predicted_intervals = std::max(p_max_predicted_intevals, 1.5f);
+}
+
+float SceneSynchronizerBase::get_max_predicted_intervals() const {
+	return max_predicted_intervals;
 }
 
 void SceneSynchronizerBase::set_objects_relevancy_update_time(real_t p_time) {
@@ -733,13 +762,18 @@ bool SceneSynchronizerBase::is_end_sync() const {
 	return end_sync;
 }
 
+std::size_t SceneSynchronizerBase::get_client_max_frames_storage_size() const {
+	const float netsync_frame_per_seconds = get_frames_per_seconds();
+	return std::ceil(get_frame_confirmation_timespan() * get_max_predicted_intervals() * netsync_frame_per_seconds);
+}
+
 void SceneSynchronizerBase::force_state_notify(SyncGroupId p_sync_group_id) {
 	ERR_FAIL_COND(is_server() == false);
 	ServerSynchronizer *r = static_cast<ServerSynchronizer *>(synchronizer);
 	// + 1.0 is just a ridiculous high number to be sure to avoid float
 	// precision error.
 	ERR_FAIL_COND_MSG(p_sync_group_id.id >= r->sync_groups.size(), "The group id `" + itos(p_sync_group_id.id) + "` doesn't exist.");
-	r->sync_groups[p_sync_group_id.id].state_notifier_timer = get_server_notify_state_interval() + 1.0;
+	r->sync_groups[p_sync_group_id.id].state_notifier_timer = get_frame_confirmation_timespan() + 1.0;
 }
 
 void SceneSynchronizerBase::force_state_notify_all() {
@@ -749,7 +783,7 @@ void SceneSynchronizerBase::force_state_notify_all() {
 	for (uint32_t i = 0; i < r->sync_groups.size(); ++i) {
 		// + 1.0 is just a ridiculous high number to be sure to avoid float
 		// precision error.
-		r->sync_groups[i].state_notifier_timer = get_server_notify_state_interval() + 1.0;
+		r->sync_groups[i].state_notifier_timer = get_frame_confirmation_timespan() + 1.0;
 	}
 }
 
@@ -1524,33 +1558,33 @@ NoNetSynchronizer::NoNetSynchronizer(SceneSynchronizerBase *p_node) :
 }
 
 void NoNetSynchronizer::clear() {
+	time_bank = 0.0;
 	enabled = true;
 	frame_count = 0;
 }
 
-void NoNetSynchronizer::process() {
+void NoNetSynchronizer::process(double p_delta) {
 	if (unlikely(enabled == false)) {
 		return;
 	}
 
-	SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "NoNetSynchronizer::process", true);
+	const int sub_process_count = fetch_sub_processes_count(p_delta);
+	for (int i = 0; i < sub_process_count; i++) {
+		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "NoNetSynchronizer::process", true);
 
-	const uint32_t frame_index = frame_count;
-	frame_count += 1;
+		const uint32_t frame_index = frame_count;
+		frame_count += 1;
 
-	SceneSynchronizerDebugger::singleton()->scene_sync_process_start(scene_synchronizer);
+		SceneSynchronizerDebugger::singleton()->scene_sync_process_start(scene_synchronizer);
 
-	const double physics_ticks_per_second = Engine::get_singleton()->get_physics_ticks_per_second();
-	const double delta = 1.0 / physics_ticks_per_second;
+		// Process the scene.
+		scene_synchronizer->process_functions__execute(scene_synchronizer->get_fixed_frame_delta());
+		scene_synchronizer->detect_and_signal_changed_variables(NetEventFlag::CHANGE);
 
-	// Process the scene.
-	scene_synchronizer->process_functions__execute(delta);
-
-	scene_synchronizer->detect_and_signal_changed_variables(NetEventFlag::CHANGE);
-
-	SceneSynchronizerDebugger::singleton()->scene_sync_process_end(scene_synchronizer);
-	SceneSynchronizerDebugger::singleton()->write_dump(0, frame_index);
-	SceneSynchronizerDebugger::singleton()->start_new_frame();
+		SceneSynchronizerDebugger::singleton()->scene_sync_process_end(scene_synchronizer);
+		SceneSynchronizerDebugger::singleton()->write_dump(0, frame_index);
+		SceneSynchronizerDebugger::singleton()->start_new_frame();
+	}
 }
 
 void NoNetSynchronizer::on_object_data_added(NS::ObjectData *p_object_data) {
@@ -1580,44 +1614,54 @@ bool NoNetSynchronizer::is_enabled() const {
 	return enabled;
 }
 
+int NoNetSynchronizer::fetch_sub_processes_count(double p_delta) {
+	time_bank += p_delta;
+	const double sub_frames = std::floor(time_bank * static_cast<double>(scene_synchronizer->get_frames_per_seconds()));
+	time_bank -= sub_frames / static_cast<double>(scene_synchronizer->get_frames_per_seconds());
+	// Clamp the maximum possible frames that we can process on a single frame.
+	// This is a guard to make sure we do not process way too many frames on a single frame.
+	return std::min(static_cast<int>(scene_synchronizer->get_max_sub_process_per_frame()), static_cast<int>(sub_frames));
+}
+
 ServerSynchronizer::ServerSynchronizer(SceneSynchronizerBase *p_node) :
 		Synchronizer(p_node) {
 	CRASH_COND(NS::SyncGroupId::GLOBAL != sync_group_create());
 }
 
 void ServerSynchronizer::clear() {
+	time_bank = 0.0;
 	objects_relevancy_update_timer = 0.0;
 	// Release the internal memory.
 	sync_groups.clear();
 }
 
-void ServerSynchronizer::process() {
+void ServerSynchronizer::process(double p_delta) {
 	SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "ServerSynchronizer::process", true);
 
 	scene_synchronizer->update_peers();
 
-	const double physics_ticks_per_second = Engine::get_singleton()->get_physics_ticks_per_second();
-	const double delta = 1.0 / physics_ticks_per_second;
-
 	if (objects_relevancy_update_timer >= scene_synchronizer->objects_relevancy_update_time) {
 		scene_synchronizer->update_objects_relevancy();
 		objects_relevancy_update_timer = 0.0;
+	} else {
+		objects_relevancy_update_timer += p_delta;
 	}
-	objects_relevancy_update_timer += delta;
 
 	SceneSynchronizerDebugger::singleton()->scene_sync_process_start(scene_synchronizer);
 
-	epoch += 1;
+	const int sub_process_count = fetch_sub_processes_count(p_delta);
+	for (int i = 0; i < sub_process_count; i++) {
+		epoch += 1;
 
-	// Process the scene
-	scene_synchronizer->process_functions__execute(delta);
+		// Process the scene
+		scene_synchronizer->process_functions__execute(scene_synchronizer->get_fixed_frame_delta());
+		scene_synchronizer->detect_and_signal_changed_variables(NetEventFlag::CHANGE);
+	}
 
-	scene_synchronizer->detect_and_signal_changed_variables(NetEventFlag::CHANGE);
-
-	process_snapshot_notificator(delta);
-	process_trickled_sync(delta);
-	process_ping_update(delta);
-	process_adjust_clients_controller_tick_rate(delta);
+	process_snapshot_notificator(p_delta);
+	process_trickled_sync();
+	process_ping_update();
+	process_adjust_clients_controller_tick_rate(p_delta);
 
 	SceneSynchronizerDebugger::singleton()->scene_sync_process_end(scene_synchronizer);
 
@@ -1832,7 +1876,7 @@ void ServerSynchronizer::sync_group_debug_print() {
 	SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "");
 }
 
-void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
+void ServerSynchronizer::process_snapshot_notificator(double p_delta) {
 	if (scene_synchronizer->peer_data.empty()) {
 		// No one is listening.
 		return;
@@ -1848,7 +1892,7 @@ void ServerSynchronizer::process_snapshot_notificator(real_t p_delta) {
 
 		// Notify the state if needed
 		group.state_notifier_timer += p_delta;
-		const bool notify_state = group.state_notifier_timer >= scene_synchronizer->get_server_notify_state_interval();
+		const bool notify_state = group.state_notifier_timer >= scene_synchronizer->get_frame_confirmation_timespan();
 
 		if (notify_state) {
 			group.state_notifier_timer = 0.0;
@@ -2081,7 +2125,7 @@ void ServerSynchronizer::generate_snapshot_object_data(
 	}
 }
 
-void ServerSynchronizer::process_trickled_sync(real_t p_delta) {
+void ServerSynchronizer::process_trickled_sync() {
 	DataBuffer *tmp_buffer = memnew(DataBuffer);
 
 	Variant r;
@@ -2169,7 +2213,7 @@ void ServerSynchronizer::process_trickled_sync(real_t p_delta) {
 	memdelete(tmp_buffer);
 }
 
-void ServerSynchronizer::process_ping_update(real_t p_delta) {
+void ServerSynchronizer::process_ping_update() {
 	const std::chrono::high_resolution_clock::time_point now = std::chrono::high_resolution_clock::now();
 
 	for (auto &[peer, peer_data] : scene_synchronizer->get_peers()) {
@@ -2237,7 +2281,7 @@ void ServerSynchronizer::process_adjust_client_controller_tick_rate(double p_del
 	// Time to tell the client a new speedup.
 	p_controller.get_server_controller_unchecked()->additional_fps_notif_timer = 0;
 
-	const std::int8_t distance_to_optimal = p_controller.get_server_controller_unchecked()->compute_client_tick_rate_distance_to_optimal(p_delta);
+	const std::int8_t distance_to_optimal = p_controller.get_server_controller_unchecked()->compute_client_tick_rate_distance_to_optimal();
 
 	std::uint8_t compressed_distance;
 	memcpy(
@@ -2252,6 +2296,15 @@ void ServerSynchronizer::process_adjust_client_controller_tick_rate(double p_del
 			scene_synchronizer->get_network_interface(),
 			p_controller_peer,
 			packet_data);
+}
+
+int ServerSynchronizer::fetch_sub_processes_count(double p_delta) {
+	time_bank += p_delta;
+	const double sub_frames = std::floor(time_bank * static_cast<double>(scene_synchronizer->get_frames_per_seconds()));
+	time_bank -= sub_frames / static_cast<double>(scene_synchronizer->get_frames_per_seconds());
+	// Clamp the maximum possible frames that we can process on a single frame.
+	// This is a guard to make sure we do not process way too many frames on a single frame.
+	return std::min(static_cast<int>(scene_synchronizer->get_max_sub_process_per_frame()), static_cast<int>(sub_frames));
 }
 
 ClientSynchronizer::ClientSynchronizer(SceneSynchronizerBase *p_node) :
@@ -2273,24 +2326,21 @@ void ClientSynchronizer::clear() {
 	need_full_snapshot_notified = false;
 }
 
-void ClientSynchronizer::process() {
+void ClientSynchronizer::process(double p_delta) {
 	NS_PROFILE
 
 	SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "ClientSynchronizer::process", true);
 
-	const float physics_ticks_per_second = Engine::get_singleton()->get_physics_ticks_per_second();
-	const float delta = 1.0 / physics_ticks_per_second;
-
 #ifdef DEBUG_ENABLED
-	if (unlikely(Engine::get_singleton()->get_frames_per_second() < physics_ticks_per_second)) {
+	if (p_delta > (scene_synchronizer->get_fixed_frame_delta() + (scene_synchronizer->get_fixed_frame_delta() * 0.2))) [[unlikely]] {
 		const bool silent = !ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/debugger/log_debug_fps_warnings");
-		SceneSynchronizerDebugger::singleton()->debug_warning(&scene_synchronizer->get_network_interface(), "Current FPS is " + itos(Engine::get_singleton()->get_frames_per_second()) + ", but the minimum required FPS is " + itos(physics_ticks_per_second) + ", the client is unable to generate enough inputs for the server.", silent);
+		SceneSynchronizerDebugger::singleton()->debug_warning(&scene_synchronizer->get_network_interface(), "Current FPS is " + itos(Engine::get_singleton()->get_frames_per_second()) + ", but the minimum required FPS is " + itos(scene_synchronizer->get_frames_per_seconds()) + ", the client is unable to generate enough inputs for the server.", silent);
 	}
 #endif
 
-	process_server_sync(delta);
-	process_simulation(delta, physics_ticks_per_second);
-	process_trickled_sync(delta);
+	process_server_sync();
+	process_simulation(p_delta);
+	process_trickled_sync(p_delta);
 
 #if DEBUG_ENABLED
 	if (player_controller_object_data) {
@@ -2466,15 +2516,15 @@ void ClientSynchronizer::store_controllers_snapshot(
 	}
 }
 
-void ClientSynchronizer::process_server_sync(float p_delta) {
+void ClientSynchronizer::process_server_sync() {
 	NS_PROFILE
-	process_received_server_state(p_delta);
+	process_received_server_state();
 
 	// Now trigger the END_SYNC event.
 	signal_end_sync_changed_variables_events();
 }
 
-void ClientSynchronizer::process_received_server_state(real_t p_delta) {
+void ClientSynchronizer::process_received_server_state() {
 	NS_PROFILE
 
 	// --- Phase one: find the snapshot to check. ---
@@ -2529,7 +2579,7 @@ void ClientSynchronizer::process_received_server_state(real_t p_delta) {
 		}
 	} else {
 		// No client input, this happens when the stream is paused.
-		process_paused_controller_recovery(p_delta);
+		process_paused_controller_recovery();
 		return;
 	}
 
@@ -2594,7 +2644,6 @@ void ClientSynchronizer::process_received_server_state(real_t p_delta) {
 
 		// Rewind.
 		__pcr__rewind(
-				p_delta,
 				checkable_input_id,
 				player_controller_object_data,
 				controller,
@@ -2716,7 +2765,6 @@ void ClientSynchronizer::__pcr__sync__rewind() {
 }
 
 void ClientSynchronizer::__pcr__rewind(
-		real_t p_delta,
 		const uint32_t p_checkable_input_id,
 		NS::ObjectData *p_local_controller_node,
 		NetworkedControllerBase *p_local_controller,
@@ -2755,7 +2803,7 @@ void ClientSynchronizer::__pcr__rewind(
 		// Step 2 -- Process the scene.
 		{
 			NS_PROFILE_NAMED("process_functions__execute");
-			scene_synchronizer->process_functions__execute(p_delta);
+			scene_synchronizer->process_functions__execute(scene_synchronizer->get_fixed_frame_delta());
 		}
 
 		// Step 3 -- Pull node changes.
@@ -2812,7 +2860,7 @@ void ClientSynchronizer::__pcr__no_rewind(
 	scene_synchronizer->event_state_validated.broadcast(p_checkable_input_id);
 }
 
-void ClientSynchronizer::process_paused_controller_recovery(real_t p_delta) {
+void ClientSynchronizer::process_paused_controller_recovery() {
 	NS_PROFILE
 
 #ifdef DEBUG_ENABLED
@@ -2845,12 +2893,13 @@ void ClientSynchronizer::process_paused_controller_recovery(real_t p_delta) {
 	}
 }
 
-int ClientSynchronizer::calculates_sub_ticks(const double p_delta, const double p_iteration_per_seconds) {
+int ClientSynchronizer::calculates_sub_ticks(const double p_delta) {
+	const double frames_per_seconds = scene_synchronizer->get_frames_per_seconds();
 	// Extract the frame acceleration:
 	// 1. convert the Accelerated Tick Hz to second.
-	const double fully_accelerated_delta = 1.0 / (p_iteration_per_seconds + acceleration_fps_speed);
+	const double fully_accelerated_delta = 1.0 / (frames_per_seconds + acceleration_fps_speed);
 
-	// 2. Subtract the `accelerated delta - delta` to obtain the acceleration magnitude.
+	// 2. Subtract the `accelerated_delta - delta` to obtain the acceleration magnitude.
 	const double acceleration_delta = std::abs(fully_accelerated_delta - p_delta);
 
 	// 3. Avoids overshots by taking the smallest value between `acceleration_delta` and the `remaining timer`.
@@ -2865,9 +2914,9 @@ int ClientSynchronizer::calculates_sub_ticks(const double p_delta, const double 
 	// Add the current delta to the bank
 	time_bank += pretended_delta;
 
-	const int sub_ticks = int(time_bank / p_delta);
+	const int sub_ticks = std::floor(time_bank * static_cast<double>(scene_synchronizer->get_frames_per_seconds()));
 
-	time_bank -= static_cast<double>(sub_ticks) * p_delta;
+	time_bank -= static_cast<double>(sub_ticks) / static_cast<double>(scene_synchronizer->get_frames_per_seconds());
 	if (time_bank < 0.0) [[unlikely]] {
 		time_bank = 0.0;
 	}
@@ -2877,7 +2926,7 @@ int ClientSynchronizer::calculates_sub_ticks(const double p_delta, const double 
 			scene_synchronizer->get_max_sub_process_per_frame(),
 			"This client generated a sub tick count of `" + std::to_string(sub_ticks) + "` that is higher than the `max_sub_process_per_frame` specified of `" + std::to_string(scene_synchronizer->get_max_sub_process_per_frame()) + "`. If the number is way too high (like 100 or 1k) it's a bug in the algorithm that you should notify, if it's just above the threshould you set, make sure the threshold is correctly set or ignore it if the client perfs are too poor." +
 					" (in delta: " + std::to_string(p_delta) +
-					" iteration per seconds: " + std::to_string(p_iteration_per_seconds) +
+					" iteration per seconds: " + std::to_string(scene_synchronizer->get_frames_per_seconds()) +
 					" fully_accelerated_delta: " + std::to_string(fully_accelerated_delta) +
 					" acceleration_delta: " + std::to_string(acceleration_delta) +
 					" frame_acceleration_delta: " + std::to_string(frame_acceleration_delta) +
@@ -2890,7 +2939,7 @@ int ClientSynchronizer::calculates_sub_ticks(const double p_delta, const double 
 	return sub_ticks;
 }
 
-void ClientSynchronizer::process_simulation(real_t p_delta, real_t p_physics_ticks_per_second) {
+void ClientSynchronizer::process_simulation(double p_delta) {
 	NS_PROFILE
 
 	if (unlikely(player_controller_object_data == nullptr || enabled == false)) {
@@ -2919,9 +2968,9 @@ void ClientSynchronizer::process_simulation(real_t p_delta, real_t p_physics_tic
 	//
 	// The dolls may want to speed up too, so to consume the inputs faster
 	// and get back in time with the server.
-	int sub_ticks = calculates_sub_ticks(p_delta, p_physics_ticks_per_second);
+	int sub_ticks = calculates_sub_ticks(p_delta);
 #ifdef NS_PROFILING_ENABLED
-	std::string perf_info = "Delta: " + std::to_string(p_delta) + " sub ticks: " + std::to_string(sub_ticks) + " physics_ticks_per_second: " + std::to_string(p_physics_ticks_per_second);
+	std::string perf_info = "In delta: " + std::to_string(p_delta) + " sub ticks: " + std::to_string(sub_ticks) + " net frames per seconds: " + std::to_string(scene_synchronizer->get_frames_per_seconds());
 	NS_PROFILE_SET_INFO(perf_info);
 #endif
 
@@ -2931,14 +2980,14 @@ void ClientSynchronizer::process_simulation(real_t p_delta, real_t p_physics_tic
 
 	while (sub_ticks > 0) {
 #ifdef NS_PROFILING_ENABLED
-		std::string sub_perf_info = "Delta: " + std::to_string(p_delta) + " remaining ticks: " + std::to_string(sub_ticks);
+		std::string sub_perf_info = "Fixed delta: " + std::to_string(scene_synchronizer->get_fixed_frame_delta()) + " remaining ticks: " + std::to_string(sub_ticks);
 		NS_PROFILE_NAMED_WITH_INFO("PROCESS", sub_perf_info)
 #endif
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "ClientSynchronizer::process::sub_process " + itos(sub_ticks), true);
 		SceneSynchronizerDebugger::singleton()->scene_sync_process_start(scene_synchronizer);
 
 		// Process the scene.
-		scene_synchronizer->process_functions__execute(p_delta);
+		scene_synchronizer->process_functions__execute(scene_synchronizer->get_fixed_frame_delta());
 
 		scene_synchronizer->detect_and_signal_changed_variables(NetEventFlag::CHANGE);
 
@@ -3288,21 +3337,20 @@ void ClientSynchronizer::receive_trickled_sync_data(const Vector<uint8_t> &p_dat
 		stream.past_epoch = stream.future_epoch;
 		stream.future_epoch = epoch;
 
+		// Reset the alpha so we can start interpolating.
+		stream.alpha = 0.0;
 		if (stream.past_epoch < stream.future_epoch) {
-			// Reset the alpha so we can start interpolating.
-			stream.alpha = 0;
-			stream.alpha_advacing_per_epoch = 1.0 / (double(stream.future_epoch) - double(stream.past_epoch));
+			stream.epochs_timespan = (float(stream.future_epoch) - float(stream.past_epoch)) * scene_synchronizer->get_fixed_frame_delta();
 		} else {
-			// The interpolation didn't start yet, so put this really high.
-			stream.alpha = FLT_MAX;
-			stream.alpha_advacing_per_epoch = FLT_MAX;
+			// The interpolation didn't start yet, so put the span to 0.0
+			stream.epochs_timespan = 0.0;
 		}
 	}
 
 	memdelete(db);
 }
 
-void ClientSynchronizer::process_trickled_sync(real_t p_delta) {
+void ClientSynchronizer::process_trickled_sync(double p_delta) {
 	NS_PROFILE
 
 	DataBuffer *db1 = memnew(DataBuffer);
@@ -3310,7 +3358,7 @@ void ClientSynchronizer::process_trickled_sync(real_t p_delta) {
 
 	for (int i = 0; i < int(trickled_sync_array.size()); ++i) {
 		TrickledSyncInterpolationData &stream = trickled_sync_array[i];
-		if (stream.alpha > 1.2) {
+		if (stream.epochs_timespan <= 0.001) {
 			// The stream is not yet started.
 			// OR
 			// The stream for this node is stopped as the data received is old.
@@ -3330,7 +3378,8 @@ void ClientSynchronizer::process_trickled_sync(real_t p_delta) {
 		}
 #endif
 
-		stream.alpha += stream.alpha_advacing_per_epoch;
+		stream.alpha += p_delta / stream.epochs_timespan;
+		stream.alpha = std::min(stream.alpha, scene_synchronizer->get_max_trickled_interpolation_alpha());
 		stream.past_epoch_buffer.begin_read();
 		stream.future_epoch_buffer.begin_read();
 

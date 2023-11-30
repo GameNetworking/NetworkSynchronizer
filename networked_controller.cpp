@@ -116,14 +116,6 @@ bool NetworkedControllerBase::get_server_controlled() const {
 	return server_controlled;
 }
 
-void NetworkedControllerBase::set_player_input_storage_size(int p_size) {
-	player_input_storage_size = p_size;
-}
-
-int NetworkedControllerBase::get_player_input_storage_size() const {
-	return player_input_storage_size;
-}
-
 void NetworkedControllerBase::set_max_redundant_inputs(int p_max) {
 	max_redundant_inputs = p_max;
 }
@@ -921,9 +913,10 @@ int ceil_with_tolerance(double p_value, double p_tolerance) {
 	return std::ceil(p_value - p_tolerance);
 }
 
-std::int8_t ServerController::compute_client_tick_rate_distance_to_optimal(double p_delta) {
+std::int8_t ServerController::compute_client_tick_rate_distance_to_optimal() {
 	const float min_frames_delay = node->get_min_frames_delay();
 	const float max_frames_delay = node->get_max_frames_delay();
+	const double fixed_frame_delta = node->scene_synchronizer->get_fixed_frame_delta();
 
 	// `worst_receival_time` is in ms and indicates the maximum time passed to receive a consecutive
 	// input in the last `network_traced_frames` frames.
@@ -932,8 +925,8 @@ std::int8_t ServerController::compute_client_tick_rate_distance_to_optimal(doubl
 	const double worst_receival_time = double(worst_receival_time_ms) / 1000.0;
 
 	const int optimal_frame_delay_unclamped = ceil_with_tolerance(
-			worst_receival_time / p_delta,
-			p_delta * 0.05); // Tolerance of 5% of frame time.
+			worst_receival_time / fixed_frame_delta,
+			fixed_frame_delta * 0.05); // Tolerance of 5% of frame time.
 
 	const int optimal_frame_delay = CLAMP(optimal_frame_delay_unclamped, min_frames_delay, max_frames_delay);
 
@@ -1315,7 +1308,7 @@ void PlayerController::send_frame_input_buffer_to_server() {
 }
 
 bool PlayerController::can_accept_new_inputs() const {
-	return frames_snapshot.size() < static_cast<size_t>(node->get_player_input_storage_size());
+	return frames_snapshot.size() < node->scene_synchronizer->get_client_max_frames_storage_size();
 }
 
 DollController::DollController(NetworkedControllerBase *p_node) :

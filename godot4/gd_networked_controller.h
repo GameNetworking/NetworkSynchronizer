@@ -89,9 +89,6 @@ public:
 	void set_server_controlled(bool p_server_controlled);
 	bool get_server_controlled() const;
 
-	void set_player_input_storage_size(int p_size);
-	int get_player_input_storage_size() const;
-
 	void set_max_redundant_inputs(int p_max);
 	int get_max_redundant_inputs() const;
 

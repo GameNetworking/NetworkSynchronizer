@@ -53,8 +53,8 @@ void GdSceneSynchronizer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_max_trickled_nodes_per_update", "rate"), &GdSceneSynchronizer::set_max_trickled_nodes_per_update);
 	ClassDB::bind_method(D_METHOD("get_max_trickled_nodes_per_update"), &GdSceneSynchronizer::get_max_trickled_nodes_per_update);
 
-	ClassDB::bind_method(D_METHOD("set_server_notify_state_interval", "interval"), &GdSceneSynchronizer::set_server_notify_state_interval);
-	ClassDB::bind_method(D_METHOD("get_server_notify_state_interval"), &GdSceneSynchronizer::get_server_notify_state_interval);
+	ClassDB::bind_method(D_METHOD("set_frame_confirmation_timespan", "interval"), &GdSceneSynchronizer::set_frame_confirmation_timespan);
+	ClassDB::bind_method(D_METHOD("get_frame_confirmation_timespan"), &GdSceneSynchronizer::get_frame_confirmation_timespan);
 
 	ClassDB::bind_method(D_METHOD("set_comparison_float_tolerance", "tolerance"), &GdSceneSynchronizer::set_comparison_float_tolerance);
 	ClassDB::bind_method(D_METHOD("get_comparison_float_tolerance"), &GdSceneSynchronizer::get_comparison_float_tolerance);
@@ -115,7 +115,7 @@ void GdSceneSynchronizer::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "tick_speedup_notification_delay", PROPERTY_HINT_RANGE, "0,10,0.001"), "set_tick_speedup_notification_delay", "get_tick_speedup_notification_delay");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "tick_acceleration", PROPERTY_HINT_RANGE, "0.1,20.0,0.01"), "set_tick_acceleration", "get_tick_acceleration");
 
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "server_notify_state_interval", PROPERTY_HINT_RANGE, "0.001,10.0,0.0001"), "set_server_notify_state_interval", "get_server_notify_state_interval");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "frame_confirmation_timespan", PROPERTY_HINT_RANGE, "0.001,10.0,0.0001"), "set_frame_confirmation_timespan", "get_frame_confirmation_timespan");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "comparison_float_tolerance", PROPERTY_HINT_RANGE, "0.000001,0.01,0.000001"), "set_comparison_float_tolerance", "get_comparison_float_tolerance");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "nodes_relevancy_update_time", PROPERTY_HINT_RANGE, "0.0,2.0,0.01"), "set_nodes_relevancy_update_time", "get_nodes_relevancy_update_time");
 
@@ -223,7 +223,7 @@ GdSceneSynchronizer::~GdSceneSynchronizer() {
 
 void GdSceneSynchronizer::_notification(int p_what) {
 	switch (p_what) {
-		case NOTIFICATION_INTERNAL_PHYSICS_PROCESS: {
+		case NOTIFICATION_INTERNAL_PROCESS: {
 			if (Engine::get_singleton()->is_editor_hint()) {
 				return;
 			}
@@ -233,7 +233,8 @@ void GdSceneSynchronizer::_notification(int p_what) {
 				reset_synchronizer_mode();
 			}
 
-			scene_synchronizer.process();
+			const double delta = get_process_delta_time();
+			scene_synchronizer.process(delta);
 		} break;
 		case NOTIFICATION_ENTER_TREE: {
 			if (Engine::get_singleton()->is_editor_hint()) {
@@ -262,7 +263,7 @@ void GdSceneSynchronizer::on_init_synchronizer(bool p_was_generating_ids) {
 	// Always runs the SceneSynchronizer last.
 	const int lowest_priority_number = INT32_MAX;
 	set_process_priority(lowest_priority_number);
-	set_physics_process_internal(true);
+	set_process_internal(true);
 	low_level_peer = get_multiplayer()->get_multiplayer_peer().ptr();
 
 	String debugger_mode;
@@ -403,12 +404,12 @@ int GdSceneSynchronizer::get_max_trickled_nodes_per_update() const {
 	return scene_synchronizer.get_max_trickled_objects_per_update();
 }
 
-void GdSceneSynchronizer::set_server_notify_state_interval(real_t p_interval) {
-	scene_synchronizer.set_server_notify_state_interval(p_interval);
+void GdSceneSynchronizer::set_frame_confirmation_timespan(real_t p_interval) {
+	scene_synchronizer.set_frame_confirmation_timespan(p_interval);
 }
 
-real_t GdSceneSynchronizer::get_server_notify_state_interval() const {
-	return scene_synchronizer.get_server_notify_state_interval();
+real_t GdSceneSynchronizer::get_frame_confirmation_timespan() const {
+	return scene_synchronizer.get_frame_confirmation_timespan();
 }
 
 void GdSceneSynchronizer::set_comparison_float_tolerance(real_t p_tolerance) {

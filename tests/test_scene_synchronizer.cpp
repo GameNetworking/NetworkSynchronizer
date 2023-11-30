@@ -165,7 +165,7 @@ void test_state_notify() {
 	for (int f = 0; f < 2; f++) {
 		// Test with notify interval set to 0
 		{
-			server_scene.scene_sync->set_server_notify_state_interval(0.0);
+			server_scene.scene_sync->set_frame_confirmation_timespan(0.0);
 
 			// Set the `var_1` to a different value to all the clients.
 			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 0;
@@ -192,7 +192,7 @@ void test_state_notify() {
 
 		// Test with notify interval set to 0.5 seconds.
 		{
-			server_scene.scene_sync->set_server_notify_state_interval(0.5);
+			server_scene.scene_sync->set_frame_confirmation_timespan(0.5);
 
 			// Set the `var_1` to a different value to all the clients.
 			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 3;
@@ -230,7 +230,7 @@ void test_state_notify() {
 		{
 			// No local controller, therefore the correction is applied by the
 			// server right away.
-			server_scene.scene_sync->set_server_notify_state_interval(0.0);
+			server_scene.scene_sync->set_frame_confirmation_timespan(0.0);
 
 			// The server remains like it was.
 			// server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"] = 3;
@@ -340,7 +340,7 @@ void test_processing_with_late_controller_registration() {
 	peer_1_scene.scene_sync->to_handle(peer_1_scene.add_object<TestSceneObject>("obj_1", server_scene.get_peer()));
 
 	// Quite high notify state interval, to make sure the snapshot is not sent "soon".
-	server_scene.scene_sync->set_server_notify_state_interval(10.0);
+	server_scene.scene_sync->set_frame_confirmation_timespan(10.0);
 
 	// Process all the peers, so the initial setup is performed.
 	server_scene.process(delta);
@@ -482,7 +482,7 @@ void test_variable_change_event() {
 		// Test the change event is triggered for the event `SYNC_RECONVER`
 		{
 			// Unify the state across all the peers
-			server_scene.scene_sync->set_server_notify_state_interval(0.0);
+			server_scene.scene_sync->set_frame_confirmation_timespan(0.0);
 
 			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 0;
 			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 0;
@@ -540,7 +540,7 @@ void test_variable_change_event() {
 		// Test the change event is triggered for the event `SYNC_RESET`
 		if (false) {
 			// Unify the state across all the peers
-			server_scene.scene_sync->set_server_notify_state_interval(0.0);
+			server_scene.scene_sync->set_frame_confirmation_timespan(0.0);
 
 			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 0;
 			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 0;

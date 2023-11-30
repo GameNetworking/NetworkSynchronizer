@@ -364,7 +364,7 @@ public:
 			notify_state_interval(p_notify_state_interval) {}
 
 	virtual void on_scenes_initialized() override {
-		server_scene.scene_sync->set_server_notify_state_interval(notify_state_interval);
+		server_scene.scene_sync->set_frame_confirmation_timespan(notify_state_interval);
 
 		controller_p1->get_scene_synchronizer()->event_desync_detected.bind([this](uint32_t p_input_id) {
 			client_rewinded_frames.push_back(p_input_id);

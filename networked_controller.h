@@ -79,24 +79,6 @@ private:
 	/// PlayerController (Client) without the need to re-instantiate the Character.
 	bool server_controlled = false;
 
-	/// The input storage size is used to cap the amount of inputs collected by
-	/// the `PlayerController`.
-	///
-	/// The server sends a message, to all the connected peers, notifing its
-	/// status at a fixed interval.
-	/// The peers, after receiving this update, removes all the old inputs until
-	/// that moment.
-	///
-	/// `input_storage_size`: is too small, the player may stop collect
-	/// - Too small value makes the `PlayerController` stop collecting inputs
-	///   too early, in case of lag.
-	/// - Too big values may introduce too much latency, because the player keep
-	///   pushing new inputs without receiving the server snapshot.
-	///
-	/// With 60 iteration per seconds a good value is `180` (60 * 3) so the
-	/// `PlayerController` can be at max 3 seconds ahead the `ServerController`.
-	int player_input_storage_size = 180;
-
 	/// Amount of time an inputs is re-sent to each peer.
 	/// Resenging inputs is necessary because the packets may be lost since as
 	/// they are sent in an unreliable way.
@@ -175,9 +157,6 @@ public: // ---------------------------------------------------------------- APIs
 
 	void set_server_controlled(bool p_server_controlled);
 	bool get_server_controlled() const;
-
-	void set_player_input_storage_size(int p_size);
-	int get_player_input_storage_size() const;
 
 	void set_max_redundant_inputs(int p_max);
 	int get_max_redundant_inputs() const;
@@ -357,7 +336,7 @@ struct ServerController : public RemotelyControlledController {
 
 	uint32_t convert_input_id_to(int p_other_peer, uint32_t p_input_id) const;
 
-	std::int8_t compute_client_tick_rate_distance_to_optimal(double p_delta);
+	std::int8_t compute_client_tick_rate_distance_to_optimal();
 };
 
 struct AutonomousServerController : public ServerController {
