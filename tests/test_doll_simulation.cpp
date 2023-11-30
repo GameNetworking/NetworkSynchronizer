@@ -167,11 +167,21 @@ public:
 		controller_2_peer2->set_xi(0);
 	}
 
+	double rand_range(double M, double N) {
+		return M + (rand() / (RAND_MAX / (N - M)));
+	}
+
 	void do_test(const int p_frames_count, bool p_wait_for_time_pass = false) {
 		for (int i = 0; i < p_frames_count; i++) {
-			server_scene.process(delta);
-			peer_1_scene.process(delta);
-			peer_2_scene.process(delta);
+			float sim_delta = delta;
+			while (sim_delta > 0.0) {
+				const float rand_delta = rand_range(0.005, sim_delta);
+				sim_delta -= std::min(rand_delta, sim_delta);
+
+				server_scene.process(rand_delta);
+				peer_1_scene.process(rand_delta);
+				peer_2_scene.process(rand_delta);
+			}
 
 			on_scenes_processed(delta);
 			if (p_wait_for_time_pass) {

@@ -261,7 +261,7 @@ void GdSceneSynchronizer::_notification(int p_what) {
 
 void GdSceneSynchronizer::on_init_synchronizer(bool p_was_generating_ids) {
 	// Always runs the SceneSynchronizer last.
-	const int lowest_priority_number = INT32_MAX;
+	const int lowest_priority_number = INT32_MIN;
 	set_process_priority(lowest_priority_number);
 	set_process_internal(true);
 	low_level_peer = get_multiplayer()->get_multiplayer_peer().ptr();
