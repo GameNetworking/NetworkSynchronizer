@@ -31,10 +31,33 @@ void _ns_print_code_message(
 		const std::string &p_message,
 		NS::PrintMessageType p_type);
 
-/**
- * Ensures `m_cond` is true.
- * If `m_cond` is false, prints `m_msg` and the current function returns `m_retval`.
- */
+/// Ensures `m_cond` is true.
+/// If `m_cond` is false the current function returns.
+#define ENSURE(m_cond)       \
+	if (m_cond) [[likely]] { \
+	} else {                 \
+		return;              \
+	}
+
+/// Ensures `m_cond` is true.
+/// If `m_cond` is false, prints `m_msg` and the current function returns.
+#define ENSURE_MSG(m_cond, m_msg)                                                                                                                                           \
+	if (m_cond) [[likely]] {                                                                                                                                                \
+	} else {                                                                                                                                                                \
+		_ns_print_code_message(FUNCTION_STR, __FILE__, __LINE__, "Condition \"" _STR(m_cond) "\" is true. Returning: " _STR(m_retval), m_msg, NS::PrintMessageType::ERROR); \
+		return;                                                                                                                                                             \
+	}
+
+/// Ensures `m_cond` is true.
+/// If `m_cond` is false, the current function returns `m_retval`.
+#define ENSURE_V(m_cond, m_retval) \
+	if (m_cond) [[likely]] {       \
+	} else {                       \
+		return m_retval;           \
+	}
+
+/// Ensures `m_cond` is true.
+/// If `m_cond` is false, prints `m_msg` and the current function returns `m_retval`.
 #define ENSURE_V_MSG(m_cond, m_retval, m_msg)                                                                                                                               \
 	if (m_cond) [[likely]] {                                                                                                                                                \
 	} else {                                                                                                                                                                \
