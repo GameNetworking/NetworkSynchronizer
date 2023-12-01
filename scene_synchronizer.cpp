@@ -2332,7 +2332,8 @@ void ClientSynchronizer::clear() {
 	last_received_snapshot.input_id = FrameIndex::NONE;
 	last_received_snapshot.object_vars.clear();
 	client_snapshots.clear();
-	server_snapshots.clear();
+	last_received_server_snapshot_index = FrameIndex::NONE;
+	last_received_server_snapshot.reset();
 	last_checked_input = { 0 };
 	enabled = true;
 	need_full_snapshot_notified = false;
@@ -2383,10 +2384,9 @@ void ClientSynchronizer::receive_snapshot(DataBuffer &p_snapshot) {
 		return;
 	}
 
+	NS::print_line("RECEIVED: " + std::to_string(last_received_snapshot.input_id.id));
 	// Finalize data.
-	store_controllers_snapshot(
-			last_received_snapshot,
-			server_snapshots);
+	store_controllers_snapshot(last_received_snapshot);
 }
 
 void ClientSynchronizer::on_object_data_added(NS::ObjectData *p_object_data) {
@@ -2395,7 +2395,7 @@ void ClientSynchronizer::on_object_data_added(NS::ObjectData *p_object_data) {
 void ClientSynchronizer::on_object_data_removed(NS::ObjectData &p_object_data) {
 	if (player_controller_object_data == &p_object_data) {
 		player_controller_object_data = nullptr;
-		server_snapshots.clear();
+		last_received_server_snapshot.reset();
 		client_snapshots.clear();
 	}
 
@@ -2451,7 +2451,8 @@ void ClientSynchronizer::on_controller_reset(NS::ObjectData *p_object_data) {
 	if (player_controller_object_data == p_object_data) {
 		// Reset the node_data.
 		player_controller_object_data = nullptr;
-		server_snapshots.clear();
+		last_received_server_snapshot_index = FrameIndex::NONE;
+		last_received_server_snapshot.reset();
 		client_snapshots.clear();
 	}
 
@@ -2461,7 +2462,8 @@ void ClientSynchronizer::on_controller_reset(NS::ObjectData *p_object_data) {
 		} else {
 			// Set this player controller as active.
 			player_controller_object_data = p_object_data;
-			server_snapshots.clear();
+			last_received_server_snapshot_index = FrameIndex::NONE;
+			last_received_server_snapshot.reset();
 			client_snapshots.clear();
 		}
 	}
@@ -2497,33 +2499,18 @@ void ClientSynchronizer::store_snapshot() {
 }
 
 void ClientSynchronizer::store_controllers_snapshot(
-		const NS::Snapshot &p_snapshot,
-		std::deque<NS::Snapshot> &r_snapshot_storage) {
+		const NS::Snapshot &p_snapshot) {
 	// Put the parsed snapshot into the queue.
 
 	if (p_snapshot.input_id == FrameIndex::NONE) {
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The Client received the server snapshot WITHOUT `input_id`.", true);
 		// The controller node is not registered so just assume this snapshot is the most up-to-date.
-		r_snapshot_storage.clear();
-		r_snapshot_storage.push_back(Snapshot::make_copy(p_snapshot));
+		last_received_server_snapshot.emplace(Snapshot::make_copy(p_snapshot));
 
 	} else {
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The Client received the server snapshot: " + uitos(p_snapshot.input_id.id), true);
-
-		// Store the snapshot sorted by controller input ID.
-		if (r_snapshot_storage.empty() == false) {
-			// Make sure the snapshots are stored in order.
-			const FrameIndex last_stored_input_id = r_snapshot_storage.back().input_id;
-			if (p_snapshot.input_id == last_stored_input_id) {
-				// Update the snapshot.
-				r_snapshot_storage.back().copy(p_snapshot);
-			} else {
-				ERR_FAIL_COND_MSG(p_snapshot.input_id < last_stored_input_id, "This snapshot (with ID: " + uitos(p_snapshot.input_id.id) + ") is not expected because the last stored id is: " + uitos(last_stored_input_id.id));
-				r_snapshot_storage.push_back(Snapshot::make_copy(p_snapshot));
-			}
-		} else {
-			r_snapshot_storage.push_back(Snapshot::make_copy(p_snapshot));
-		}
+		ENSURE_MSG(last_received_server_snapshot_index <= p_snapshot.input_id, "The client received a too old snapshot. ");
+		last_received_server_snapshot.emplace(Snapshot::make_copy(p_snapshot));
 	}
 }
 
@@ -2539,19 +2526,17 @@ void ClientSynchronizer::process_received_server_state() {
 	NS_PROFILE
 
 	// --- Phase one: find the snapshot to check. ---
-	if (server_snapshots.empty()) {
+	if (!last_received_server_snapshot) {
 		// No snapshots to recover for this controller. Nothing to do.
 		return;
 	}
 
-	if (server_snapshots.back().input_id == FrameIndex::NONE) {
+	if (last_received_server_snapshot->input_id == FrameIndex::NONE) {
 		// The server last received snapshot is a no input snapshot. Just assume it's the most up-to-date.
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The client received a \"no input\" snapshot, so the client is setting it right away assuming is the most updated one.", true);
 
-		apply_snapshot(server_snapshots.back(), NetEventFlag::SYNC_RECOVER, nullptr);
-
-		server_snapshots.clear();
-		client_snapshots.clear();
+		apply_snapshot(*last_received_server_snapshot, NetEventFlag::SYNC_RECOVER, nullptr);
+		last_received_server_snapshot.reset();
 		return;
 	}
 
@@ -2571,78 +2556,60 @@ void ClientSynchronizer::process_received_server_state() {
 	}
 #endif
 
-	// Find the best recoverable input_id.
-	FrameIndex checkable_input_id = FrameIndex::NONE;
-	// Find the best snapshot to recover from the one already
-	// processed.
-	if (client_snapshots.empty() == false) {
-		for (
-				auto s_snap = server_snapshots.rbegin();
-				checkable_input_id == FrameIndex::NONE && s_snap != server_snapshots.rend();
-				++s_snap) {
-			for (auto c_snap = client_snapshots.begin(); c_snap != client_snapshots.end(); ++c_snap) {
-				if (c_snap->input_id == s_snap->input_id) {
-					// Server snapshot also found on client, can be checked.
-					checkable_input_id = c_snap->input_id;
-					break;
-				}
-			}
-		}
-	} else {
+	if (client_snapshots.empty()) {
 		// No client input, this happens when the stream is paused.
 		process_paused_controller_recovery();
 		return;
 	}
 
-	if (checkable_input_id == FrameIndex::NONE) {
-		// No snapshot found, nothing to do.
-		return;
-	}
+	// Find the best recoverable input_id.
+	last_checked_input = last_received_server_snapshot->input_id;
 
-	last_checked_input = checkable_input_id;
-
-#ifdef DEBUG_ENABLED
-	// Unreachable cause the above check
-	CRASH_COND(server_snapshots.empty());
-	CRASH_COND(client_snapshots.empty());
-#endif
-
-	// Drop all the old server snapshots until the one that we need.
-	while (server_snapshots.front().input_id < checkable_input_id) {
-		server_snapshots.pop_front();
-	}
+	NS::print_line("--");
+	NS::print_line("CHECKING: " + std::to_string(last_checked_input.id));
 
 	// Drop all the old client snapshots until the one that we need.
-	while (client_snapshots.front().input_id < checkable_input_id) {
+	while (client_snapshots.front().input_id < last_checked_input) {
+		NS::print_line("CLIENT: " + std::to_string(client_snapshots.front().input_id.id));
 		client_snapshots.pop_front();
 	}
+	NS::print_line("~~");
 
 #ifdef DEBUG_ENABLED
-	// These are unreachable at this point.
-	CRASH_COND(server_snapshots.empty());
-	CRASH_COND(server_snapshots.front().input_id != checkable_input_id);
-
-	// This is unreachable, because we store all the client shapshots
-	// each time a new input is processed. Since the `checkable_input_id`
-	// is taken by reading the processed doll inputs, it's guaranteed
-	// that here the snapshot exists.
-	CRASH_COND(client_snapshots.empty());
-	CRASH_COND(client_snapshots.front().input_id != checkable_input_id);
+	// This can't be triggered because this case is already handled above.
+	CRASH_COND(last_checked_input == FrameIndex::NONE);
+	if (!client_snapshots.empty()) {
+		// This can't be triggered because the client accepts snapshots that are
+		// newer (or at least the same) of the last checked one.
+		// The client keep all the unprocessed snapshots.
+		// NOTE: the -1 check is needed for the cases when the same snapshot is
+		//       processed twice (in that case the input_id is already cleared).
+		CRASH_COND(client_snapshots.front().input_id == last_checked_input || (client_snapshots.front().input_id - 1) == last_checked_input);
+	}
 #endif
 
-	// --- Phase two: compare the server snapshot with the client snapshot. ---
+	bool need_rewind;
 	NS::Snapshot no_rewind_recover;
+	if (!client_snapshots.empty() && client_snapshots.front().input_id == last_checked_input) [[likely]] {
+		// In this case the client is checking the frame for the first time, and
+		// this is the most common case.
 
-	const bool need_rewind = __pcr__fetch_recovery_info(
-			checkable_input_id,
-			no_rewind_recover);
+		need_rewind = __pcr__fetch_recovery_info(
+				last_checked_input,
+				no_rewind_recover);
 
-	if (need_rewind) {
-		scene_synchronizer->event_desync_detected.broadcast(checkable_input_id);
+		// Popout the client snapshot.
+		client_snapshots.pop_front();
+	} else {
+		// This case is less likely to happen, and in this case the client
+		// received the same frame (from the server) twice, so just assume we
+		// need a rewind.
+		need_rewind = true;
 	}
 
-	// Popout the client snapshot.
-	client_snapshots.pop_front();
+	if (need_rewind) {
+		scene_synchronizer->event_desync_detected.broadcast(last_checked_input);
+	}
 
 	// --- Phase three: recover and rewind. ---
 
@@ -2650,14 +2617,14 @@ void ClientSynchronizer::process_received_server_state() {
 		SceneSynchronizerDebugger::singleton()->notify_event(SceneSynchronizerDebugger::FrameEvent::CLIENT_DESYNC_DETECTED);
 		SceneSynchronizerDebugger::singleton()->add_node_message(
 				scene_synchronizer->get_network_interface().get_name(),
-				"Recover input: " + itos(checkable_input_id.id) + " - Last input: " + uitos(player_controller->get_stored_input_id(-1).id));
+				"Recover input: " + uitos(last_checked_input.id) + " - Last input: " + uitos(player_controller->get_stored_input_id(-1).id));
 
 		// Sync.
 		__pcr__sync__rewind();
 
 		// Rewind.
 		__pcr__rewind(
-				checkable_input_id,
+				last_checked_input,
 				player_controller_object_data,
 				controller,
 				player_controller);
@@ -2670,11 +2637,11 @@ void ClientSynchronizer::process_received_server_state() {
 		}
 
 		// No rewind.
-		__pcr__no_rewind(checkable_input_id, player_controller);
+		__pcr__no_rewind(last_checked_input, player_controller);
 	}
 
-	// Popout the server snapshot.
-	server_snapshots.pop_front();
+	// Clear the server snapshot.
+	last_received_server_snapshot.reset();
 }
 
 bool ClientSynchronizer::__pcr__fetch_recovery_info(
@@ -2687,7 +2654,7 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 	LocalVector<ObjectNetId> different_node_data;
 	const bool is_equal = NS::Snapshot::compare(
 			*scene_synchronizer,
-			server_snapshots.front(),
+			*last_received_server_snapshot,
 			client_snapshots.front(),
 			&r_no_rewind_recover,
 			scene_synchronizer->debug_rewindings_enabled ? &differences_info : nullptr,
@@ -2706,7 +2673,7 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 			const ObjectNetId net_node_id = different_node_data[i];
 			NS::ObjectData *rew_node_data = scene_synchronizer->get_object_data(net_node_id);
 
-			const std::vector<NS::NameAndVar> *server_node_vars = ObjectNetId{ uint32_t(server_snapshots.front().object_vars.size()) } <= net_node_id ? nullptr : &(server_snapshots.front().object_vars[net_node_id.id]);
+			const std::vector<NS::NameAndVar> *server_node_vars = ObjectNetId{ uint32_t(last_received_server_snapshot->object_vars.size()) } <= net_node_id ? nullptr : &(last_received_server_snapshot->object_vars[net_node_id.id]);
 			const std::vector<NS::NameAndVar> *client_node_vars = ObjectNetId{ uint32_t(client_snapshots.front().object_vars.size()) } <= net_node_id ? nullptr : &(client_snapshots.front().object_vars[net_node_id.id]);
 
 			const std::size_t count = MAX(server_node_vars ? server_node_vars->size() : 0, client_node_vars ? client_node_vars->size() : 0);
@@ -2761,7 +2728,7 @@ void ClientSynchronizer::__pcr__sync__rewind() {
 
 	std::vector<std::string> applied_data_info;
 
-	const NS::Snapshot &server_snapshot = server_snapshots.front();
+	const NS::Snapshot &server_snapshot = *last_received_server_snapshot;
 	apply_snapshot(
 			server_snapshot,
 			NetEventFlag::SYNC_RECOVER | NetEventFlag::SYNC_RESET,
@@ -2876,26 +2843,18 @@ void ClientSynchronizer::process_paused_controller_recovery() {
 	NS_PROFILE
 
 #ifdef DEBUG_ENABLED
-	CRASH_COND(server_snapshots.empty());
+	CRASH_COND(!last_received_server_snapshot);
 	CRASH_COND(client_snapshots.empty() == false);
 #endif
 
-	// Drop the snapshots till the newest.
-	while (server_snapshots.size() != 1) {
-		server_snapshots.pop_front();
-	}
-
-#ifdef DEBUG_ENABLED
-	CRASH_COND(server_snapshots.empty());
-#endif
 	std::vector<std::string> applied_data_info;
 
 	apply_snapshot(
-			server_snapshots.front(),
+			*last_received_server_snapshot,
 			NetEventFlag::SYNC_RECOVER,
 			&applied_data_info);
 
-	server_snapshots.pop_front();
+	last_received_server_snapshot.reset();
 
 	if (applied_data_info.size() > 0) {
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "Paused controller recover:");

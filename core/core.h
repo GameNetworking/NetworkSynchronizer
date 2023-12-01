@@ -76,6 +76,7 @@ struct IdMaker {
 	bool operator<=(const T &p_o) const { return operator<(p_o) || operator==(p_o); }
 	bool operator>=(const T &p_o) const { return (!operator<(p_o)); }
 	bool operator>(const T &p_o) const { return (!operator<(p_o)) && operator!=(p_o); }
+
 	T operator+(const T &p_o) const { return { id + p_o.id }; }
 	T operator+(int p_id) const { return { id + p_id }; }
 	T operator+(uint32_t p_id) const { return { id + p_id }; }
@@ -89,6 +90,22 @@ struct IdMaker {
 	}
 	T &operator+=(int p_id) {
 		id += p_id;
+		return *static_cast<T *>(this);
+	}
+
+	T operator-(const T &p_o) const { return { id - p_o.id }; }
+	T operator-(int p_id) const { return { id - p_id }; }
+	T operator-(uint32_t p_id) const { return { id - p_id }; }
+	T &operator-=(const T &p_o) {
+		id -= p_o.id;
+		return *static_cast<T *>(this);
+	}
+	T &operator-=(uint32_t p_id) {
+		id -= p_id;
+		return *static_cast<T *>(this);
+	}
+	T &operator-=(int p_id) {
+		id -= p_id;
 		return *static_cast<T *>(this);
 	}
 };

@@ -18,6 +18,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <optional>
 #include <vector>
 
 NS_NAMESPACE_BEGIN
@@ -645,7 +646,8 @@ public:
 
 	NS::Snapshot last_received_snapshot;
 	std::deque<NS::Snapshot> client_snapshots;
-	std::deque<NS::Snapshot> server_snapshots;
+	FrameIndex last_received_server_snapshot_index = FrameIndex::NONE;
+	std::optional<NS::Snapshot> last_received_server_snapshot;
 	FrameIndex last_checked_input = { 0 };
 	bool enabled = true;
 	bool want_to_enable = false;
@@ -772,9 +774,7 @@ private:
 	/// Store object data organized per controller.
 	void store_snapshot();
 
-	void store_controllers_snapshot(
-			const NS::Snapshot &p_snapshot,
-			std::deque<NS::Snapshot> &r_snapshot_storage);
+	void store_controllers_snapshot(const NS::Snapshot &p_snapshot);
 
 	void process_server_sync();
 	void process_received_server_state();
