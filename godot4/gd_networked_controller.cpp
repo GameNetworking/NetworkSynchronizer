@@ -108,8 +108,8 @@ GdNetworkedController::GdNetworkedController() :
 			});
 
 	event_handler_input_missed =
-			networked_controller.event_input_missed.bind([this](uint32_t p_input_id) -> void {
-				emit_signal("input_missed", p_input_id);
+			networked_controller.event_input_missed.bind([this](NS::FrameIndex p_input_id) -> void {
+				emit_signal("input_missed", p_input_id.id);
 			});
 
 	event_handler_client_speedup_adjusted =
@@ -241,7 +241,7 @@ int GdNetworkedController::get_max_frames_delay() const {
 }
 
 uint32_t GdNetworkedController::get_current_input_id() const {
-	return networked_controller.get_current_input_id();
+	return networked_controller.get_current_input_id().id;
 }
 
 bool GdNetworkedController::is_networking_initialized() const {

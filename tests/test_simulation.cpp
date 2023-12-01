@@ -155,7 +155,7 @@ public:
 	};
 
 	virtual void collect_inputs(double p_delta, DataBuffer &r_buffer) override {
-		const int index = get_current_input_id() % 20;
+		const int index = get_current_input_id().id % 20;
 		std::ignore = r_buffer.add_normalized_vector3(Vector3(inputs[index].x, inputs[index].y, inputs[index].z), DataBuffer::COMPRESSION_LEVEL_3);
 	}
 
@@ -227,7 +227,7 @@ struct TestSimulationBase {
 	TSLocalNetworkedController *controller_server = nullptr;
 	TSLocalNetworkedController *controller_p1 = nullptr;
 
-	int process_until_frame = 300;
+	NS::FrameIndex process_until_frame = { 300 };
 	int process_until_frame_timeout = 20;
 
 private:
@@ -336,8 +336,8 @@ public:
 				break;
 			}
 
-			CRASH_COND(controller_server->get_current_input_id() >= uint32_t(process_until_frame + process_until_frame_timeout) && controller_server->get_current_input_id() != UINT32_MAX);
-			CRASH_COND(controller_p1->get_current_input_id() >= uint32_t(process_until_frame + process_until_frame_timeout) && controller_p1->get_current_input_id() != UINT32_MAX);
+			CRASH_COND(controller_server->get_current_input_id() >= (process_until_frame + process_until_frame_timeout) && controller_server->get_current_input_id() != NS::FrameIndex::NONE);
+			CRASH_COND(controller_p1->get_current_input_id() >= (process_until_frame + process_until_frame_timeout) && controller_p1->get_current_input_id() != NS::FrameIndex::NONE);
 		}
 
 		//                  ---- Validation phase ----
@@ -361,13 +361,13 @@ public:
 /// It manually de-sync the server by teleporting the controller, and then
 /// make sure the client was immediately re-sync with a single rewinding action.
 struct TestSimulationWithRewind : public TestSimulationBase {
-	int reset_position_on_frame = 100;
+	NS::FrameIndex reset_position_on_frame = { 100 };
 	float notify_state_interval = 0.0;
 
 public:
-	std::vector<uint32_t> client_rewinded_frames;
+	std::vector<NS::FrameIndex> client_rewinded_frames;
 	// The ID of snapshot sent by the server.
-	uint32_t correction_snapshot_sent = 0;
+	NS::FrameIndex correction_snapshot_sent = { 0 };
 
 	TestSimulationWithRewind(float p_notify_state_interval) :
 			notify_state_interval(p_notify_state_interval) {}
@@ -377,13 +377,13 @@ public:
 		// Make sure the client can predicts as many frames it needs (no need to add some more noise on this test).
 		server_scene.scene_sync->set_max_predicted_intervals(20);
 
-		controller_server->event_input_missed.bind([](std::uint32_t p_input_id) {
+		controller_server->event_input_missed.bind([](NS::FrameIndex p_frame_index) {
 			// The input should be never missing!
 			CRASH_NOW();
 		});
 
-		controller_p1->get_scene_synchronizer()->event_desync_detected.bind([this](uint32_t p_input_id) {
-			client_rewinded_frames.push_back(p_input_id);
+		controller_p1->get_scene_synchronizer()->event_desync_detected.bind([this](NS::FrameIndex p_frame_index) {
+			client_rewinded_frames.push_back(p_frame_index);
 		});
 	}
 
@@ -392,8 +392,8 @@ public:
 			// Reset the character position only on the server, to simulate a desync.
 			controller_server->set_position(Vec3(0.0, 0.0, 0.0));
 
-			server_scene.scene_sync->event_sent_snapshot.bind([this](uint32_t p_input_id, int p_peer) {
-				correction_snapshot_sent = p_input_id;
+			server_scene.scene_sync->event_sent_snapshot.bind([this](NS::FrameIndex p_frame_index, int p_peer) {
+				correction_snapshot_sent = p_frame_index;
 
 				// Make sure this function is not called once again.
 				server_scene.scene_sync->event_sent_snapshot.clear();

@@ -6,7 +6,7 @@
 
 NS::Snapshot::operator String() const {
 	String s;
-	s += "Snapshot input ID: " + itos(input_id);
+	s += "Snapshot input ID: " + uitos(input_id.id);
 
 	for (std::size_t net_node_id = 0; net_node_id < object_vars.size(); net_node_id += 1) {
 		s += "\nNode Data: " + itos(net_node_id);
@@ -66,7 +66,7 @@ bool compare_vars(
 					r_no_rewind_recover->object_vars.data()[p_synchronizer_node_data->get_net_id().id].data()[var_index].copy(s_vars[var_index]);
 					// Sets `input_id` to 0 to signal that this snapshot contains
 					// no-rewind data.
-					r_no_rewind_recover->input_id = 0;
+					r_no_rewind_recover->input_id = NS::FrameIndex{ 0 };
 				}
 
 				if (r_differences_info) {

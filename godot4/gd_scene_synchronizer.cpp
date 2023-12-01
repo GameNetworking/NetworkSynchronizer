@@ -170,17 +170,17 @@ GdSceneSynchronizer::GdSceneSynchronizer() :
 			});
 
 	event_handler_state_validated =
-			scene_synchronizer.event_state_validated.bind([this](uint32_t p_input_id) -> void {
-				emit_signal("state_validated", p_input_id);
+			scene_synchronizer.event_state_validated.bind([this](NS::FrameIndex p_frame) -> void {
+				emit_signal("state_validated", p_frame.id);
 			});
 
 	event_handler_rewind_frame_begin =
-			scene_synchronizer.event_rewind_frame_begin.bind([this](uint32_t p_input_id, int p_index, int p_count) -> void {
-				emit_signal("rewind_frame_begin", p_input_id, p_index, p_count);
+			scene_synchronizer.event_rewind_frame_begin.bind([this](NS::FrameIndex p_frame, int p_index, int p_count) -> void {
+				emit_signal("rewind_frame_begin", p_frame.id, p_index, p_count);
 			});
 
 	event_handler_desync_detected =
-			scene_synchronizer.event_desync_detected_with_info.bind([this](uint32_t p_input_id, NS::ObjectHandle p_app_object, const std::vector<std::string> &p_var_names, const std::vector<NS::VarData> &p_client_values, const std::vector<NS::VarData> &p_server_values) -> void {
+			scene_synchronizer.event_desync_detected_with_info.bind([this](NS::FrameIndex p_frame, NS::ObjectHandle p_app_object, const std::vector<std::string> &p_var_names, const std::vector<NS::VarData> &p_client_values, const std::vector<NS::VarData> &p_server_values) -> void {
 				Vector<String> var_names;
 				Vector<Variant> client_values;
 				Vector<Variant> server_values;
@@ -197,7 +197,7 @@ GdSceneSynchronizer::GdSceneSynchronizer() :
 					GdSceneSynchronizer::convert(v, vd);
 					server_values.push_back(v);
 				}
-				emit_signal("desync_detected", p_input_id, GdSceneSynchronizer::SyncClass::from_handle(p_app_object), var_names, client_values, server_values);
+				emit_signal("desync_detected", p_frame.id, GdSceneSynchronizer::SyncClass::from_handle(p_app_object), var_names, client_values, server_values);
 			});
 }
 

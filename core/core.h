@@ -93,6 +93,9 @@ struct IdMaker {
 	}
 };
 
+struct FrameIndex : public IdMaker<FrameIndex, std::uint32_t> {
+	static const FrameIndex NONE;
+};
 struct SyncGroupId : public IdMaker<SyncGroupId, std::uint32_t> {
 	static const SyncGroupId NONE;
 	/// This SyncGroup contains ALL the registered ObjectData.

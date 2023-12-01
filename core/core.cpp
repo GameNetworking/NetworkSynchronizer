@@ -4,6 +4,7 @@
 
 NS_NAMESPACE_BEGIN
 
+const FrameIndex FrameIndex::NONE = { std::numeric_limits<std::uint32_t>::max() };
 const SyncGroupId SyncGroupId::NONE = { std::numeric_limits<std::uint32_t>::max() };
 const SyncGroupId SyncGroupId::GLOBAL = { 0 };
 const VarId VarId::NONE = { std::numeric_limits<uint32_t>::max() };

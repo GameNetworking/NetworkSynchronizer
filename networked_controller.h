@@ -52,6 +52,7 @@ class NetworkedControllerBase {
 	friend struct RemotelyControlledController;
 	friend struct ServerController;
 	friend struct PlayerController;
+	friend struct DollController;
 
 public:
 	enum ControllerType {
@@ -131,7 +132,7 @@ private:
 
 public: // -------------------------------------------------------------- Events
 	Processor<> event_controller_reset;
-	Processor<uint32_t /*p_input_id*/> event_input_missed;
+	Processor<FrameIndex> event_input_missed;
 	Processor<uint32_t /*p_input_worst_receival_time_ms*/, int /*p_optimal_frame_delay*/, int /*p_current_frame_delay*/, int /*p_distance_to_optimal*/> event_client_speedup_adjusted;
 
 private:
@@ -170,7 +171,7 @@ public: // ---------------------------------------------------------------- APIs
 	void set_max_frames_delay(int p_val);
 	int get_max_frames_delay() const;
 
-	uint32_t get_current_input_id() const;
+	FrameIndex get_current_input_id() const;
 
 	const DataBuffer &get_inputs_buffer() const {
 		return *inputs_buffer;
@@ -219,8 +220,7 @@ public:
 	bool has_scene_synchronizer() const;
 
 	void on_peer_status_updated(const NS::ObjectData *p_object_data, int p_peer_id, bool p_connected, bool p_enabled);
-	void on_state_validated(uint32_t p_input_id);
-	void on_rewind_frame_begin(uint32_t p_input_id, int p_index, int p_count);
+	void on_rewind_frame_begin(FrameIndex p_input_id, int p_index, int p_count);
 
 	/* On server rpc functions. */
 	void rpc_receive_inputs(const Vector<uint8_t> &p_data);
@@ -243,7 +243,7 @@ public:
 	bool __input_data_parse(
 			const Vector<uint8_t> &p_data,
 			void *p_user_pointer,
-			void (*p_input_parse)(void *p_user_pointer, uint32_t p_input_id, int p_input_size_in_bits, const BitArray &p_input));
+			void (*p_input_parse)(void *p_user_pointer, FrameIndex p_input_id, int p_input_size_in_bits, const BitArray &p_input));
 
 	/// This function is able to get the InputId for this buffer.
 	bool __input_data_get_first_input_id(
@@ -257,10 +257,10 @@ public:
 };
 
 struct FrameSnapshot {
-	uint32_t id;
+	FrameIndex id;
 	BitArray inputs_buffer;
 	uint32_t buffer_size_bit;
-	uint32_t similarity;
+	FrameIndex similarity;
 	/// Local timestamp.
 	uint32_t received_timestamp;
 
@@ -278,16 +278,15 @@ struct Controller {
 	virtual ~Controller() = default;
 
 	virtual void ready() {}
-	virtual uint32_t get_current_input_id() const = 0;
+	virtual FrameIndex get_current_input_id() const = 0;
 	virtual void process(double p_delta) = 0;
 
 	virtual bool receive_inputs(const Vector<uint8_t> &p_data) { return false; };
-	virtual void notify_input_checked(uint32_t p_input_id) {}
-	virtual void queue_instant_process(uint32_t p_input_id, int p_index, int p_count) {}
+	virtual void queue_instant_process(FrameIndex p_input_id, int p_index, int p_count) {}
 };
 
 struct RemotelyControlledController : public Controller {
-	uint32_t current_input_buffer_id = UINT32_MAX;
+	FrameIndex current_input_buffer_id = FrameIndex::NONE;
 	uint32_t ghost_input_count = 0;
 	std::deque<FrameSnapshot> snapshots;
 	// The stream is paused when the client send an empty buffer.
@@ -300,9 +299,9 @@ public:
 
 	virtual void on_peer_update(bool p_peer_enabled);
 
-	virtual uint32_t get_current_input_id() const override;
+	virtual FrameIndex get_current_input_id() const override;
 	virtual int get_inputs_count() const;
-	uint32_t last_known_input() const;
+	FrameIndex last_known_input() const;
 
 	/// Fetch the next inputs, returns true if the input is new.
 	virtual bool fetch_next_input(real_t p_delta);
@@ -352,7 +351,7 @@ struct AutonomousServerController : public ServerController {
 };
 
 struct PlayerController : public Controller {
-	uint32_t current_input_id;
+	FrameIndex current_input_id;
 	uint32_t input_buffers_counter;
 	bool streaming_paused = false;
 
@@ -362,19 +361,19 @@ struct PlayerController : public Controller {
 
 	PlayerController(NetworkedControllerBase *p_node);
 
-	virtual void notify_input_checked(uint32_t p_input_id) override;
+	void notify_input_checked(FrameIndex p_input_id);
 	int get_frames_input_count() const;
-	uint32_t last_known_input() const;
-	uint32_t get_stored_input_id(int p_i) const;
-	virtual uint32_t get_current_input_id() const override;
+	FrameIndex last_known_input() const;
+	FrameIndex get_stored_input_id(int p_i) const;
+	virtual FrameIndex get_current_input_id() const override;
 
-	virtual void queue_instant_process(uint32_t p_input_id, int p_index, int p_count) override;
+	virtual void queue_instant_process(FrameIndex p_input_id, int p_index, int p_count) override;
 	bool has_another_instant_to_process_after(int p_i) const;
 	virtual void process(double p_delta) override;
 
 	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;
 
-	void store_input_buffer(uint32_t p_id);
+	void store_input_buffer(FrameIndex p_frame_index);
 
 	/// Sends an unreliable packet to the server, containing a packed array of
 	/// frame snapshots.
@@ -392,26 +391,26 @@ struct PlayerController : public Controller {
 struct DollController : public RemotelyControlledController {
 	DollController(NetworkedControllerBase *p_node);
 
-	uint32_t last_checked_input = 0;
+	FrameIndex last_checked_input = { 0 };
 	int queued_instant_to_process = -1;
 
 	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;
-	virtual void queue_instant_process(uint32_t p_input_id, int p_index, int p_count) override;
+	virtual void queue_instant_process(FrameIndex p_input_id, int p_index, int p_count) override;
 	virtual bool fetch_next_input(real_t p_delta) override;
 	virtual void process(double p_delta) override;
-	virtual void notify_input_checked(uint32_t p_input_id) override;
+	void notify_input_checked(FrameIndex p_input_id);
 };
 
 /// This controller is used when the game instance is not a peer of any kind.
 /// This controller keeps the workflow as usual so it's possible to use the
 /// `NetworkedController` even without network.
 struct NoNetController : public Controller {
-	uint32_t frame_id;
+	FrameIndex frame_id;
 
 	NoNetController(NetworkedControllerBase *p_node);
 
 	virtual void process(double p_delta) override;
-	virtual uint32_t get_current_input_id() const override;
+	virtual FrameIndex get_current_input_id() const override;
 };
 
 template <class NetInterfaceClass>

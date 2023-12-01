@@ -11,6 +11,7 @@
 #include "modules/network_synchronizer/core/core.h"
 #include "modules/network_synchronizer/core/network_interface.h"
 #include "modules/network_synchronizer/core/object_data.h"
+#include "modules/network_synchronizer/core/print.h"
 #include "modules/network_synchronizer/core/processor.h"
 #include "modules/network_synchronizer/core/var_data.h"
 #include "modules/network_synchronizer/data_buffer.h"
@@ -1313,6 +1314,11 @@ NetworkedControllerBase *SceneSynchronizerBase::fetch_controller_by_peer(int pee
 	return nullptr;
 }
 
+FrameIndex SceneSynchronizerBase::client_get_last_checked_frame_index() const {
+	ENSURE_V_MSG(is_client(), FrameIndex::NONE, "This function can be called only on client scene synchronizer.");
+	return static_cast<ClientSynchronizer *>(synchronizer)->last_checked_input;
+}
+
 bool SceneSynchronizerBase::is_server() const {
 	return synchronizer_type == SYNCHRONIZER_TYPE_SERVER;
 }
@@ -1674,8 +1680,8 @@ void ServerSynchronizer::process(double p_delta) {
 		}
 
 		const NS::ObjectData *nd = scene_synchronizer->get_object_data(peer_it.second.controller_id);
-		const uint32_t current_input_id = nd->get_controller()->get_server_controller()->get_current_input_id();
-		SceneSynchronizerDebugger::singleton()->write_dump(peer_it.first, current_input_id);
+		const FrameIndex current_input_id = nd->get_controller()->get_server_controller()->get_current_input_id();
+		SceneSynchronizerDebugger::singleton()->write_dump(peer_it.first, current_input_id.id);
 	}
 	SceneSynchronizerDebugger::singleton()->start_new_frame();
 #endif
@@ -1927,7 +1933,7 @@ void ServerSynchronizer::process_snapshot_notificator() {
 			NS::ObjectData *controller_od = scene_synchronizer->get_object_data(peer->controller_id, false);
 
 			// Fetch the peer input_id for this snapshot
-			std::uint32_t input_id = std::numeric_limits<std::uint32_t>::max();
+			FrameIndex input_id = FrameIndex::NONE;
 			if (controller_od) {
 				CRASH_COND_MSG(controller_od->get_controller() == nullptr, "The NodeData fetched is not a controller: `" + String(controller_od->object_name.c_str()) + "`, this is not supposed to happen.");
 				NetworkedControllerBase *controller = controller_od->get_controller();
@@ -1956,7 +1962,7 @@ void ServerSynchronizer::process_snapshot_notificator() {
 			}
 
 			snap->seek(0);
-			snap->add(input_id);
+			snap->add(input_id.id);
 
 			scene_synchronizer->rpc_handler_state.rpc(
 					scene_synchronizer->get_network_interface(),
@@ -2323,11 +2329,11 @@ ClientSynchronizer::ClientSynchronizer(SceneSynchronizerBase *p_node) :
 void ClientSynchronizer::clear() {
 	player_controller_object_data = nullptr;
 	objects_names.clear();
-	last_received_snapshot.input_id = UINT32_MAX;
+	last_received_snapshot.input_id = FrameIndex::NONE;
 	last_received_snapshot.object_vars.clear();
 	client_snapshots.clear();
 	server_snapshots.clear();
-	last_checked_input = 0;
+	last_checked_input = { 0 };
 	enabled = true;
 	need_full_snapshot_notified = false;
 }
@@ -2353,7 +2359,7 @@ void ClientSynchronizer::process(double p_delta) {
 		NetworkedControllerBase *controller = player_controller_object_data->get_controller();
 		PlayerController *player_controller = controller->get_player_controller();
 		const int client_peer = scene_synchronizer->network_interface->fetch_local_peer_id();
-		SceneSynchronizerDebugger::singleton()->write_dump(client_peer, player_controller->get_current_input_id());
+		SceneSynchronizerDebugger::singleton()->write_dump(client_peer, player_controller->get_current_input_id().id);
 		SceneSynchronizerDebugger::singleton()->start_new_frame();
 	}
 #endif
@@ -2378,7 +2384,6 @@ void ClientSynchronizer::receive_snapshot(DataBuffer &p_snapshot) {
 	}
 
 	// Finalize data.
-
 	store_controllers_snapshot(
 			last_received_snapshot,
 			server_snapshots);
@@ -2479,7 +2484,7 @@ void ClientSynchronizer::store_snapshot() {
 
 #ifdef DEBUG_ENABLED
 	if (unlikely(client_snapshots.size() > 0 && controller->get_current_input_id() <= client_snapshots.back().input_id)) {
-		CRASH_NOW_MSG("[FATAL] During snapshot creation, for controller " + String(player_controller_object_data->object_name.c_str()) + ", was found an ID for an older snapshots. New input ID: " + itos(controller->get_current_input_id()) + " Last saved snapshot input ID: " + itos(client_snapshots.back().input_id) + ".");
+		CRASH_NOW_MSG("[FATAL] During snapshot creation, for controller " + String(player_controller_object_data->object_name.c_str()) + ", was found an ID for an older snapshots. New input ID: " + uitos(controller->get_current_input_id().id) + " Last saved snapshot input ID: " + uitos(client_snapshots.back().input_id.id) + ".");
 	}
 #endif
 
@@ -2496,24 +2501,24 @@ void ClientSynchronizer::store_controllers_snapshot(
 		std::deque<NS::Snapshot> &r_snapshot_storage) {
 	// Put the parsed snapshot into the queue.
 
-	if (p_snapshot.input_id == UINT32_MAX) {
+	if (p_snapshot.input_id == FrameIndex::NONE) {
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The Client received the server snapshot WITHOUT `input_id`.", true);
 		// The controller node is not registered so just assume this snapshot is the most up-to-date.
 		r_snapshot_storage.clear();
 		r_snapshot_storage.push_back(Snapshot::make_copy(p_snapshot));
 
 	} else {
-		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The Client received the server snapshot: " + itos(p_snapshot.input_id), true);
+		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The Client received the server snapshot: " + uitos(p_snapshot.input_id.id), true);
 
 		// Store the snapshot sorted by controller input ID.
 		if (r_snapshot_storage.empty() == false) {
 			// Make sure the snapshots are stored in order.
-			const uint32_t last_stored_input_id = r_snapshot_storage.back().input_id;
+			const FrameIndex last_stored_input_id = r_snapshot_storage.back().input_id;
 			if (p_snapshot.input_id == last_stored_input_id) {
 				// Update the snapshot.
 				r_snapshot_storage.back().copy(p_snapshot);
 			} else {
-				ERR_FAIL_COND_MSG(p_snapshot.input_id < last_stored_input_id, "This snapshot (with ID: " + itos(p_snapshot.input_id) + ") is not expected because the last stored id is: " + itos(last_stored_input_id));
+				ERR_FAIL_COND_MSG(p_snapshot.input_id < last_stored_input_id, "This snapshot (with ID: " + uitos(p_snapshot.input_id.id) + ") is not expected because the last stored id is: " + uitos(last_stored_input_id.id));
 				r_snapshot_storage.push_back(Snapshot::make_copy(p_snapshot));
 			}
 		} else {
@@ -2539,7 +2544,7 @@ void ClientSynchronizer::process_received_server_state() {
 		return;
 	}
 
-	if (server_snapshots.back().input_id == UINT32_MAX) {
+	if (server_snapshots.back().input_id == FrameIndex::NONE) {
 		// The server last received snapshot is a no input snapshot. Just assume it's the most up-to-date.
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The client received a \"no input\" snapshot, so the client is setting it right away assuming is the most updated one.", true);
 
@@ -2562,18 +2567,18 @@ void ClientSynchronizer::process_received_server_state() {
 #ifdef DEBUG_ENABLED
 	if (client_snapshots.empty() == false) {
 		// The SceneSynchronizer and the PlayerController are always in sync.
-		CRASH_COND_MSG(client_snapshots.back().input_id != player_controller->last_known_input(), "This should not be possible: snapshot input: " + itos(client_snapshots.back().input_id) + " last_know_input: " + itos(player_controller->last_known_input()));
+		CRASH_COND_MSG(client_snapshots.back().input_id != player_controller->last_known_input(), "This should not be possible: snapshot input: " + uitos(client_snapshots.back().input_id.id) + " last_know_input: " + uitos(player_controller->last_known_input().id));
 	}
 #endif
 
 	// Find the best recoverable input_id.
-	uint32_t checkable_input_id = UINT32_MAX;
+	FrameIndex checkable_input_id = FrameIndex::NONE;
 	// Find the best snapshot to recover from the one already
 	// processed.
 	if (client_snapshots.empty() == false) {
 		for (
 				auto s_snap = server_snapshots.rbegin();
-				checkable_input_id == UINT32_MAX && s_snap != server_snapshots.rend();
+				checkable_input_id == FrameIndex::NONE && s_snap != server_snapshots.rend();
 				++s_snap) {
 			for (auto c_snap = client_snapshots.begin(); c_snap != client_snapshots.end(); ++c_snap) {
 				if (c_snap->input_id == s_snap->input_id) {
@@ -2589,10 +2594,12 @@ void ClientSynchronizer::process_received_server_state() {
 		return;
 	}
 
-	if (checkable_input_id == UINT32_MAX) {
+	if (checkable_input_id == FrameIndex::NONE) {
 		// No snapshot found, nothing to do.
 		return;
 	}
+
+	last_checked_input = checkable_input_id;
 
 #ifdef DEBUG_ENABLED
 	// Unreachable cause the above check
@@ -2643,7 +2650,7 @@ void ClientSynchronizer::process_received_server_state() {
 		SceneSynchronizerDebugger::singleton()->notify_event(SceneSynchronizerDebugger::FrameEvent::CLIENT_DESYNC_DETECTED);
 		SceneSynchronizerDebugger::singleton()->add_node_message(
 				scene_synchronizer->get_network_interface().get_name(),
-				"Recover input: " + itos(checkable_input_id) + " - Last input: " + itos(player_controller->get_stored_input_id(-1)));
+				"Recover input: " + itos(checkable_input_id.id) + " - Last input: " + uitos(player_controller->get_stored_input_id(-1).id));
 
 		// Sync.
 		__pcr__sync__rewind();
@@ -2655,7 +2662,7 @@ void ClientSynchronizer::process_received_server_state() {
 				controller,
 				player_controller);
 	} else {
-		if (no_rewind_recover.input_id == 0) {
+		if (no_rewind_recover.input_id == FrameIndex{ 0 }) {
 			SceneSynchronizerDebugger::singleton()->notify_event(SceneSynchronizerDebugger::FrameEvent::CLIENT_DESYNC_DETECTED_SOFT);
 
 			// Sync.
@@ -2668,12 +2675,10 @@ void ClientSynchronizer::process_received_server_state() {
 
 	// Popout the server snapshot.
 	server_snapshots.pop_front();
-
-	last_checked_input = checkable_input_id;
 }
 
 bool ClientSynchronizer::__pcr__fetch_recovery_info(
-		const uint32_t p_input_id,
+		const FrameIndex p_input_id,
 		NS::Snapshot &r_no_rewind_recover) {
 	NS_PROFILE
 	LocalVector<String> differences_info;
@@ -2740,7 +2745,7 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 
 	// Prints the comparison info.
 	if (differences_info.size() > 0 && scene_synchronizer->debug_rewindings_enabled) {
-		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "Rewind on frame " + itos(p_input_id) + " is needed because:");
+		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "Rewind on frame " + uitos(p_input_id.id) + " is needed because:");
 		for (int i = 0; i < int(differences_info.size()); i++) {
 			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|- " + differences_info[i]);
 		}
@@ -2771,12 +2776,13 @@ void ClientSynchronizer::__pcr__sync__rewind() {
 }
 
 void ClientSynchronizer::__pcr__rewind(
-		const uint32_t p_checkable_input_id,
+		const FrameIndex p_checkable_frame_index,
 		NS::ObjectData *p_local_controller_node,
 		NetworkedControllerBase *p_local_controller,
 		PlayerController *p_local_player_controller) {
 	NS_PROFILE
-	scene_synchronizer->event_state_validated.broadcast(p_checkable_input_id);
+	scene_synchronizer->event_state_validated.broadcast(p_checkable_frame_index);
+	p_local_player_controller->notify_input_checked(p_checkable_frame_index);
 	const int frames_to_rewind = p_local_player_controller->get_frames_input_count();
 
 #ifdef DEBUG_ENABLED
@@ -2790,9 +2796,9 @@ void ClientSynchronizer::__pcr__rewind(
 	bool has_next = false;
 #endif
 	for (int i = 0; i < frames_to_rewind; i += 1) {
-		const std::uint32_t frame_id_to_process = p_local_player_controller->get_stored_input_id(i);
+		const FrameIndex frame_id_to_process = p_local_player_controller->get_stored_input_id(i);
 #ifdef NS_PROFILING_ENABLED
-		std::string prof_info = "Index: " + std::to_string(i) + " Frame ID: " + std::to_string(frame_id_to_process);
+		std::string prof_info = "Index: " + std::to_string(i) + " Frame ID: " + std::to_string(frame_id_to_process.id);
 		NS_PROFILE_NAMED_WITH_INFO("Rewinding frame", prof_info);
 #endif
 
@@ -2834,7 +2840,7 @@ void ClientSynchronizer::__pcr__rewind(
 
 void ClientSynchronizer::__pcr__sync__no_rewind(const NS::Snapshot &p_no_rewind_recover) {
 	NS_PROFILE
-	CRASH_COND_MSG(p_no_rewind_recover.input_id != 0, "This function is never called unless there is something to recover without rewinding.");
+	CRASH_COND_MSG(p_no_rewind_recover.input_id != FrameIndex{ 0 }, "This function is never called unless there is something to recover without rewinding.");
 
 	// Apply found differences without rewind.
 	std::vector<std::string> applied_data_info;
@@ -2860,7 +2866,7 @@ void ClientSynchronizer::__pcr__sync__no_rewind(const NS::Snapshot &p_no_rewind_
 }
 
 void ClientSynchronizer::__pcr__no_rewind(
-		const uint32_t p_checkable_input_id,
+		const FrameIndex p_checkable_input_id,
 		PlayerController *p_player_controller) {
 	NS_PROFILE
 	scene_synchronizer->event_state_validated.broadcast(p_checkable_input_id);
@@ -3004,7 +3010,7 @@ void ClientSynchronizer::process_simulation(double p_delta) {
 			// This is an intermediate sub tick, so store the dumping.
 			// The last sub frame is not dumped, untile the end of the frame, so we can capture any subsequent message.
 			const int client_peer = scene_synchronizer->network_interface->fetch_local_peer_id();
-			SceneSynchronizerDebugger::singleton()->write_dump(client_peer, player_controller->get_current_input_id());
+			SceneSynchronizerDebugger::singleton()->write_dump(client_peer, player_controller->get_current_input_id().id);
 			SceneSynchronizerDebugger::singleton()->start_new_frame();
 		}
 #endif
@@ -3016,7 +3022,7 @@ bool ClientSynchronizer::parse_sync_data(
 		void *p_user_pointer,
 		void (*p_custom_data_parse)(void *p_user_pointer, VarData &&p_custom_data),
 		void (*p_node_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
-		void (*p_input_id_parse)(void *p_user_pointer, uint32_t p_input_id),
+		void (*p_input_id_parse)(void *p_user_pointer, FrameIndex p_input_id),
 		void (*p_controller_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
 		void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, VarData &&p_value),
 		void (*p_simulated_objects_parse)(void *p_user_pointer, std::vector<ObjectNetId> &&p_simulated_objects)) {
@@ -3031,8 +3037,8 @@ bool ClientSynchronizer::parse_sync_data(
 
 	{
 		// Fetch the `InputID`.
-		std::uint32_t input_id;
-		p_snapshot.read(input_id);
+		FrameIndex input_id;
+		p_snapshot.read(input_id.id);
 		ERR_FAIL_COND_V_MSG(p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as the `InputID` expected is not set.");
 		p_input_id_parse(p_user_pointer, input_id);
 
@@ -3418,7 +3424,7 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 
 	NS::Snapshot received_snapshot;
 	received_snapshot.copy(last_received_snapshot);
-	received_snapshot.input_id = UINT32_MAX;
+	received_snapshot.input_id = FrameIndex::NONE;
 
 	struct ParseData {
 		NS::Snapshot &snapshot;
@@ -3461,7 +3467,7 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 			},
 
 			// Parse InputID:
-			[](void *p_user_pointer, uint32_t p_input_id) {
+			[](void *p_user_pointer, FrameIndex p_input_id) {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
 				if (pd->player_controller_node_data != nullptr) {
 					// This is the main controller, store the `InputID`.
@@ -3496,7 +3502,7 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 		return false;
 	}
 
-	if (unlikely(received_snapshot.input_id == UINT32_MAX && player_controller_object_data != nullptr)) {
+	if (unlikely(received_snapshot.input_id == FrameIndex::NONE && player_controller_object_data != nullptr)) {
 		// We espect that the player_controller is updated by this new snapshot,
 		// so make sure it's done so.
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "[INFO] the player controller (" + String(player_controller_object_data->object_name.c_str()) + ") was not part of the received snapshot, this happens when the server destroys the peer controller.");

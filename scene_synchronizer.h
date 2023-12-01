@@ -203,6 +203,7 @@ protected:
 	float ping_update_rate = 3.0;
 
 	SynchronizerType synchronizer_type = SYNCHRONIZER_TYPE_NULL;
+
 	Synchronizer *synchronizer = nullptr;
 	bool recover_in_progress = false;
 	bool reset_in_progress = false;
@@ -229,11 +230,11 @@ public: // -------------------------------------------------------------- Events
 	Processor<> event_sync_started;
 	Processor<> event_sync_paused;
 	Processor<const NS::ObjectData * /*p_object_data*/, int /*p_peer*/, bool /*p_connected*/, bool /*p_enabled*/> event_peer_status_updated;
-	Processor<uint32_t /*p_input_id*/> event_state_validated;
-	Processor<uint32_t /*p_input_id*/, int /*p_peer*/> event_sent_snapshot;
-	Processor<uint32_t /*p_input_id*/, int /*p_index*/, int /*p_count*/> event_rewind_frame_begin;
-	Processor<uint32_t /*p_input_id*/> event_desync_detected;
-	Processor<uint32_t /*p_input_id*/, ObjectHandle /*p_app_object_handle*/, const std::vector<std::string> & /*p_var_names*/, const std::vector<VarData> & /*p_client_values*/, const std::vector<VarData> & /*p_server_values*/> event_desync_detected_with_info;
+	Processor<FrameIndex> event_state_validated;
+	Processor<FrameIndex, int /*p_peer*/> event_sent_snapshot;
+	Processor<FrameIndex, int /*p_index*/, int /*p_count*/> event_rewind_frame_begin;
+	Processor<FrameIndex> event_desync_detected;
+	Processor<FrameIndex, ObjectHandle /*p_app_object_handle*/, const std::vector<std::string> & /*p_var_names*/, const std::vector<VarData> & /*p_client_values*/, const std::vector<VarData> & /*p_server_values*/> event_desync_detected_with_info;
 
 private:
 	// This is private so this class can be created only from
@@ -488,6 +489,8 @@ public: // ------------------------------------------------------------ INTERNAL
 
 	NetworkedControllerBase *fetch_controller_by_peer(int peer);
 
+	FrameIndex client_get_last_checked_frame_index() const;
+
 public:
 	/// Returns true if this peer is server.
 	bool is_server() const;
@@ -629,6 +632,7 @@ public:
 class ClientSynchronizer : public Synchronizer {
 	friend class SceneSynchronizerBase;
 
+public:
 	double time_bank = 0.0;
 	double acceleration_fps_speed = 0.0;
 	double acceleration_fps_timer = 0.0;
@@ -642,7 +646,7 @@ class ClientSynchronizer : public Synchronizer {
 	NS::Snapshot last_received_snapshot;
 	std::deque<NS::Snapshot> client_snapshots;
 	std::deque<NS::Snapshot> server_snapshots;
-	uint32_t last_checked_input = 0;
+	FrameIndex last_checked_input = { 0 };
 	bool enabled = true;
 	bool want_to_enable = false;
 
@@ -752,7 +756,7 @@ public:
 			void *p_user_pointer,
 			void (*p_custom_data_parse)(void *p_user_pointer, VarData &&p_custom_data),
 			void (*p_ode_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
-			void (*p_input_id_parse)(void *p_user_pointer, uint32_t p_input_id),
+			void (*p_input_id_parse)(void *p_user_pointer, FrameIndex p_frame_index),
 			void (*p_controller_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
 			void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, VarData &&p_value),
 			void (*p_simulated_objects_parse)(void *p_user_pointer, std::vector<ObjectNetId> &&p_simulated_objects));
@@ -776,13 +780,13 @@ private:
 	void process_received_server_state();
 
 	bool __pcr__fetch_recovery_info(
-			const uint32_t p_input_id,
+			const FrameIndex p_input_id,
 			NS::Snapshot &r_no_rewind_recover);
 
 	void __pcr__sync__rewind();
 
 	void __pcr__rewind(
-			const uint32_t p_checkable_input_id,
+			const FrameIndex p_checkable_frame_index,
 			NS::ObjectData *p_local_controller_object,
 			NetworkedControllerBase *p_controller,
 			PlayerController *p_player_controller);
@@ -791,7 +795,7 @@ private:
 			const NS::Snapshot &p_postponed_recover);
 
 	void __pcr__no_rewind(
-			const uint32_t p_checkable_input_id,
+			const FrameIndex p_checkable_frame_index,
 			PlayerController *p_player_controller);
 
 	void process_paused_controller_recovery();

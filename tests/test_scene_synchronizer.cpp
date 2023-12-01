@@ -250,7 +250,7 @@ void test_state_notify() {
 			} else {
 				// Note: the +1 is needed because the change is recored on the snapshot
 				// the scene sync is going to created on the next "process".
-				const uint32_t change_made_on_frame = 1 + peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id();
+				const NS::FrameIndex change_made_on_frame = peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() + 1;
 
 				// When the local controller is set, the client scene sync compares the
 				// received server snapshot with the one recorded on the client on
@@ -303,15 +303,15 @@ void test_state_notify() {
 				peer_2_scene.process(delta);
 			}
 
-			CRASH_COND(server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() != 0);
-			CRASH_COND(peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() != 1);
+			CRASH_COND(server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() != NS::FrameIndex{ 0 });
+			CRASH_COND(peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() != NS::FrameIndex{ 1 });
 			// NOTE: No need to check the peer_2, because it's not an authoritative controller anyway.
 		} else {
 			// Make sure the controllers have been processed at this point.
-			CRASH_COND(server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() == 0);
-			CRASH_COND(server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() == UINT32_MAX);
-			CRASH_COND(peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() == 0);
-			CRASH_COND(peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() == UINT32_MAX);
+			CRASH_COND(server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() == NS::FrameIndex{ 0 });
+			CRASH_COND(server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() == NS::FrameIndex::NONE);
+			CRASH_COND(peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() == NS::FrameIndex{ 0 });
+			CRASH_COND(peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() == NS::FrameIndex::NONE);
 
 			// NOTE: No need to check the peer_2, because it's not an authoritative controller anyway.
 		}
@@ -358,8 +358,8 @@ void test_processing_with_late_controller_registration() {
 
 	// Make sure the client can process right away as the NetId is networked
 	// already.
-	CRASH_COND(server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() != 0);
-	CRASH_COND(peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() != 1);
+	CRASH_COND(server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() != NS::FrameIndex{ 0 });
+	CRASH_COND(peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() != NS::FrameIndex{ 1 });
 }
 
 void test_snapshot_generation() {
@@ -634,15 +634,15 @@ void test_variable_change_event() {
 				peer_2_scene.process(delta);
 			}
 
-			CRASH_COND(server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() != 0);
-			CRASH_COND(peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() != 1);
+			CRASH_COND(server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() != NS::FrameIndex{ 0 });
+			CRASH_COND(peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() != NS::FrameIndex{ 1 });
 			// NOTE: No need to check the peer_2, because it's not an authoritative controller anyway.
 		} else {
 			// Make sure the controllers have been processed at this point.
-			CRASH_COND(server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() == 0);
-			CRASH_COND(server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() == UINT32_MAX);
-			CRASH_COND(peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() == 0);
-			CRASH_COND(peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() == UINT32_MAX);
+			CRASH_COND(server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() == NS::FrameIndex{ 0 });
+			CRASH_COND(server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() == NS::FrameIndex::NONE);
+			CRASH_COND(peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() == NS::FrameIndex{ 0 });
+			CRASH_COND(peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_input_id() == NS::FrameIndex::NONE);
 
 			// NOTE: No need to check the peer_2, because it's not an authoritative controller anyway.
 		}
