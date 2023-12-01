@@ -2506,12 +2506,19 @@ void ClientSynchronizer::store_controllers_snapshot(
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The Client received the server snapshot WITHOUT `input_id`.", true);
 		// The controller node is not registered so just assume this snapshot is the most up-to-date.
 		last_received_server_snapshot.emplace(Snapshot::make_copy(p_snapshot));
+		last_received_server_snapshot_index = p_snapshot.input_id;
 
 	} else {
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The Client received the server snapshot: " + uitos(p_snapshot.input_id.id), true);
-		ENSURE_MSG(last_received_server_snapshot_index <= p_snapshot.input_id, "The client received a too old snapshot. ");
+		ENSURE_MSG(
+				last_received_server_snapshot_index == FrameIndex::NONE ||
+						last_received_server_snapshot_index <= p_snapshot.input_id,
+				"The client received a too old snapshot. If this happens back to back for a long period it's a bug, otherwise can be ignored. last_received_server_snapshot_index: " + std::to_string(last_received_server_snapshot_index.id) + " p_snapshot.input_id: " + std::to_string(p_snapshot.input_id.id));
 		last_received_server_snapshot.emplace(Snapshot::make_copy(p_snapshot));
+		last_received_server_snapshot_index = p_snapshot.input_id;
 	}
+
+	CRASH_COND(last_received_server_snapshot_index != p_snapshot.input_id);
 }
 
 void ClientSynchronizer::process_server_sync() {
