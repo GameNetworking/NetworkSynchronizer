@@ -2546,11 +2546,7 @@ void ClientSynchronizer::process_received_server_state() {
 		return;
 	}
 
-	if (!player_controller_object_data) {
-		// There is no player controller, we can't apply any snapshot which
-		// `input_id` is not UINT32_MAX.
-		return;
-	}
+	ENSURE_MSG(player_controller_object_data, "There is no player controller and the only allowed snapshot are the one with `FrameIndex` set to NONE. The current one is set to " + last_received_server_snapshot->input_id + " so it's ignored.");
 
 	NetworkedControllerBase *controller = player_controller_object_data->get_controller();
 	PlayerController *player_controller = controller->get_player_controller();
@@ -2566,6 +2562,8 @@ void ClientSynchronizer::process_received_server_state() {
 		// No client input, this happens when the stream is paused.
 		process_paused_controller_recovery();
 		scene_synchronizer->event_state_validated.broadcast(last_checked_input, false);
+		// Clear the server snapshot.
+		last_received_server_snapshot.reset();
 		return;
 	}
 

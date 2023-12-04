@@ -3,7 +3,10 @@
 #include <algorithm>
 #include <cstdint>
 #include <limits>
+#include <string>
 #include <type_traits>
+
+std::string operator+(const char *p_chr, const std::string &p_str);
 
 #define NS_NAMESPACE_BEGIN \
 	namespace NS {
@@ -107,6 +110,10 @@ struct IdMaker {
 	T &operator-=(int p_id) {
 		id -= p_id;
 		return *static_cast<T *>(this);
+	}
+
+	operator std::string() {
+		return "`" + std::to_string(id) + "`";
 	}
 };
 

@@ -2,6 +2,12 @@
 #include "core.h"
 #include <limits>
 
+std::string operator+(const char *p_chr, const std::string &p_str) {
+	std::string tmp = p_chr;
+	tmp += p_str;
+	return tmp;
+}
+
 NS_NAMESPACE_BEGIN
 
 const FrameIndex FrameIndex::NONE = { std::numeric_limits<std::uint32_t>::max() };
