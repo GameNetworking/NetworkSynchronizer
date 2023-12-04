@@ -231,10 +231,9 @@ public: // -------------------------------------------------------------- Events
 	Processor<> event_sync_started;
 	Processor<> event_sync_paused;
 	Processor<const NS::ObjectData * /*p_object_data*/, int /*p_peer*/, bool /*p_connected*/, bool /*p_enabled*/> event_peer_status_updated;
-	Processor<FrameIndex> event_state_validated;
+	Processor<FrameIndex, bool /*p_desync_detected*/> event_state_validated;
 	Processor<FrameIndex, int /*p_peer*/> event_sent_snapshot;
 	Processor<FrameIndex, int /*p_index*/, int /*p_count*/> event_rewind_frame_begin;
-	Processor<FrameIndex> event_desync_detected;
 	Processor<FrameIndex, ObjectHandle /*p_app_object_handle*/, const std::vector<std::string> & /*p_var_names*/, const std::vector<VarData> & /*p_client_values*/, const std::vector<VarData> & /*p_server_values*/> event_desync_detected_with_info;
 
 private:

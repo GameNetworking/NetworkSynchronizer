@@ -123,7 +123,7 @@ void GdSceneSynchronizer::_bind_methods() {
 	ADD_SIGNAL(MethodInfo("sync_paused"));
 	ADD_SIGNAL(MethodInfo("peer_status_updated", PropertyInfo(Variant::OBJECT, "controlled_node"), PropertyInfo(Variant::INT, "node_data_id"), PropertyInfo(Variant::INT, "peer"), PropertyInfo(Variant::BOOL, "connected"), PropertyInfo(Variant::BOOL, "enabled")));
 
-	ADD_SIGNAL(MethodInfo("state_validated", PropertyInfo(Variant::INT, "input_id")));
+	ADD_SIGNAL(MethodInfo("state_validated", PropertyInfo(Variant::INT, "input_id"), PropertyInfo(Variant::BOOL, "desync_detected")));
 	ADD_SIGNAL(MethodInfo("rewind_frame_begin", PropertyInfo(Variant::INT, "input_id"), PropertyInfo(Variant::INT, "index"), PropertyInfo(Variant::INT, "count")));
 
 	ADD_SIGNAL(MethodInfo("desync_detected", PropertyInfo(Variant::INT, "input_id"), PropertyInfo(Variant::OBJECT, "node"), PropertyInfo(Variant::ARRAY, "var_names"), PropertyInfo(Variant::ARRAY, "client_values"), PropertyInfo(Variant::ARRAY, "server_values")));
@@ -170,8 +170,8 @@ GdSceneSynchronizer::GdSceneSynchronizer() :
 			});
 
 	event_handler_state_validated =
-			scene_synchronizer.event_state_validated.bind([this](NS::FrameIndex p_frame) -> void {
-				emit_signal("state_validated", p_frame.id);
+			scene_synchronizer.event_state_validated.bind([this](NS::FrameIndex p_frame, bool p_desync_detected) -> void {
+				emit_signal("state_validated", p_frame.id, p_desync_detected);
 			});
 
 	event_handler_rewind_frame_begin =
