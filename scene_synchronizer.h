@@ -523,7 +523,7 @@ public:
 	virtual const std::vector<ObjectData *> &get_active_objects() const = 0;
 };
 
-class NoNetSynchronizer : public Synchronizer {
+class NoNetSynchronizer final : public Synchronizer {
 	friend class SceneSynchronizerBase;
 
 	double time_bank = 0.0;
@@ -546,7 +546,7 @@ public:
 	int fetch_sub_processes_count(double p_delta);
 };
 
-class ServerSynchronizer : public Synchronizer {
+class ServerSynchronizer final : public Synchronizer {
 	friend class SceneSynchronizerBase;
 
 	double time_bank = 0.0;
@@ -629,7 +629,7 @@ public:
 	int fetch_sub_processes_count(double p_delta);
 };
 
-class ClientSynchronizer : public Synchronizer {
+class ClientSynchronizer final : public Synchronizer {
 	friend class SceneSynchronizerBase;
 
 public:
