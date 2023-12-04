@@ -1,10 +1,10 @@
 #pragma once
 
 #include "core.h"
-#include "core/error/error_macros.h"
-#include "core/string/string_name.h"
+#include "ensure.h"
 #include "network_codec.h"
 #include <functional>
+#include <string>
 #include <type_traits>
 #include <vector>
 
@@ -120,11 +120,15 @@ public: // ---------------------------------------------------------------- APIs
 		p_db.begin_read();
 		std::uint8_t rpc_id;
 		p_db.read(rpc_id);
+		ENSURE_MSG(rpc_id < rpcs_info.size(), "The received rpc contains a broken RPC ID: `" + std::to_string(rpc_id) + "`, the `rpcs_info` size is `" + std::to_string(rpcs_info.size()) + "`.");
+		// This can't be triggered because the rpc always points to a valid
+		// function at this point.
+		ASSERT_COND(rpcs_info[rpc_id].func);
 		rpcs_info[rpc_id].func(p_db);
 	}
 
 	const RPCInfo *get_rpc_info(uint8_t p_rpc_id) const {
-		ERR_FAIL_COND_V(p_rpc_id >= rpcs_info.size(), nullptr);
+		ENSURE_V(p_rpc_id < rpcs_info.size(), nullptr);
 		return &rpcs_info[p_rpc_id];
 	}
 
@@ -156,7 +160,7 @@ private: // ------------------------------------------------------- RPC internal
 
 template <typename... ARGs>
 void RpcHandle<ARGs...>::rpc(NetworkInterface &p_interface, int p_peer_id, ARGs... p_args) const {
-	ERR_FAIL_COND(p_interface.rpcs_info.size() <= index);
+	ENSURE(p_interface.rpcs_info.size() > index);
 
 	DataBuffer db;
 	db.begin_write(0);
