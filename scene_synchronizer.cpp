@@ -2384,7 +2384,6 @@ void ClientSynchronizer::receive_snapshot(DataBuffer &p_snapshot) {
 		return;
 	}
 
-	NS::print_line("RECEIVED: " + std::to_string(last_received_snapshot.input_id.id));
 	// Finalize data.
 	store_controllers_snapshot(last_received_snapshot);
 }
@@ -2566,21 +2565,17 @@ void ClientSynchronizer::process_received_server_state() {
 	if (client_snapshots.empty()) {
 		// No client input, this happens when the stream is paused.
 		process_paused_controller_recovery();
+		scene_synchronizer->event_state_validated.broadcast(last_checked_input, false);
 		return;
 	}
 
 	// Find the best recoverable input_id.
 	last_checked_input = last_received_server_snapshot->input_id;
 
-	NS::print_line("--");
-	NS::print_line("CHECKING: " + std::to_string(last_checked_input.id));
-
 	// Drop all the old client snapshots until the one that we need.
 	while (client_snapshots.front().input_id < last_checked_input) {
-		NS::print_line("CLIENT: " + std::to_string(client_snapshots.front().input_id.id));
 		client_snapshots.pop_front();
 	}
-	NS::print_line("~~");
 
 #ifdef DEBUG_ENABLED
 	// This can't be triggered because this case is already handled above.
@@ -2591,7 +2586,7 @@ void ClientSynchronizer::process_received_server_state() {
 		// The client keep all the unprocessed snapshots.
 		// NOTE: the -1 check is needed for the cases when the same snapshot is
 		//       processed twice (in that case the input_id is already cleared).
-		CRASH_COND(client_snapshots.front().input_id == last_checked_input || (client_snapshots.front().input_id - 1) == last_checked_input);
+		CRASH_COND(client_snapshots.front().input_id != last_checked_input && (client_snapshots.front().input_id - 1) != last_checked_input);
 	}
 #endif
 
@@ -2614,9 +2609,7 @@ void ClientSynchronizer::process_received_server_state() {
 		need_rewind = true;
 	}
 
-	if (need_rewind) {
-		scene_synchronizer->event_desync_detected.broadcast(last_checked_input);
-	}
+	scene_synchronizer->event_state_validated.broadcast(last_checked_input, need_rewind);
 
 	// --- Phase three: recover and rewind. ---
 
@@ -2755,13 +2748,12 @@ void ClientSynchronizer::__pcr__rewind(
 		NetworkedControllerBase *p_local_controller,
 		PlayerController *p_local_player_controller) {
 	NS_PROFILE
-	scene_synchronizer->event_state_validated.broadcast(p_checkable_frame_index);
-	p_local_player_controller->notify_input_checked(p_checkable_frame_index);
 	const int frames_to_rewind = p_local_player_controller->get_frames_input_count();
 
 #ifdef DEBUG_ENABLED
 	// Unreachable because the SceneSynchronizer and the PlayerController
-	// have the same stored data at this point.
+	// have the same stored data at this point: thanks to the `event_state_validated`
+	// the NetController clears its stored frames.
 	CRASH_COND_MSG(client_snapshots.size() != size_t(frames_to_rewind), "Beware that `client_snapshots.size()` (" + itos(client_snapshots.size()) + ") and `remaining_inputs` (" + itos(frames_to_rewind) + ") should be the same.");
 #endif
 
@@ -2843,7 +2835,6 @@ void ClientSynchronizer::__pcr__no_rewind(
 		const FrameIndex p_checkable_input_id,
 		PlayerController *p_player_controller) {
 	NS_PROFILE
-	scene_synchronizer->event_state_validated.broadcast(p_checkable_input_id);
 }
 
 void ClientSynchronizer::process_paused_controller_recovery() {

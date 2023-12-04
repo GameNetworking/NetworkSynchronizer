@@ -220,6 +220,7 @@ public:
 	bool has_scene_synchronizer() const;
 
 	void on_peer_status_updated(const NS::ObjectData *p_object_data, int p_peer_id, bool p_connected, bool p_enabled);
+	void on_state_validated(FrameIndex p_frame_index);
 	void on_rewind_frame_begin(FrameIndex p_input_id, int p_index, int p_count);
 
 	/* On server rpc functions. */
@@ -280,6 +281,7 @@ struct Controller {
 	virtual void ready() {}
 	virtual FrameIndex get_current_input_id() const = 0;
 	virtual void process(double p_delta) = 0;
+	virtual void on_state_validated(FrameIndex p_frame_index) {}
 
 	virtual bool receive_inputs(const Vector<uint8_t> &p_data) { return false; };
 	virtual void queue_instant_process(FrameIndex p_input_id, int p_index, int p_count) {}
@@ -341,7 +343,7 @@ struct ServerController : public RemotelyControlledController {
 	std::int8_t compute_client_tick_rate_distance_to_optimal();
 };
 
-struct AutonomousServerController : public ServerController {
+struct AutonomousServerController final : public ServerController {
 	AutonomousServerController(
 			NetworkedControllerBase *p_node);
 
@@ -350,7 +352,7 @@ struct AutonomousServerController : public ServerController {
 	virtual bool fetch_next_input(real_t p_delta) override;
 };
 
-struct PlayerController : public Controller {
+struct PlayerController final : public Controller {
 	FrameIndex current_input_id;
 	uint32_t input_buffers_counter;
 	bool streaming_paused = false;
@@ -370,6 +372,7 @@ struct PlayerController : public Controller {
 	virtual void queue_instant_process(FrameIndex p_input_id, int p_index, int p_count) override;
 	bool has_another_instant_to_process_after(int p_i) const;
 	virtual void process(double p_delta) override;
+	virtual void on_state_validated(FrameIndex p_frame_index) override;
 
 	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;
 
@@ -388,7 +391,7 @@ struct PlayerController : public Controller {
 /// and fetch them exactly like the server.
 /// After the execution of the inputs, the puppet start to act like the player,
 /// because it wait the player status from the server to correct its motion.
-struct DollController : public RemotelyControlledController {
+struct DollController final : public RemotelyControlledController {
 	DollController(NetworkedControllerBase *p_node);
 
 	FrameIndex last_checked_input = { 0 };
@@ -398,6 +401,7 @@ struct DollController : public RemotelyControlledController {
 	virtual void queue_instant_process(FrameIndex p_input_id, int p_index, int p_count) override;
 	virtual bool fetch_next_input(real_t p_delta) override;
 	virtual void process(double p_delta) override;
+	virtual void on_state_validated(FrameIndex p_frame_index) override;
 	void notify_input_checked(FrameIndex p_input_id);
 };
 

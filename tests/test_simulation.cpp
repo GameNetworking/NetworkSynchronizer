@@ -382,8 +382,10 @@ public:
 			CRASH_NOW();
 		});
 
-		controller_p1->get_scene_synchronizer()->event_desync_detected.bind([this](NS::FrameIndex p_frame_index) {
-			client_rewinded_frames.push_back(p_frame_index);
+		controller_p1->get_scene_synchronizer()->event_state_validated.bind([this](NS::FrameIndex p_frame_index, bool p_desync) {
+			if (p_desync) {
+				client_rewinded_frames.push_back(p_frame_index);
+			}
 		});
 	}
 

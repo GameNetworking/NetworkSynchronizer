@@ -10,6 +10,7 @@
 #include "godot4/gd_network_interface.h"
 #include "modules/network_synchronizer/core/core.h"
 #include "modules/network_synchronizer/core/print.h"
+#include "modules/network_synchronizer/networked_controller.h"
 #include "modules/network_synchronizer/scene_synchronizer.h"
 #include "net_utilities.h"
 #include "networked_controller.h"
@@ -296,6 +297,11 @@ void NetworkedControllerBase::notify_registered_with_synchronizer(NS::SceneSynch
 				on_peer_status_updated(p_object_data, p_peer_id, p_connected, p_enabled);
 			});
 
+	event_handler_state_validated =
+			scene_synchronizer->event_state_validated.bind([this](FrameIndex p_input_id, bool p_desync_detected) -> void {
+				on_state_validated(p_input_id);
+			});
+
 	event_handler_rewind_frame_begin =
 			scene_synchronizer->event_rewind_frame_begin.bind([this](FrameIndex p_frame_index, int p_index, int p_count) -> void {
 				on_rewind_frame_begin(p_frame_index, p_index, p_count);
@@ -319,6 +325,12 @@ void NetworkedControllerBase::on_peer_status_updated(const NS::ObjectData *p_obj
 		if (is_server_controller()) {
 			get_server_controller()->on_peer_update(p_connected && p_enabled);
 		}
+	}
+}
+
+void NetworkedControllerBase::on_state_validated(FrameIndex p_frame_index) {
+	if (controller) {
+		controller->on_state_validated(p_frame_index);
 	}
 }
 
@@ -1133,6 +1145,10 @@ void PlayerController::process(double p_delta) {
 	}
 }
 
+void PlayerController::on_state_validated(FrameIndex p_frame_index) {
+	notify_input_checked(p_frame_index);
+}
+
 FrameIndex PlayerController::get_current_input_id() const {
 	return current_input_id;
 }
@@ -1444,6 +1460,10 @@ void DollController::process(double p_delta) {
 	}
 
 	queued_instant_to_process = -1;
+}
+
+void DollController::on_state_validated(FrameIndex p_frame_index) {
+	notify_input_checked(p_frame_index);
 }
 
 void DollController::notify_input_checked(FrameIndex p_frame_index) {
