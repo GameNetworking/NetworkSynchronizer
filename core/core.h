@@ -8,6 +8,15 @@
 
 std::string operator+(const char *p_chr, const std::string &p_str);
 
+#if __cplusplus > 201703L
+// C++20 supports likely and unlikely
+#define make_likely(cond) (cond) [[likely]]
+#define make_unlikely(cond) (cond) [[unlikely]]
+#else
+#define make_likely(cond) (cond)
+#define make_unlikely(cond) (cond)
+#endif
+
 #define NS_NAMESPACE_BEGIN \
 	namespace NS {
 

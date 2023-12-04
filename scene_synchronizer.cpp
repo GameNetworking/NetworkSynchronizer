@@ -307,7 +307,7 @@ void SceneSynchronizerBase::register_app_object(ObjectHandle p_app_object_handle
 
 		od->set_controller(synchronizer_manager->extract_network_controller(p_app_object_handle));
 		if (od->get_controller()) {
-			if (unlikely(od->get_controller()->has_scene_synchronizer())) {
+			if make_unlikely (od->get_controller()->has_scene_synchronizer()) {
 				ERR_PRINT("This controller already has a synchronizer. This is a bug!");
 			}
 
@@ -807,7 +807,7 @@ void SceneSynchronizerBase::set_enabled(bool p_enable) {
 
 bool SceneSynchronizerBase::is_enabled() const {
 	ERR_FAIL_COND_V_MSG(synchronizer_type == SYNCHRONIZER_TYPE_SERVER, false, "The server is always enabled.");
-	if (likely(synchronizer_type == SYNCHRONIZER_TYPE_CLIENT)) {
+	if make_likely (synchronizer_type == SYNCHRONIZER_TYPE_CLIENT) {
 		return static_cast<ClientSynchronizer *>(synchronizer)->enabled;
 	} else if (synchronizer_type == SYNCHRONIZER_TYPE_NONETWORK) {
 		return static_cast<NoNetSynchronizer *>(synchronizer)->enabled;
@@ -1106,7 +1106,7 @@ void SceneSynchronizerBase::update_peers() {
 	CRASH_COND(synchronizer_type != SYNCHRONIZER_TYPE_SERVER);
 #endif
 
-	if (likely(peer_dirty == false)) {
+	if make_likely (peer_dirty == false) {
 		return;
 	}
 
@@ -1567,7 +1567,7 @@ void NoNetSynchronizer::clear() {
 }
 
 void NoNetSynchronizer::process(double p_delta) {
-	if (unlikely(enabled == false)) {
+	if make_unlikely (enabled == false) {
 		return;
 	}
 
@@ -1672,7 +1672,7 @@ void ServerSynchronizer::process(double p_delta) {
 #if DEBUG_ENABLED
 	// Write the debug dump for each peer.
 	for (auto &peer_it : scene_synchronizer->peer_data) {
-		if (unlikely(peer_it.second.controller_id == ObjectNetId::NONE)) {
+		if make_unlikely (peer_it.second.controller_id == ObjectNetId::NONE) {
 			continue;
 		}
 
@@ -2340,7 +2340,7 @@ void ClientSynchronizer::process(double p_delta) {
 	SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "ClientSynchronizer::process", true);
 
 #ifdef DEBUG_ENABLED
-	if (p_delta > (scene_synchronizer->get_fixed_frame_delta() + (scene_synchronizer->get_fixed_frame_delta() * 0.2))) [[unlikely]] {
+	if make_unlikely (p_delta > (scene_synchronizer->get_fixed_frame_delta() + (scene_synchronizer->get_fixed_frame_delta() * 0.2))) {
 		const bool silent = !ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/debugger/log_debug_fps_warnings");
 		SceneSynchronizerDebugger::singleton()->debug_warning(&scene_synchronizer->get_network_interface(), "Current FPS is " + itos(Engine::get_singleton()->get_frames_per_second()) + ", but the minimum required FPS is " + itos(scene_synchronizer->get_frames_per_seconds()) + ", the client is unable to generate enough inputs for the server.", silent);
 	}
@@ -2464,7 +2464,7 @@ void ClientSynchronizer::on_controller_reset(NS::ObjectData *p_object_data) {
 }
 
 const std::vector<ObjectData *> &ClientSynchronizer::get_active_objects() const {
-	if (player_controller_object_data && enabled) [[likely]] {
+	if make_likely (player_controller_object_data && enabled) {
 		return active_objects;
 	} else {
 		// Since there is no player controller or the sync is disabled, this
@@ -2479,7 +2479,7 @@ void ClientSynchronizer::store_snapshot() {
 	NetworkedControllerBase *controller = player_controller_object_data->get_controller();
 
 #ifdef DEBUG_ENABLED
-	if (unlikely(client_snapshots.size() > 0 && controller->get_current_frame_index() <= client_snapshots.back().input_id)) {
+	if make_unlikely (client_snapshots.size() > 0 && controller->get_current_frame_index() <= client_snapshots.back().input_id) {
 		CRASH_NOW_MSG("[FATAL] During snapshot creation, for controller " + String(player_controller_object_data->object_name.c_str()) + ", was found an ID for an older snapshots. New input ID: " + uitos(controller->get_current_frame_index().id) + " Last saved snapshot input ID: " + uitos(client_snapshots.back().input_id.id) + ".");
 	}
 #endif
@@ -2585,7 +2585,7 @@ void ClientSynchronizer::process_received_server_state() {
 
 	bool need_rewind;
 	NS::Snapshot no_rewind_recover;
-	if (!client_snapshots.empty() && client_snapshots.front().input_id == last_checked_input) [[likely]] {
+	if make_likely (!client_snapshots.empty() && client_snapshots.front().input_id == last_checked_input) {
 		// In this case the client is checking the frame for the first time, and
 		// this is the most common case.
 
@@ -2879,7 +2879,7 @@ int ClientSynchronizer::calculates_sub_ticks(const double p_delta) {
 	const int sub_ticks = std::floor(time_bank * static_cast<double>(scene_synchronizer->get_frames_per_seconds()));
 
 	time_bank -= static_cast<double>(sub_ticks) / static_cast<double>(scene_synchronizer->get_frames_per_seconds());
-	if (time_bank < 0.0) [[unlikely]] {
+	if make_unlikely (time_bank < 0.0) {
 		time_bank = 0.0;
 	}
 
@@ -2904,7 +2904,7 @@ int ClientSynchronizer::calculates_sub_ticks(const double p_delta) {
 void ClientSynchronizer::process_simulation(double p_delta) {
 	NS_PROFILE
 
-	if (unlikely(player_controller_object_data == nullptr || enabled == false)) {
+	if make_unlikely (player_controller_object_data == nullptr || enabled == false) {
 		// No player controller so can't process the simulation.
 		// TODO Remove this constraint?
 
@@ -3450,7 +3450,7 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 		return false;
 	}
 
-	if (unlikely(received_snapshot.input_id == FrameIndex::NONE && player_controller_object_data != nullptr)) {
+	if make_unlikely (received_snapshot.input_id == FrameIndex::NONE && player_controller_object_data != nullptr) {
 		// We espect that the player_controller is updated by this new snapshot,
 		// so make sure it's done so.
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "[INFO] the player controller (" + String(player_controller_object_data->object_name.c_str()) + ") was not part of the received snapshot, this happens when the server destroys the peer controller.");

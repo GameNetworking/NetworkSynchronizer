@@ -164,11 +164,12 @@ void insert_at_position_expand(std::vector<V> &r_vec, std::size_t p_index, const
 }
 
 // Return the value at index or default if not set.
-template <class V, typename T>
-const T &at(const std::vector<V> &p_vec, std::size_t p_index, const T &p_default) {
+template <class V>
+const V at(const std::vector<V> &p_vec, const std::size_t p_index, const V &p_default) {
 	if (p_vec.size() <= p_index) {
 		return p_default;
 	}
+	// TODO not sure why this returns a local pointer, I'm forced to return a non reference here...
 	return p_vec[p_index];
 }
 

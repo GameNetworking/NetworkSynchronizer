@@ -41,16 +41,16 @@ void _ns_print_flush_stdout();
 
 /// Ensures `m_cond` is true.
 /// If `m_cond` is false the current function returns.
-#define ENSURE(m_cond)       \
-	if (m_cond) [[likely]] { \
-	} else {                 \
-		return;              \
+#define ENSURE(m_cond)        \
+	if make_likely (m_cond) { \
+	} else {                  \
+		return;               \
 	}
 
 /// Ensures `m_cond` is true.
 /// If `m_cond` is false, prints `m_msg` and the current function returns.
 #define ENSURE_MSG(m_cond, m_msg)                                                                                                                                            \
-	if (m_cond) [[likely]] {                                                                                                                                                 \
+	if make_likely (m_cond) {                                                                                                                                                \
 	} else {                                                                                                                                                                 \
 		_ns_print_code_message(FUNCTION_STR, __FILE__, __LINE__, "Condition \"" _STR(m_cond) "\" is false. Returning: " _STR(m_retval), m_msg, NS::PrintMessageType::ERROR); \
 		return;                                                                                                                                                              \
@@ -59,7 +59,7 @@ void _ns_print_flush_stdout();
 /// Ensures `m_cond` is true.
 /// If `m_cond` is false, the current function returns `m_retval`.
 #define ENSURE_V(m_cond, m_retval) \
-	if (m_cond) [[likely]] {       \
+	if make_likely (m_cond) {      \
 	} else {                       \
 		return m_retval;           \
 	}
@@ -67,7 +67,7 @@ void _ns_print_flush_stdout();
 /// Ensures `m_cond` is true.
 /// If `m_cond` is false, prints `m_msg` and the current function returns `m_retval`.
 #define ENSURE_V_MSG(m_cond, m_retval, m_msg)                                                                                                                                \
-	if (m_cond) [[likely]] {                                                                                                                                                 \
+	if make_likely (m_cond) {                                                                                                                                                \
 	} else {                                                                                                                                                                 \
 		_ns_print_code_message(FUNCTION_STR, __FILE__, __LINE__, "Condition \"" _STR(m_cond) "\" is false. Returning: " _STR(m_retval), m_msg, NS::PrintMessageType::ERROR); \
 		return m_retval;                                                                                                                                                     \
@@ -86,7 +86,7 @@ void _ns_print_flush_stdout();
 /// Ensures `m_cond` is true.
 /// If `m_cond` is true, the application crashes.
 #define ASSERT_COND(m_cond)                                                                                                                          \
-	if (m_cond) [[likely]] {                                                                                                                         \
+	if make_likely (m_cond) {                                                                                                                        \
 	} else {                                                                                                                                         \
 		_ns_print_code_message(FUNCTION_STR, __FILE__, __LINE__, "FATAL: Condition \"" _STR(m_cond) "\" is false", "", NS::PrintMessageType::ERROR); \
 		_ns_print_flush_stdout();                                                                                                                    \
@@ -96,7 +96,7 @@ void _ns_print_flush_stdout();
 /// Ensures `m_cond` is true.
 /// If `m_cond` is true, prints `m_msg` and the application crashes.
 #define ASSERT_COND_MSG(m_cond, m_msg)                                                                                                                   \
-	if (m_cond) [[likely]] {                                                                                                                             \
+	if make_likely (m_cond) {                                                                                                                            \
 	} else {                                                                                                                                             \
 		_ns_print_code_message(FUNCTION_STR, __FILE__, __LINE__, "FATAL: Condition \"" _STR(m_cond) "\" is false.", m_msg, NS::PrintMessageType::ERROR); \
 		_ns_print_flush_stdout();                                                                                                                        \
