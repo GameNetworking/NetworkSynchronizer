@@ -8,7 +8,6 @@
 #include "modules/network_synchronizer/core/var_data.h"
 #include "modules/network_synchronizer/net_utilities.h"
 #include "modules/network_synchronizer/tests/local_network.h"
-#include <stdint.h>
 
 namespace NS_Test {
 
