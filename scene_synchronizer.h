@@ -1,31 +1,17 @@
 #pragma once
 
-#include "core/object/object.h"
-#include "modules/network_synchronizer/core/core.h"
+#include "core/templates/local_vector.h"
 
 #include "core/network_interface.h"
-#include "core/object_data.h"
-#include "core/templates/local_vector.h"
-#include "core/templates/oa_hash_map.h"
-#include "data_buffer.h"
-#include "modules/network_synchronizer/core/object_data_storage.h"
-#include "modules/network_synchronizer/core/processor.h"
-#include "modules/network_synchronizer/core/var_data.h"
-#include "net_utilities.h"
+#include "core/object_data_storage.h"
+#include "core/processor.h"
 #include "snapshot.h"
-#include <cstdint>
 #include <deque>
-#include <functional>
 #include <map>
-#include <memory>
 #include <optional>
 #include <vector>
 
 NS_NAMESPACE_BEGIN
-
-class NetworkedControllerBase;
-struct PlayerController;
-class Synchronizer;
 
 class SynchronizerManager {
 public:
@@ -39,8 +25,8 @@ public:
 #endif
 
 	/// Add object data and generates the `ObjectNetId` if allowed.
-	virtual void on_add_object_data(NS::ObjectData &p_object_data) {}
-	virtual void on_drop_object_data(NS::ObjectData &p_object_data) {}
+	virtual void on_add_object_data(struct ObjectData &p_object_data) {}
+	virtual void on_drop_object_data(ObjectData &p_object_data) {}
 
 	virtual void on_sync_group_created(SyncGroupId p_group_id) {}
 
@@ -48,8 +34,8 @@ public:
 	/// and it's here that you want to update the object relevancy.
 	virtual void update_objects_relevancy() {}
 
-	virtual bool snapshot_get_custom_data(const NS::SyncGroup *p_group, NS::VarData &r_custom_data) { return false; }
-	virtual void snapshot_set_custom_data(const NS::VarData &r_custom_data) {}
+	virtual bool snapshot_get_custom_data(const SyncGroup *p_group, struct VarData &r_custom_data) { return false; }
+	virtual void snapshot_set_custom_data(const VarData &r_custom_data) {}
 
 	virtual ObjectHandle fetch_app_object(const std::string &p_object_name) = 0;
 	virtual uint64_t get_object_id(ObjectHandle p_app_object_handle) const = 0;
@@ -58,7 +44,7 @@ public:
 	virtual void set_variable(ObjectHandle p_app_object_handle, const char *p_var_name, const VarData &p_val) = 0;
 	virtual bool get_variable(ObjectHandle p_app_object_handle, const char *p_var_name, VarData &p_val) const = 0;
 
-	virtual NetworkedControllerBase *extract_network_controller(ObjectHandle p_app_object_handle) = 0;
+	virtual class NetworkedControllerBase *extract_network_controller(ObjectHandle p_app_object_handle) = 0;
 	virtual const NetworkedControllerBase *extract_network_controller(ObjectHandle p_app_object_handle) const = 0;
 };
 
@@ -142,13 +128,14 @@ public:
 	};
 
 protected:
-	static void (*var_data_encode_func)(DataBuffer &r_buffer, const NS::VarData &p_val);
+	static void (*var_data_encode_func)(class DataBuffer &r_buffer, const NS::VarData &p_val);
 	static void (*var_data_decode_func)(NS::VarData &r_val, DataBuffer &p_buffer);
 	static bool (*var_data_compare_func)(const VarData &p_A, const VarData &p_B);
 	static std::string (*var_data_stringify_func)(const VarData &p_var_data, bool p_verbose);
 
 	static void (*print_line_func)(const std::string &p_str);
 	static void (*print_code_message_func)(const char *p_function, const char *p_file, int p_line, const std::string &p_error, const std::string &p_message, NS::PrintMessageType p_type);
+	static void (*print_flush_stdout_func)();
 
 #ifdef DEBUG_ENABLED
 	const bool pedantic_checks = false;
@@ -251,7 +238,8 @@ public: // -------------------------------------------------------- Manager APIs
 			bool (*p_var_data_compare_func)(const VarData &p_A, const VarData &p_B),
 			std::string (*p_var_data_stringify_func)(const VarData &p_var_data, bool p_verbose),
 			void (*p_print_line_func)(const std::string &p_str),
-			void (*p_print_code_message_func)(const char *p_function, const char *p_file, int p_line, const std::string &p_error, const std::string &p_message, NS::PrintMessageType p_type));
+			void (*p_print_code_message_func)(const char *p_function, const char *p_file, int p_line, const std::string &p_error, const std::string &p_message, NS::PrintMessageType p_type),
+			void (*p_print_flush_stdout_func)());
 
 	/// Setup the synchronizer
 	void setup(SynchronizerManager &p_synchronizer_manager);
@@ -272,6 +260,7 @@ public:
 	static std::string var_data_stringify(const VarData &p_var_data, bool p_verbose = false);
 	static void print_line(const std::string &p_str);
 	static void print_code_message(const char *p_function, const char *p_file, int p_line, const std::string &p_error, const std::string &p_message, NS::PrintMessageType p_type);
+	static void print_flush_stdout();
 
 	NS::NetworkInterface &get_network_interface() {
 		return *network_interface;
@@ -640,13 +629,13 @@ public:
 
 	std::vector<ObjectNetId> simulated_objects;
 	std::vector<ObjectData *> active_objects;
-	NS::ObjectData *player_controller_object_data = nullptr;
+	ObjectData *player_controller_object_data = nullptr;
 	std::map<ObjectNetId, std::string> objects_names;
 
-	NS::Snapshot last_received_snapshot;
-	std::deque<NS::Snapshot> client_snapshots;
+	Snapshot last_received_snapshot;
+	std::deque<Snapshot> client_snapshots;
 	FrameIndex last_received_server_snapshot_index = FrameIndex::NONE;
-	std::optional<NS::Snapshot> last_received_server_snapshot;
+	std::optional<Snapshot> last_received_server_snapshot;
 	FrameIndex last_checked_input = { 0 };
 	bool enabled = true;
 	bool want_to_enable = false;
@@ -773,25 +762,25 @@ private:
 	/// Store object data organized per controller.
 	void store_snapshot();
 
-	void store_controllers_snapshot(const NS::Snapshot &p_snapshot);
+	void store_controllers_snapshot(const Snapshot &p_snapshot);
 
 	void process_server_sync();
 	void process_received_server_state();
 
 	bool __pcr__fetch_recovery_info(
 			const FrameIndex p_input_id,
-			NS::Snapshot &r_no_rewind_recover);
+			Snapshot &r_no_rewind_recover);
 
 	void __pcr__sync__rewind();
 
 	void __pcr__rewind(
 			const FrameIndex p_checkable_frame_index,
-			NS::ObjectData *p_local_controller_object,
+			ObjectData *p_local_controller_object,
 			NetworkedControllerBase *p_controller,
-			PlayerController *p_player_controller);
+			struct PlayerController *p_player_controller);
 
 	void __pcr__sync__no_rewind(
-			const NS::Snapshot &p_postponed_recover);
+			const Snapshot &p_postponed_recover);
 
 	void __pcr__no_rewind(
 			const FrameIndex p_checkable_frame_index,
@@ -807,10 +796,10 @@ private:
 
 	void notify_server_full_snapshot_is_needed();
 
-	void update_client_snapshot(NS::Snapshot &p_snapshot);
+	void update_client_snapshot(Snapshot &p_snapshot);
 	void update_simulated_objects_list(const std::vector<ObjectNetId> &p_simulated_objects);
 	void apply_snapshot(
-			const NS::Snapshot &p_snapshot,
+			const Snapshot &p_snapshot,
 			int p_flag,
 			std::vector<std::string> *r_applied_data_info,
 			bool p_skip_custom_data = false);

@@ -1,25 +1,15 @@
 #include "networked_controller.h"
 
-#include "core/config/engine.h"
-#include "core/config/project_settings.h"
-#include "core/error/error_macros.h"
 #include "core/io/marshalls.h"
-#include "core/print.h"
-#include "core/processor.h"
 #include "core/templates/vector.h"
-#include "godot4/gd_network_interface.h"
-#include "modules/network_synchronizer/core/core.h"
-#include "modules/network_synchronizer/core/print.h"
-#include "modules/network_synchronizer/networked_controller.h"
-#include "modules/network_synchronizer/scene_synchronizer.h"
+
+#include "core/ensure.h"
+#include "core/print.h"
+#include "modules/network_synchronizer/core/ensure.h"
 #include "net_utilities.h"
-#include "networked_controller.h"
-#include "scene/main/multiplayer_api.h"
 #include "scene_synchronizer.h"
 #include "scene_synchronizer_debugger.h"
 #include <algorithm>
-#include <functional>
-#include <string>
 
 #define METADATA_SIZE 1
 
@@ -77,7 +67,7 @@ void NetworkedControllerBase::set_server_controlled(bool p_server_controlled) {
 			// This is the server, let's start the procedure to switch controll mode.
 
 #ifdef DEBUG_ENABLED
-			CRASH_COND_MSG(scene_synchronizer == nullptr, "When the `NetworkedController` is a server, the `scene_synchronizer` is always set.");
+			ASSERT_COND_MSG(scene_synchronizer, "When the `NetworkedController` is a server, the `scene_synchronizer` is always set.");
 #endif
 
 			// First update the variable.
@@ -106,7 +96,7 @@ void NetworkedControllerBase::set_server_controlled(bool p_server_controlled) {
 
 		} else {
 #ifdef DEBUG_ENABLED
-			CRASH_NOW_MSG("Unreachable, all the cases are handled.");
+			ASSERT_NO_ENTRY_MSG("Unreachable, all the cases are handled.");
 #endif
 		}
 	} else {
@@ -152,13 +142,13 @@ int NetworkedControllerBase::get_max_frames_delay() const {
 	return max_frames_delay;
 }
 
-FrameIndex NetworkedControllerBase::get_current_input_id() const {
-	ERR_FAIL_NULL_V(controller, FrameIndex::NONE);
-	return controller->get_current_input_id();
+FrameIndex NetworkedControllerBase::get_current_frame_index() const {
+	ENSURE_V(controller, FrameIndex::NONE);
+	return controller->get_current_frame_index();
 }
 
 void NetworkedControllerBase::server_set_peer_simulating_this_controller(int p_peer, bool p_simulating) {
-	ERR_FAIL_COND_MSG(!is_server_controller(), "This function can be called only on the server.");
+	ENSURE_MSG(is_server_controller(), "This function can be called only on the server.");
 	if (p_simulating) {
 		VecFunc::insert_unique(get_server_controller()->peers_simulating_this_controller, p_peer);
 	} else {
@@ -167,7 +157,7 @@ void NetworkedControllerBase::server_set_peer_simulating_this_controller(int p_p
 }
 
 bool NetworkedControllerBase::server_is_peer_simulating_this_controller(int p_peer) const {
-	ERR_FAIL_COND_V_MSG(!is_server_controller(), false, "This function can be called only on the server.");
+	ENSURE_V_MSG(is_server_controller(), false, "This function can be called only on the server.");
 	return VecFunc::has(get_server_controller()->peers_simulating_this_controller, p_peer);
 }
 
@@ -176,7 +166,7 @@ int NetworkedControllerBase::server_get_associated_peer() const {
 }
 
 bool NetworkedControllerBase::has_another_instant_to_process_after(int p_i) const {
-	ERR_FAIL_COND_V_MSG(is_player_controller() == false, false, "Can be executed only on player controllers.");
+	ENSURE_V_MSG(is_player_controller(), false, "Can be executed only on player controllers.");
 	return static_cast<PlayerController *>(controller)->has_another_instant_to_process_after(p_i);
 }
 
@@ -187,12 +177,12 @@ void NetworkedControllerBase::process(double p_delta) {
 }
 
 ServerController *NetworkedControllerBase::get_server_controller() {
-	ERR_FAIL_COND_V_MSG(is_server_controller() == false, nullptr, "This controller is not a server controller.");
+	ENSURE_V_MSG(is_server_controller(), nullptr, "This controller is not a server controller.");
 	return static_cast<ServerController *>(controller);
 }
 
 const ServerController *NetworkedControllerBase::get_server_controller() const {
-	ERR_FAIL_COND_V_MSG(is_server_controller() == false, nullptr, "This controller is not a server controller.");
+	ENSURE_V_MSG(is_server_controller(), nullptr, "This controller is not a server controller.");
 	return static_cast<const ServerController *>(controller);
 }
 
@@ -205,32 +195,32 @@ const ServerController *NetworkedControllerBase::get_server_controller_unchecked
 }
 
 PlayerController *NetworkedControllerBase::get_player_controller() {
-	ERR_FAIL_COND_V_MSG(is_player_controller() == false, nullptr, "This controller is not a player controller.");
+	ENSURE_V_MSG(is_player_controller(), nullptr, "This controller is not a player controller.");
 	return static_cast<PlayerController *>(controller);
 }
 
 const PlayerController *NetworkedControllerBase::get_player_controller() const {
-	ERR_FAIL_COND_V_MSG(is_player_controller() == false, nullptr, "This controller is not a player controller.");
+	ENSURE_V_MSG(is_player_controller(), nullptr, "This controller is not a player controller.");
 	return static_cast<const PlayerController *>(controller);
 }
 
 DollController *NetworkedControllerBase::get_doll_controller() {
-	ERR_FAIL_COND_V_MSG(is_doll_controller() == false, nullptr, "This controller is not a doll controller.");
+	ENSURE_V_MSG(is_doll_controller(), nullptr, "This controller is not a doll controller.");
 	return static_cast<DollController *>(controller);
 }
 
 const DollController *NetworkedControllerBase::get_doll_controller() const {
-	ERR_FAIL_COND_V_MSG(is_doll_controller() == false, nullptr, "This controller is not a doll controller.");
+	ENSURE_V_MSG(is_doll_controller(), nullptr, "This controller is not a doll controller.");
 	return static_cast<const DollController *>(controller);
 }
 
 NoNetController *NetworkedControllerBase::get_nonet_controller() {
-	ERR_FAIL_COND_V_MSG(is_nonet_controller() == false, nullptr, "This controller is not a no net controller.");
+	ENSURE_V_MSG(is_nonet_controller(), nullptr, "This controller is not a no net controller.");
 	return static_cast<NoNetController *>(controller);
 }
 
 const NoNetController *NetworkedControllerBase::get_nonet_controller() const {
-	ERR_FAIL_COND_V_MSG(is_nonet_controller() == false, nullptr, "This controller is not a no net controller.");
+	ENSURE_V_MSG(is_nonet_controller(), nullptr, "This controller is not a no net controller.");
 	return static_cast<const NoNetController *>(controller);
 }
 
@@ -264,7 +254,7 @@ void NetworkedControllerBase::unregister_with_synchronizer(NS::SceneSynchronizer
 		// Nothing to unregister.
 		return;
 	}
-	ERR_FAIL_COND_MSG(p_synchronizer != scene_synchronizer, "Cannot unregister because the given `SceneSynchronizer` is not the old one. This is a bug, one `SceneSynchronizer` should not try to unregister another one's controller.");
+	ENSURE_MSG(p_synchronizer == scene_synchronizer, "Cannot unregister because the given `SceneSynchronizer` is not the old one. This is a bug, one `SceneSynchronizer` should not try to unregister another one's controller.");
 	// Unregister the event processors with the scene synchronizer.
 	scene_synchronizer->event_peer_status_updated.unbind(event_handler_peer_status_updated);
 	scene_synchronizer->event_state_validated.unbind(event_handler_state_validated);
@@ -282,7 +272,7 @@ void NetworkedControllerBase::unregister_with_synchronizer(NS::SceneSynchronizer
 }
 
 void NetworkedControllerBase::notify_registered_with_synchronizer(NS::SceneSynchronizerBase *p_synchronizer, NS::ObjectData &p_nd) {
-	ERR_FAIL_COND_MSG(scene_synchronizer != nullptr, "Cannot register with a new `SceneSynchronizer` because this controller is already registered with one. This is a bug, one controller should not be registered with two `SceneSynchronizer`s.");
+	ENSURE_MSG(scene_synchronizer == nullptr, "Cannot register with a new `SceneSynchronizer` because this controller is already registered with one. This is a bug, one controller should not be registered with two `SceneSynchronizer`s.");
 	net_id = ObjectNetId::NONE;
 	scene_synchronizer = p_synchronizer;
 
@@ -347,10 +337,10 @@ void NetworkedControllerBase::rpc_receive_inputs(const Vector<uint8_t> &p_data) 
 }
 
 void NetworkedControllerBase::rpc_set_server_controlled(bool p_server_controlled) {
-	ERR_FAIL_COND_MSG(is_player_controller() == false, "This function is supposed to be called on the server.");
+	ENSURE_MSG(is_player_controller(), "This function is supposed to be called on the server.");
 	server_controlled = p_server_controlled;
 
-	ERR_FAIL_COND_MSG(scene_synchronizer == nullptr, "The server controller is supposed to be set on the client at this point.");
+	ENSURE_MSG(scene_synchronizer, "The server controller is supposed to be set on the client at this point.");
 	scene_synchronizer->notify_controller_control_mode_changed(this);
 }
 
@@ -400,7 +390,7 @@ bool NetworkedControllerBase::__input_data_parse(
 
 	int ofs = 0;
 
-	ERR_FAIL_COND_V(data_len < 4, false);
+	ENSURE_V(data_len >= 4, false);
 	const FrameIndex first_input_id = FrameIndex{ decode_uint32(p_data.ptr() + ofs) };
 	ofs += 4;
 
@@ -413,7 +403,7 @@ bool NetworkedControllerBase::__input_data_parse(
 	pir->begin_read();
 
 	while (ofs < data_len) {
-		ERR_FAIL_COND_V_MSG(ofs + 1 > data_len, false, "The arrived packet size doesn't meet the expected size.");
+		ENSURE_V_MSG(ofs + 1 <= data_len, false, "The arrived packet size doesn't meet the expected size.");
 		// First byte is used for the duplication count.
 		const uint8_t duplication = p_data[ofs];
 		ofs += 1;
@@ -430,7 +420,7 @@ bool NetworkedControllerBase::__input_data_parse(
 		// Pad to 8 bits.
 		const int input_size_padded =
 				Math::ceil((static_cast<float>(input_size_in_bits)) / 8.0);
-		ERR_FAIL_COND_V_MSG(ofs + input_size_padded > data_len, false, "The arrived packet size doesn't meet the expected size.");
+		ENSURE_V_MSG(ofs + input_size_padded <= data_len, false, "The arrived packet size doesn't meet the expected size.");
 
 		// Extract the data and copy into a BitArray.
 		BitArray bit_array;
@@ -455,7 +445,7 @@ bool NetworkedControllerBase::__input_data_parse(
 	memdelete(pir);
 	pir = nullptr;
 
-	ERR_FAIL_COND_V_MSG(ofs != data_len, false, "At the end was detected that the arrived packet has an unexpected size.");
+	ENSURE_V_MSG(ofs == data_len, false, "At the end was detected that the arrived packet has an unexpected size.");
 	return true;
 }
 
@@ -505,7 +495,7 @@ void RemotelyControlledController::on_peer_update(bool p_peer_enabled) {
 	snapshots.clear();
 }
 
-FrameIndex RemotelyControlledController::get_current_input_id() const {
+FrameIndex RemotelyControlledController::get_current_frame_index() const {
 	return current_input_buffer_id;
 }
 
@@ -513,7 +503,7 @@ int RemotelyControlledController::get_inputs_count() const {
 	return snapshots.size();
 }
 
-FrameIndex RemotelyControlledController::last_known_input() const {
+FrameIndex RemotelyControlledController::last_known_frame_index() const {
 	if (snapshots.size() > 0) {
 		return snapshots.back().id;
 	} else {
@@ -683,7 +673,7 @@ bool RemotelyControlledController::fetch_next_input(real_t p_delta) {
 	if (snapshots.empty() == false && current_input_buffer_id != FrameIndex::NONE) {
 		// At this point is guaranteed that the current_input_buffer_id is never
 		// greater than the first item contained by `snapshots`.
-		CRASH_COND(current_input_buffer_id >= snapshots.front().id);
+		ASSERT_COND(current_input_buffer_id < snapshots.front().id);
 	}
 #endif
 	return is_new_input;
@@ -780,7 +770,7 @@ bool RemotelyControlledController::receive_inputs(const Vector<uint8_t> &p_data)
 	if (snapshots.empty() == false && current_input_buffer_id != FrameIndex::NONE) {
 		// At this point is guaranteed that the current_input_buffer_id is never
 		// greater than the first item contained by `snapshots`.
-		CRASH_COND(current_input_buffer_id >= snapshots.front().id);
+		ASSERT_COND(current_input_buffer_id < snapshots.front().id);
 	}
 #endif
 
@@ -833,8 +823,7 @@ void ServerController::set_frame_input(const FrameSnapshot &p_frame_snapshot, bo
 	// If `previous_frame_received_timestamp` is bigger: the controller was
 	// disabled, so nothing to do.
 	if (previous_frame_received_timestamp < p_frame_snapshot.received_timestamp) {
-		const double physics_ticks_per_second = Engine::get_singleton()->get_physics_ticks_per_second();
-		const uint32_t frame_delta_ms = (1.0 / physics_ticks_per_second) * 1000.0;
+		const uint32_t frame_delta_ms = node->scene_synchronizer->get_fixed_frame_delta() * 1000.0;
 
 		const uint32_t receival_time = p_frame_snapshot.received_timestamp - previous_frame_received_timestamp;
 		const uint32_t network_time = receival_time > frame_delta_ms ? receival_time - frame_delta_ms : 0;
@@ -870,7 +859,7 @@ bool ServerController::receive_inputs(const Vector<uint8_t> &p_data) {
 	if (success) {
 		uint32_t input_id;
 		const bool extraction_success = node->__input_data_get_first_input_id(data, input_id);
-		CRASH_COND(!extraction_success);
+		ASSERT_COND(extraction_success);
 
 		// The input parsing succeded on the server, now ping pong this to all the dolls.
 		for (int peer_id : peers_simulating_this_controller) {
@@ -900,17 +889,18 @@ bool ServerController::receive_inputs(const Vector<uint8_t> &p_data) {
 }
 
 uint32_t ServerController::convert_input_id_to(int p_other_peer, uint32_t p_input_id) const {
-	ERR_FAIL_COND_V(p_input_id == UINT32_MAX, UINT32_MAX);
-	CRASH_COND(node->server_get_associated_peer() == p_other_peer); // This function must never be called for the same peer controlling this Character.
-	const FrameIndex current = get_current_input_id();
+	ENSURE_V(p_input_id != UINT32_MAX, UINT32_MAX);
+	// This function must never be called for the same peer controlling this Character.
+	ASSERT_COND(node->server_get_associated_peer() != p_other_peer);
+	const FrameIndex current = get_current_frame_index();
 	const int64_t diff = int64_t(p_input_id) - int64_t(current.id);
 
 	// Now find the other peer current_input_id to do the conversion.
 	const NetworkedControllerBase *controller = node->get_scene_synchronizer()->get_controller_for_peer(p_other_peer, false);
-	if (controller == nullptr || controller->get_current_input_id() == FrameIndex::NONE) {
+	if (controller == nullptr || controller->get_current_frame_index() == FrameIndex::NONE) {
 		return UINT32_MAX;
 	}
-	return MAX(int64_t(controller->get_current_input_id().id) + diff, 0);
+	return MAX(int64_t(controller->get_current_frame_index().id) + diff, 0);
 }
 
 int ceil_with_tolerance(double p_value, double p_tolerance) {
@@ -998,7 +988,7 @@ PlayerController::PlayerController(NetworkedControllerBase *p_node) :
 		input_buffers_counter(0) {
 }
 
-void PlayerController::notify_input_checked(FrameIndex p_frame_index) {
+void PlayerController::notify_frame_checked(FrameIndex p_frame_index) {
 	if (p_frame_index == FrameIndex::NONE) {
 		// Nothing to do.
 		return;
@@ -1014,8 +1004,8 @@ void PlayerController::notify_input_checked(FrameIndex p_frame_index) {
 	}
 
 #ifdef DEBUG_ENABLED
-	// Unreachable, because the next input have always the next `p_input_id` or empty.
-	CRASH_COND(frames_snapshot.empty() == false && (p_frame_index + 1) != frames_snapshot.front().id);
+	// Unreachable, because the next frame have always the next `p_frame_index` or empty.
+	ASSERT_COND(frames_snapshot.empty() || (p_frame_index + 1) == frames_snapshot.front().id);
 #endif
 
 	// Make sure the remaining inputs are 0 sized, if not streaming can't be paused.
@@ -1030,15 +1020,15 @@ void PlayerController::notify_input_checked(FrameIndex p_frame_index) {
 	}
 }
 
-int PlayerController::get_frames_input_count() const {
+int PlayerController::get_frames_count() const {
 	return frames_snapshot.size();
 }
 
-FrameIndex PlayerController::last_known_input() const {
-	return get_stored_input_id(-1);
+FrameIndex PlayerController::last_known_frame_index() const {
+	return get_stored_frame_index(-1);
 }
 
-FrameIndex PlayerController::get_stored_input_id(int p_i) const {
+FrameIndex PlayerController::get_stored_frame_index(int p_i) const {
 	if (p_i < 0) {
 		if (frames_snapshot.empty() == false) {
 			return frames_snapshot.back().id;
@@ -1059,7 +1049,8 @@ void PlayerController::queue_instant_process(FrameIndex p_frame_index, int p_ind
 	if (p_index >= 0 && p_index < int(frames_snapshot.size())) {
 		queued_instant_to_process = p_index;
 #ifdef DEBUG_ENABLED
-		CRASH_COND(frames_snapshot[p_index].id != p_frame_index); // IMPOSSIBLE to trigger - without bugs.
+		// IMPOSSIBLE to trigger - without bugs.
+		ASSERT_COND(frames_snapshot[p_index].id == p_frame_index);
 #endif
 	} else {
 		queued_instant_to_process = -1;
@@ -1092,7 +1083,7 @@ void PlayerController::process(double p_delta) {
 		// internet connection we can't keep accumulating inputs forever
 		// otherwise the server will differ too much from the client and we
 		// introduce virtual lag.
-		notify_input_checked(node->scene_synchronizer->client_get_last_checked_frame_index());
+		notify_frame_checked(node->scene_synchronizer->client_get_last_checked_frame_index());
 		const bool accept_new_inputs = can_accept_new_inputs();
 
 		if (accept_new_inputs) {
@@ -1146,10 +1137,10 @@ void PlayerController::process(double p_delta) {
 }
 
 void PlayerController::on_state_validated(FrameIndex p_frame_index) {
-	notify_input_checked(p_frame_index);
+	notify_frame_checked(p_frame_index);
 }
 
-FrameIndex PlayerController::get_current_input_id() const {
+FrameIndex PlayerController::get_current_frame_index() const {
 	return current_input_id;
 }
 
@@ -1182,7 +1173,7 @@ void PlayerController::send_frame_input_buffer_to_server() {
 	// at least 1 input.
 	// It means that, unless the streaming is paused, the `frames_snapshots`
 	// is never going to be empty at this point.
-	CRASH_COND(inputs_count < 1);
+	ASSERT_COND(inputs_count >= 1);
 
 #define MAKE_ROOM(p_size)                                              \
 	if (cached_packet_data.size() < static_cast<size_t>(ofs + p_size)) \
@@ -1349,7 +1340,7 @@ bool DollController::receive_inputs(const Vector<uint8_t> &p_data) {
 			[](void *p_user_pointer, FrameIndex p_frame_index, int p_input_size_in_bits, const BitArray &p_bit_array) -> void {
 				SCParseTmpData *pd = static_cast<SCParseTmpData *>(p_user_pointer);
 
-				CRASH_COND(p_frame_index == FrameIndex::NONE);
+				ASSERT_COND(p_frame_index != FrameIndex::NONE);
 				if (pd->controller->last_checked_input >= p_frame_index) {
 					// This input is already processed.
 					return;
@@ -1444,7 +1435,7 @@ bool DollController::fetch_next_input(real_t p_delta) {
 }
 
 void DollController::process(double p_delta) {
-	notify_input_checked(node->scene_synchronizer->client_get_last_checked_frame_index());
+	notify_frame_checked(node->scene_synchronizer->client_get_last_checked_frame_index());
 	const bool is_new_input = fetch_next_input(p_delta);
 
 	if (is_new_input) {
@@ -1463,10 +1454,10 @@ void DollController::process(double p_delta) {
 }
 
 void DollController::on_state_validated(FrameIndex p_frame_index) {
-	notify_input_checked(p_frame_index);
+	notify_frame_checked(p_frame_index);
 }
 
-void DollController::notify_input_checked(FrameIndex p_frame_index) {
+void DollController::notify_frame_checked(FrameIndex p_frame_index) {
 	if (p_frame_index == FrameIndex::NONE) {
 		// Nothing to do.
 		return;
@@ -1503,7 +1494,7 @@ void NoNetController::process(double p_delta) {
 	frame_id += 1;
 }
 
-FrameIndex NoNetController::get_current_input_id() const {
+FrameIndex NoNetController::get_current_frame_index() const {
 	return frame_id;
 }
 

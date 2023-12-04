@@ -34,7 +34,7 @@
 			<description>
 			</description>
 		</method>
-		<method name="get_current_input_id" qualifiers="const">
+		<method name="get_current_frame_index" qualifiers="const">
 			<return type="int" />
 			<description>
 			</description>

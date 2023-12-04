@@ -61,7 +61,7 @@ void GdNetworkedController::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_max_frames_delay", "val"), &GdNetworkedController::set_max_frames_delay);
 	ClassDB::bind_method(D_METHOD("get_max_frames_delay"), &GdNetworkedController::get_max_frames_delay);
 
-	ClassDB::bind_method(D_METHOD("get_current_input_id"), &GdNetworkedController::get_current_input_id);
+	ClassDB::bind_method(D_METHOD("get_current_frame_index"), &GdNetworkedController::get_current_frame_index);
 
 	ClassDB::bind_method(D_METHOD("is_server_controller"), &GdNetworkedController::is_server_controller);
 	ClassDB::bind_method(D_METHOD("is_player_controller"), &GdNetworkedController::is_player_controller);
@@ -240,8 +240,8 @@ int GdNetworkedController::get_max_frames_delay() const {
 	return networked_controller.get_max_frames_delay();
 }
 
-uint32_t GdNetworkedController::get_current_input_id() const {
-	return networked_controller.get_current_input_id().id;
+uint32_t GdNetworkedController::get_current_frame_index() const {
+	return networked_controller.get_current_frame_index().id;
 }
 
 bool GdNetworkedController::is_networking_initialized() const {

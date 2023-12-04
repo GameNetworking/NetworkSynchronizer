@@ -1,13 +1,13 @@
 #pragma once
 
+#include "core/core.h"
 #include "core/network_interface.h"
-#include "data_buffer.h"
-#include "modules/network_synchronizer/core/core.h"
-#include "modules/network_synchronizer/core/processor.h"
+#include "core/processor.h"
 #include "net_utilities.h"
 #include <deque>
 
 NS_NAMESPACE_BEGIN
+
 class SceneSynchronizerBase;
 class NetworkInterface;
 
@@ -21,7 +21,7 @@ class NetworkedControllerManager {
 public:
 	virtual ~NetworkedControllerManager() {}
 
-	virtual void collect_inputs(double p_delta, DataBuffer &r_buffer) = 0;
+	virtual void collect_inputs(double p_delta, class DataBuffer &r_buffer) = 0;
 	virtual void controller_process(double p_delta, DataBuffer &p_buffer) = 0;
 	virtual bool are_inputs_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B) = 0;
 	virtual uint32_t count_input_size(DataBuffer &p_buffer) = 0;
@@ -171,7 +171,7 @@ public: // ---------------------------------------------------------------- APIs
 	void set_max_frames_delay(int p_val);
 	int get_max_frames_delay() const;
 
-	FrameIndex get_current_input_id() const;
+	FrameIndex get_current_frame_index() const;
 
 	const DataBuffer &get_inputs_buffer() const {
 		return *inputs_buffer;
@@ -279,7 +279,7 @@ struct Controller {
 	virtual ~Controller() = default;
 
 	virtual void ready() {}
-	virtual FrameIndex get_current_input_id() const = 0;
+	virtual FrameIndex get_current_frame_index() const = 0;
 	virtual void process(double p_delta) = 0;
 	virtual void on_state_validated(FrameIndex p_frame_index) {}
 
@@ -301,9 +301,9 @@ public:
 
 	virtual void on_peer_update(bool p_peer_enabled);
 
-	virtual FrameIndex get_current_input_id() const override;
+	virtual FrameIndex get_current_frame_index() const override;
 	virtual int get_inputs_count() const;
-	FrameIndex last_known_input() const;
+	FrameIndex last_known_frame_index() const;
 
 	/// Fetch the next inputs, returns true if the input is new.
 	virtual bool fetch_next_input(real_t p_delta);
@@ -363,11 +363,11 @@ struct PlayerController final : public Controller {
 
 	PlayerController(NetworkedControllerBase *p_node);
 
-	void notify_input_checked(FrameIndex p_input_id);
-	int get_frames_input_count() const;
-	FrameIndex last_known_input() const;
-	FrameIndex get_stored_input_id(int p_i) const;
-	virtual FrameIndex get_current_input_id() const override;
+	void notify_frame_checked(FrameIndex p_input_id);
+	int get_frames_count() const;
+	FrameIndex last_known_frame_index() const;
+	FrameIndex get_stored_frame_index(int p_i) const;
+	virtual FrameIndex get_current_frame_index() const override;
 
 	virtual void queue_instant_process(FrameIndex p_input_id, int p_index, int p_count) override;
 	bool has_another_instant_to_process_after(int p_i) const;
@@ -402,7 +402,7 @@ struct DollController final : public RemotelyControlledController {
 	virtual bool fetch_next_input(real_t p_delta) override;
 	virtual void process(double p_delta) override;
 	virtual void on_state_validated(FrameIndex p_frame_index) override;
-	void notify_input_checked(FrameIndex p_input_id);
+	void notify_frame_checked(FrameIndex p_input_id);
 };
 
 /// This controller is used when the game instance is not a peer of any kind.
@@ -414,7 +414,7 @@ struct NoNetController : public Controller {
 	NoNetController(NetworkedControllerBase *p_node);
 
 	virtual void process(double p_delta) override;
-	virtual FrameIndex get_current_input_id() const override;
+	virtual FrameIndex get_current_frame_index() const override;
 };
 
 template <class NetInterfaceClass>

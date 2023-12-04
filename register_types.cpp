@@ -67,6 +67,9 @@ void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
 							String(p_error.c_str()),
 							String(p_message.c_str()),
 							p_type == NS::PrintMessageType::ERROR ? ERR_HANDLER_ERROR : ERR_HANDLER_WARNING);
+				},
+				[]() {
+					_err_flush_stdout();
 				});
 
 		GDREGISTER_CLASS(DataBuffer);

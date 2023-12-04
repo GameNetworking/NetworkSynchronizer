@@ -101,7 +101,7 @@ public:
 	void set_max_frames_delay(int p_val);
 	int get_max_frames_delay() const;
 
-	uint32_t get_current_input_id() const;
+	uint32_t get_current_frame_index() const;
 
 	bool is_networking_initialized() const;
 	bool is_server_controller() const;

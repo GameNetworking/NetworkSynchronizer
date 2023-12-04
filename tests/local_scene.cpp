@@ -63,7 +63,8 @@ void LocalSceneSynchronizer::install_local_scene_sync() {
 				}
 			},
 			print_line_func,
-			print_code_message_func);
+			print_code_message_func,
+			print_flush_stdout_func);
 }
 
 void LocalSceneSynchronizer::uninstall_local_scene_sync() {
@@ -74,7 +75,8 @@ void LocalSceneSynchronizer::uninstall_local_scene_sync() {
 			prev_var_data_compare_func,
 			prev_var_data_stringify_func,
 			print_line_func,
-			print_code_message_func);
+			print_code_message_func,
+			print_flush_stdout_func);
 
 	prev_var_data_encode_func = nullptr;
 	prev_var_data_decode_func = nullptr;

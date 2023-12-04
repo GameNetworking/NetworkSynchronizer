@@ -1,8 +1,6 @@
-
 #include "net_utilities.h"
+
 #include "core/object_data.h"
-#include "modules/network_synchronizer/core/object_data.h"
-#include "modules/network_synchronizer/net_utilities.h"
 #include "networked_controller.h"
 #include <limits>
 

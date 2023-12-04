@@ -2,30 +2,20 @@
 #include "scene_synchronizer.h"
 
 #include "core/error/error_macros.h"
-#include "core/object/object.h"
-#include "core/os/os.h"
+
+#include "core/core.h"
+#include "core/ensure.h"
+#include "core/object_data.h"
 #include "core/print.h"
-#include "core/templates/oa_hash_map.h"
-#include "core/variant/variant.h"
-#include "input_network_encoder.h"
-#include "modules/network_synchronizer/core/core.h"
-#include "modules/network_synchronizer/core/network_interface.h"
-#include "modules/network_synchronizer/core/object_data.h"
-#include "modules/network_synchronizer/core/print.h"
-#include "modules/network_synchronizer/core/processor.h"
-#include "modules/network_synchronizer/core/var_data.h"
-#include "modules/network_synchronizer/data_buffer.h"
-#include "modules/network_synchronizer/net_utilities.h"
-#include "modules/network_synchronizer/networked_controller.h"
-#include "modules/network_synchronizer/scene_synchronizer.h"
-#include "modules/network_synchronizer/snapshot.h"
+#include "core/var_data.h"
+#include "data_buffer.h"
+#include "net_utilities.h"
+#include "networked_controller.h"
+#include "scene_synchronizer.h"
 #include "scene_synchronizer_debugger.h"
+#include "snapshot.h"
 #include <chrono>
 #include <limits>
-#include <ratio>
-#include <stdexcept>
-#include <string>
-#include <vector>
 
 NS_NAMESPACE_BEGIN
 
@@ -35,6 +25,7 @@ bool (*SceneSynchronizerBase::var_data_compare_func)(const VarData &p_A, const V
 std::string (*SceneSynchronizerBase::var_data_stringify_func)(const VarData &p_var_data, bool p_verbose) = nullptr;
 void (*SceneSynchronizerBase::print_line_func)(const std::string &p_str) = nullptr;
 void (*SceneSynchronizerBase::print_code_message_func)(const char *p_function, const char *p_file, int p_line, const std::string &p_error, const std::string &p_message, NS::PrintMessageType p_type) = nullptr;
+void (*SceneSynchronizerBase::print_flush_stdout_func)() = nullptr;
 
 SceneSynchronizerBase::SceneSynchronizerBase(NetworkInterface *p_network_interface, bool p_pedantic_checks) :
 #ifdef DEBUG_ENABLED
@@ -58,7 +49,8 @@ void SceneSynchronizerBase::install_synchronizer(
 		bool (*p_var_data_compare_func)(const VarData &p_A, const VarData &p_B),
 		std::string (*p_var_data_stringify_func)(const VarData &p_var_data, bool p_verbose),
 		void (*p_print_line_func)(const std::string &p_str),
-		void (*p_print_code_message_func)(const char *p_function, const char *p_file, int p_line, const std::string &p_error, const std::string &p_message, NS::PrintMessageType p_type)) {
+		void (*p_print_code_message_func)(const char *p_function, const char *p_file, int p_line, const std::string &p_error, const std::string &p_message, NS::PrintMessageType p_type),
+		void (*p_print_flush_stdout_func)()) {
 	var_data_encode_func = p_var_data_encode_func;
 	var_data_decode_func = p_var_data_decode_func;
 	var_data_compare_func = p_var_data_compare_func;
@@ -66,6 +58,7 @@ void SceneSynchronizerBase::install_synchronizer(
 
 	print_line_func = p_print_line_func;
 	print_code_message_func = p_print_code_message_func;
+	print_flush_stdout_func = p_print_flush_stdout_func;
 }
 
 void SceneSynchronizerBase::setup(SynchronizerManager &p_synchronizer_interface) {
@@ -193,6 +186,10 @@ void SceneSynchronizerBase::print_line(const std::string &p_str) {
 
 void SceneSynchronizerBase::print_code_message(const char *p_function, const char *p_file, int p_line, const std::string &p_error, const std::string &p_message, NS::PrintMessageType p_type) {
 	print_code_message_func(p_function, p_file, p_line, p_error, p_message, p_type);
+}
+
+void SceneSynchronizerBase::print_flush_stdout() {
+	print_flush_stdout_func();
 }
 
 void SceneSynchronizerBase::set_frames_per_seconds(int p_fps) {
@@ -1680,7 +1677,7 @@ void ServerSynchronizer::process(double p_delta) {
 		}
 
 		const NS::ObjectData *nd = scene_synchronizer->get_object_data(peer_it.second.controller_id);
-		const FrameIndex current_input_id = nd->get_controller()->get_server_controller()->get_current_input_id();
+		const FrameIndex current_input_id = nd->get_controller()->get_server_controller()->get_current_frame_index();
 		SceneSynchronizerDebugger::singleton()->write_dump(peer_it.first, current_input_id.id);
 	}
 	SceneSynchronizerDebugger::singleton()->start_new_frame();
@@ -1937,7 +1934,7 @@ void ServerSynchronizer::process_snapshot_notificator() {
 			if (controller_od) {
 				CRASH_COND_MSG(controller_od->get_controller() == nullptr, "The NodeData fetched is not a controller: `" + String(controller_od->object_name.c_str()) + "`, this is not supposed to happen.");
 				NetworkedControllerBase *controller = controller_od->get_controller();
-				input_id = controller->get_current_input_id();
+				input_id = controller->get_current_frame_index();
 			}
 
 			DataBuffer *snap;
@@ -2139,8 +2136,6 @@ void ServerSynchronizer::process_trickled_sync(double p_delta) {
 	// Since the `update_rate` is a rate relative to the fixed_frame_delta,
 	// we need to compute this factor to correctly scale the `update_rate`.
 	const double current_frame_factor = p_delta / scene_synchronizer->get_fixed_frame_delta();
-
-	Variant r;
 
 	for (auto &group : sync_groups) {
 		if (group.get_listening_peers().empty()) {
@@ -2360,7 +2355,7 @@ void ClientSynchronizer::process(double p_delta) {
 		NetworkedControllerBase *controller = player_controller_object_data->get_controller();
 		PlayerController *player_controller = controller->get_player_controller();
 		const int client_peer = scene_synchronizer->network_interface->fetch_local_peer_id();
-		SceneSynchronizerDebugger::singleton()->write_dump(client_peer, player_controller->get_current_input_id().id);
+		SceneSynchronizerDebugger::singleton()->write_dump(client_peer, player_controller->get_current_frame_index().id);
 		SceneSynchronizerDebugger::singleton()->start_new_frame();
 	}
 #endif
@@ -2484,15 +2479,15 @@ void ClientSynchronizer::store_snapshot() {
 	NetworkedControllerBase *controller = player_controller_object_data->get_controller();
 
 #ifdef DEBUG_ENABLED
-	if (unlikely(client_snapshots.size() > 0 && controller->get_current_input_id() <= client_snapshots.back().input_id)) {
-		CRASH_NOW_MSG("[FATAL] During snapshot creation, for controller " + String(player_controller_object_data->object_name.c_str()) + ", was found an ID for an older snapshots. New input ID: " + uitos(controller->get_current_input_id().id) + " Last saved snapshot input ID: " + uitos(client_snapshots.back().input_id.id) + ".");
+	if (unlikely(client_snapshots.size() > 0 && controller->get_current_frame_index() <= client_snapshots.back().input_id)) {
+		CRASH_NOW_MSG("[FATAL] During snapshot creation, for controller " + String(player_controller_object_data->object_name.c_str()) + ", was found an ID for an older snapshots. New input ID: " + uitos(controller->get_current_frame_index().id) + " Last saved snapshot input ID: " + uitos(client_snapshots.back().input_id.id) + ".");
 	}
 #endif
 
 	client_snapshots.push_back(NS::Snapshot());
 
 	NS::Snapshot &snap = client_snapshots.back();
-	snap.input_id = controller->get_current_input_id();
+	snap.input_id = controller->get_current_frame_index();
 
 	update_client_snapshot(snap);
 }
@@ -2554,7 +2549,7 @@ void ClientSynchronizer::process_received_server_state() {
 #ifdef DEBUG_ENABLED
 	if (client_snapshots.empty() == false) {
 		// The SceneSynchronizer and the PlayerController are always in sync.
-		CRASH_COND_MSG(client_snapshots.back().input_id != player_controller->last_known_input(), "This should not be possible: snapshot input: " + uitos(client_snapshots.back().input_id.id) + " last_know_input: " + uitos(player_controller->last_known_input().id));
+		CRASH_COND_MSG(client_snapshots.back().input_id != player_controller->last_known_frame_index(), "This should not be possible: snapshot input: " + uitos(client_snapshots.back().input_id.id) + " last_know_input: " + uitos(player_controller->last_known_frame_index().id));
 	}
 #endif
 
@@ -2615,7 +2610,7 @@ void ClientSynchronizer::process_received_server_state() {
 		SceneSynchronizerDebugger::singleton()->notify_event(SceneSynchronizerDebugger::FrameEvent::CLIENT_DESYNC_DETECTED);
 		SceneSynchronizerDebugger::singleton()->add_node_message(
 				scene_synchronizer->get_network_interface().get_name(),
-				"Recover input: " + uitos(last_checked_input.id) + " - Last input: " + uitos(player_controller->get_stored_input_id(-1).id));
+				"Recover input: " + uitos(last_checked_input.id) + " - Last input: " + uitos(player_controller->get_stored_frame_index(-1).id));
 
 		// Sync.
 		__pcr__sync__rewind();
@@ -2746,7 +2741,7 @@ void ClientSynchronizer::__pcr__rewind(
 		NetworkedControllerBase *p_local_controller,
 		PlayerController *p_local_player_controller) {
 	NS_PROFILE
-	const int frames_to_rewind = p_local_player_controller->get_frames_input_count();
+	const int frames_to_rewind = p_local_player_controller->get_frames_count();
 
 #ifdef DEBUG_ENABLED
 	// Unreachable because the SceneSynchronizer and the PlayerController
@@ -2760,7 +2755,7 @@ void ClientSynchronizer::__pcr__rewind(
 	bool has_next = false;
 #endif
 	for (int i = 0; i < frames_to_rewind; i += 1) {
-		const FrameIndex frame_id_to_process = p_local_player_controller->get_stored_input_id(i);
+		const FrameIndex frame_id_to_process = p_local_player_controller->get_stored_frame_index(i);
 #ifdef NS_PROFILING_ENABLED
 		std::string prof_info = "Index: " + std::to_string(i) + " Frame ID: " + std::to_string(frame_id_to_process.id);
 		NS_PROFILE_NAMED_WITH_INFO("Rewinding frame", prof_info);
@@ -2965,7 +2960,7 @@ void ClientSynchronizer::process_simulation(double p_delta) {
 			// This is an intermediate sub tick, so store the dumping.
 			// The last sub frame is not dumped, untile the end of the frame, so we can capture any subsequent message.
 			const int client_peer = scene_synchronizer->network_interface->fetch_local_peer_id();
-			SceneSynchronizerDebugger::singleton()->write_dump(client_peer, player_controller->get_current_input_id().id);
+			SceneSynchronizerDebugger::singleton()->write_dump(client_peer, player_controller->get_current_frame_index().id);
 			SceneSynchronizerDebugger::singleton()->start_new_frame();
 		}
 #endif
@@ -3208,8 +3203,6 @@ void ClientSynchronizer::receive_trickled_sync_data(const Vector<uint8_t> &p_dat
 	const uint32_t epoch = future_epoch_buffer.read_uint(DataBuffer::COMPRESSION_LEVEL_1);
 
 	DataBuffer *db = memnew(DataBuffer);
-
-	Variant r;
 
 	while (true) {
 		// 1. Decode the received data.

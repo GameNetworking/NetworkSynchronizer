@@ -155,7 +155,7 @@ public:
 	};
 
 	virtual void collect_inputs(double p_delta, DataBuffer &r_buffer) override {
-		const int index = get_current_input_id().id % 20;
+		const int index = get_current_frame_index().id % 20;
 		std::ignore = r_buffer.add_normalized_vector3(Vector3(inputs[index].x, inputs[index].y, inputs[index].z), DataBuffer::COMPRESSION_LEVEL_3);
 	}
 
@@ -319,13 +319,13 @@ public:
 
 			on_scenes_processed(rand_delta);
 
-			if (controller_server->get_current_input_id() == process_until_frame) {
+			if (controller_server->get_current_frame_index() == process_until_frame) {
 				server_reached_target_frame = true;
 				controller_server_position_at_target_frame = controller_server->get_position();
 				light_mag_server_position_at_target_frame = light_magnet_server->get_position();
 				heavy_mag_server_position_at_target_frame = heavy_magnet_server->get_position();
 			}
-			if (controller_p1->get_current_input_id() == process_until_frame) {
+			if (controller_p1->get_current_frame_index() == process_until_frame) {
 				p1_reached_target_frame = true;
 				controller_p1_position_at_target_frame = controller_p1->get_position();
 				light_mag_p1_position_at_target_frame = light_magnet_p1->get_position();
@@ -336,8 +336,8 @@ public:
 				break;
 			}
 
-			CRASH_COND(controller_server->get_current_input_id() >= (process_until_frame + process_until_frame_timeout) && controller_server->get_current_input_id() != NS::FrameIndex::NONE);
-			CRASH_COND(controller_p1->get_current_input_id() >= (process_until_frame + process_until_frame_timeout) && controller_p1->get_current_input_id() != NS::FrameIndex::NONE);
+			CRASH_COND(controller_server->get_current_frame_index() >= (process_until_frame + process_until_frame_timeout) && controller_server->get_current_frame_index() != NS::FrameIndex::NONE);
+			CRASH_COND(controller_p1->get_current_frame_index() >= (process_until_frame + process_until_frame_timeout) && controller_p1->get_current_frame_index() != NS::FrameIndex::NONE);
 		}
 
 		//                  ---- Validation phase ----
@@ -390,7 +390,7 @@ public:
 	}
 
 	virtual void on_server_process(float p_delta) override {
-		if (controller_server->get_current_input_id() == reset_position_on_frame) {
+		if (controller_server->get_current_frame_index() == reset_position_on_frame) {
 			// Reset the character position only on the server, to simulate a desync.
 			controller_server->set_position(Vec3(0.0, 0.0, 0.0));
 
