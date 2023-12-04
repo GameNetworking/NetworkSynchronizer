@@ -165,11 +165,22 @@ void insert_at_position_expand(std::vector<V> &r_vec, std::size_t p_index, const
 
 // Return the value at index or default if not set.
 template <class V>
-const V at(const std::vector<V> &p_vec, const std::size_t p_index, const V &p_default) {
+const V &at(const std::vector<V> &p_vec, const std::size_t p_index, const V &p_default) {
 	if (p_vec.size() <= p_index) {
 		return p_default;
 	}
-	// TODO not sure why this returns a local pointer, I'm forced to return a non reference here...
+	return p_vec[p_index];
+}
+
+// This function is a specialized version for `std::vector<bool>` which
+// `opeartor[]` and `at()` functions returns a proxy value, so we can't just
+// return a reference to the internal data as we can do with the other types.
+// DOC: https://en.cppreference.com/w/cpp/container/vector_bool
+template <class... T>
+bool at(const std::vector<bool> &p_vec, const std::size_t p_index, const bool p_default) {
+	if (p_vec.size() <= p_index) {
+		return p_default;
+	}
 	return p_vec[p_index];
 }
 
