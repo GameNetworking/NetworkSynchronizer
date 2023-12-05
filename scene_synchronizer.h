@@ -192,7 +192,7 @@ protected:
 
 	SynchronizerType synchronizer_type = SYNCHRONIZER_TYPE_NULL;
 
-	Synchronizer *synchronizer = nullptr;
+	class Synchronizer *synchronizer = nullptr;
 	bool recover_in_progress = false;
 	bool reset_in_progress = false;
 	bool rewinding_in_progress = false;
