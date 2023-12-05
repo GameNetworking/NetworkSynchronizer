@@ -172,9 +172,10 @@ const V &at(const std::vector<V> &p_vec, const std::size_t p_index, const V &p_d
 	return p_vec[p_index];
 }
 
-// This function is a specialized version for `std::vector<bool>` which
-// `opeartor[]` and `at()` functions returns a proxy value, so we can't just
-// return a reference to the internal data as we can do with the other types.
+// This function is a specialized version that handles the `std::vector<bool>` which
+// `operator[]` and `at()` functions returns a proxy value, unlikely all the other
+// STL `std::vector<*>` that return a reference. This version returns a non ref
+// to avoid any memory corruptions.
 // DOC: https://en.cppreference.com/w/cpp/container/vector_bool
 template <class... T>
 bool at(const std::vector<bool> &p_vec, const std::size_t p_index, const bool p_default) {
