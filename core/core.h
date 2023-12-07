@@ -121,7 +121,7 @@ struct IdMaker {
 		return *static_cast<T *>(this);
 	}
 
-	operator std::string() {
+	operator std::string() const {
 		return "`" + std::to_string(id) + "`";
 	}
 };
