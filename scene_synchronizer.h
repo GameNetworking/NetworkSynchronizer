@@ -258,7 +258,7 @@ public:
 	static void var_data_decode(NS::VarData &r_val, DataBuffer &p_buffer);
 	static bool var_data_compare(const VarData &p_A, const VarData &p_B);
 	static std::string var_data_stringify(const VarData &p_var_data, bool p_verbose = false);
-	static void print_line(const std::string &p_str);
+	static void __print_line(const std::string &p_str);
 	static void print_code_message(const char *p_function, const char *p_file, int p_line, const std::string &p_error, const std::string &p_message, NS::PrintMessageType p_type);
 	static void print_flush_stdout();
 

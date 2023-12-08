@@ -266,7 +266,7 @@ void GdSceneSynchronizer::on_init_synchronizer(bool p_was_generating_ids) {
 	set_process_internal(true);
 	low_level_peer = get_multiplayer()->get_multiplayer_peer().ptr();
 
-	String debugger_mode;
+	std::string debugger_mode;
 	if (scene_synchronizer.is_server()) {
 		debugger_mode = "server";
 	} else if (scene_synchronizer.is_client()) {

@@ -6,9 +6,9 @@
 #include "core/core.h"
 #include "core/ensure.h"
 #include "core/object_data.h"
-#include "core/print.h"
 #include "core/var_data.h"
 #include "data_buffer.h"
+#include "modules/network_synchronizer/scene_synchronizer_debugger.h"
 #include "net_utilities.h"
 #include "networked_controller.h"
 #include "scene_synchronizer.h"
@@ -16,6 +16,7 @@
 #include "snapshot.h"
 #include <chrono>
 #include <limits>
+#include <string>
 
 NS_NAMESPACE_BEGIN
 
@@ -180,11 +181,15 @@ std::string SceneSynchronizerBase::var_data_stringify(const VarData &p_var_data,
 	return var_data_stringify_func(p_var_data, p_verbose);
 }
 
-void SceneSynchronizerBase::print_line(const std::string &p_str) {
+void SceneSynchronizerBase::__print_line(const std::string &p_str) {
 	print_line_func(p_str);
 }
 
 void SceneSynchronizerBase::print_code_message(const char *p_function, const char *p_file, int p_line, const std::string &p_error, const std::string &p_message, NS::PrintMessageType p_type) {
+	const std::string log_level_str = NS::get_log_level_txt(p_type);
+	std::string msg = log_level_str + " The condition " + p_error + " evaluated to false: " + p_message + "\n";
+	msg += std::string() + "At: " + p_file + "::" + p_file + "::" + std::to_string(p_line);
+	SceneSynchronizerDebugger::singleton()->__add_message(msg, "SceneSync");
 	print_code_message_func(p_function, p_file, p_line, p_error, p_message, p_type);
 }
 
@@ -1090,12 +1095,15 @@ void SceneSynchronizerBase::rpc_notify_fps_acceleration(const Vector<uint8_t> &p
 #ifdef DEBUG_ENABLED
 	const bool debug = ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/debug_server_speedup");
 	if (debug) {
-		print_line(
+		SceneSynchronizerDebugger::singleton()->print(
 				std::string() +
-				"Client received speedup." +
-				" Frames to produce: `" + std::to_string(additional_frames_to_produce) + "`" +
-				" Acceleration fps: `" + std::to_string(client_sync->acceleration_fps_speed) + "`" +
-				" Acceleration time: `" + std::to_string(client_sync->acceleration_fps_timer) + "`");
+						"Client received speedup." +
+						" Frames to produce: `" + std::to_string(additional_frames_to_produce) + "`" +
+						" Acceleration fps: `" + std::to_string(client_sync->acceleration_fps_speed) + "`" +
+						" Acceleration time: `" + std::to_string(client_sync->acceleration_fps_timer) + "`",
+				get_network_interface().get_name().utf8().ptr(),
+				INFO,
+				true);
 	}
 #endif
 }
@@ -2608,9 +2616,10 @@ void ClientSynchronizer::process_received_server_state() {
 
 	if (need_rewind) {
 		SceneSynchronizerDebugger::singleton()->notify_event(SceneSynchronizerDebugger::FrameEvent::CLIENT_DESYNC_DETECTED);
-		SceneSynchronizerDebugger::singleton()->add_node_message(
-				scene_synchronizer->get_network_interface().get_name(),
-				"Recover input: " + uitos(last_checked_input.id) + " - Last input: " + uitos(player_controller->get_stored_frame_index(-1).id));
+		SceneSynchronizerDebugger::singleton()->print(
+				std::string("Recover input: ") + std::string(last_checked_input) + " - Last input: " + std::string(player_controller->get_stored_frame_index(-1)),
+				scene_synchronizer->get_network_interface().get_name().utf8().ptr(),
+				__INTERNAL);
 
 		// Sync.
 		__pcr__sync__rewind();
@@ -2768,7 +2777,11 @@ void ClientSynchronizer::__pcr__rewind(
 		scene_synchronizer->event_rewind_frame_begin.broadcast(frame_id_to_process, i, frames_to_rewind);
 #ifdef DEBUG_ENABLED
 		has_next = p_local_controller->has_another_instant_to_process_after(i);
-		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "Rewind, processed controller: " + String(p_local_controller_node->object_name.c_str()), !scene_synchronizer->debug_rewindings_enabled);
+		SceneSynchronizerDebugger::singleton()->print(
+				"Rewind, processed controller: " + p_local_controller_node->object_name + " Frame: " + std::string(frame_id_to_process),
+				scene_synchronizer->get_network_interface().get_name().utf8().ptr(),
+				INFO,
+				scene_synchronizer->debug_rewindings_enabled);
 #endif
 
 		// Step 2 -- Process the scene.

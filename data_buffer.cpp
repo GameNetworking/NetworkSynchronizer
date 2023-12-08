@@ -47,11 +47,9 @@
 #include <utility>
 #include <vector>
 
-// Beware that this macros was written to make sure nested function call doesn't add debug calls,
-// making the log unreadable.
-//#ifdef DEBUG_ENABLED
-//#define DEBUG_DATA_BUFFER
-//#endif
+#ifdef DEBUG_ENABLED
+#define DEBUG_DATA_BUFFER
+#endif
 
 #ifdef DEBUG_DATA_BUFFER
 #define DEB_WRITE(dt, compression, input)                                                             \
@@ -64,6 +62,8 @@
 		SceneSynchronizerDebugger::singleton()->databuffer_read(dt, compression, bit_offset, input); \
 	}
 
+// Beware that the following two macros were written to make sure nested function call doesn't add debug calls,
+// making the log unreadable.
 #define DEB_DISABLE                               \
 	const bool was_debug_enabled = debug_enabled; \
 	debug_enabled = false;

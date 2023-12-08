@@ -30,11 +30,15 @@
 
 #pragma once
 
+#include "modules/network_synchronizer/core/core.h"
 #include "scene/main/node.h"
 
 #ifdef DEBUG_ENABLED
 
+#include "core/core.h"
+#include "core/json.hpp"
 #include "core/templates/oa_hash_map.h"
+#include <string>
 
 #endif
 
@@ -54,8 +58,8 @@ class SceneSynchronizerDebugger : public Node {
 
 public:
 	struct TrackedNode {
-		Node *node;
-		List<PropertyInfo> *properties;
+		Node *node = nullptr;
+		List<PropertyInfo> *properties = nullptr;
 		TrackedNode() = default;
 		TrackedNode(Node *p_node) :
 				node(p_node) {}
@@ -73,7 +77,7 @@ public:
 	enum FrameEvent : uint32_t {
 		EMPTY = 0,
 		CLIENT_DESYNC_DETECTED = 1 << 0,
-		CLIENT_DESYNC_DETECTED_SOFT = 1 << 0,
+		CLIENT_DESYNC_DETECTED_SOFT = 1 << 1,
 	};
 
 public:
@@ -82,45 +86,48 @@ public:
 
 private:
 #ifdef DEBUG_ENABLED
+	NS::PrintMessageType log_level = NS::PrintMessageType::ERROR;
+
 	bool dump_enabled = false;
 	LocalVector<StringName> dump_classes;
 	bool setup_done = false;
 
 	uint32_t log_counter = 0;
 	SceneTree *scene_tree = nullptr;
-	String main_dump_directory_path;
-	String dump_name;
+	std::string main_dump_directory_path;
+	std::string dump_name;
 
-	LocalVector<TrackedNode> tracked_nodes;
-	// HaskMap between class name and property list: to avoid fetching the property list per object each frame.
+	std::vector<TrackedNode> tracked_nodes;
+
+	// HashMap between class name and property list: to avoid fetching the property list per object each frame.
 	OAHashMap<StringName, List<PropertyInfo>> classes_property_lists;
 
-	// Dictionary of dictionary containing nodes info.
-	Dictionary frame_dump__begin_state;
+	// JSON of dictionary containing nodes info.
+	nlohmann::json::object_t frame_dump__begin_state;
 
-	// Dictionary of dictionary containing nodes info.
-	Dictionary frame_dump__end_state;
+	// JSON of dictionary containing nodes info.
+	nlohmann::json::object_t frame_dump__end_state;
 
-	// The dictionary containing the data buffer operations performed by the controllers.
-	Dictionary frame_dump__node_log;
+	// The JSON containing the data buffer operations performed by the controllers.
+	nlohmann::json::object_t frame_dump__node_log;
 
 	// The controller name for which the data buffer operations is in progress.
-	String frame_dump__data_buffer_name;
+	std::string frame_dump__data_buffer_name;
 
 	// A really small description about what happens on this frame.
 	FrameEvent frame_dump__frame_events = FrameEvent::EMPTY;
 
 	// This Array contains all the inputs (stringified) written on the `DataBuffer` from the
 	// `_controller_process` function
-	Array frame_dump__data_buffer_writes;
+	nlohmann::json::array_t frame_dump__data_buffer_writes;
 
 	// This Array contains all the inputs (stringified) read on the `DataBuffer` from the
 	// `_controller_process` function
-	Array frame_dump__data_buffer_reads;
+	nlohmann::json::array_t frame_dump__data_buffer_reads;
 
-	// This Dictionary contains the comparison (`_are_inputs_different`) fetched by this frame, and
+	// This JSON contains the comparison (`_are_inputs_different`) fetched by this frame, and
 	// the result.
-	Dictionary frame_dump__are_inputs_different_results;
+	nlohmann::json::object_t frame_dump__are_inputs_different_results;
 
 	DataBufferDumpMode frame_dump_data_buffer_dump_mode = NONE;
 
@@ -139,7 +146,7 @@ public:
 	void register_class_to_dump(const StringName &p_class);
 	void unregister_class_to_dump(const StringName &p_class);
 
-	void setup_debugger(const String &p_dump_name, int p_peer, SceneTree *p_scene_tree);
+	void setup_debugger(const std::string &p_dump_name, int p_peer, SceneTree *p_scene_tree);
 
 private:
 	void prepare_dumping(int p_peer, SceneTree *p_scene_tree);
@@ -163,17 +170,16 @@ public:
 	void notify_input_sent_to_server(NS::NetworkInterface *p_network_interface, uint32_t p_frame_index, uint32_t p_input_index);
 	void notify_are_inputs_different_result(NS::NetworkInterface *p_network_interface, uint32_t p_other_frame_index, bool p_is_similar);
 
-	void add_node_message(const String &p_name, const String &p_message);
-
 	void debug_print(NS::NetworkInterface *p_network_interface, const String &p_message, bool p_silent = false);
 	void debug_warning(NS::NetworkInterface *p_network_interface, const String &p_message, bool p_silent = false);
 	void debug_error(NS::NetworkInterface *p_network_interface, const String &p_message, bool p_silent = false);
-	void gd_debug_print(Node *p_node, const String &p_message, bool p_silent = false);
-	void gd_debug_warning(Node *p_node, const String &p_message, bool p_silent = false);
-	void gd_debug_error(Node *p_node, const String &p_message, bool p_silent = false);
+
+	void print(const std::string &p_message, const std::string &p_object_name = "GLOBAL", NS::PrintMessageType p_level = NS::PrintMessageType::INFO, bool p_force_print_to_log = false);
 
 	void notify_event(FrameEvent p_event);
 
+	void __add_message(const std::string &p_message, const std::string &p_object_name);
+
 private:
-	void dump_tracked_objects(const NS::SceneSynchronizerBase *p_scene_sync, Dictionary &p_dump);
+	void dump_tracked_objects(const NS::SceneSynchronizerBase *p_scene_sync, nlohmann::json::object_t &p_dump);
 };

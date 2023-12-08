@@ -70,11 +70,14 @@ const char *get_process_phase_name(ProcessPhase pp);
 
 NS_NAMESPACE_BEGIN
 
-enum class PrintMessageType {
-	INFO,
-	WARNING,
-	ERROR
+enum PrintMessageType : std::uint8_t {
+	INFO = 0,
+	WARNING = 1 << 0,
+	ERROR = 1 << 1,
+	__INTERNAL = 1 << 2,
 };
+
+std::string get_log_level_txt(NS::PrintMessageType p_level);
 
 template <typename T, typename TheIdType>
 struct IdMaker {

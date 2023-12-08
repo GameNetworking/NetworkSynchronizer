@@ -4,8 +4,7 @@
 #include "core/templates/vector.h"
 
 #include "core/ensure.h"
-#include "core/print.h"
-#include "modules/network_synchronizer/core/ensure.h"
+#include "modules/network_synchronizer/scene_synchronizer_debugger.h"
 #include "net_utilities.h"
 #include "scene_synchronizer.h"
 #include "scene_synchronizer_debugger.h"
@@ -932,12 +931,15 @@ std::int8_t ServerController::compute_client_tick_rate_distance_to_optimal() {
 	const bool debug = ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/debug_server_speedup");
 	const int current_frame_delay = consecutive_inputs;
 	if (debug) {
-		NS::print_line(
+		SceneSynchronizerDebugger::singleton()->print(
 				"Worst receival time (ms): `" + std::to_string(worst_receival_time_ms) +
-				"` Optimal frame delay: `" + std::to_string(optimal_frame_delay) +
-				"` Current frame delay: `" + std::to_string(current_frame_delay) +
-				"` Distance to optimal: `" + std::to_string(distance_to_optimal) +
-				"`");
+						"` Optimal frame delay: `" + std::to_string(optimal_frame_delay) +
+						"` Current frame delay: `" + std::to_string(current_frame_delay) +
+						"` Distance to optimal: `" + std::to_string(distance_to_optimal) +
+						"`",
+				"NetController",
+				INFO,
+				true);
 	}
 	node->event_client_speedup_adjusted.broadcast(worst_receival_time_ms, optimal_frame_delay, current_frame_delay, distance_to_optimal);
 #endif

@@ -29,20 +29,22 @@
 /*************************************************************************/
 
 #include "scene_synchronizer_debugger.h"
+#include "modules/network_synchronizer/core/core.h"
+#include "modules/network_synchronizer/scene_synchronizer_debugger.h"
 
 #ifdef DEBUG_ENABLED
 
 #include "__generated__debugger_ui.h"
 #include "core/io/dir_access.h"
 #include "core/io/file_access.h"
-#include "core/io/json.h"
+#include "core/network_interface.h"
 #include "core/os/os.h"
 #include "data_buffer.h"
-#include "modules/network_synchronizer/core/network_interface.h"
 #include "net_utilities.h"
 #include "scene/main/viewport.h"
 #include "scene/main/window.h"
 #include "scene_synchronizer.h"
+#include <string>
 
 #endif
 
@@ -55,12 +57,6 @@ SceneSynchronizerDebugger *SceneSynchronizerDebugger::singleton() {
 void SceneSynchronizerDebugger::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("on_node_added"), &SceneSynchronizerDebugger::on_node_added);
 	ClassDB::bind_method(D_METHOD("on_node_removed"), &SceneSynchronizerDebugger::on_node_removed);
-
-	ClassDB::bind_method(D_METHOD("add_node_message", "name", "message"), &SceneSynchronizerDebugger::add_node_message);
-
-	ClassDB::bind_method(D_METHOD("debug_print", "node", "message", "silent"), &SceneSynchronizerDebugger::gd_debug_print);
-	ClassDB::bind_method(D_METHOD("debug_warning", "node", "message", "silent"), &SceneSynchronizerDebugger::gd_debug_warning);
-	ClassDB::bind_method(D_METHOD("debug_error", "node", "message", "silent"), &SceneSynchronizerDebugger::gd_debug_error);
 }
 
 SceneSynchronizerDebugger::SceneSynchronizerDebugger() :
@@ -79,7 +75,7 @@ SceneSynchronizerDebugger::~SceneSynchronizerDebugger() {
 	}
 
 #ifdef DEBUG_ENABLED
-	tracked_nodes.reset();
+	tracked_nodes.clear();
 	classes_property_lists.clear();
 	frame_dump__begin_state.clear();
 	frame_dump__end_state.clear();
@@ -130,7 +126,7 @@ void SceneSynchronizerDebugger::unregister_class_to_dump(const StringName &p_cla
 #endif
 }
 
-void SceneSynchronizerDebugger::setup_debugger(const String &p_dump_name, int p_peer, SceneTree *p_scene_tree) {
+void SceneSynchronizerDebugger::setup_debugger(const std::string &p_dump_name, int p_peer, SceneTree *p_scene_tree) {
 #ifdef DEBUG_ENABLED
 	if (setup_done == false) {
 		setup_done = true;
@@ -152,7 +148,7 @@ void SceneSynchronizerDebugger::setup_debugger(const String &p_dump_name, int p_
 	}
 
 	// Setup directories.
-	main_dump_directory_path = OS::get_singleton()->get_executable_path().get_base_dir() + "/net-sync-debugs/dump";
+	main_dump_directory_path = (OS::get_singleton()->get_executable_path().get_base_dir() + "/net-sync-debugs/dump").utf8().ptr();
 	dump_name = p_dump_name;
 
 	prepare_dumping(p_peer, p_scene_tree);
@@ -169,16 +165,16 @@ void SceneSynchronizerDebugger::prepare_dumping(int p_peer, SceneTree *p_scene_t
 
 	// Prepare the dir.
 	{
-		String path = main_dump_directory_path + "/" + dump_name;
+		std::string path = main_dump_directory_path + "/" + dump_name;
 
-		Ref<DirAccess> dir = DirAccess::create_for_path(path);
+		Ref<DirAccess> dir = DirAccess::create_for_path(path.c_str());
 
 		Error e;
-		e = dir->make_dir_recursive(path);
+		e = dir->make_dir_recursive(path.c_str());
 
 		ERR_FAIL_COND(e != OK);
 
-		e = dir->change_dir(path);
+		e = dir->change_dir(path.c_str());
 
 		ERR_FAIL_COND(e != OK);
 
@@ -197,20 +193,20 @@ void SceneSynchronizerDebugger::prepare_dumping(int p_peer, SceneTree *p_scene_t
 	// Store generic info about this dump.
 	{
 		Error e;
-		Ref<FileAccess> file = FileAccess::open(main_dump_directory_path + "/" + "dump-info-" + dump_name + /*"-" + itos(p_peer) +*/ ".json", FileAccess::WRITE, &e);
+		Ref<FileAccess> file = FileAccess::open(String((main_dump_directory_path + "/" + "dump-info-" + dump_name + /*"-" + itos(p_peer) +*/ ".json").c_str()), FileAccess::WRITE, &e);
 
 		ERR_FAIL_COND(e != OK);
 
 		OS::DateTime date = OS::get_singleton()->get_datetime();
 
-		Dictionary d;
+		nlohmann::json d;
 		d["dump-name"] = dump_name;
 		d["peer"] = p_peer;
-		d["date"] = itos(date.day) + "/" + itos(date.month) + "/" + itos(date.year);
-		d["time"] = itos(date.hour) + "::" + itos(date.minute);
+		d["date"] = std::to_string(date.day) + "/" + std::to_string(date.month) + "/" + std::to_string(date.year);
+		d["time"] = std::to_string(date.hour) + "::" + std::to_string(date.minute);
 
 		file->flush();
-		file->store_string(JSON::stringify(d));
+		file->store_string(d.dump().c_str());
 	}
 
 	if (scene_tree) {
@@ -235,16 +231,16 @@ void SceneSynchronizerDebugger::prepare_dumping(int p_peer, SceneTree *p_scene_t
 void SceneSynchronizerDebugger::setup_debugger_python_ui() {
 #ifdef DEBUG_ENABLED
 	// Verify if file exists.
-	const String path = main_dump_directory_path + "/debugger.py";
+	const std::string path = main_dump_directory_path + "/debugger.py";
 
-	if (FileAccess::exists(path)) {
+	if (FileAccess::exists(path.c_str())) {
 		// Nothing to do.
 		return;
 	}
 
 	// Copy the python UI into the directory.
-	Ref<FileAccess> f = FileAccess::open(path, FileAccess::WRITE);
-	ERR_FAIL_COND_MSG(f.is_null(), "Can't create the `" + path + "` file.");
+	Ref<FileAccess> f = FileAccess::open(path.c_str(), FileAccess::WRITE);
+	ENSURE_MSG(!f.is_null(), "Can't create the `" + path + "` file.");
 
 	f->store_buffer((uint8_t *)__debugger_ui_code, __debugger_ui_code_size);
 #endif
@@ -252,7 +248,7 @@ void SceneSynchronizerDebugger::setup_debugger_python_ui() {
 
 void SceneSynchronizerDebugger::track_node(Node *p_node, bool p_recursive) {
 #ifdef DEBUG_ENABLED
-	if (tracked_nodes.find(p_node) == -1) {
+	if (!NS::VecFunc::has(tracked_nodes, p_node)) {
 		const bool is_tracked = dump_classes.find(p_node->get_class_name()) != -1;
 		if (is_tracked) {
 			// Verify if the property list already exists.
@@ -291,10 +287,7 @@ void SceneSynchronizerDebugger::on_node_added(Node *p_node) {
 
 void SceneSynchronizerDebugger::on_node_removed(Node *p_node) {
 #ifdef DEBUG_ENABLED
-	const int64_t index = tracked_nodes.find(p_node);
-	if (index != -1) {
-		tracked_nodes.remove_at_unordered(index);
-	}
+	NS::VecFunc::remove_unordered(tracked_nodes, p_node);
 #endif
 }
 
@@ -311,22 +304,22 @@ void SceneSynchronizerDebugger::write_dump(int p_peer, uint32_t p_frame_index) {
 
 	Ref<FileAccess> file = nullptr;
 	{
-		String file_path = "";
+		std::string file_path = "";
 
 		int iteration = 0;
-		String iteration_mark = "";
+		std::string iteration_mark = "";
 		do {
-			file_path = main_dump_directory_path + "/" + dump_name + "/fd-" /*+ itos(p_peer) + "-"*/ + itos(p_frame_index) + iteration_mark + ".json";
+			file_path = main_dump_directory_path + "/" + dump_name + "/fd-" /*+ itos(p_peer) + "-"*/ + std::to_string(p_frame_index) + iteration_mark + ".json";
 			iteration_mark += "@";
 			iteration += 1;
-		} while (FileAccess::exists(file_path) && iteration < 100);
+		} while (FileAccess::exists(file_path.c_str()) && iteration < 100);
 
 		Error e;
-		file = FileAccess::open(file_path, FileAccess::WRITE, &e);
-		ERR_FAIL_COND(e != OK);
+		file = FileAccess::open(file_path.c_str(), FileAccess::WRITE, &e);
+		ENSURE(e == OK);
 	}
 
-	String frame_summary;
+	std::string frame_summary;
 
 	if (frame_dump__has_warnings) {
 		frame_summary += "* ";
@@ -341,9 +334,9 @@ void SceneSynchronizerDebugger::write_dump(int p_peer, uint32_t p_frame_index) {
 		frame_summary += "Client desync; No controller rewind; ";
 	}
 
-	Dictionary d;
-	d["frame"] = itos(p_frame_index);
-	d["peer"] = itos(p_peer);
+	nlohmann::json d;
+	d["frame"] = p_frame_index;
+	d["peer"] = p_peer;
 	d["frame_summary"] = frame_summary;
 	d["begin_state"] = frame_dump__begin_state;
 	d["end_state"] = frame_dump__end_state;
@@ -352,7 +345,7 @@ void SceneSynchronizerDebugger::write_dump(int p_peer, uint32_t p_frame_index) {
 	d["data_buffer_reads"] = frame_dump__data_buffer_reads;
 	d["are_inputs_different_results"] = frame_dump__are_inputs_different_results;
 
-	file->store_string(JSON::stringify(d));
+	file->store_string(String(d.dump().c_str()));
 #endif
 }
 
@@ -370,7 +363,7 @@ void SceneSynchronizerDebugger::start_new_frame() {
 }
 
 #ifdef DEBUG_ENABLED
-String type_to_string(Variant::Type p_type) {
+std::string type_to_string(Variant::Type p_type) {
 	switch (p_type) {
 		case Variant::NIL:
 			return "NIL";
@@ -454,7 +447,7 @@ String type_to_string(Variant::Type p_type) {
 	return "";
 }
 
-String data_type_to_string(uint32_t p_type) {
+std::string data_type_to_string(uint32_t p_type) {
 	switch (p_type) {
 		case DataBuffer::DATA_TYPE_BOOL:
 			return "Bool";
@@ -483,7 +476,7 @@ String data_type_to_string(uint32_t p_type) {
 	return "UNDEFINED";
 }
 
-String compression_level_to_string(uint32_t p_type) {
+std::string compression_level_to_string(uint32_t p_type) {
 	switch (p_type) {
 		case DataBuffer::COMPRESSION_LEVEL_0:
 			return "Compression Level 0";
@@ -525,13 +518,13 @@ void SceneSynchronizerDebugger::databuffer_operation_begin_record(NS::NetworkInt
 		return;
 	}
 
-	frame_dump__data_buffer_name = p_network_interface->get_name();
+	frame_dump__data_buffer_name = p_network_interface->get_name().utf8().ptr();
 	frame_dump_data_buffer_dump_mode = p_mode;
 
 	if (frame_dump_data_buffer_dump_mode == DataBufferDumpMode::WRITE) {
-		add_node_message(frame_dump__data_buffer_name, "[WRITE] DataBuffer start write");
+		print("[WRITE] DataBuffer start write.", frame_dump__data_buffer_name, NS::PrintMessageType::__INTERNAL);
 	} else {
-		add_node_message(frame_dump__data_buffer_name, "[READ] DataBuffer start read");
+		print("[READ] DataBuffer start read.", frame_dump__data_buffer_name, NS::PrintMessageType::__INTERNAL);
 	}
 #endif
 }
@@ -543,9 +536,9 @@ void SceneSynchronizerDebugger::databuffer_operation_end_record() {
 	}
 
 	if (frame_dump_data_buffer_dump_mode == DataBufferDumpMode::WRITE) {
-		add_node_message(frame_dump__data_buffer_name, "[WRITE] end");
+		print("[WRITE] end.", frame_dump__data_buffer_name, NS::PrintMessageType::__INTERNAL);
 	} else {
-		add_node_message(frame_dump__data_buffer_name, "[READ] end");
+		print("[READ] end.", frame_dump__data_buffer_name, NS::PrintMessageType::__INTERNAL);
 	}
 
 	frame_dump_data_buffer_dump_mode = DataBufferDumpMode::NONE;
@@ -565,9 +558,9 @@ void SceneSynchronizerDebugger::databuffer_write(uint32_t p_data_type, uint32_t 
 
 	frame_dump__data_buffer_writes.push_back(val_string);
 
-	const String operation = "[WRITE]      [" + compression_level_to_string(p_compression_level) + "] [" + data_type_to_string(p_data_type) + "] [new offset: " + itos(p_new_bit_offset) + "] " + val_string;
+	const std::string operation = "[WRITE]      [" + compression_level_to_string(p_compression_level) + "] [" + data_type_to_string(p_data_type) + "] [new offset: " + std::to_string(p_new_bit_offset) + "] " + val_string;
 
-	add_node_message(frame_dump__data_buffer_name, operation);
+	print(operation, frame_dump__data_buffer_name, NS::PrintMessageType::__INTERNAL);
 #endif
 }
 
@@ -583,9 +576,9 @@ void SceneSynchronizerDebugger::databuffer_read(uint32_t p_data_type, uint32_t p
 
 	frame_dump__data_buffer_reads.push_back(val_string);
 
-	const String operation = "[READ]     [" + compression_level_to_string(p_compression_level) + "] [" + data_type_to_string(p_data_type) + "] [new offset: " + itos(p_new_bit_offset) + "] " + val_string;
+	const std::string operation = "[READ]     [" + compression_level_to_string(p_compression_level) + "] [" + data_type_to_string(p_data_type) + "] [new offset: " + std::to_string(p_new_bit_offset) + "] " + val_string;
 
-	add_node_message(frame_dump__data_buffer_name, operation);
+	print(operation, frame_dump__data_buffer_name, NS::PrintMessageType::__INTERNAL);
 #endif
 }
 
@@ -605,86 +598,60 @@ void SceneSynchronizerDebugger::notify_are_inputs_different_result(
 	} else {
 		debug_print(p_network_interface, "This frame input is DIFFERENT to `" + itos(p_other_frame_index) + "`", true);
 	}
-	frame_dump__are_inputs_different_results[p_other_frame_index] = p_is_similar;
-#endif
-}
-
-void SceneSynchronizerDebugger::add_node_message(const String &p_node_path, const String &p_message) {
-#ifdef DEBUG_ENABLED
-	if (!dump_enabled) {
-		return;
-	}
-
-	if (!frame_dump__node_log.has(p_node_path)) {
-		frame_dump__node_log[p_node_path] = Array();
-	}
-
-	Variant *v = frame_dump__node_log.getptr(p_node_path);
-	Array a = *v;
-
-	Dictionary m;
-	m["i"] = log_counter;
-	m["m"] = p_message;
-	a.append(m);
-	log_counter += 1;
+	frame_dump__are_inputs_different_results[std::to_string(p_other_frame_index)] = p_is_similar;
 #endif
 }
 
 void SceneSynchronizerDebugger::debug_print(NS::NetworkInterface *p_network_interface, const String &p_message, bool p_silent) {
 #ifdef DEBUG_ENABLED
-	if (!p_silent) {
-		NET_DEBUG_PRINT(p_message);
-	}
-	add_node_message(p_network_interface ? p_network_interface->get_name() : "GLOBAL", "[INFO]    " + p_message);
+	print(
+			p_message.utf8().ptr(),
+			p_network_interface ? p_network_interface->get_name().utf8().ptr() : "GLOBAL",
+			NS::PrintMessageType::INFO);
 #endif
 }
 
 void SceneSynchronizerDebugger::debug_warning(NS::NetworkInterface *p_network_interface, const String &p_message, bool p_silent) {
 #ifdef DEBUG_ENABLED
-	if (!p_silent) {
-		NET_DEBUG_WARN(p_message);
-	}
-	add_node_message(p_network_interface ? p_network_interface->get_name() : "GLOBAL", "[WARNING] " + p_message);
-	frame_dump__has_warnings = true;
+	print(
+			p_message.utf8().ptr(),
+			p_network_interface ? p_network_interface->get_name().utf8().ptr() : "GLOBAL",
+			NS::PrintMessageType::WARNING);
 #endif
 }
 
 void SceneSynchronizerDebugger::debug_error(NS::NetworkInterface *p_network_interface, const String &p_message, bool p_silent) {
 #ifdef DEBUG_ENABLED
-	if (!p_silent) {
-		NET_DEBUG_ERR(p_message);
-	}
-	add_node_message(p_network_interface ? p_network_interface->get_name() : "GLOBAL", "[ERROR]   " + p_message);
-	frame_dump__has_errors = true;
+	print(
+			p_message.utf8().ptr(),
+			p_network_interface ? p_network_interface->get_name().utf8().ptr() : "GLOBAL",
+			NS::PrintMessageType::ERROR);
 #endif
 }
 
-void SceneSynchronizerDebugger::gd_debug_print(Node *p_node, const String &p_message, bool p_silent) {
+void SceneSynchronizerDebugger::print(const std::string &p_message, const std::string &p_object_name, NS::PrintMessageType p_level, bool p_force_print_to_log) {
 #ifdef DEBUG_ENABLED
-	if (!p_silent) {
-		NET_DEBUG_PRINT(p_message);
-	}
-	add_node_message(p_node ? String(p_node->get_path()) : "GLOBAL", "[INFO]    " + p_message);
-#endif
-}
 
-void SceneSynchronizerDebugger::gd_debug_warning(Node *p_node, const String &p_message, bool p_silent) {
-#ifdef DEBUG_ENABLED
-	if (!p_silent) {
-		NET_DEBUG_WARN(p_message);
+	if (NS::PrintMessageType::WARNING & p_level) {
+		frame_dump__has_warnings = true;
 	}
-	add_node_message(p_node ? String(p_node->get_path()) : "GLOBAL", "[WARNING] " + p_message);
-	frame_dump__has_warnings = true;
-#endif
-}
 
-void SceneSynchronizerDebugger::gd_debug_error(Node *p_node, const String &p_message, bool p_silent) {
-#ifdef DEBUG_ENABLED
-	if (!p_silent) {
-		NET_DEBUG_ERR(p_message);
+	if (NS::PrintMessageType::ERROR & p_level) {
+		frame_dump__has_errors = true;
 	}
-	add_node_message(p_node ? String(p_node->get_path()) : "GLOBAL", "[ERROR]   " + p_message);
-	frame_dump__has_errors = true;
+
+	const std::string log_level_str = NS::get_log_level_txt(p_level);
+
+	if ((log_level & p_level) || p_force_print_to_log) {
+		NS::SceneSynchronizerBase::__print_line(log_level_str + "[" + p_object_name + "] " + p_message);
+	}
+
+	__add_message(log_level_str + p_message, p_object_name);
+#else
+	if ((log_level & p_level) || p_force_print_to_log) {
+		const std::string log_level_str = NS::get_log_level_txt(p_level);
+		NS::SceneSynchronizerBase::print_line(log_level_str + "[" + p_object_name + "] " + p_message);
+	}
 #endif
 }
 
@@ -698,27 +665,42 @@ void SceneSynchronizerDebugger::notify_event(FrameEvent p_event) {
 #endif
 }
 
-void SceneSynchronizerDebugger::dump_tracked_objects(const NS::SceneSynchronizerBase *p_scene_sync, Dictionary &p_dump) {
+void SceneSynchronizerDebugger::__add_message(const std::string &p_message, const std::string &p_object_name) {
+#ifdef DEBUG_ENABLED
+	if (!dump_enabled) {
+		return;
+	}
+
+	nlohmann::json m;
+	m["i"] = log_counter;
+	m["m"] = p_message;
+	frame_dump__node_log[p_object_name].push_back(m);
+
+	log_counter += 1;
+#endif
+}
+
+void SceneSynchronizerDebugger::dump_tracked_objects(const NS::SceneSynchronizerBase *p_scene_sync, nlohmann::json::object_t &p_dump) {
 #ifdef DEBUG_ENABLED
 	p_dump.clear();
 
 	for (uint32_t i = 0; i < tracked_nodes.size(); i += 1) {
-		Dictionary node_dump;
+		nlohmann::json object_dump;
 
-		String node_path = tracked_nodes[i].node->get_path();
-		node_dump["node_path"] = node_path;
+		std::string node_path = String(tracked_nodes[i].node->get_path()).utf8().ptr();
+		object_dump["node_path"] = node_path;
 
 		for (List<PropertyInfo>::Element *e = tracked_nodes[i].properties->front(); e; e = e->next()) {
-			String prefix;
+			std::string prefix;
 			// TODO the below cast is an unsafe cast. Please refactor this.
 			if (p_scene_sync->is_variable_registered(p_scene_sync->find_object_local_id({ reinterpret_cast<std::intptr_t>(tracked_nodes[i].node) }), e->get().name)) {
 				prefix = "* ";
 			}
 
-			node_dump[prefix + e->get().name + "::" + type_to_string(e->get().type)] = tracked_nodes[i].node->get(e->get().name).stringify();
+			object_dump[prefix + String(e->get().name).utf8().ptr() + "::" + type_to_string(e->get().type)] = tracked_nodes[i].node->get(e->get().name).stringify().utf8().ptr();
 		}
 
-		p_dump[node_path] = node_dump;
+		p_dump[node_path] = object_dump;
 	}
 #endif
 }
