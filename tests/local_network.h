@@ -29,7 +29,7 @@ struct PendingPacket {
 	int reliable_packet_index = -1;
 	float delay = 0.0;
 	int peer_recipient = -1;
-	String object_name;
+	std::string object_name;
 	DataBuffer data_buffer;
 };
 
@@ -40,7 +40,7 @@ class LocalNetwork {
 	int peer_counter = 2;
 	std::map<int, LocalNetwork *> connected_peers;
 
-	std::map<String, LocalNetworkInterface *> registered_objects;
+	std::map<std::string, LocalNetworkInterface *> registered_objects;
 
 	std::vector<std::shared_ptr<PendingPacket>> sending_packets;
 
@@ -60,7 +60,7 @@ public:
 
 	void register_object(LocalNetworkInterface &p_interface);
 
-	void rpc_send(String p_object_name, int p_peer_recipient, bool p_reliable, DataBuffer &&p_data_buffer);
+	void rpc_send(std::string p_object_name, int p_peer_recipient, bool p_reliable, DataBuffer &&p_data_buffer);
 
 	void process(float p_delta);
 
@@ -69,7 +69,7 @@ private:
 	void rpc_receive_internal(int p_peer_sender, const std::shared_ptr<PendingPacket> &p_packet);
 };
 
-class LocalNetworkInterface : public NS::NetworkInterface {
+class LocalNetworkInterface final : public NS::NetworkInterface {
 	std::string name;
 	LocalNetwork *network = nullptr;
 
@@ -81,7 +81,7 @@ public:
 	void init(LocalNetwork &p_network, const std::string &p_unique_name, int p_authoritative_peer);
 
 	std::vector<RPCInfo> &get_rpcs_info() { return rpcs_info; }
-	virtual String get_name() const override { return String(name.c_str()); }
+	virtual std::string get_owner_name() const override { return name; }
 
 	virtual int get_server_peer() const override { return 1; }
 

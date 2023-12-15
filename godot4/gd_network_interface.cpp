@@ -33,8 +33,8 @@ GdNetworkInterface::GdNetworkInterface() {
 GdNetworkInterface::~GdNetworkInterface() {
 }
 
-String GdNetworkInterface::get_name() const {
-	return owner->get_path();
+std::string GdNetworkInterface::get_owner_name() const {
+	return String(owner->get_path()).utf8().ptr();
 }
 
 void GdNetworkInterface::start_listening_peer_connection(

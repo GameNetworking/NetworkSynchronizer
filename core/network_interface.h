@@ -5,7 +5,6 @@
 #include "network_codec.h"
 #include <functional>
 #include <string>
-#include <type_traits>
 #include <vector>
 
 NS_NAMESPACE_BEGIN
@@ -53,7 +52,7 @@ public: // ---------------------------------------------------------------- APIs
 		rpc_last_sender = 0;
 	}
 
-	virtual String get_name() const = 0;
+	virtual std::string get_owner_name() const = 0;
 
 	virtual int get_server_peer() const = 0;
 

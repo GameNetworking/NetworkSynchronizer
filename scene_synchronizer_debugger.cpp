@@ -518,7 +518,7 @@ void SceneSynchronizerDebugger::databuffer_operation_begin_record(NS::NetworkInt
 		return;
 	}
 
-	frame_dump__data_buffer_name = p_network_interface->get_name().utf8().ptr();
+	frame_dump__data_buffer_name = p_network_interface->get_owner_name();
 	frame_dump_data_buffer_dump_mode = p_mode;
 
 	if (frame_dump_data_buffer_dump_mode == DataBufferDumpMode::WRITE) {
@@ -606,7 +606,7 @@ void SceneSynchronizerDebugger::debug_print(NS::NetworkInterface *p_network_inte
 #ifdef DEBUG_ENABLED
 	print(
 			p_message.utf8().ptr(),
-			p_network_interface ? p_network_interface->get_name().utf8().ptr() : "GLOBAL",
+			p_network_interface ? p_network_interface->get_owner_name() : "GLOBAL",
 			NS::PrintMessageType::INFO);
 #endif
 }
@@ -615,7 +615,7 @@ void SceneSynchronizerDebugger::debug_warning(NS::NetworkInterface *p_network_in
 #ifdef DEBUG_ENABLED
 	print(
 			p_message.utf8().ptr(),
-			p_network_interface ? p_network_interface->get_name().utf8().ptr() : "GLOBAL",
+			p_network_interface ? p_network_interface->get_owner_name() : "GLOBAL",
 			NS::PrintMessageType::WARNING);
 #endif
 }
@@ -624,7 +624,7 @@ void SceneSynchronizerDebugger::debug_error(NS::NetworkInterface *p_network_inte
 #ifdef DEBUG_ENABLED
 	print(
 			p_message.utf8().ptr(),
-			p_network_interface ? p_network_interface->get_name().utf8().ptr() : "GLOBAL",
+			p_network_interface ? p_network_interface->get_owner_name() : "GLOBAL",
 			NS::PrintMessageType::ERROR);
 #endif
 }
