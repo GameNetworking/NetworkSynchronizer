@@ -1147,7 +1147,7 @@ FrameIndex PlayerController::get_current_frame_index() const {
 }
 
 bool PlayerController::receive_inputs(const Vector<uint8_t> &p_data) {
-	SceneSynchronizerDebugger::singleton()->debug_error(&node->get_network_interface(), "`receive_input` called on the `PlayerServerController` -This function is not supposed to be called on the player controller. Only the server and the doll should receive this.");
+	SceneSynchronizerDebugger::singleton()->print(NS::ERROR, "`receive_input` called on the `PlayerServerController` -This function is not supposed to be called on the player controller. Only the server and the doll should receive this.", node->get_network_interface().get_owner_name());
 	return false;
 }
 

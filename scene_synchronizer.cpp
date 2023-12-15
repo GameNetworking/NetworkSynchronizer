@@ -3373,7 +3373,7 @@ void ClientSynchronizer::remove_object_from_trickled_sync(NS::ObjectData *p_obje
 bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 	if (want_to_enable) {
 		if (enabled) {
-			SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "At this point the client is supposed to be disabled. This is a bug that must be solved.");
+			SceneSynchronizerDebugger::singleton()->print(ERROR, "At this point the client is supposed to be disabled. This is a bug that must be solved.", scene_synchronizer->get_network_interface().get_owner_name());
 		}
 		// The netwroking is disabled and we can re-enable it.
 		enabled = true;
@@ -3459,14 +3459,14 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 			});
 
 	if (success == false) {
-		SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "Snapshot parsing failed.");
+		SceneSynchronizerDebugger::singleton()->print(ERROR, "Snapshot parsing failed.", scene_synchronizer->get_network_interface().get_owner_name());
 		return false;
 	}
 
 	if make_unlikely (received_snapshot.input_id == FrameIndex::NONE && player_controller_object_data != nullptr) {
 		// We espect that the player_controller is updated by this new snapshot,
 		// so make sure it's done so.
-		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "[INFO] the player controller (" + String(player_controller_object_data->object_name.c_str()) + ") was not part of the received snapshot, this happens when the server destroys the peer controller.");
+		SceneSynchronizerDebugger::singleton()->print(ERROR, "[INFO] the player controller (" + player_controller_object_data->object_name + ") was not part of the received snapshot, this happens when the server destroys the peer controller.", player_controller_object_data->object_name);
 	}
 
 	last_received_snapshot = std::move(received_snapshot);
