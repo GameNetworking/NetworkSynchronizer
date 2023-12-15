@@ -303,7 +303,7 @@ void GdSceneSynchronizer::debug_only_validate_objects() {
 
 	// Removes the invalidated `NodeData`.
 	if (null_objects.size()) {
-		SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer.get_network_interface(), "At least one node has been removed from the tree without the SceneSynchronizer noticing. This shouldn't happen.");
+		SceneSynchronizerDebugger::singleton()->print(NS::ERROR, "At least one node has been removed from the tree without the SceneSynchronizer noticing. This shouldn't happen.", scene_synchronizer.get_network_interface().get_owner_name());
 		for (uint32_t i = 0; i < null_objects.size(); i += 1) {
 			scene_synchronizer.on_app_object_removed(null_objects[i]);
 		}
@@ -340,7 +340,7 @@ void GdSceneSynchronizer::setup_synchronizer_for(NS::ObjectHandle p_app_object_h
 	if (node->has_method("_setup_synchronizer")) {
 		node->call("_setup_synchronizer", p_id.id);
 	} else {
-		SceneSynchronizerDebugger::singleton()->debug_error(nullptr, "[ERROR] The registered node `" + node->get_path() + "` doesn't override the method `_setup_synchronizer`, which is called by the SceneSynchronizer to know the node sync properties. Pleaes implement it.");
+		SceneSynchronizerDebugger::singleton()->print(NS::ERROR, "The registered node `" + FROM_GSTRING(String(node->get_path())) + "` doesn't override the method `_setup_synchronizer`, which is called by the SceneSynchronizer to know the node sync properties. Pleaes implement it.");
 	}
 }
 

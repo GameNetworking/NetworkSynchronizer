@@ -522,9 +522,9 @@ void SceneSynchronizerDebugger::databuffer_operation_begin_record(NS::NetworkInt
 	frame_dump_data_buffer_dump_mode = p_mode;
 
 	if (frame_dump_data_buffer_dump_mode == DataBufferDumpMode::WRITE) {
-		print("[WRITE] DataBuffer start write.", frame_dump__data_buffer_name, NS::PrintMessageType::__INTERNAL);
+		print(NS::PrintMessageType::__INTERNAL, "[WRITE] DataBuffer start write.", frame_dump__data_buffer_name);
 	} else {
-		print("[READ] DataBuffer start read.", frame_dump__data_buffer_name, NS::PrintMessageType::__INTERNAL);
+		print(NS::PrintMessageType::__INTERNAL, "[READ] DataBuffer start read.", frame_dump__data_buffer_name);
 	}
 #endif
 }
@@ -536,9 +536,9 @@ void SceneSynchronizerDebugger::databuffer_operation_end_record() {
 	}
 
 	if (frame_dump_data_buffer_dump_mode == DataBufferDumpMode::WRITE) {
-		print("[WRITE] end.", frame_dump__data_buffer_name, NS::PrintMessageType::__INTERNAL);
+		print(NS::PrintMessageType::__INTERNAL, "[WRITE] end.", frame_dump__data_buffer_name);
 	} else {
-		print("[READ] end.", frame_dump__data_buffer_name, NS::PrintMessageType::__INTERNAL);
+		print(NS::PrintMessageType::__INTERNAL, "[READ] end.", frame_dump__data_buffer_name);
 	}
 
 	frame_dump_data_buffer_dump_mode = DataBufferDumpMode::NONE;
@@ -560,7 +560,7 @@ void SceneSynchronizerDebugger::databuffer_write(uint32_t p_data_type, uint32_t 
 
 	const std::string operation = "[WRITE]      [" + compression_level_to_string(p_compression_level) + "] [" + data_type_to_string(p_data_type) + "] [new offset: " + std::to_string(p_new_bit_offset) + "] " + val_string;
 
-	print(operation, frame_dump__data_buffer_name, NS::PrintMessageType::__INTERNAL);
+	print(NS::PrintMessageType::__INTERNAL, operation, frame_dump__data_buffer_name);
 #endif
 }
 
@@ -578,7 +578,7 @@ void SceneSynchronizerDebugger::databuffer_read(uint32_t p_data_type, uint32_t p
 
 	const std::string operation = "[READ]     [" + compression_level_to_string(p_compression_level) + "] [" + data_type_to_string(p_data_type) + "] [new offset: " + std::to_string(p_new_bit_offset) + "] " + val_string;
 
-	print(operation, frame_dump__data_buffer_name, NS::PrintMessageType::__INTERNAL);
+	print(NS::PrintMessageType::__INTERNAL, operation, frame_dump__data_buffer_name);
 #endif
 }
 
@@ -605,31 +605,31 @@ void SceneSynchronizerDebugger::notify_are_inputs_different_result(
 void SceneSynchronizerDebugger::debug_print(NS::NetworkInterface *p_network_interface, const String &p_message, bool p_silent) {
 #ifdef DEBUG_ENABLED
 	print(
+			NS::PrintMessageType::INFO,
 			p_message.utf8().ptr(),
-			p_network_interface ? p_network_interface->get_owner_name() : "GLOBAL",
-			NS::PrintMessageType::INFO);
+			p_network_interface ? p_network_interface->get_owner_name() : "GLOBAL");
 #endif
 }
 
 void SceneSynchronizerDebugger::debug_warning(NS::NetworkInterface *p_network_interface, const String &p_message, bool p_silent) {
 #ifdef DEBUG_ENABLED
 	print(
+			NS::PrintMessageType::WARNING,
 			p_message.utf8().ptr(),
-			p_network_interface ? p_network_interface->get_owner_name() : "GLOBAL",
-			NS::PrintMessageType::WARNING);
+			p_network_interface ? p_network_interface->get_owner_name() : "GLOBAL");
 #endif
 }
 
 void SceneSynchronizerDebugger::debug_error(NS::NetworkInterface *p_network_interface, const String &p_message, bool p_silent) {
 #ifdef DEBUG_ENABLED
 	print(
+			NS::PrintMessageType::ERROR,
 			p_message.utf8().ptr(),
-			p_network_interface ? p_network_interface->get_owner_name() : "GLOBAL",
-			NS::PrintMessageType::ERROR);
+			p_network_interface ? p_network_interface->get_owner_name() : "GLOBAL");
 #endif
 }
 
-void SceneSynchronizerDebugger::print(const std::string &p_message, const std::string &p_object_name, NS::PrintMessageType p_level, bool p_force_print_to_log) {
+void SceneSynchronizerDebugger::print(NS::PrintMessageType p_level, const std::string &p_message, const std::string &p_object_name, bool p_force_print_to_log) {
 #ifdef DEBUG_ENABLED
 
 	if (NS::PrintMessageType::WARNING & p_level) {

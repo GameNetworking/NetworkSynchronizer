@@ -174,7 +174,11 @@ public:
 	void debug_warning(NS::NetworkInterface *p_network_interface, const String &p_message, bool p_silent = false);
 	void debug_error(NS::NetworkInterface *p_network_interface, const String &p_message, bool p_silent = false);
 
-	void print(const std::string &p_message, const std::string &p_object_name = "GLOBAL", NS::PrintMessageType p_level = NS::PrintMessageType::INFO, bool p_force_print_to_log = false);
+	void print(
+			NS::PrintMessageType p_level,
+			const std::string &p_message,
+			const std::string &p_object_name = "GLOBAL",
+			bool p_force_print_to_log = false);
 
 	void notify_event(FrameEvent p_event);
 

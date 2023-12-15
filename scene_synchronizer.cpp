@@ -1096,13 +1096,13 @@ void SceneSynchronizerBase::rpc_notify_fps_acceleration(const Vector<uint8_t> &p
 	const bool debug = ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/debug_server_speedup");
 	if (debug) {
 		SceneSynchronizerDebugger::singleton()->print(
+				INFO,
 				std::string() +
 						"Client received speedup." +
 						" Frames to produce: `" + std::to_string(additional_frames_to_produce) + "`" +
 						" Acceleration fps: `" + std::to_string(client_sync->acceleration_fps_speed) + "`" +
 						" Acceleration time: `" + std::to_string(client_sync->acceleration_fps_timer) + "`",
 				get_network_interface().get_owner_name(),
-				INFO,
 				true);
 	}
 #endif
@@ -2617,9 +2617,9 @@ void ClientSynchronizer::process_received_server_state() {
 	if (need_rewind) {
 		SceneSynchronizerDebugger::singleton()->notify_event(SceneSynchronizerDebugger::FrameEvent::CLIENT_DESYNC_DETECTED);
 		SceneSynchronizerDebugger::singleton()->print(
+				__INTERNAL,
 				std::string("Recover input: ") + std::string(last_checked_input) + " - Last input: " + std::string(player_controller->get_stored_frame_index(-1)),
-				scene_synchronizer->get_network_interface().get_owner_name(),
-				__INTERNAL);
+				scene_synchronizer->get_network_interface().get_owner_name());
 
 		// Sync.
 		__pcr__sync__rewind();
@@ -2778,9 +2778,9 @@ void ClientSynchronizer::__pcr__rewind(
 #ifdef DEBUG_ENABLED
 		has_next = p_local_controller->has_another_instant_to_process_after(i);
 		SceneSynchronizerDebugger::singleton()->print(
+				INFO,
 				"Rewind, processed controller: " + p_local_controller_node->object_name + " Frame: " + std::string(frame_id_to_process),
 				scene_synchronizer->get_network_interface().get_owner_name(),
-				INFO,
 				scene_synchronizer->debug_rewindings_enabled);
 #endif
 

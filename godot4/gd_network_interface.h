@@ -3,6 +3,8 @@
 #include "core/object/object.h"
 #include "modules/network_synchronizer/core/network_interface.h"
 
+#define FROM_GSTRING(str) std::string(str.utf8().ptr())
+
 class GdNetworkInterface final : public NS::NetworkInterface,
 								 public Object {
 public:
