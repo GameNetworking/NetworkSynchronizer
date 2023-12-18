@@ -49,6 +49,10 @@
 
 #ifdef DEBUG_ENABLED
 #define DEBUG_DATA_BUFFER
+
+#ifdef DISABLE_DEBUG_DATA_BUFFER
+#undef DEBUG_DATA_BUFFER
+#endif
 #endif
 
 #ifdef DEBUG_DATA_BUFFER
