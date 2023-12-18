@@ -3467,7 +3467,7 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 	if make_unlikely (received_snapshot.input_id == FrameIndex::NONE && player_controller_object_data != nullptr) {
 		// We espect that the player_controller is updated by this new snapshot,
 		// so make sure it's done so.
-		SceneSynchronizerDebugger::singleton()->print(WARNING, "The player controller (" + player_controller_object_data->object_name + ") was not part of the received snapshot, this happens when the server destroys the peer controller.", player_controller_object_data->object_name);
+		SceneSynchronizerDebugger::singleton()->print(ERROR, "The player controller (" + player_controller_object_data->object_name + ") was not part of the received snapshot, this happens when the server destroys the peer controller.", player_controller_object_data->object_name);
 	}
 
 	last_received_snapshot = std::move(received_snapshot);
