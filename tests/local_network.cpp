@@ -153,8 +153,11 @@ int LocalNetworkInterface::fetch_local_peer_id() const {
 
 void LocalNetworkInterface::fetch_connected_peers(std::vector<int> &p_connected_peers) const {
 	p_connected_peers.clear();
+	// Get all the connected peers.
 	for (const auto &[peer_id, _] : network->get_connected_peers()) {
-		p_connected_peers.push_back(peer_id);
+		if (peer_id != get_unit_authority()) {
+			p_connected_peers.push_back(peer_id);
+		}
 	}
 }
 
