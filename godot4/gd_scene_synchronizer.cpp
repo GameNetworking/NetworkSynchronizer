@@ -62,6 +62,9 @@ void GdSceneSynchronizer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_nodes_relevancy_update_time", "time"), &GdSceneSynchronizer::set_nodes_relevancy_update_time);
 	ClassDB::bind_method(D_METHOD("get_nodes_relevancy_update_time"), &GdSceneSynchronizer::get_nodes_relevancy_update_time);
 
+	ClassDB::bind_method(D_METHOD("set_frames_per_seconds", "fps"), &GdSceneSynchronizer::set_frames_per_seconds);
+	ClassDB::bind_method(D_METHOD("get_frames_per_seconds"), &GdSceneSynchronizer::get_frames_per_seconds);
+
 	ClassDB::bind_method(D_METHOD("register_node", "node"), &GdSceneSynchronizer::register_node_gdscript);
 	ClassDB::bind_method(D_METHOD("register_node_as_controller_by_peer", "node", "peer"), &GdSceneSynchronizer::register_node_as_controller_by_peer);
 	ClassDB::bind_method(D_METHOD("unregister_node", "node"), &GdSceneSynchronizer::unregister_node);
@@ -84,6 +87,8 @@ void GdSceneSynchronizer::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("setup_trickled_sync", "node", "collect_epoch_func", "apply_epoch_func"), &GdSceneSynchronizer::setup_trickled_sync);
 
+	ClassDB::bind_method(D_METHOD("get_peer_latency", "peer"), &GdSceneSynchronizer::get_peer_latency);
+
 	ClassDB::bind_method(D_METHOD("sync_group_create"), &GdSceneSynchronizer::sync_group_create);
 	ClassDB::bind_method(D_METHOD("sync_group_add_node", "node_id", "group_id", "realtime"), &GdSceneSynchronizer::sync_group_add_node_by_id);
 	ClassDB::bind_method(D_METHOD("sync_group_remove_node", "node_id", "group_id"), &GdSceneSynchronizer::sync_group_remove_node_by_id);
@@ -101,7 +106,7 @@ void GdSceneSynchronizer::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_enabled", "enabled"), &GdSceneSynchronizer::set_enabled);
 	ClassDB::bind_method(D_METHOD("set_peer_networking_enable", "peer", "enabled"), &GdSceneSynchronizer::set_peer_networking_enable);
-	ClassDB::bind_method(D_METHOD("get_peer_networking_enable", "peer"), &GdSceneSynchronizer::is_peer_networking_enable);
+	ClassDB::bind_method(D_METHOD("get_peer_networking_enabled", "peer"), &GdSceneSynchronizer::is_peer_networking_enabled);
 
 	ClassDB::bind_method(D_METHOD("is_server"), &GdSceneSynchronizer::is_server);
 	ClassDB::bind_method(D_METHOD("is_client"), &GdSceneSynchronizer::is_client);
@@ -428,6 +433,14 @@ real_t GdSceneSynchronizer::get_nodes_relevancy_update_time() const {
 	return scene_synchronizer.get_objects_relevancy_update_time();
 }
 
+void GdSceneSynchronizer::set_frames_per_seconds(int p_fps) {
+	scene_synchronizer.set_frames_per_seconds(p_fps);
+}
+
+int GdSceneSynchronizer::get_frames_per_seconds() const {
+	return scene_synchronizer.get_frames_per_seconds();
+}
+
 void GdSceneSynchronizer::_rpc_net_sync_reliable(const Vector<uint8_t> &p_args) {
 	static_cast<GdNetworkInterface *>(&scene_synchronizer.get_network_interface())->gd_rpc_receive(p_args);
 }
@@ -586,6 +599,10 @@ void GdSceneSynchronizer::setup_trickled_sync(Node *p_node, const Callable &p_co
 			});
 }
 
+int GdSceneSynchronizer::get_peer_latency(int p_peer) const {
+	return scene_synchronizer.get_peer_latency(p_peer);
+}
+
 Array GdSceneSynchronizer::local_controller_get_controlled_nodes() const {
 	Array a;
 
@@ -700,8 +717,8 @@ void GdSceneSynchronizer::set_peer_networking_enable(int p_peer, bool p_enable) 
 	scene_synchronizer.set_peer_networking_enable(p_peer, p_enable);
 }
 
-bool GdSceneSynchronizer::is_peer_networking_enable(int p_peer) const {
-	return scene_synchronizer.is_peer_networking_enable(p_peer);
+bool GdSceneSynchronizer::is_peer_networking_enabled(int p_peer) const {
+	return scene_synchronizer.is_peer_networking_enabled(p_peer);
 }
 
 bool GdSceneSynchronizer::is_server() const {

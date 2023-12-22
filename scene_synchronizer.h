@@ -144,7 +144,7 @@ protected:
 	class NetworkInterface *network_interface = nullptr;
 	SynchronizerManager *synchronizer_manager = nullptr;
 
-	RpcHandle<> rpc_handler_ping;
+	RpcHandle<> rpc_handler_latency;
 	RpcHandle<DataBuffer &> rpc_handler_state;
 	RpcHandle<> rpc_handler_notify_need_full_snapshot;
 	RpcHandle<bool> rpc_handler_set_network_enabled;
@@ -187,8 +187,8 @@ protected:
 	/// Can be 0.0 to update the relevancy each frame.
 	float objects_relevancy_update_time = 0.5;
 
-	/// Update the ping each 3 seconds.
-	float ping_update_rate = 3.0;
+	/// Update the latency each 3 seconds.
+	float latency_update_rate = 3.0;
 
 	SynchronizerType synchronizer_type = SYNCHRONIZER_TYPE_NULL;
 
@@ -306,13 +306,13 @@ public:
 	void set_objects_relevancy_update_time(float p_time);
 	float get_objects_relevancy_update_time() const;
 
-	void set_ping_update_rate(float p_rate_seconds);
-	float get_ping_update_rate() const;
+	void set_latency_update_rate(float p_rate_seconds);
+	float get_latency_update_rate() const;
 
 	bool is_variable_registered(ObjectLocalId p_id, const StringName &p_variable) const;
 
 public: // ---------------------------------------------------------------- RPCs
-	void rpc_ping();
+	void rpc_latency();
 	void rpc_receive_state(DataBuffer &p_snapshot);
 	void rpc__notify_need_full_snapshot();
 	void rpc_set_network_enabled(bool p_enabled);
@@ -370,6 +370,9 @@ public: // ---------------------------------------------------------------- APIs
 			std::function<void(DataBuffer & /*out_buffer*/, float /*update_rate*/)> p_func_trickled_collect,
 			std::function<void(float /*delta*/, float /*interpolation_alpha*/, DataBuffer & /*past_buffer*/, DataBuffer & /*future_buffer*/)> p_func_trickled_apply);
 
+	/// Returns the latency (RTT in ms) for this peer or -1 if the latency is not available.
+	int get_peer_latency(int p_peer) const;
+
 	/// Creates a realtime sync group containing a list of nodes.
 	/// The Peers listening to this group will receive the updates only
 	/// from the nodes within this group.
@@ -414,7 +417,7 @@ public: // ---------------------------------------------------------------- APIs
 	bool is_enabled() const;
 
 	void set_peer_networking_enable(int p_peer, bool p_enable);
-	bool is_peer_networking_enable(int p_peer) const;
+	bool is_peer_networking_enabled(int p_peer) const;
 
 	void on_peer_connected(int p_peer);
 	void on_peer_disconnected(int p_peer);
@@ -457,8 +460,8 @@ public: // ------------------------------------------------------------ INTERNAL
 
 	const std::map<int, NS::PeerData> &get_peers() const;
 	std::map<int, NS::PeerData> &get_peers();
-	PeerData *get_peer_for_controller(const NetworkedControllerBase &p_controller, bool p_expected = true);
-	const PeerData *get_peer_for_controller(const NetworkedControllerBase &p_controller, bool p_expected = true) const;
+	PeerData *get_peer_data_for_controller(const NetworkedControllerBase &p_controller, bool p_expected = true);
+	const PeerData *get_peer_data_for_controller(const NetworkedControllerBase &p_controller, bool p_expected = true) const;
 
 	/// Returns the latest generated `ObjectNetId`.
 	ObjectNetId get_biggest_object_id() const;
@@ -538,6 +541,8 @@ public:
 class ServerSynchronizer final : public Synchronizer {
 	friend class SceneSynchronizerBase;
 
+	std::map<int, NS::PeerServerData> peers_data;
+
 	double time_bank = 0.0;
 	real_t objects_relevancy_update_timer = 0.0;
 	uint32_t epoch = 0;
@@ -567,6 +572,8 @@ public:
 	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) override;
 	virtual const std::vector<ObjectData *> &get_active_objects() const override { return active_objects; }
 
+	void notify_need_full_snapshot(int p_peer);
+
 	SyncGroupId sync_group_create();
 	const NS::SyncGroup *sync_group_get(SyncGroupId p_group_id) const;
 	void sync_group_add_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime);
@@ -574,7 +581,10 @@ public:
 	void sync_group_replace_object(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes);
 	void sync_group_remove_all_objects(SyncGroupId p_group_id);
 	void sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id);
+	void sync_group_update(int p_peer_id);
 	const std::vector<int> *sync_group_get_listening_peers(SyncGroupId p_group_id) const;
+
+	void set_peer_networking_enable(int p_peer, bool p_enable);
 
 	void sync_group_set_trickled_update_rate(NS::ObjectData *p_object_data, SyncGroupId p_group_id, real_t p_update_rate);
 	real_t sync_group_get_trickled_update_rate(const NS::ObjectData *p_object_data, SyncGroupId p_group_id) const;
@@ -598,8 +608,8 @@ public:
 			DataBuffer &r_snapshot_db) const;
 
 	void process_trickled_sync(double p_delta);
-	void process_ping_update();
-	void notify_ping_received(int p_peer);
+	void process_latency_update();
+	void notify_latency_received(int p_peer);
 
 	/// This function updates the `tick_additional_fps` so that the `frames_inputs`
 	/// size is enough to reduce the missing packets to 0.

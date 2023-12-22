@@ -4,12 +4,12 @@
 #include "networked_controller.h"
 #include <limits>
 
-void NS::PeerData::set_ping(int p_ping) {
-	compressed_ping = std::round(float(std::min(p_ping, 1000)) / 4.0);
+void NS::PeerData::set_latency(int p_latency) {
+	compressed_latency = std::round(float(std::min(p_latency, 1000)) / 4.0);
 }
 
-int NS::PeerData::get_ping() const {
-	return compressed_ping * 4.0;
+int NS::PeerData::get_latency() const {
+	return compressed_latency * 4.0;
 }
 
 bool NS::SyncGroup::is_realtime_node_list_changed() const {
@@ -20,8 +20,8 @@ bool NS::SyncGroup::is_trickled_node_list_changed() const {
 	return trickled_sync_objects_list_changed;
 }
 
-const std::vector<int> NS::SyncGroup::get_peers_with_newly_calculated_ping() const {
-	return peers_with_newly_calculated_ping;
+const std::vector<int> NS::SyncGroup::get_peers_with_newly_calculated_latency() const {
+	return peers_with_newly_calculated_latency;
 }
 
 const LocalVector<NS::SyncGroup::SimulatedObjectInfo> &NS::SyncGroup::get_simulated_sync_objects() const {
@@ -47,7 +47,7 @@ void NS::SyncGroup::mark_changes_as_notified() {
 	}
 	simulated_sync_objects_list_changed = false;
 	trickled_sync_objects_list_changed = false;
-	peers_with_newly_calculated_ping.clear();
+	peers_with_newly_calculated_latency.clear();
 }
 
 void NS::SyncGroup::add_listening_peer(int p_peer) {
@@ -66,7 +66,7 @@ uint32_t NS::SyncGroup::add_new_sync_object(ObjectData *p_object_data, bool p_is
 		// Regardless if it's simulated or not.
 		const int peer = p_object_data->get_controller()->server_get_associated_peer();
 		if (NS::VecFunc::insert_unique(networked_peers, peer)) {
-			NS::VecFunc::insert_unique(peers_with_newly_calculated_ping, peer);
+			NS::VecFunc::insert_unique(peers_with_newly_calculated_latency, peer);
 		}
 	}
 
@@ -138,7 +138,7 @@ void NS::SyncGroup::remove_sync_object(std::size_t p_index, bool p_is_simulated)
 
 	if (associted_peer != 0) {
 		NS::VecFunc::remove_unordered(networked_peers, associted_peer);
-		NS::VecFunc::remove_unordered(peers_with_newly_calculated_ping, associted_peer);
+		NS::VecFunc::remove_unordered(peers_with_newly_calculated_latency, associted_peer);
 	}
 }
 
@@ -266,9 +266,9 @@ void NS::SyncGroup::sort_trickled_node_by_update_priority() {
 	trickled_sync_objects.sort_custom<DNIComparator>();
 }
 
-void NS::SyncGroup::notify_peer_has_newly_calculated_ping(int p_peer) {
+void NS::SyncGroup::notify_peer_has_newly_calculated_latency(int p_peer) {
 	if (NS::VecFunc::has(networked_peers, p_peer)) {
-		NS::VecFunc::insert_unique(peers_with_newly_calculated_ping, p_peer);
+		NS::VecFunc::insert_unique(peers_with_newly_calculated_latency, p_peer);
 	}
 }
 

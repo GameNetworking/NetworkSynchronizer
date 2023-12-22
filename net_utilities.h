@@ -426,28 +426,45 @@ void StatisticalRingBuffer<T>::force_recompute_avg_sum() {
 	}
 }
 
-struct PeerData {
-	ObjectNetId controller_id = ObjectNetId::NONE;
-	// For new peers notify the state as soon as possible.
-	bool force_notify_snapshot = true;
-	// For new peers a full snapshot is needed.
-	bool need_full_snapshot = true;
+// These data are used by the server and are never synchronized.
+struct PeerAuthorityData {
 	// Used to know if the peer is enabled.
 	bool enabled = true;
+
 	// The Sync group this peer is in.
 	SyncGroupId sync_group_id = SyncGroupId::GLOBAL;
+};
 
-	// The ping between this peer and the server in ms.
-	std::chrono::high_resolution_clock::time_point ping_timestamp;
-	bool ping_calculation_in_progress = false;
+struct PeerData {
+public:
+	PeerAuthorityData authority_data;
 
-	void set_ping(int p_ping);
-	int get_ping() const;
-	void set_compressed_ping(std::uint8_t p_compressed_ping) { compressed_ping = p_compressed_ping; }
-	std::uint8_t get_compressed_ping() const { return compressed_ping; }
+	ObjectNetId controller_id = ObjectNetId::NONE;
 
 private:
-	std::uint8_t compressed_ping = 0;
+	std::uint8_t compressed_latency = -1;
+
+public:
+	// In ms
+	void set_latency(int p_ping);
+
+	// In ms
+	int get_latency() const;
+
+	void set_compressed_latency(std::uint8_t p_compressed_latency) { compressed_latency = p_compressed_latency; }
+	std::uint8_t get_compressed_latency() const { return compressed_latency; }
+};
+
+struct PeerServerData {
+	// For new peers notify the state as soon as possible.
+	bool force_notify_snapshot = true;
+
+	// For new peers a full snapshot is needed.
+	bool need_full_snapshot = true;
+
+	// The latency, in ms, between this peer and the server.
+	std::chrono::high_resolution_clock::time_point latency_ping_timestamp;
+	bool latency_calculation_in_progress = false;
 };
 
 struct SyncGroup {
@@ -509,7 +526,7 @@ private:
 	LocalVector<TrickledObjectInfo> trickled_sync_objects;
 
 	std::vector<int> networked_peers;
-	std::vector<int> peers_with_newly_calculated_ping;
+	std::vector<int> peers_with_newly_calculated_latency;
 
 	std::vector<int> listening_peers;
 
@@ -521,7 +538,7 @@ public:
 public:
 	bool is_realtime_node_list_changed() const;
 	bool is_trickled_node_list_changed() const;
-	const std::vector<int> get_peers_with_newly_calculated_ping() const;
+	const std::vector<int> get_peers_with_newly_calculated_latency() const;
 
 	const LocalVector<NS::SyncGroup::SimulatedObjectInfo> &get_simulated_sync_objects() const;
 	const LocalVector<NS::SyncGroup::TrickledObjectInfo> &get_trickled_sync_objects() const;
@@ -548,7 +565,7 @@ public:
 
 	void sort_trickled_node_by_update_priority();
 
-	void notify_peer_has_newly_calculated_ping(int p_peer);
+	void notify_peer_has_newly_calculated_latency(int p_peer);
 
 private:
 	void notify_controller_about_simulating_peers(struct ObjectData *p_object_data, bool p_simulating);

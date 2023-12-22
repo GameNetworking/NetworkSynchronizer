@@ -62,6 +62,9 @@ public: // ---------------------------------------------------------- Properties
 	void set_nodes_relevancy_update_time(real_t p_time);
 	real_t get_nodes_relevancy_update_time() const;
 
+	void set_frames_per_seconds(int p_fps);
+	int get_frames_per_seconds() const;
+
 public: // ---------------------------------------- Scene Synchronizer Interface
 	virtual void on_init_synchronizer(bool p_was_generating_ids) override;
 	virtual void on_uninit_synchronizer() override;
@@ -139,6 +142,8 @@ public: // ---------------------------------------------------------------- APIs
 
 	Array local_controller_get_controlled_nodes() const;
 
+	int get_peer_latency(int p_peer) const;
+
 	/// Creates a realtime sync group containing a list of nodes.
 	/// The Peers listening to this group will receive the updates only
 	/// from the nodes within this group.
@@ -177,7 +182,7 @@ public: // ---------------------------------------------------------------- APIs
 	void set_enabled(bool p_enable);
 
 	void set_peer_networking_enable(int p_peer, bool p_enable);
-	bool is_peer_networking_enable(int p_peer) const;
+	bool is_peer_networking_enabled(int p_peer) const;
 
 	/// Returns true if this peer is server.
 	bool is_server() const;

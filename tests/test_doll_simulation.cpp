@@ -192,48 +192,48 @@ public:
 	}
 };
 
-void test_ping() {
+void test_latency() {
 	TestDollSimulationBase test;
 	test.init_test();
 
 	test.server_scene.scene_sync->set_frame_confirmation_timespan(0.0);
-	test.server_scene.scene_sync->set_ping_update_rate(0.05);
+	test.server_scene.scene_sync->set_latency_update_rate(0.05);
 
 	const int peer1 = test.peer_1_scene.get_peer();
 	const int peer2 = test.peer_2_scene.get_peer();
 
-	// TEST 1 with 0 PING
+	// TEST 1 with 0 latency
 	test.network_properties.rtt_seconds = 0.;
 
 	test.do_test(10, true);
 
-	// Make sure the ping is the same between client and the server.
-	CRASH_COND(test.server_scene.scene_sync->get_peers()[peer1].get_ping() != test.peer_1_scene.scene_sync->get_peers()[peer1].get_ping());
-	CRASH_COND(test.server_scene.scene_sync->get_peers()[peer2].get_ping() != test.peer_1_scene.scene_sync->get_peers()[peer2].get_ping());
-	CRASH_COND(test.server_scene.scene_sync->get_peers()[peer1].get_ping() != test.peer_2_scene.scene_sync->get_peers()[peer1].get_ping());
-	CRASH_COND(test.server_scene.scene_sync->get_peers()[peer2].get_ping() != test.peer_2_scene.scene_sync->get_peers()[peer2].get_ping());
+	// Make sure the latency is the same between client and the server.
+	CRASH_COND(test.server_scene.scene_sync->get_peer_latency(peer1) != test.peer_1_scene.scene_sync->get_peer_latency(peer1));
+	CRASH_COND(test.server_scene.scene_sync->get_peer_latency(peer2) != test.peer_1_scene.scene_sync->get_peer_latency(peer2));
+	CRASH_COND(test.server_scene.scene_sync->get_peer_latency(peer1) != test.peer_2_scene.scene_sync->get_peer_latency(peer1));
+	CRASH_COND(test.server_scene.scene_sync->get_peer_latency(peer2) != test.peer_2_scene.scene_sync->get_peer_latency(peer2));
 
-	// Now make sure the ping is below 5 for both, as there is no latency at this point.
-	CRASH_COND(test.server_scene.scene_sync->get_peers()[peer1].get_ping() > 5);
-	CRASH_COND(test.server_scene.scene_sync->get_peers()[peer2].get_ping() > 5);
+	// Now make sure the latency is below 5 for both, as there is no latency at this point.
+	CRASH_COND(test.server_scene.scene_sync->get_peer_latency(peer1) > 5);
+	CRASH_COND(test.server_scene.scene_sync->get_peer_latency(peer2) > 5);
 
-	// TEST 2 with 100 PING
+	// TEST 2 with 100 latency
 	test.network_properties.rtt_seconds = 0.1;
 
 	test.do_test(20, true);
 
-	// Make sure the ping is the same between client and the server.
-	CRASH_COND(test.server_scene.scene_sync->get_peers()[peer1].get_ping() != test.peer_1_scene.scene_sync->get_peers()[peer1].get_ping());
-	CRASH_COND(test.server_scene.scene_sync->get_peers()[peer2].get_ping() != test.peer_1_scene.scene_sync->get_peers()[peer2].get_ping());
-	CRASH_COND(test.server_scene.scene_sync->get_peers()[peer1].get_ping() != test.peer_2_scene.scene_sync->get_peers()[peer1].get_ping());
-	CRASH_COND(test.server_scene.scene_sync->get_peers()[peer2].get_ping() != test.peer_2_scene.scene_sync->get_peers()[peer2].get_ping());
+	// Make sure the latency is the same between client and the server.
+	CRASH_COND(test.server_scene.scene_sync->get_peer_latency(peer1) != test.peer_1_scene.scene_sync->get_peer_latency(peer1));
+	CRASH_COND(test.server_scene.scene_sync->get_peer_latency(peer2) != test.peer_1_scene.scene_sync->get_peer_latency(peer2));
+	CRASH_COND(test.server_scene.scene_sync->get_peer_latency(peer1) != test.peer_2_scene.scene_sync->get_peer_latency(peer1));
+	CRASH_COND(test.server_scene.scene_sync->get_peer_latency(peer2) != test.peer_2_scene.scene_sync->get_peer_latency(peer2));
 
-	// Now make sure the ping is around 100
-	CRASH_COND(test.server_scene.scene_sync->get_peers()[peer1].get_ping() < 60 || test.server_scene.scene_sync->get_peers()[peer1].get_ping() > 105);
-	CRASH_COND(test.server_scene.scene_sync->get_peers()[peer2].get_ping() < 60 || test.server_scene.scene_sync->get_peers()[peer2].get_ping() > 105);
+	// Now make sure the latency is around 100
+	CRASH_COND(test.server_scene.scene_sync->get_peer_latency(peer1) < 60 || test.server_scene.scene_sync->get_peer_latency(peer1) > 105);
+	CRASH_COND(test.server_scene.scene_sync->get_peer_latency(peer2) < 60 || test.server_scene.scene_sync->get_peer_latency(peer2) > 105);
 }
 
 void test_doll_simulation() {
-	test_ping();
+	test_latency();
 }
 }; //namespace NS_Test
