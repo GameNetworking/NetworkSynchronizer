@@ -28,7 +28,7 @@ bool compare_vars(
 		const std::vector<NS::NameAndVar> &p_server_vars,
 		const std::vector<NS::NameAndVar> &p_client_vars,
 		NS::Snapshot *r_no_rewind_recover,
-		LocalVector<String> *r_differences_info) {
+		std::vector<std::string> *r_differences_info) {
 	const NS::NameAndVar *s_vars = p_server_vars.data();
 	const NS::NameAndVar *c_vars = p_client_vars.data();
 
@@ -71,21 +71,21 @@ bool compare_vars(
 
 				if (r_differences_info) {
 					r_differences_info->push_back(
-							"[NO REWIND] Difference found on var #" + itos(var_index) + " " + p_synchronizer_node_data->vars[var_index].var.name.c_str() + " " +
-							"Server value: `" + NS::SceneSynchronizerBase::var_data_stringify(s_vars[var_index].value).c_str() + "` " +
-							"Client value: `" + NS::SceneSynchronizerBase::var_data_stringify(c_vars[var_index].value).c_str() + "`.    " +
-							"[Server name: `" + s_vars[var_index].name.c_str() + "` " +
-							"Client name: `" + c_vars[var_index].name.c_str() + "`].");
+							"[NO REWIND] Difference found on var #" + std::to_string(var_index) + " " + p_synchronizer_node_data->vars[var_index].var.name + " " +
+							"Server value: `" + NS::SceneSynchronizerBase::var_data_stringify(s_vars[var_index].value) + "` " +
+							"Client value: `" + NS::SceneSynchronizerBase::var_data_stringify(c_vars[var_index].value) + "`.    " +
+							"[Server name: `" + s_vars[var_index].name + "` " +
+							"Client name: `" + c_vars[var_index].name + "`].");
 				}
 			} else {
 				// The vars are different.
 				if (r_differences_info) {
 					r_differences_info->push_back(
-							"Difference found on var #" + itos(var_index) + " " + p_synchronizer_node_data->vars[var_index].var.name.c_str() + " " +
-							"Server value: `" + NS::SceneSynchronizerBase::var_data_stringify(s_vars[var_index].value).c_str() + "` " +
-							"Client value: `" + NS::SceneSynchronizerBase::var_data_stringify(c_vars[var_index].value).c_str() + "`.    " +
-							"[Server name: `" + s_vars[var_index].name.c_str() + "` " +
-							"Client name: `" + c_vars[var_index].name.c_str() + "`].");
+							"Difference found on var #" + std::to_string(var_index) + " " + p_synchronizer_node_data->vars[var_index].var.name + " " +
+							"Server value: `" + NS::SceneSynchronizerBase::var_data_stringify(s_vars[var_index].value) + "` " +
+							"Client value: `" + NS::SceneSynchronizerBase::var_data_stringify(c_vars[var_index].value) + "`.    " +
+							"[Server name: `" + s_vars[var_index].name + "` " +
+							"Client name: `" + c_vars[var_index].name + "`].");
 				}
 #ifdef DEBUG_ENABLED
 				is_equal = false;
@@ -129,10 +129,10 @@ bool NS::Snapshot::compare(
 		const Snapshot &p_snap_A,
 		const Snapshot &p_snap_B,
 		Snapshot *r_no_rewind_recover,
-		LocalVector<String> *r_differences_info
+		std::vector<std::string> *r_differences_info
 #ifdef DEBUG_ENABLED
 		,
-		LocalVector<ObjectNetId> *r_different_node_data
+		std::vector<ObjectNetId> *r_different_node_data
 #endif
 ) {
 #ifdef DEBUG_ENABLED
@@ -141,7 +141,7 @@ bool NS::Snapshot::compare(
 
 	if (p_snap_A.simulated_objects.size() != p_snap_B.simulated_objects.size()) {
 		if (r_differences_info) {
-			r_differences_info->push_back("Difference detected: simulated_object count is different snapA: " + itos(p_snap_A.simulated_objects.size()) + " snapB: " + itos(p_snap_B.simulated_objects.size()) + ".");
+			r_differences_info->push_back("Difference detected: simulated_object count is different snapA: " + std::to_string(p_snap_A.simulated_objects.size()) + " snapB: " + std::to_string(p_snap_B.simulated_objects.size()) + ".");
 		}
 #ifdef DEBUG_ENABLED
 		is_equal = false;
@@ -152,7 +152,7 @@ bool NS::Snapshot::compare(
 		for (size_t i = 0; i < p_snap_A.simulated_objects.size(); i++) {
 			if (p_snap_A.simulated_objects[i] != p_snap_B.simulated_objects[i]) {
 				if (r_differences_info) {
-					r_differences_info->push_back("Difference detected: simulated object index `" + itos(i) + "` value is snapA `" + itos(p_snap_A.simulated_objects[i].id) + "` snapB `" + itos(p_snap_B.simulated_objects[i].id) + "`.");
+					r_differences_info->push_back("Difference detected: simulated object index `" + std::to_string(i) + "` value is snapA `" + std::to_string(p_snap_A.simulated_objects[i].id) + "` snapB `" + std::to_string(p_snap_B.simulated_objects[i].id) + "`.");
 				}
 #ifdef DEBUG_ENABLED
 				is_equal = false;
@@ -198,7 +198,7 @@ bool NS::Snapshot::compare(
 		bool are_nodes_different = false;
 		if (net_node_id >= ObjectNetId{ uint32_t(p_snap_B.object_vars.size()) }) {
 			if (r_differences_info) {
-				r_differences_info->push_back("Difference detected: The B snapshot doesn't contain this node: " + String(rew_node_data->object_name.c_str()));
+				r_differences_info->push_back("Difference detected: The B snapshot doesn't contain this node: " + rew_node_data->object_name);
 			}
 #ifdef DEBUG_ENABLED
 			is_equal = false;
@@ -217,7 +217,7 @@ bool NS::Snapshot::compare(
 
 			if (are_nodes_different) {
 				if (r_differences_info) {
-					r_differences_info->push_back("Difference detected: The node status on snapshot B is different. NODE: " + String(rew_node_data->object_name.c_str()));
+					r_differences_info->push_back("Difference detected: The node status on snapshot B is different. NODE: " + rew_node_data->object_name);
 				}
 #ifdef DEBUG_ENABLED
 				is_equal = false;

@@ -285,10 +285,10 @@ float SceneSynchronizerBase::get_latency_update_rate() const {
 	return latency_update_rate;
 }
 
-bool SceneSynchronizerBase::is_variable_registered(ObjectLocalId p_id, const StringName &p_variable) const {
+bool SceneSynchronizerBase::is_variable_registered(ObjectLocalId p_id, const std::string &p_variable) const {
 	const ObjectData *od = objects_data_storage.get_object_data(p_id);
 	if (od != nullptr) {
-		return od->find_variable_id(std::string(String(p_variable).utf8())) != VarId::NONE;
+		return od->find_variable_id(p_variable) != VarId::NONE;
 	}
 	return false;
 }
@@ -347,7 +347,7 @@ void SceneSynchronizerBase::register_app_object(ObjectHandle p_app_object_handle
 
 		synchronizer_manager->setup_synchronizer_for(p_app_object_handle, id);
 
-		SceneSynchronizerDebugger::singleton()->debug_print(network_interface, "New node registered" + (generate_id ? String(" #ID: ") + itos(od->get_net_id().id) : "") + " : " + od->object_name.c_str());
+		SceneSynchronizerDebugger::singleton()->print(INFO, "New node registered" + (generate_id ? " #ID: " + std::to_string(od->get_net_id().id) : "") + " : " + od->object_name, network_interface->get_owner_name());
 
 		if (od->get_controller()) {
 			od->get_controller()->notify_registered_with_synchronizer(this, *od);
@@ -395,7 +395,7 @@ void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const std::str
 		VarData old_val;
 		valid = synchronizer_manager->get_variable(object_data->app_object_handle, p_variable.data(), old_val);
 		if (valid == false) {
-			SceneSynchronizerDebugger::singleton()->debug_error(network_interface, "The variable `" + String(p_variable.c_str()) + "` on the node `" + String(object_data->object_name.c_str()) + "` was not found, make sure the variable exist.");
+			SceneSynchronizerDebugger::singleton()->print(ERROR, "The variable `" + p_variable + "` on the node `" + object_data->object_name + "` was not found, make sure the variable exist.", network_interface->get_owner_name());
 		}
 		var_id = VarId{ uint32_t(object_data->vars.size()) };
 		object_data->vars.push_back(
@@ -491,20 +491,20 @@ const std::vector<ObjectData *> *SceneSynchronizerBase::get_peer_controlled_obje
 	return objects_data_storage.get_peer_controlled_objects_data(p_peer);
 }
 
-VarId SceneSynchronizerBase::get_variable_id(ObjectLocalId p_id, const StringName &p_variable) {
-	ERR_FAIL_COND_V(p_variable == StringName(), VarId::NONE);
+VarId SceneSynchronizerBase::get_variable_id(ObjectLocalId p_id, const std::string &p_variable) {
+	ENSURE_V(p_variable != "", VarId::NONE);
 
 	NS::ObjectData *od = get_object_data(p_id);
-	ERR_FAIL_COND_V_MSG(od == nullptr, VarId::NONE, "This node " + String(od->object_name.c_str()) + "is not registered.");
+	ENSURE_V_MSG(od, VarId::NONE, "This node " + od->object_name + "is not registered.");
 
-	return od->find_variable_id(std::string(String(p_variable).utf8()));
+	return od->find_variable_id(p_variable);
 }
 
-void SceneSynchronizerBase::set_skip_rewinding(ObjectLocalId p_id, const StringName &p_variable, bool p_skip_rewinding) {
+void SceneSynchronizerBase::set_skip_rewinding(ObjectLocalId p_id, const std::string &p_variable, bool p_skip_rewinding) {
 	NS::ObjectData *od = get_object_data(p_id);
 	ERR_FAIL_COND(od == nullptr);
 
-	const VarId id = od->find_variable_id(std::string(String(p_variable).utf8()));
+	const VarId id = od->find_variable_id(p_variable);
 	ERR_FAIL_COND(id == VarId::NONE);
 
 	od->vars[id.id].skip_rewinding = p_skip_rewinding;
@@ -512,11 +512,11 @@ void SceneSynchronizerBase::set_skip_rewinding(ObjectLocalId p_id, const StringN
 
 ListenerHandle SceneSynchronizerBase::track_variable_changes(
 		ObjectLocalId p_id,
-		const StringName &p_variable,
+		const std::string &p_variable,
 		std::function<void(const std::vector<VarData> &p_old_values)> p_listener_func,
 		NetEventFlag p_flags) {
 	std::vector<ObjectLocalId> object_ids;
-	std::vector<StringName> variables;
+	std::vector<std::string> variables;
 	object_ids.push_back(p_id);
 	variables.push_back(p_variable);
 	return track_variables_changes(object_ids, variables, p_listener_func, p_flags);
@@ -524,12 +524,12 @@ ListenerHandle SceneSynchronizerBase::track_variable_changes(
 
 ListenerHandle SceneSynchronizerBase::track_variables_changes(
 		const std::vector<ObjectLocalId> &p_object_ids,
-		const std::vector<StringName> &p_variables,
+		const std::vector<std::string> &p_variables,
 		std::function<void(const std::vector<VarData> &p_old_values)> p_listener_func,
 		NetEventFlag p_flags) {
-	ERR_FAIL_COND_V_MSG(p_object_ids.size() != p_variables.size(), nulllistenerhandle, "object_ids and variables should have the exact same size.");
-	ERR_FAIL_COND_V_MSG(p_object_ids.size() == 0, nulllistenerhandle, "object_ids can't be of size 0");
-	ERR_FAIL_COND_V_MSG(p_variables.size() == 0, nulllistenerhandle, "object_ids can't be of size 0");
+	ENSURE_V_MSG(p_object_ids.size() == p_variables.size(), nulllistenerhandle, "object_ids and variables should have the exact same size.");
+	ENSURE_V_MSG(p_object_ids.size() != 0, nulllistenerhandle, "object_ids can't be of size 0");
+	ENSURE_V_MSG(p_variables.size() != 0, nulllistenerhandle, "object_ids can't be of size 0");
 
 	bool is_valid = true;
 
@@ -542,7 +542,7 @@ ListenerHandle SceneSynchronizerBase::track_variables_changes(
 	listener->old_values.resize(p_object_ids.size());
 	for (int i = 0; i < int(p_object_ids.size()); i++) {
 		ObjectLocalId id = p_object_ids[i];
-		const StringName variable_name = p_variables[i];
+		const std::string &variable_name = p_variables[i];
 
 		NS::ObjectData *od = objects_data_storage.get_object_data(id);
 		if (!od) {
@@ -551,9 +551,9 @@ ListenerHandle SceneSynchronizerBase::track_variables_changes(
 			break;
 		}
 
-		const VarId vid = od->find_variable_id(std::string(String(variable_name).utf8()));
+		const VarId vid = od->find_variable_id(variable_name);
 		if (vid == VarId::NONE) {
-			ERR_PRINT("The passed variable `" + variable_name + "` doesn't exist under this object `" + String(od->object_name.c_str()) + "`.");
+			SceneSynchronizerDebugger::singleton()->print(ERROR, "The passed variable `" + variable_name + "` doesn't exist under this object `" + od->object_name + "`.");
 			is_valid = false;
 			break;
 		}
@@ -643,7 +643,7 @@ void SceneSynchronizerBase::set_trickled_sync(
 
 	od->func_trickled_collect = p_func_trickled_collect;
 	od->func_trickled_apply = p_func_trickled_apply;
-	SceneSynchronizerDebugger::singleton()->debug_print(network_interface, "Setup trickled sync functions for: `" + String(od->object_name.c_str()) + "`.");
+	SceneSynchronizerDebugger::singleton()->print(INFO, "Setup trickled sync functions for: `" + od->object_name + "`.", network_interface->get_owner_name());
 }
 
 int SceneSynchronizerBase::get_peer_latency(int p_peer) const {
@@ -1307,7 +1307,7 @@ void SceneSynchronizerBase::notify_object_data_net_id_changed(ObjectData &p_obje
 	if (p_object_data.has_registered_process_functions()) {
 		process_functions__clear();
 	}
-	SceneSynchronizerDebugger::singleton()->debug_print(network_interface, "ObjectNetId: " + itos(p_object_data.get_net_id().id) + " just assigned to: " + String(p_object_data.object_name.c_str()));
+	SceneSynchronizerDebugger::singleton()->print(INFO, "ObjectNetId: " + p_object_data.get_net_id() + " just assigned to: " + p_object_data.object_name, network_interface->get_owner_name());
 }
 
 NetworkedControllerBase *SceneSynchronizerBase::fetch_controller_by_peer(int peer) {
@@ -1972,7 +1972,7 @@ void ServerSynchronizer::process_snapshot_notificator() {
 			// Fetch the peer input_id for this snapshot
 			FrameIndex input_id = FrameIndex::NONE;
 			if (controller_od) {
-				CRASH_COND_MSG(controller_od->get_controller() == nullptr, "The NodeData fetched is not a controller: `" + String(controller_od->object_name.c_str()) + "`, this is not supposed to happen.");
+				ASSERT_COND_MSG(controller_od->get_controller(), "The NodeData fetched is not a controller: `" + controller_od->object_name + "`, this is not supposed to happen.");
 				NetworkedControllerBase *controller = controller_od->get_controller();
 				input_id = controller->get_current_frame_index();
 			}
@@ -2206,13 +2206,13 @@ void ServerSynchronizer::process_trickled_sync(double p_delta) {
 			if (send) {
 				// TODO use `DEBUG_ENABLED` here?
 				if (object_info.od->get_net_id().id > UINT16_MAX) {
-					SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "[FATAL] The `process_trickled_sync` found a node with ID `" + itos(object_info.od->get_net_id().id) + "::" + object_info.od->object_name.c_str() + "` that exceedes the max ID this function can network at the moment. Please report this, we will consider improving this function.");
+					SceneSynchronizerDebugger::singleton()->print(ERROR, "[FATAL] The `process_trickled_sync` found a node with ID `" + object_info.od->get_net_id() + "::" + object_info.od->object_name + "` that exceedes the max ID this function can network at the moment. Please report this, we will consider improving this function.", scene_synchronizer->get_network_interface().get_owner_name());
 					continue;
 				}
 
 				// TODO use `DEBUG_ENABLED` here?
 				if (!object_info.od->func_trickled_collect) {
-					SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_trickled_sync` found a node `" + itos(object_info.od->get_net_id().id) + "::" + object_info.od->object_name.c_str() + "` with an invalid function `func_trickled_collect`. Please use `setup_deferred_sync` to correctly initialize this node for deferred sync.");
+					SceneSynchronizerDebugger::singleton()->print(ERROR, "The `process_trickled_sync` found a node `" + object_info.od->get_net_id() + "::" + object_info.od->object_name + "` with an invalid function `func_trickled_collect`. Please use `setup_deferred_sync` to correctly initialize this node for deferred sync.", scene_synchronizer->get_network_interface().get_owner_name());
 					continue;
 				}
 
@@ -2223,7 +2223,7 @@ void ServerSynchronizer::process_trickled_sync(double p_delta) {
 
 				object_info.od->func_trickled_collect(*tmp_buffer, object_info.update_rate);
 				if (tmp_buffer->total_size() > UINT16_MAX) {
-					SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The `process_trickled_sync` failed because the method `trickled_collect` for the node `" + itos(object_info.od->get_net_id().id) + "::" + object_info.od->object_name.c_str() + "` collected more than " + itos(UINT16_MAX) + " bits. Please optimize your netcode to send less data.");
+					SceneSynchronizerDebugger::singleton()->print(ERROR, "The `process_trickled_sync` failed because the method `trickled_collect` for the node `" + object_info.od->get_net_id() + "::" + object_info.od->object_name + "` collected more than " + std::to_string(UINT16_MAX) + " bits. Please optimize your netcode to send less data.", scene_synchronizer->get_network_interface().get_owner_name());
 					continue;
 				}
 
@@ -2493,7 +2493,7 @@ void ClientSynchronizer::on_controller_reset(NS::ObjectData *p_object_data) {
 
 	if (p_object_data->get_controller()->is_player_controller()) {
 		if (player_controller_object_data != nullptr) {
-			SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "Only one player controller is supported, at the moment. Make sure this is the case.");
+			SceneSynchronizerDebugger::singleton()->print(ERROR, "Only one player controller is supported, at the moment. Make sure this is the case.", scene_synchronizer->get_network_interface().get_owner_name());
 		} else {
 			// Set this player controller as active.
 			player_controller_object_data = p_object_data;
@@ -2521,7 +2521,7 @@ void ClientSynchronizer::store_snapshot() {
 
 #ifdef DEBUG_ENABLED
 	if make_unlikely (client_snapshots.size() > 0 && controller->get_current_frame_index() <= client_snapshots.back().input_id) {
-		CRASH_NOW_MSG("[FATAL] During snapshot creation, for controller " + String(player_controller_object_data->object_name.c_str()) + ", was found an ID for an older snapshots. New input ID: " + uitos(controller->get_current_frame_index().id) + " Last saved snapshot input ID: " + uitos(client_snapshots.back().input_id.id) + ".");
+		ASSERT_NO_ENTRY_MSG("During snapshot creation, for controller " + player_controller_object_data->object_name + ", was found an ID for an older snapshots. New input ID: " + std::string(controller->get_current_frame_index()) + " Last saved snapshot input ID: " + std::string(client_snapshots.back().input_id) + ".");
 	}
 #endif
 
@@ -2683,10 +2683,10 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 		const FrameIndex p_input_id,
 		NS::Snapshot &r_no_rewind_recover) {
 	NS_PROFILE
-	LocalVector<String> differences_info;
+	std::vector<std::string> differences_info;
 
 #ifdef DEBUG_ENABLED
-	LocalVector<ObjectNetId> different_node_data;
+	std::vector<ObjectNetId> different_node_data;
 	const bool is_equal = NS::Snapshot::compare(
 			*scene_synchronizer,
 			*last_received_server_snapshot,
@@ -2747,9 +2747,9 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 
 	// Prints the comparison info.
 	if (differences_info.size() > 0 && scene_synchronizer->debug_rewindings_enabled) {
-		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "Rewind on frame " + uitos(p_input_id.id) + " is needed because:");
+		SceneSynchronizerDebugger::singleton()->print(INFO, "Rewind on frame " + p_input_id + " is needed because:", scene_synchronizer->get_network_interface().get_owner_name());
 		for (int i = 0; i < int(differences_info.size()); i++) {
-			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|- " + differences_info[i]);
+			SceneSynchronizerDebugger::singleton()->print(INFO, "|- " + differences_info[i], scene_synchronizer->get_network_interface().get_owner_name());
 		}
 	}
 
@@ -2770,9 +2770,9 @@ void ClientSynchronizer::__pcr__sync__rewind() {
 			scene_synchronizer->debug_rewindings_enabled ? &applied_data_info : nullptr);
 
 	if (applied_data_info.size() > 0) {
-		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "Full reset:");
+		SceneSynchronizerDebugger::singleton()->print(INFO, "Full reset:", scene_synchronizer->get_network_interface().get_owner_name());
 		for (int i = 0; i < int(applied_data_info.size()); i++) {
-			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|- " + String(applied_data_info[i].c_str()));
+			SceneSynchronizerDebugger::singleton()->print(INFO, "|- " + applied_data_info[i], scene_synchronizer->get_network_interface().get_owner_name());
 		}
 	}
 }
@@ -2858,9 +2858,9 @@ void ClientSynchronizer::__pcr__sync__no_rewind(const NS::Snapshot &p_no_rewind_
 			true);
 
 	if (applied_data_info.size() > 0) {
-		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "Partial reset:");
+		SceneSynchronizerDebugger::singleton()->print(INFO, "Partial reset:", scene_synchronizer->get_network_interface().get_owner_name());
 		for (int i = 0; i < int(applied_data_info.size()); i++) {
-			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|- " + String(applied_data_info[i].c_str()));
+			SceneSynchronizerDebugger::singleton()->print(INFO, "|- " + applied_data_info[i], scene_synchronizer->get_network_interface().get_owner_name());
 		}
 	}
 
@@ -2894,9 +2894,9 @@ void ClientSynchronizer::process_paused_controller_recovery() {
 	last_received_server_snapshot.reset();
 
 	if (applied_data_info.size() > 0) {
-		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "Paused controller recover:");
+		SceneSynchronizerDebugger::singleton()->print(INFO, "Paused controller recover:", scene_synchronizer->get_network_interface().get_owner_name());
 		for (int i = 0; i < int(applied_data_info.size()); i++) {
-			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|- " + String(applied_data_info[i].c_str()));
+			SceneSynchronizerDebugger::singleton()->print(INFO, "|- " + applied_data_info[i], scene_synchronizer->get_network_interface().get_owner_name());
 		}
 	}
 }
@@ -3145,7 +3145,7 @@ bool ClientSynchronizer::parse_sync_data(
 
 				if (app_object_handle == ObjectHandle::NONE) {
 					// The node doesn't exists.
-					SceneSynchronizerDebugger::singleton()->debug_warning(&scene_synchronizer->get_network_interface(), "The object " + String(object_name.c_str()) + " still doesn't exist.");
+					SceneSynchronizerDebugger::singleton()->print(WARNING, "The object " + object_name + " still doesn't exist.", scene_synchronizer->get_network_interface().get_owner_name());
 				} else {
 					// Register this object, so to make sure the client is tracking it.
 					ObjectLocalId reg_obj_id;
@@ -3155,7 +3155,7 @@ bool ClientSynchronizer::parse_sync_data(
 						// Set the NetId.
 						synchronizer_object_data->set_net_id(net_id);
 					} else {
-						SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "[BUG] This object " + String(object_name.c_str()) + " was known on this client. Though, was not possible to register it as sync object.");
+						SceneSynchronizerDebugger::singleton()->print(ERROR, "[BUG] This object " + object_name + " was known on this client. Though, was not possible to register it as sync object.", scene_synchronizer->get_network_interface().get_owner_name());
 					}
 				}
 			}
@@ -3180,7 +3180,7 @@ bool ClientSynchronizer::parse_sync_data(
 		// Now it's time to fetch the variables.
 		std::uint8_t vars_count;
 		p_snapshot.read(vars_count);
-		ERR_FAIL_COND_V_MSG(p_snapshot.is_buffer_failed(), false, String() + "This snapshot is corrupted. The `vars_count` was expected here.");
+		ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `vars_count` was expected here.");
 
 		if (skip_object) {
 			// Skip all the variables for this object.
@@ -3195,12 +3195,12 @@ bool ClientSynchronizer::parse_sync_data(
 			for (auto &var_desc : synchronizer_object_data->vars) {
 				bool var_has_value = false;
 				p_snapshot.read(var_has_value);
-				ERR_FAIL_COND_V_MSG(p_snapshot.is_buffer_failed(), false, String() + "This snapshot is corrupted. The `var_has_value` was expected at this point. Object: `" + synchronizer_object_data->object_name.c_str() + "` Var: `" + var_desc.var.name.c_str() + "`");
+				ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `var_has_value` was expected at this point. Object: `" + synchronizer_object_data->object_name + "` Var: `" + var_desc.var.name + "`");
 
 				if (var_has_value) {
 					VarData value;
 					SceneSynchronizerBase::var_data_decode(value, p_snapshot);
-					ERR_FAIL_COND_V_MSG(p_snapshot.is_buffer_failed(), false, String() + "This snapshot is corrupted. The `variable value` was expected at this point. Object: `" + synchronizer_object_data->object_name.c_str() + "` Var: `" + var_desc.var.name.c_str() + "`");
+					ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `variable value` was expected at this point. Object: `" + synchronizer_object_data->object_name + "` Var: `" + var_desc.var.name + "`");
 
 					// Variable fetched, now parse this variable.
 					p_variable_parse(
@@ -3239,7 +3239,7 @@ void ClientSynchronizer::receive_trickled_sync_data(const Vector<uint8_t> &p_dat
 
 	int remaining_size = future_epoch_buffer.size() - future_epoch_buffer.get_bit_offset();
 	if (remaining_size < DataBuffer::get_bit_taken(DataBuffer::DATA_TYPE_UINT, DataBuffer::COMPRESSION_LEVEL_1)) {
-		SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "[FATAL] The function `receive_trickled_sync_data` received malformed data.");
+		SceneSynchronizerDebugger::singleton()->print(ERROR, "[FATAL] The function `receive_trickled_sync_data` received malformed data.", scene_synchronizer->get_network_interface().get_owner_name());
 		// Nothing to fetch.
 		return;
 	}
@@ -3283,7 +3283,7 @@ void ClientSynchronizer::receive_trickled_sync_data(const Vector<uint8_t> &p_dat
 
 		remaining_size = future_epoch_buffer.size() - future_epoch_buffer.get_bit_offset();
 		if (remaining_size < buffer_bit_count) {
-			SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "[FATAL] The function `receive_trickled_sync_data` failed applying the epoch because the received buffer is malformed. The node with ID `" + itos(node_id.id) + "` reported that the sub buffer size is `" + itos(buffer_bit_count) + "` but the main-buffer doesn't have so many bits.");
+			SceneSynchronizerDebugger::singleton()->print(ERROR, "The function `receive_trickled_sync_data` failed applying the epoch because the received buffer is malformed. The node with ID `" + node_id + "` reported that the sub buffer size is `" + std::to_string(buffer_bit_count) + "` but the main-buffer doesn't have so many bits.", scene_synchronizer->get_network_interface().get_owner_name());
 			break;
 		}
 
@@ -3319,7 +3319,7 @@ void ClientSynchronizer::receive_trickled_sync_data(const Vector<uint8_t> &p_dat
 		db->begin_write(0);
 
 		if (!stream.od->func_trickled_collect) {
-			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The function `receive_trickled_sync_data` is skiplatency the node `" + String(stream.od->object_name.c_str()) + "` as the function `trickled_collect` failed executing.");
+			SceneSynchronizerDebugger::singleton()->print(INFO, "The function `receive_trickled_sync_data` is skiplatency the node `" + stream.od->object_name + "` as the function `trickled_collect` failed executing.", scene_synchronizer->get_network_interface().get_owner_name());
 			future_epoch_buffer.seek(expected_bit_offset_after_apply);
 			continue;
 		}
@@ -3366,13 +3366,13 @@ void ClientSynchronizer::process_trickled_sync(double p_delta) {
 
 		NS::ObjectData *od = stream.od;
 		if (od == nullptr) {
-			SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The function `process_received_trickled_sync_data` found a null NodeData into the `trickled_sync_array`; this is not supposed to happen.");
+			SceneSynchronizerDebugger::singleton()->print(ERROR, "The function `process_received_trickled_sync_data` found a null NodeData into the `trickled_sync_array`; this is not supposed to happen.", scene_synchronizer->get_network_interface().get_owner_name());
 			continue;
 		}
 
 #ifdef DEBUG_ENABLED
 		if (!od->func_trickled_apply) {
-			SceneSynchronizerDebugger::singleton()->debug_error(&scene_synchronizer->get_network_interface(), "The function `process_received_trickled_sync_data` skip the node `" + String(od->object_name.c_str()) + "` has an invalid apply epoch function named `trickled_apply`. Remotely you used the function `setup_trickled_sync` properly, while locally you didn't. Fix it.");
+			SceneSynchronizerDebugger::singleton()->print(ERROR, "The function `process_received_trickled_sync_data` skip the node `" + od->object_name + "` has an invalid apply epoch function named `trickled_apply`. Remotely you used the function `setup_trickled_sync` properly, while locally you didn't. Fix it.", scene_synchronizer->get_network_interface().get_owner_name());
 			continue;
 		}
 #endif
@@ -3643,7 +3643,7 @@ void ClientSynchronizer::apply_snapshot(
 			}
 
 #ifdef DEBUG_ENABLED
-			CRASH_COND_MSG(snap_object_vars[v.id].name != object_data->vars[v.id].var.name, String() + "The variable name, on both snapshot and client scene_sync, are supposed to be exactly the same at this point. Snapshot `" + snap_object_vars[v.id].name.c_str() + "` ClientSceneSync `" + object_data->vars[v.id].var.name.c_str() + "`");
+			ASSERT_COND_MSG(snap_object_vars[v.id].name == object_data->vars[v.id].var.name, "The variable name, on both snapshot and client scene_sync, are supposed to be exactly the same at this point. Snapshot `" + snap_object_vars[v.id].name + "` ClientSceneSync `" + object_data->vars[v.id].var.name + "`");
 #endif
 
 			const std::string &variable_name = snap_object_vars[v.id].name;
@@ -3674,7 +3674,7 @@ void ClientSynchronizer::apply_snapshot(
 							object_data->app_object_handle,
 							variable_name.c_str(),
 							current_val);
-					CRASH_COND_MSG(!SceneSynchronizerBase::var_data_compare(current_val, snap_value), String() + "There was a fatal error while setting the propertly `" + variable_name.c_str() + "` on the object `" + object_data->object_name.c_str() + "`. The set data differs from the property set by the NetSync: set data `" + scene_synchronizer->var_data_stringify(current_val, true).c_str() + "` NetSync data `" + scene_synchronizer->var_data_stringify(snap_value, true).c_str() + "`");
+					ASSERT_COND_MSG(SceneSynchronizerBase::var_data_compare(current_val, snap_value), "There was a fatal error while setting the propertly `" + variable_name + "` on the object `" + object_data->object_name + "`. The set data differs from the property set by the NetSync: set data `" + scene_synchronizer->var_data_stringify(current_val, true).c_str() + "` NetSync data `" + scene_synchronizer->var_data_stringify(snap_value, true) + "`");
 				}
 #endif
 

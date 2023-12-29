@@ -33,10 +33,10 @@ public:
 			const Snapshot &p_snap_A,
 			const Snapshot &p_snap_B,
 			Snapshot *r_no_rewind_recover,
-			LocalVector<String> *r_differences_info
+			std::vector<std::string> *r_differences_info
 #ifdef DEBUG_ENABLED
 			,
-			LocalVector<ObjectNetId> *r_different_node_data);
+			std::vector<ObjectNetId> *r_different_node_data);
 #else
 	);
 #endif
