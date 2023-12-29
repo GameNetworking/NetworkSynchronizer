@@ -309,7 +309,7 @@ public:
 	void set_latency_update_rate(float p_rate_seconds);
 	float get_latency_update_rate() const;
 
-	bool is_variable_registered(ObjectLocalId p_id, const StringName &p_variable) const;
+	bool is_variable_registered(ObjectLocalId p_id, const std::string &p_variable) const;
 
 public: // ---------------------------------------------------------------- RPCs
 	void rpc_latency();
@@ -340,19 +340,19 @@ public: // ---------------------------------------------------------------- APIs
 	/// This may return `NONE` in various cases:
 	/// - The Object is not registered.
 	/// - The variable is not registered.
-	VarId get_variable_id(ObjectLocalId p_id, const StringName &p_variable);
+	VarId get_variable_id(ObjectLocalId p_id, const std::string &p_variable);
 
-	void set_skip_rewinding(ObjectLocalId p_id, const StringName &p_variable, bool p_skip_rewinding);
+	void set_skip_rewinding(ObjectLocalId p_id, const std::string &p_variable, bool p_skip_rewinding);
 
 	ListenerHandle track_variable_changes(
 			ObjectLocalId p_id,
-			const StringName &p_variable,
+			const std::string &p_variable,
 			std::function<void(const std::vector<VarData> &p_old_values)> p_listener_func,
 			NetEventFlag p_flags = NetEventFlag::DEFAULT);
 
 	ListenerHandle track_variables_changes(
 			const std::vector<ObjectLocalId> &p_object_ids,
-			const std::vector<StringName> &p_variables,
+			const std::vector<std::string> &p_variables,
 			std::function<void(const std::vector<VarData> &p_old_values)> p_listener_func,
 			NetEventFlag p_flags = NetEventFlag::DEFAULT);
 

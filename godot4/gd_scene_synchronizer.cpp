@@ -499,7 +499,7 @@ void GdSceneSynchronizer::unregister_variable(Node *p_node, const StringName &p_
 uint32_t GdSceneSynchronizer::get_variable_id(Node *p_node, const StringName &p_variable) {
 	NS::ObjectLocalId id = scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node));
 	if (id != NS::ObjectLocalId::NONE) {
-		return scene_synchronizer.get_variable_id(id, p_variable).id;
+		return scene_synchronizer.get_variable_id(id, std::string(String(p_variable).utf8())).id;
 	}
 	return NS::VarId::NONE.id;
 }
@@ -507,7 +507,7 @@ uint32_t GdSceneSynchronizer::get_variable_id(Node *p_node, const StringName &p_
 void GdSceneSynchronizer::set_skip_rewinding(Node *p_node, const StringName &p_variable, bool p_skip_rewinding) {
 	NS::ObjectLocalId id = scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node));
 	if (id != NS::ObjectLocalId::NONE) {
-		scene_synchronizer.set_skip_rewinding(id, p_variable, p_skip_rewinding);
+		scene_synchronizer.set_skip_rewinding(id, std::string(String(p_variable).utf8()), p_skip_rewinding);
 	}
 }
 
@@ -520,14 +520,14 @@ uint64_t GdSceneSynchronizer::track_variable_changes(
 	ERR_FAIL_COND_V(p_nodes.size() == 0, 0);
 
 	std::vector<NS::ObjectLocalId> objects_ids;
-	std::vector<StringName> var_names;
+	std::vector<std::string> var_names;
 
 	for (int i = 0; i < int(p_nodes.size()); i++) {
 		Object *obj = p_nodes[i];
 		Node *node = dynamic_cast<Node *>(obj);
 		NS::ObjectLocalId lid = scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(node));
 		objects_ids.push_back(lid);
-		var_names.push_back(p_vars[i]);
+		var_names.push_back(std::string(String(p_vars[i]).utf8()));
 	}
 
 	NS::ListenerHandle raw_handle =

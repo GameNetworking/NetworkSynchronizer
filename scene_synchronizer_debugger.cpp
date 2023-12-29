@@ -620,15 +620,6 @@ void SceneSynchronizerDebugger::debug_warning(NS::NetworkInterface *p_network_in
 #endif
 }
 
-void SceneSynchronizerDebugger::debug_error(NS::NetworkInterface *p_network_interface, const String &p_message, bool p_silent) {
-#ifdef DEBUG_ENABLED
-	print(
-			NS::PrintMessageType::ERROR,
-			p_message.utf8().ptr(),
-			p_network_interface ? p_network_interface->get_owner_name() : "GLOBAL");
-#endif
-}
-
 void SceneSynchronizerDebugger::print(NS::PrintMessageType p_level, const std::string &p_message, const std::string &p_object_name, bool p_force_print_to_log) {
 #ifdef DEBUG_ENABLED
 
@@ -693,7 +684,7 @@ void SceneSynchronizerDebugger::dump_tracked_objects(const NS::SceneSynchronizer
 		for (List<PropertyInfo>::Element *e = tracked_nodes[i].properties->front(); e; e = e->next()) {
 			std::string prefix;
 			// TODO the below cast is an unsafe cast. Please refactor this.
-			if (p_scene_sync->is_variable_registered(p_scene_sync->find_object_local_id({ reinterpret_cast<std::intptr_t>(tracked_nodes[i].node) }), e->get().name)) {
+			if (p_scene_sync->is_variable_registered(p_scene_sync->find_object_local_id({ reinterpret_cast<std::intptr_t>(tracked_nodes[i].node) }), std::string(e->get().name.utf8()))) {
 				prefix = "* ";
 			}
 

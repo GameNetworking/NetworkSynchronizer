@@ -172,7 +172,6 @@ public:
 
 	void debug_print(NS::NetworkInterface *p_network_interface, const String &p_message, bool p_silent = false);
 	void debug_warning(NS::NetworkInterface *p_network_interface, const String &p_message, bool p_silent = false);
-	void debug_error(NS::NetworkInterface *p_network_interface, const String &p_message, bool p_silent = false);
 
 	void print(
 			NS::PrintMessageType p_level,
