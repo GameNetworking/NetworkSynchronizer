@@ -240,13 +240,13 @@ void NS::SyncGroup::notify_variable_changed(ObjectData *p_object_data, const std
 	}
 }
 
-void NS::SyncGroup::set_trickled_update_rate(NS::ObjectData *p_object_data, real_t p_update_rate) {
+void NS::SyncGroup::set_trickled_update_rate(NS::ObjectData *p_object_data, float p_update_rate) {
 	const int index = trickled_sync_objects.find(p_object_data);
 	ERR_FAIL_COND(index < 0);
 	trickled_sync_objects[index].update_rate = p_update_rate;
 }
 
-real_t NS::SyncGroup::get_trickled_update_rate(const NS::ObjectData *p_object_data) const {
+float NS::SyncGroup::get_trickled_update_rate(const NS::ObjectData *p_object_data) const {
 	for (int i = 0; i < int(trickled_sync_objects.size()); ++i) {
 		if (trickled_sync_objects[i].od == p_object_data) {
 			return trickled_sync_objects[i].update_rate;

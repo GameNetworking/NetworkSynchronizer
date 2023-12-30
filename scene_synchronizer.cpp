@@ -253,7 +253,7 @@ float SceneSynchronizerBase::get_max_trickled_interpolation_alpha() const {
 	return max_trickled_interpolation_alpha;
 }
 
-void SceneSynchronizerBase::set_frame_confirmation_timespan(real_t p_interval) {
+void SceneSynchronizerBase::set_frame_confirmation_timespan(float p_interval) {
 	frame_confirmation_timespan = p_interval;
 }
 
@@ -269,11 +269,11 @@ float SceneSynchronizerBase::get_max_predicted_intervals() const {
 	return max_predicted_intervals;
 }
 
-void SceneSynchronizerBase::set_objects_relevancy_update_time(real_t p_time) {
+void SceneSynchronizerBase::set_objects_relevancy_update_time(float p_time) {
 	objects_relevancy_update_time = p_time;
 }
 
-real_t SceneSynchronizerBase::get_objects_relevancy_update_time() const {
+float SceneSynchronizerBase::get_objects_relevancy_update_time() const {
 	return objects_relevancy_update_time;
 }
 
@@ -729,25 +729,25 @@ const std::vector<int> *SceneSynchronizerBase::sync_group_get_listening_peers(Sy
 	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get_listening_peers(p_group_id);
 }
 
-void SceneSynchronizerBase::sync_group_set_trickled_update_rate(ObjectLocalId p_node_id, SyncGroupId p_group_id, real_t p_update_rate) {
+void SceneSynchronizerBase::sync_group_set_trickled_update_rate(ObjectLocalId p_node_id, SyncGroupId p_group_id, float p_update_rate) {
 	NS::ObjectData *od = get_object_data(p_node_id);
 	ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
 	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_set_trickled_update_rate(od, p_group_id, p_update_rate);
 }
 
-void SceneSynchronizerBase::sync_group_set_trickled_update_rate(ObjectNetId p_node_id, SyncGroupId p_group_id, real_t p_update_rate) {
+void SceneSynchronizerBase::sync_group_set_trickled_update_rate(ObjectNetId p_node_id, SyncGroupId p_group_id, float p_update_rate) {
 	NS::ObjectData *od = get_object_data(p_node_id);
 	ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
 	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_set_trickled_update_rate(od, p_group_id, p_update_rate);
 }
 
-real_t SceneSynchronizerBase::sync_group_get_trickled_update_rate(ObjectLocalId p_id, SyncGroupId p_group_id) const {
+float SceneSynchronizerBase::sync_group_get_trickled_update_rate(ObjectLocalId p_id, SyncGroupId p_group_id) const {
 	const NS::ObjectData *od = get_object_data(p_id);
 	ENSURE_V_MSG(is_server(), 0.0, "This function CAN be used only on the server.");
 	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get_trickled_update_rate(od, p_group_id);
 }
 
-real_t SceneSynchronizerBase::sync_group_get_trickled_update_rate(ObjectNetId p_id, SyncGroupId p_group_id) const {
+float SceneSynchronizerBase::sync_group_get_trickled_update_rate(ObjectNetId p_id, SyncGroupId p_group_id) const {
 	const NS::ObjectData *od = get_object_data(p_id);
 	ENSURE_V_MSG(is_server(), 0.0, "This function CAN be used only on the server.");
 	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get_trickled_update_rate(od, p_group_id);
@@ -1861,14 +1861,14 @@ void ServerSynchronizer::set_peer_networking_enable(int p_peer, bool p_enable) {
 	sync_group_update(p_peer);
 }
 
-void ServerSynchronizer::sync_group_set_trickled_update_rate(NS::ObjectData *p_object_data, SyncGroupId p_group_id, real_t p_update_rate) {
+void ServerSynchronizer::sync_group_set_trickled_update_rate(NS::ObjectData *p_object_data, SyncGroupId p_group_id, float p_update_rate) {
 	ERR_FAIL_COND(p_object_data == nullptr);
 	ERR_FAIL_COND_MSG(p_group_id.id >= sync_groups.size(), "The group id `" + itos(p_group_id.id) + "` doesn't exist.");
 	ERR_FAIL_COND_MSG(p_group_id == SyncGroupId::GLOBAL, "You can't change this SyncGroup in any way. Create a new one.");
 	sync_groups[p_group_id.id].set_trickled_update_rate(p_object_data, p_update_rate);
 }
 
-real_t ServerSynchronizer::sync_group_get_trickled_update_rate(const NS::ObjectData *p_object_data, SyncGroupId p_group_id) const {
+float ServerSynchronizer::sync_group_get_trickled_update_rate(const NS::ObjectData *p_object_data, SyncGroupId p_group_id) const {
 	ERR_FAIL_COND_V(p_object_data == nullptr, 0.0);
 	ERR_FAIL_COND_V_MSG(p_group_id.id >= sync_groups.size(), 0.0, "The group id `" + itos(p_group_id.id) + "` doesn't exist.");
 	ERR_FAIL_COND_V_MSG(p_group_id == SyncGroupId::GLOBAL, 0.0, "You can't change this SyncGroup in any way. Create a new one.");

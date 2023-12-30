@@ -75,7 +75,7 @@ public:
 	///
 	///
 	/// ## Vector2
-	/// COMPRESSION_LEVEL_0: 2 * 64 bits are used - Double precision (will fallback to level 1 if REAL_T_IS_DOUBLE is not defined)
+	/// COMPRESSION_LEVEL_0: 2 * 64 bits are used - Double precision
 	/// COMPRESSION_LEVEL_1: 2 * 32 bits are used - Single precision
 	/// COMPRESSION_LEVEL_2: 2 * 16 bits are used - Half precision
 	/// COMPRESSION_LEVEL_3: 2 * 8 bits are used - Minifloat
@@ -91,7 +91,7 @@ public:
 	///
 	///
 	/// ## Vector3
-	/// COMPRESSION_LEVEL_0: 3 * 64 bits are used - Double precision (will fallback to level 1 if REAL_T_IS_DOUBLE is not defined)
+	/// COMPRESSION_LEVEL_0: 3 * 64 bits are used - Double precision
 	/// COMPRESSION_LEVEL_1: 3 * 32 bits are used - Single precision
 	/// COMPRESSION_LEVEL_2: 3 * 16 bits are used - Half precision
 	/// COMPRESSION_LEVEL_3: 3 * 8 bits are used - Minifloat
@@ -244,10 +244,10 @@ public:
 	///
 	/// Returns the compressed value so both the client and the peers can use
 	/// the same data.
-	real_t add_positive_unit_real(real_t p_input, CompressionLevel p_compression_level);
+	float add_positive_unit_real(float p_input, CompressionLevel p_compression_level);
 
 	/// Parse the following data as a positive unit real.
-	real_t read_positive_unit_real(CompressionLevel p_compression_level);
+	float read_positive_unit_real(CompressionLevel p_compression_level);
 
 	/// Add a unit real into the buffer.
 	///
@@ -255,10 +255,10 @@ public:
 	///
 	/// Returns the compressed value so both the client and the peers can use
 	/// the same data.
-	real_t add_unit_real(real_t p_input, CompressionLevel p_compression_level);
+	float add_unit_real(float p_input, CompressionLevel p_compression_level);
 
 	/// Parse the following data as an unit real.
-	real_t read_unit_real(CompressionLevel p_compression_level);
+	float read_unit_real(CompressionLevel p_compression_level);
 
 	/// Add a vector2 into the buffer.
 	/// Note: This kind of vector occupies more space than the normalized verison.

@@ -306,7 +306,7 @@ public:
 	FrameIndex last_known_frame_index() const;
 
 	/// Fetch the next inputs, returns true if the input is new.
-	virtual bool fetch_next_input(real_t p_delta);
+	virtual bool fetch_next_input(double p_delta);
 
 	virtual void set_frame_input(const FrameSnapshot &p_frame_snapshot, bool p_first_input);
 
@@ -349,7 +349,7 @@ struct AutonomousServerController final : public ServerController {
 
 	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;
 	virtual int get_inputs_count() const override;
-	virtual bool fetch_next_input(real_t p_delta) override;
+	virtual bool fetch_next_input(double p_delta) override;
 };
 
 struct PlayerController final : public Controller {
@@ -399,7 +399,7 @@ struct DollController final : public RemotelyControlledController {
 
 	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;
 	virtual void queue_instant_process(FrameIndex p_input_id, int p_index, int p_count) override;
-	virtual bool fetch_next_input(real_t p_delta) override;
+	virtual bool fetch_next_input(double p_delta) override;
 	virtual void process(double p_delta) override;
 	virtual void on_state_validated(FrameIndex p_frame_index) override;
 	void notify_frame_checked(FrameIndex p_input_id);

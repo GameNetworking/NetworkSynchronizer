@@ -392,10 +392,10 @@ public: // ---------------------------------------------------------------- APIs
 	SyncGroupId sync_group_get_peer_group(int p_peer_id) const;
 	const std::vector<int> *sync_group_get_listening_peers(SyncGroupId p_group_id) const;
 
-	void sync_group_set_trickled_update_rate(ObjectLocalId p_id, SyncGroupId p_group_id, real_t p_update_rate);
-	void sync_group_set_trickled_update_rate(ObjectNetId p_id, SyncGroupId p_group_id, real_t p_update_rate);
-	real_t sync_group_get_trickled_update_rate(ObjectLocalId p_id, SyncGroupId p_group_id) const;
-	real_t sync_group_get_trickled_update_rate(ObjectNetId p_id, SyncGroupId p_group_id) const;
+	void sync_group_set_trickled_update_rate(ObjectLocalId p_id, SyncGroupId p_group_id, float p_update_rate);
+	void sync_group_set_trickled_update_rate(ObjectNetId p_id, SyncGroupId p_group_id, float p_update_rate);
+	float sync_group_get_trickled_update_rate(ObjectLocalId p_id, SyncGroupId p_group_id) const;
+	float sync_group_get_trickled_update_rate(ObjectNetId p_id, SyncGroupId p_group_id) const;
 
 	void sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_ptr);
 	uint64_t sync_group_get_user_data(SyncGroupId p_group_id) const;
@@ -469,7 +469,7 @@ public: // ------------------------------------------------------------ INTERNAL
 	void reset_controllers();
 	void reset_controller(NS::ObjectData *p_controller);
 
-	real_t get_pretended_delta() const;
+	float get_pretended_delta() const;
 
 	/// Read the object variables and store the value if is different from the
 	/// previous one and emits a signal.
@@ -544,7 +544,7 @@ class ServerSynchronizer final : public Synchronizer {
 	std::map<int, NS::PeerServerData> peers_data;
 
 	double time_bank = 0.0;
-	real_t objects_relevancy_update_timer = 0.0;
+	float objects_relevancy_update_timer = 0.0;
 	uint32_t epoch = 0;
 	/// This array contains a map between the peers and the relevant objects.
 	LocalVector<NS::SyncGroup> sync_groups;
@@ -586,8 +586,8 @@ public:
 
 	void set_peer_networking_enable(int p_peer, bool p_enable);
 
-	void sync_group_set_trickled_update_rate(NS::ObjectData *p_object_data, SyncGroupId p_group_id, real_t p_update_rate);
-	real_t sync_group_get_trickled_update_rate(const NS::ObjectData *p_object_data, SyncGroupId p_group_id) const;
+	void sync_group_set_trickled_update_rate(NS::ObjectData *p_object_data, SyncGroupId p_group_id, float p_update_rate);
+	float sync_group_get_trickled_update_rate(const NS::ObjectData *p_object_data, SyncGroupId p_group_id) const;
 
 	void sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_ptr);
 	uint64_t sync_group_get_user_data(SyncGroupId p_group_id) const;

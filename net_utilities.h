@@ -533,7 +533,7 @@ private:
 public:
 	uint64_t user_data = 0;
 
-	real_t state_notifier_timer = 0.0;
+	float state_notifier_timer = 0.0;
 
 public:
 	bool is_realtime_node_list_changed() const;
@@ -560,8 +560,8 @@ public:
 	void notify_new_variable(struct ObjectData *p_object_data, const std::string &p_var_name);
 	void notify_variable_changed(struct ObjectData *p_object_data, const std::string &p_var_name);
 
-	void set_trickled_update_rate(struct ObjectData *p_object_data, real_t p_update_rate);
-	real_t get_trickled_update_rate(const struct ObjectData *p_object_data) const;
+	void set_trickled_update_rate(struct ObjectData *p_object_data, float p_update_rate);
+	float get_trickled_update_rate(const struct ObjectData *p_object_data) const;
 
 	void sort_trickled_node_by_update_priority();
 

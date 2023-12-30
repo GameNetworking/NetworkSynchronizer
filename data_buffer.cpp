@@ -619,7 +619,7 @@ double DataBuffer::read_real(CompressionLevel p_compression_level) {
 	return value;
 }
 
-real_t DataBuffer::add_positive_unit_real(real_t p_input, CompressionLevel p_compression_level) {
+float DataBuffer::add_positive_unit_real(float p_input, CompressionLevel p_compression_level) {
 #ifdef DEBUG_ENABLED
 	ERR_FAIL_COND_V_MSG(p_input < 0 || p_input > 1, p_input, "Value must be between zero and one.");
 #endif
@@ -642,12 +642,12 @@ real_t DataBuffer::add_positive_unit_real(real_t p_input, CompressionLevel p_com
 	CRASH_COND((metadata_size + bit_size) > buffer.size_in_bits() && bit_offset > buffer.size_in_bits());
 #endif
 
-	const real_t value = decompress_unit_float(compressed_val, max_value);
+	const float value = decompress_unit_float(compressed_val, max_value);
 	DEB_WRITE(DATA_TYPE_POSITIVE_UNIT_REAL, p_compression_level, rtos(value).utf8());
 	return value;
 }
 
-real_t DataBuffer::read_positive_unit_real(CompressionLevel p_compression_level) {
+float DataBuffer::read_positive_unit_real(CompressionLevel p_compression_level) {
 	ERR_FAIL_COND_V(is_reading == false, 0.0);
 
 	const int bits = get_bit_taken(DATA_TYPE_POSITIVE_UNIT_REAL, p_compression_level);
@@ -661,17 +661,17 @@ real_t DataBuffer::read_positive_unit_real(CompressionLevel p_compression_level)
 	}
 	bit_offset += bits;
 
-	const real_t value = decompress_unit_float(compressed_val, max_value);
+	const float value = decompress_unit_float(compressed_val, max_value);
 
 	DEB_READ(DATA_TYPE_POSITIVE_UNIT_REAL, p_compression_level, rtos(value).utf8());
 
 	return value;
 }
 
-real_t DataBuffer::add_unit_real(real_t p_input, CompressionLevel p_compression_level) {
+float DataBuffer::add_unit_real(float p_input, CompressionLevel p_compression_level) {
 	ERR_FAIL_COND_V(is_reading == true, p_input);
 
-	const real_t added_real = add_positive_unit_real(ABS(p_input), p_compression_level);
+	const float added_real = add_positive_unit_real(ABS(p_input), p_compression_level);
 
 	const int bits_for_sign = 1;
 	const uint32_t is_negative = p_input < 0.0;
@@ -686,16 +686,16 @@ real_t DataBuffer::add_unit_real(real_t p_input, CompressionLevel p_compression_
 	CRASH_COND((metadata_size + bit_size) > buffer.size_in_bits() && bit_offset > buffer.size_in_bits());
 #endif
 
-	const real_t value = is_negative ? -added_real : added_real;
+	const float value = is_negative ? -added_real : added_real;
 	DEB_WRITE(DATA_TYPE_UNIT_REAL, p_compression_level, rtos(value).utf8());
 
 	return value;
 }
 
-real_t DataBuffer::read_unit_real(CompressionLevel p_compression_level) {
+float DataBuffer::read_unit_real(CompressionLevel p_compression_level) {
 	ERR_FAIL_COND_V(is_reading == false, 0.0);
 
-	const real_t value = read_positive_unit_real(p_compression_level);
+	const float value = read_positive_unit_real(p_compression_level);
 
 	const int bits_for_sign = 1;
 	std::uint64_t is_negative;
@@ -705,7 +705,7 @@ real_t DataBuffer::read_unit_real(CompressionLevel p_compression_level) {
 	}
 	bit_offset += bits_for_sign;
 
-	const real_t ret = is_negative != 0 ? -value : value;
+	const float ret = is_negative != 0 ? -value : value;
 
 	DEB_READ(DATA_TYPE_UNIT_REAL, p_compression_level, rtos(ret).utf8());
 
@@ -772,9 +772,9 @@ Vector2 DataBuffer::add_normalized_vector2(Vector2 p_input, CompressionLevel p_c
 	}
 	bit_offset += bits;
 
-	const real_t decompressed_angle = (decompress_unit_float(compressed_angle, max_value) * Math_TAU) - Math_PI;
-	const real_t x = Math::cos(decompressed_angle);
-	const real_t y = Math::sin(decompressed_angle);
+	const double decompressed_angle = (decompress_unit_float(compressed_angle, max_value) * Math_TAU) - Math_PI;
+	const double x = Math::cos(decompressed_angle);
+	const double y = Math::sin(decompressed_angle);
 
 #ifdef DEBUG_ENABLED
 	// Can't never happen because the buffer size is correctly handled.
@@ -807,9 +807,9 @@ Vector2 DataBuffer::read_normalized_vector2(CompressionLevel p_compression_level
 	}
 	bit_offset += bits;
 
-	const real_t decompressed_angle = (decompress_unit_float(compressed_angle, max_value) * Math_TAU) - Math_PI;
-	const real_t x = Math::cos(decompressed_angle);
-	const real_t y = Math::sin(decompressed_angle);
+	const double decompressed_angle = (decompress_unit_float(compressed_angle, max_value) * Math_TAU) - Math_PI;
+	const double x = Math::cos(decompressed_angle);
+	const double y = Math::sin(decompressed_angle);
 
 	const Vector2 value = Vector2(x, y) * static_cast<float>(is_not_zero);
 
@@ -859,9 +859,9 @@ Vector3 DataBuffer::add_normalized_vector3(Vector3 p_input, CompressionLevel p_c
 
 	DEB_DISABLE
 
-	const real_t x_axis = add_unit_real(p_input.x, p_compression_level);
-	const real_t y_axis = add_unit_real(p_input.y, p_compression_level);
-	const real_t z_axis = add_unit_real(p_input.z, p_compression_level);
+	const float x_axis = add_unit_real(p_input.x, p_compression_level);
+	const float y_axis = add_unit_real(p_input.y, p_compression_level);
+	const float z_axis = add_unit_real(p_input.z, p_compression_level);
 
 	DEB_ENABLE
 
@@ -875,9 +875,9 @@ Vector3 DataBuffer::read_normalized_vector3(CompressionLevel p_compression_level
 
 	DEB_DISABLE
 
-	const real_t x_axis = read_unit_real(p_compression_level);
-	const real_t y_axis = read_unit_real(p_compression_level);
-	const real_t z_axis = read_unit_real(p_compression_level);
+	const float x_axis = read_unit_real(p_compression_level);
+	const float y_axis = read_unit_real(p_compression_level);
+	const float z_axis = read_unit_real(p_compression_level);
 
 	DEB_ENABLE
 

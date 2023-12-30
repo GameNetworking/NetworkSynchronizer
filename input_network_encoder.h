@@ -11,7 +11,7 @@ struct NetworkedInputInfo {
 	uint32_t index;
 	DataBuffer::DataType data_type;
 	DataBuffer::CompressionLevel compression_level;
-	real_t comparison_floating_point_precision;
+	float comparison_floating_point_precision;
 };
 
 class InputNetworkEncoder : public Resource {
@@ -32,7 +32,7 @@ public:
 			const Variant &p_default_value,
 			DataBuffer::DataType p_type,
 			DataBuffer::CompressionLevel p_compression_level,
-			real_t p_comparison_floating_point_precision = CMP_EPSILON);
+			float p_comparison_floating_point_precision = CMP_EPSILON);
 
 	uint32_t find_input_id(const StringName &p_name) const;
 	const LocalVector<NetworkedInputInfo> &get_input_info() const;

@@ -19,7 +19,7 @@ uint32_t InputNetworkEncoder::register_input(
 		const Variant &p_default_value,
 		DataBuffer::DataType p_type,
 		DataBuffer::CompressionLevel p_compression_level,
-		real_t p_comparison_floating_point_precision) {
+		float p_comparison_floating_point_precision) {
 	switch (p_type) {
 		case DataBuffer::DATA_TYPE_BOOL:
 			ERR_FAIL_COND_V_MSG(p_default_value.get_type() != Variant::BOOL, UINT32_MAX, "The moveset initialization failed for" + p_name + " the specified data type is `BOOL` but the default parameter is " + itos(p_default_value.get_type()));
@@ -225,18 +225,18 @@ void InputNetworkEncoder::reset_inputs_to_defaults(LocalVector<Variant> &r_input
 	}
 }
 
-bool compare(const Vector2 &p_first, const Vector2 &p_second, real_t p_tolerance) {
+bool compare(const Vector2 &p_first, const Vector2 &p_second, float p_tolerance) {
 	return Math::is_equal_approx(p_first.x, p_second.x, p_tolerance) &&
 			Math::is_equal_approx(p_first.y, p_second.y, p_tolerance);
 }
 
-bool compare(const Vector3 &p_first, const Vector3 &p_second, real_t p_tolerance) {
+bool compare(const Vector3 &p_first, const Vector3 &p_second, float p_tolerance) {
 	return Math::is_equal_approx(p_first.x, p_second.x, p_tolerance) &&
 			Math::is_equal_approx(p_first.y, p_second.y, p_tolerance) &&
 			Math::is_equal_approx(p_first.z, p_second.z, p_tolerance);
 }
 
-bool compare(const Variant &p_first, const Variant &p_second, real_t p_tolerance) {
+bool compare(const Variant &p_first, const Variant &p_second, float p_tolerance) {
 	if (p_first.get_type() != p_second.get_type()) {
 		return false;
 	}

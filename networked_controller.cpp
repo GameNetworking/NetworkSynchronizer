@@ -510,7 +510,7 @@ FrameIndex RemotelyControlledController::last_known_frame_index() const {
 	}
 }
 
-bool RemotelyControlledController::fetch_next_input(real_t p_delta) {
+bool RemotelyControlledController::fetch_next_input(double p_delta) {
 	bool is_new_input = true;
 
 	if (unlikely(current_input_buffer_id == FrameIndex::NONE)) {
@@ -962,7 +962,7 @@ int AutonomousServerController::get_inputs_count() const {
 	return 0;
 }
 
-bool AutonomousServerController::fetch_next_input(real_t p_delta) {
+bool AutonomousServerController::fetch_next_input(double p_delta) {
 	SceneSynchronizerDebugger::singleton()->debug_print(&node->get_network_interface(), "Autonomous server fetch input.", true);
 
 	node->get_inputs_buffer_mut().begin_write(METADATA_SIZE);
@@ -1396,7 +1396,7 @@ void DollController::queue_instant_process(FrameIndex p_frame_index, int p_index
 	return;
 }
 
-bool DollController::fetch_next_input(real_t p_delta) {
+bool DollController::fetch_next_input(double p_delta) {
 	if (queued_instant_to_process >= 0) {
 		if (queued_instant_to_process >= int(snapshots.size())) {
 			return false;
