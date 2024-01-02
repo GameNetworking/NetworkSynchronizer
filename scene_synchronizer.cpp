@@ -1165,6 +1165,7 @@ void SceneSynchronizerBase::call_rpc_set_server_controlled(int p_recipient, int 
 void SceneSynchronizerBase::rpc_receive_inputs(int p_peer, const Vector<uint8_t> &p_data) {
 	// TODO
 	CRASH_NOW();
+	peer_data
 }
 
 void SceneSynchronizerBase::rpc_set_server_controlled(int p_peer, bool p_server_controlled) {
