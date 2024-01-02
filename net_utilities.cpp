@@ -2,7 +2,9 @@
 
 #include "core/object_data.h"
 #include "networked_controller.h"
+#include "scene_synchronizer_debugger.h"
 #include <limits>
+#include <memory>
 
 void NS::PeerData::set_latency(int p_latency) {
 	compressed_latency = std::round(float(std::min(p_latency, 1000)) / 4.0);
@@ -10,6 +12,11 @@ void NS::PeerData::set_latency(int p_latency) {
 
 int NS::PeerData::get_latency() const {
 	return compressed_latency * 4.0;
+}
+
+NS::NetworkedControllerBase &NS::PeerData::get_controller() {
+	controller = std::make_unique<NS::NetworkedControllerBase>();
+	return *controller.get();
 }
 
 bool NS::SyncGroup::is_realtime_node_list_changed() const {
@@ -242,7 +249,7 @@ void NS::SyncGroup::notify_variable_changed(ObjectData *p_object_data, const std
 
 void NS::SyncGroup::set_trickled_update_rate(NS::ObjectData *p_object_data, float p_update_rate) {
 	const int index = trickled_sync_objects.find(p_object_data);
-	ERR_FAIL_COND(index < 0);
+	ENSURE(index >= 0);
 	trickled_sync_objects[index].update_rate = p_update_rate;
 }
 
@@ -252,7 +259,7 @@ float NS::SyncGroup::get_trickled_update_rate(const NS::ObjectData *p_object_dat
 			return trickled_sync_objects[i].update_rate;
 		}
 	}
-	ERR_PRINT(String() + "NodeData " + p_object_data->object_name.c_str() + " not found into `trickled_sync_objects`.");
+	SceneSynchronizerDebugger::singleton()->print(ERROR, "NodeData " + p_object_data->object_name + " not found into `trickled_sync_objects`.");
 	return 0.0;
 }
 

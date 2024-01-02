@@ -5,6 +5,7 @@
 #include "core/network_interface.h"
 #include "core/object_data_storage.h"
 #include "core/processor.h"
+#include "modules/network_synchronizer/data_buffer.h"
 #include "snapshot.h"
 #include <deque>
 #include <map>
@@ -151,6 +152,10 @@ protected:
 	RpcHandle<bool> rpc_handler_notify_peer_status;
 	RpcHandle<const Vector<uint8_t> &> rpc_handler_trickled_sync_data;
 	RpcHandle<const Vector<uint8_t> &> rpc_handle_notify_fps_acceleration;
+
+	// Controller RPCs.
+	RpcHandle<int, const Vector<uint8_t> &> rpc_handle_receive_input;
+	RpcHandle<int, bool> rpc_handle_set_server_controlled;
 
 	/// Fixed rate at which the NetSync has to produce frames.
 	int frames_per_seconds = 60;
@@ -320,13 +325,26 @@ public: // ---------------------------------------------------------------- RPCs
 	void rpc_trickled_sync_data(const Vector<uint8_t> &p_data);
 	void rpc_notify_fps_acceleration(const Vector<uint8_t> &p_data);
 
+	void call_rpc_receive_inputs(int p_recipient, int p_peer, const Vector<uint8_t> &p_data);
+	void call_rpc_set_server_controlled(int p_recipient, int p_peer, bool p_server_controlled);
+
+	void rpc_receive_inputs(int p_peer, const Vector<uint8_t> &p_data);
+	void rpc_set_server_controlled(int p_peer, bool p_server_controlled);
+
 public: // ---------------------------------------------------------------- APIs
 	void register_app_object(ObjectHandle p_app_object_handle, ObjectLocalId *out_id = nullptr);
 	void unregister_app_object(ObjectLocalId p_id);
-	void register_app_object_as_controlled_by_peer(ObjectLocalId p_id, int p_peer);
+	void setup_controller(
+			ObjectLocalId p_id,
+			int p_peer,
+			std::function<void(double /*delta*/, DataBuffer & /*r_data_buffer*/)> p_collect_input_func,
+			std::function<int(DataBuffer & /*p_data_buffer*/)> p_count_input_size_func,
+			std::function<bool(DataBuffer & /*p_data_buffer_A*/, DataBuffer & /*p_data_buffer_B*/)> p_are_inputs_different_func,
+			std::function<void(double /*delta*/, DataBuffer & /*p_data_buffer*/)> p_process_func);
 	void register_variable(ObjectLocalId p_id, const std::string &p_variable);
 	void unregister_variable(ObjectLocalId p_id, const std::string &p_variable);
 
+	ObjectNetId get_app_object_net_id(ObjectLocalId p_local_id) const;
 	ObjectNetId get_app_object_net_id(ObjectHandle p_app_object_handle) const;
 
 	ObjectHandle get_app_object_from_id(ObjectNetId p_id, bool p_expected = true);
