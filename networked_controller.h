@@ -1,8 +1,10 @@
 #pragma once
 
 #include "core/core.h"
-#include "core/network_interface.h"
 #include "core/processor.h"
+#include "data_buffer.h"
+#include "modules/network_synchronizer/core/core.h"
+#include "modules/network_synchronizer/networked_controller.h"
 #include "net_utilities.h"
 #include <deque>
 
@@ -17,14 +19,16 @@ struct PlayerController;
 struct DollController;
 struct NoNetController;
 
-class NetworkedControllerManager {
-public:
-	virtual ~NetworkedControllerManager() {}
+struct ControllableObjectData {
+	ObjectLocalId local_id = ObjectLocalId::NONE;
+	ObjectNetId net_id = ObjectNetId::NONE;
 
-	virtual void collect_inputs(double p_delta, class DataBuffer &r_buffer) = 0;
-	virtual void controller_process(double p_delta, DataBuffer &p_buffer) = 0;
-	virtual bool are_inputs_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B) = 0;
-	virtual uint32_t count_input_size(DataBuffer &p_buffer) = 0;
+	std::function<void(double /*delta*/, DataBuffer & /*r_data_buffer*/)> collect_input_func;
+	std::function<int(DataBuffer & /*p_data_buffer*/)> count_input_size_func;
+	std::function<bool(DataBuffer & /*p_data_buffer_A*/, DataBuffer & /*p_data_buffer_B*/)> are_inputs_different_func;
+	std::function<void(double /*delta*/, DataBuffer & /*p_data_buffer*/)> process_func;
+
+	bool operator==(const ControllableObjectData &p_cod) const { return local_id == p_cod.local_id; }
 };
 
 /// The `NetworkedController` is responsible to sync the `Player` inputs between
@@ -53,6 +57,8 @@ class NetworkedControllerBase {
 	friend struct ServerController;
 	friend struct PlayerController;
 	friend struct DollController;
+	friend struct AutonomousServerController;
+	friend struct NoNetController;
 
 public:
 	enum ControllerType {
@@ -63,9 +69,6 @@ public:
 		CONTROLLER_TYPE_SERVER,
 		CONTROLLER_TYPE_DOLL
 	};
-
-public:
-	NetworkedControllerManager *networked_controller_manager = nullptr;
 
 private:
 	/// When `true`, this controller is controlled by the server: All the clients
@@ -105,6 +108,9 @@ private:
 	int min_frames_delay = 2;
 	int max_frames_delay = 7;
 
+	// The peer associated to this NetController.
+	int authority_peer = -1;
+
 	ControllerType controller_type = CONTROLLER_TYPE_NULL;
 	Controller *controller = nullptr;
 	// Created using `memnew` into the constructor:
@@ -115,14 +121,13 @@ private:
 
 	NS::SceneSynchronizerBase *scene_synchronizer = nullptr;
 
+	bool are_controllable_objects_sorted = false;
+	std::vector<ControllableObjectData> controllable_objects;
+	std::vector<ControllableObjectData> _sorted_controllable_objects;
+
 	bool has_player_new_input = false;
 
 	ObjectNetId net_id = ObjectNetId::NONE;
-
-	NS::NetworkInterface *network_interface = nullptr;
-
-	RpcHandle<const Vector<uint8_t> &> rpc_handle_receive_input;
-	RpcHandle<bool> rpc_handle_set_server_controlled;
 
 	NS::PHandler process_handler_process = NS::NullPHandler;
 
@@ -135,26 +140,23 @@ public: // -------------------------------------------------------------- Events
 	Processor<FrameIndex> event_input_missed;
 	Processor<uint32_t /*p_input_worst_receival_time_ms*/, int /*p_optimal_frame_delay*/, int /*p_current_frame_delay*/, int /*p_distance_to_optimal*/> event_client_speedup_adjusted;
 
-private:
-	NetworkedControllerBase(NetworkInterface *p_network_interface);
-
 public:
+	NetworkedControllerBase();
 	~NetworkedControllerBase();
 
-public: // -------------------------------------------------------- Manager APIs
-	/// Setup the controller
-	void setup(NetworkedControllerManager &p_controller_manager);
-
-	/// Prepare the controller for destruction.
-	void conclude();
-
 public: // ---------------------------------------------------------------- APIs
-	NS::NetworkInterface &get_network_interface() {
-		return *network_interface;
-	}
-	const NS::NetworkInterface &get_network_interface() const {
-		return *network_interface;
-	}
+	/// Adds controllable object.
+	void add_controllable_object(
+			ObjectLocalId p_id,
+			std::function<void(double /*delta*/, DataBuffer & /*r_data_buffer*/)> p_collect_input_func,
+			std::function<int(DataBuffer & /*p_data_buffer*/)> p_count_input_size_func,
+			std::function<bool(DataBuffer & /*p_data_buffer_A*/, DataBuffer & /*p_data_buffer_B*/)> p_are_inputs_different_func,
+			std::function<void(double /*delta*/, DataBuffer & /*p_data_buffer*/)> p_process_func);
+
+	// Removes a controllable object.
+	void remove_controllable_object(ObjectLocalId p_id);
+
+	const std::vector<ControllableObjectData> &get_sorted_controllable_objects();
 
 	void set_server_controlled(bool p_server_controlled);
 	bool get_server_controlled() const;
@@ -183,8 +185,6 @@ public: // ---------------------------------------------------------------- APIs
 
 	void server_set_peer_simulating_this_controller(int p_peer, bool p_simulating);
 	bool server_is_peer_simulating_this_controller(int p_peer) const;
-
-	int server_get_associated_peer() const;
 
 public: // -------------------------------------------------------------- Events
 	bool has_another_instant_to_process_after(int p_i) const;
@@ -223,11 +223,13 @@ public:
 	void on_state_validated(FrameIndex p_frame_index);
 	void on_rewind_frame_begin(FrameIndex p_input_id, int p_index, int p_count);
 
-	/* On server rpc functions. */
-	void rpc_receive_inputs(const Vector<uint8_t> &p_data);
+	void controllable_collect_input(double p_delta, DataBuffer &r_data_buffer);
+	int controllable_count_input_size(DataBuffer &p_data_buffer);
+	bool controllable_are_inputs_different(DataBuffer &p_data_buffer_A, DataBuffer &p_data_buffer_B);
+	void controllable_process(double p_delta, DataBuffer &p_data_buffer);
 
-	/* On client rpc functions. */
-	void rpc_set_server_controlled(bool p_server_controlled);
+	void notify_receive_inputs(const Vector<uint8_t> &p_data);
+	void notify_set_server_controlled(bool p_server_controlled);
 
 private:
 	void player_set_has_new_input(bool p_has);
@@ -415,23 +417,6 @@ struct NoNetController : public Controller {
 
 	virtual void process(double p_delta) override;
 	virtual FrameIndex get_current_frame_index() const override;
-};
-
-template <class NetInterfaceClass>
-class NetworkedController : public NetworkedControllerBase {
-	NetInterfaceClass custom_network_interface;
-
-public:
-	NetworkedController() :
-			NetworkedControllerBase(&custom_network_interface) {}
-
-	NetInterfaceClass &get_network_interface() {
-		return custom_network_interface;
-	}
-
-	const NetInterfaceClass &get_network_interface() const {
-		return custom_network_interface;
-	}
 };
 
 NS_NAMESPACE_END

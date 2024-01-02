@@ -113,6 +113,18 @@ void SceneSynchronizerBase::setup(SynchronizerManager &p_synchronizer_interface)
 					false,
 					false);
 
+	rpc_handle_receive_input =
+			network_interface->rpc_config(
+					std::function<void(int, const Vector<uint8_t> &)>(std::bind(&SceneSynchronizerBase::rpc_receive_inputs, this, std::placeholders::_1, std::placeholders::_2)),
+					false,
+					false);
+
+	rpc_handle_set_server_controlled =
+			network_interface->rpc_config(
+					std::function<void(int, bool)>(std::bind(&SceneSynchronizerBase::rpc_set_server_controlled, this, std::placeholders::_1, std::placeholders::_2)),
+					true,
+					false);
+
 	clear();
 	reset_synchronizer_mode();
 
@@ -146,6 +158,8 @@ void SceneSynchronizerBase::conclude() {
 	rpc_handler_notify_peer_status.reset();
 	rpc_handler_trickled_sync_data.reset();
 	rpc_handle_notify_fps_acceleration.reset();
+	rpc_handle_receive_input.reset();
+	rpc_handle_set_server_controlled.reset();
 }
 
 void SceneSynchronizerBase::process(double p_delta) {
@@ -372,12 +386,33 @@ void SceneSynchronizerBase::unregister_app_object(ObjectLocalId p_id) {
 	drop_object_data(*od);
 }
 
-void SceneSynchronizerBase::register_app_object_as_controlled_by_peer(ObjectLocalId p_id, int p_peer) {
-	ERR_FAIL_COND(p_id == ObjectLocalId::NONE);
+void SceneSynchronizerBase::setup_controller(
+		ObjectLocalId p_id,
+		int p_peer,
+		std::function<void(double /*delta*/, DataBuffer & /*r_data_buffer*/)> p_collect_input_func,
+		std::function<int(DataBuffer & /*p_data_buffer*/)> p_count_input_size_func,
+		std::function<bool(DataBuffer & /*p_data_buffer_A*/, DataBuffer & /*p_data_buffer_B*/)> p_are_inputs_different_func,
+		std::function<void(double /*delta*/, DataBuffer & /*p_data_buffer*/)> p_process_func) {
+	ENSURE_MSG(p_id != ObjectLocalId::NONE, "The passed object_id is not valid.");
+	ENSURE(p_peer > 0);
+	ENSURE_MSG(p_collect_input_func, "The function collect_input_func is not valid.");
+	ENSURE_MSG(p_count_input_size_func, "The function count_input_size is not valid.");
+	ENSURE_MSG(p_are_inputs_different_func, "The function are_inputs_different is not valid.");
+	ENSURE_MSG(p_process_func, "The function process is not valid.");
 
 	NS::ObjectData *object_data = get_object_data(p_id);
-	ERR_FAIL_COND(object_data == nullptr);
+	ENSURE(object_data != nullptr);
 
+	//std::map<int, PeerData>::iterator peer_data_it = NS::MapFunc::insert_if_new(peer_data, p_peer, PeerData());
+	//peer_data_it->second.setup_controller(
+	//		p_id,
+	//		p_collect_input_func,
+	//		p_count_input_size_func,
+	//		p_are_inputs_different_func,
+	//		p_process_func
+	//);
+
+	// TODO now it was refactored, is this good here?
 	object_data->set_controlled_by_peer(p_peer);
 }
 
@@ -450,13 +485,17 @@ void SceneSynchronizerBase::unregister_variable(ObjectLocalId p_id, const std::s
 	od->vars[var_id.id].changes_listeners.clear();
 }
 
-ObjectNetId SceneSynchronizerBase::get_app_object_net_id(ObjectHandle p_app_object_handle) const {
-	const NS::ObjectData *nd = objects_data_storage.get_object_data(objects_data_storage.find_object_local_id(p_app_object_handle));
+ObjectNetId SceneSynchronizerBase::get_app_object_net_id(ObjectLocalId p_local_id) const {
+	const NS::ObjectData *nd = objects_data_storage.get_object_data(p_local_id);
 	if (nd) {
 		return nd->get_net_id();
 	} else {
 		return ObjectNetId::NONE;
 	}
+}
+
+ObjectNetId SceneSynchronizerBase::get_app_object_net_id(ObjectHandle p_app_object_handle) const {
+	return get_app_object_net_id(objects_data_storage.find_object_local_id(p_app_object_handle));
 }
 
 ObjectHandle SceneSynchronizerBase::get_app_object_from_id(ObjectNetId p_id, bool p_expected) {
@@ -1105,6 +1144,32 @@ void SceneSynchronizerBase::rpc_notify_fps_acceleration(const Vector<uint8_t> &p
 				true);
 	}
 #endif
+}
+
+void SceneSynchronizerBase::call_rpc_receive_inputs(int p_recipient, int p_peer, const Vector<uint8_t> &p_data) {
+	rpc_handle_receive_input.rpc(
+			get_network_interface(),
+			p_recipient,
+			p_peer,
+			p_data);
+}
+
+void SceneSynchronizerBase::call_rpc_set_server_controlled(int p_recipient, int p_peer, bool p_server_controlled) {
+	rpc_handle_set_server_controlled.rpc(
+			get_network_interface(),
+			p_recipient,
+			p_peer,
+			p_server_controlled);
+}
+
+void SceneSynchronizerBase::rpc_receive_inputs(int p_peer, const Vector<uint8_t> &p_data) {
+	// TODO
+	CRASH_NOW();
+}
+
+void SceneSynchronizerBase::rpc_set_server_controlled(int p_peer, bool p_server_controlled) {
+	// TODO
+	CRASH_NOW();
 }
 
 void SceneSynchronizerBase::update_peers() {

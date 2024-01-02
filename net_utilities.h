@@ -8,6 +8,7 @@
 #include "core/var_data.h"
 #include <chrono>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -31,14 +32,6 @@
 	ZoneScopedN(name);                        \
 	ZoneText(str.c_str(), str.size());
 
-#define NS_PROFILE_NODE                                          \
-	ZoneScoped;                                                  \
-	CharString c = String(get_path()).utf8();                    \
-	if (c.size() >= std::numeric_limits<std::uint16_t>::max()) { \
-		c.resize(std::numeric_limits<std::uint16_t>::max() - 1); \
-	}                                                            \
-	ZoneText(c.ptr(), c.size());
-
 #define NS_PROFILE_SET_INFO(str) \
 	ZoneText(str.c_str(), str.size());
 
@@ -48,7 +41,6 @@
 #define NS_PROFILE_WITH_INFO(str)
 #define NS_PROFILE_NAMED(name)
 #define NS_PROFILE_NAMED_WITH_INFO(name, str)
-#define NS_PROFILE_NODE
 #define NS_PROFILE_SET_INFO(str)
 
 #endif
@@ -148,6 +140,16 @@ bool insert_unique(std::vector<V> &r_vec, const T &p_val) {
 		return true;
 	}
 	return false;
+}
+
+template <class V, typename T>
+V &insert_unique_and_get(std::vector<V> &r_vec, const T &p_val) {
+	auto it = find(r_vec, p_val);
+	if (it == r_vec.end()) {
+		r_vec.push_back(p_val);
+		return r_vec[r_vec.size() - 1];
+	}
+	return *it;
 }
 
 template <class V, typename T>
@@ -436,10 +438,10 @@ struct PeerAuthorityData {
 };
 
 struct PeerData {
+	std::unique_ptr<class NetworkedControllerBase> controller;
+
 public:
 	PeerAuthorityData authority_data;
-
-	ObjectNetId controller_id = ObjectNetId::NONE;
 
 private:
 	std::uint8_t compressed_latency = -1;
@@ -453,6 +455,11 @@ public:
 
 	void set_compressed_latency(std::uint8_t p_compressed_latency) { compressed_latency = p_compressed_latency; }
 	std::uint8_t get_compressed_latency() const { return compressed_latency; }
+
+	NetworkedControllerBase &get_controller();
+	const NetworkedControllerBase *get_controller_optional() const {
+		return controller.get();
+	}
 };
 
 struct PeerServerData {

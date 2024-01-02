@@ -512,13 +512,13 @@ void SceneSynchronizerDebugger::scene_sync_process_end(const NS::SceneSynchroniz
 #endif
 }
 
-void SceneSynchronizerDebugger::databuffer_operation_begin_record(NS::NetworkInterface *p_network_interface, DataBufferDumpMode p_mode) {
+void SceneSynchronizerDebugger::databuffer_operation_begin_record(int p_peer, DataBufferDumpMode p_mode) {
 #ifdef DEBUG_ENABLED
 	if (!dump_enabled) {
 		return;
 	}
 
-	frame_dump__data_buffer_name = p_network_interface->get_owner_name();
+	frame_dump__data_buffer_name = "CONTROLLER-" + std::to_string(p_peer);
 	frame_dump_data_buffer_dump_mode = p_mode;
 
 	if (frame_dump_data_buffer_dump_mode == DataBufferDumpMode::WRITE) {
@@ -582,21 +582,21 @@ void SceneSynchronizerDebugger::databuffer_read(uint32_t p_data_type, uint32_t p
 #endif
 }
 
-void SceneSynchronizerDebugger::notify_input_sent_to_server(NS::NetworkInterface *p_network_interface, uint32_t p_frame_index, uint32_t p_input_index) {
+void SceneSynchronizerDebugger::notify_input_sent_to_server(int p_peer, uint32_t p_frame_index, uint32_t p_input_index) {
 #ifdef DEBUG_ENABLED
-	debug_print(p_network_interface, "The client sent to server the input `" + itos(p_input_index) + "` for frame:`" + itos(p_frame_index) + "`.", true);
+	print(NS::INFO, "The client sent to server the input `" + std::to_string(p_input_index) + "` for frame:`" + std::to_string(p_frame_index) + "`.", "CONTROLLER-" + std::to_string(p_peer));
 #endif
 }
 
 void SceneSynchronizerDebugger::notify_are_inputs_different_result(
-		NS::NetworkInterface *p_network_interface,
+		int p_peer,
 		uint32_t p_other_frame_index,
 		bool p_is_similar) {
 #ifdef DEBUG_ENABLED
 	if (p_is_similar) {
-		debug_print(p_network_interface, "This frame input is SIMILAR to `" + itos(p_other_frame_index) + "`", true);
+		print(NS::INFO, "This frame input is SIMILAR to `" + std::to_string(p_other_frame_index) + "`", "CONTROLLER-" + std::to_string(p_peer));
 	} else {
-		debug_print(p_network_interface, "This frame input is DIFFERENT to `" + itos(p_other_frame_index) + "`", true);
+		print(NS::INFO, "This frame input is DIFFERENT to `" + std::to_string(p_other_frame_index) + "`", "CONTROLLER-" + std::to_string(p_peer));
 	}
 	frame_dump__are_inputs_different_results[std::to_string(p_other_frame_index)] = p_is_similar;
 #endif

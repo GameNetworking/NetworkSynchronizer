@@ -66,8 +66,8 @@ void GdSceneSynchronizer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_frames_per_seconds"), &GdSceneSynchronizer::get_frames_per_seconds);
 
 	ClassDB::bind_method(D_METHOD("register_node", "node"), &GdSceneSynchronizer::register_node_gdscript);
-	ClassDB::bind_method(D_METHOD("register_node_as_controller_by_peer", "node", "peer"), &GdSceneSynchronizer::register_node_as_controller_by_peer);
 	ClassDB::bind_method(D_METHOD("unregister_node", "node"), &GdSceneSynchronizer::unregister_node);
+	ClassDB::bind_method(D_METHOD("setup_controller", "node", "peer", "collect_input_func", "count_input_size_func", "are_inputs_different_func", "proces_func"), &GdSceneSynchronizer::setup_controller);
 	ClassDB::bind_method(D_METHOD("get_node_id", "node"), &GdSceneSynchronizer::get_node_id);
 	ClassDB::bind_method(D_METHOD("get_node_from_id", "id", "expected"), &GdSceneSynchronizer::get_node_from_id, DEFVAL(true));
 
@@ -468,8 +468,39 @@ uint32_t GdSceneSynchronizer::register_node_gdscript(Node *p_node) {
 	return id.id;
 }
 
-void GdSceneSynchronizer::register_node_as_controller_by_peer(Node *p_node, int p_peer) {
-	scene_synchronizer.register_app_object_as_controlled_by_peer(scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node)), p_peer);
+void GdSceneSynchronizer::setup_controller(
+		Node *p_node,
+		int p_peer,
+		const Callable &p_collect_input_func,
+		const Callable &p_count_input_size_func,
+		const Callable &p_are_inputs_different_func,
+		const Callable &p_process_func) {
+	scene_synchronizer.setup_controller(
+			scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node)),
+			p_peer,
+			[p_collect_input_func](double p_delta, DataBuffer &r_collect_input) -> void {
+				Array arguments;
+				arguments.push_back(p_delta);
+				arguments.push_back(&r_collect_input);
+				p_collect_input_func.callv(arguments);
+			},
+			[p_count_input_size_func](DataBuffer &p_collect_input) -> int {
+				Array arguments;
+				arguments.push_back(&p_collect_input);
+				return p_count_input_size_func.callv(arguments);
+			},
+			[p_are_inputs_different_func](DataBuffer &p_collect_input_A, DataBuffer &p_collect_input_B) -> bool {
+				Array arguments;
+				arguments.push_back(&p_collect_input_A);
+				arguments.push_back(&p_collect_input_B);
+				return p_are_inputs_different_func.callv(arguments);
+			},
+			[p_process_func](double p_delta, DataBuffer &p_collect_input) -> void {
+				Array arguments;
+				arguments.push_back(p_delta);
+				arguments.push_back(&p_collect_input);
+				p_process_func.callv(arguments);
+			});
 }
 
 void GdSceneSynchronizer::unregister_node(Node *p_node) {

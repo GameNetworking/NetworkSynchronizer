@@ -162,13 +162,13 @@ public:
 	void scene_sync_process_start(const NS::SceneSynchronizerBase *p_scene_sync);
 	void scene_sync_process_end(const NS::SceneSynchronizerBase *p_scene_sync);
 
-	void databuffer_operation_begin_record(NS::NetworkInterface *p_network_interface, DataBufferDumpMode p_mode);
+	void databuffer_operation_begin_record(int p_peer, DataBufferDumpMode p_mode);
 	void databuffer_operation_end_record();
 	void databuffer_write(uint32_t p_data_type, uint32_t p_compression_level, int p_new_bit_offset, const char *p_variable);
 	void databuffer_read(uint32_t p_data_type, uint32_t p_compression_level, int p_new_bit_offset, const char *p_variable);
 
-	void notify_input_sent_to_server(NS::NetworkInterface *p_network_interface, uint32_t p_frame_index, uint32_t p_input_index);
-	void notify_are_inputs_different_result(NS::NetworkInterface *p_network_interface, uint32_t p_other_frame_index, bool p_is_similar);
+	void notify_input_sent_to_server(int p_peer, uint32_t p_frame_index, uint32_t p_input_index);
+	void notify_are_inputs_different_result(int p_peer, uint32_t p_other_frame_index, bool p_is_similar);
 
 	void debug_print(NS::NetworkInterface *p_network_interface, const String &p_message, bool p_silent = false);
 	void debug_warning(NS::NetworkInterface *p_network_interface, const String &p_message, bool p_silent = false);

@@ -40,6 +40,7 @@
 #include "core/io/marshalls.h"
 #include "gd_network_interface.h"
 #include "modules/network_synchronizer/core/processor.h"
+#include "modules/network_synchronizer/net_utilities.h"
 #include "modules/network_synchronizer/scene_synchronizer_debugger.h"
 #include "scene/main/multiplayer_api.h"
 
@@ -265,7 +266,11 @@ bool GdNetworkedController::is_nonet_controller() const {
 }
 
 void GdNetworkedController::collect_inputs(double p_delta, DataBuffer &r_buffer) {
-	NS_PROFILE_NODE
+	CharString c = String(get_path()).utf8();
+	if (c.size() >= std::numeric_limits<std::uint16_t>::max()) {
+		c.resize(std::numeric_limits<std::uint16_t>::max() - 1);
+	}
+	NS_PROFILE_NAMED(c)
 
 	const bool executed = GDVIRTUAL_CALL(_collect_inputs, p_delta, &r_buffer);
 	if (executed == false) {
@@ -274,7 +279,11 @@ void GdNetworkedController::collect_inputs(double p_delta, DataBuffer &r_buffer)
 }
 
 void GdNetworkedController::controller_process(double p_delta, DataBuffer &p_buffer) {
-	NS_PROFILE_NODE
+	CharString c = String(get_path()).utf8();
+	if (c.size() >= std::numeric_limits<std::uint16_t>::max()) {
+		c.resize(std::numeric_limits<std::uint16_t>::max() - 1);
+	}
+	NS_PROFILE_NAMED(c)
 
 	const bool executed = GDVIRTUAL_CALL(
 			_controller_process,
@@ -287,7 +296,11 @@ void GdNetworkedController::controller_process(double p_delta, DataBuffer &p_buf
 }
 
 bool GdNetworkedController::are_inputs_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B) {
-	NS_PROFILE_NODE
+	CharString c = String(get_path()).utf8();
+	if (c.size() >= std::numeric_limits<std::uint16_t>::max()) {
+		c.resize(std::numeric_limits<std::uint16_t>::max() - 1);
+	}
+	NS_PROFILE_NAMED(c)
 
 	bool are_different = true;
 	const bool executed = GDVIRTUAL_CALL(
@@ -305,7 +318,11 @@ bool GdNetworkedController::are_inputs_different(DataBuffer &p_buffer_A, DataBuf
 }
 
 uint32_t GdNetworkedController::count_input_size(DataBuffer &p_buffer) {
-	NS_PROFILE_NODE
+	CharString c = String(get_path()).utf8();
+	if (c.size() >= std::numeric_limits<std::uint16_t>::max()) {
+		c.resize(std::numeric_limits<std::uint16_t>::max() - 1);
+	}
+	NS_PROFILE_NAMED(c)
 
 	int input_size = 0;
 	const bool executed = GDVIRTUAL_CALL(_count_input_size, &p_buffer, input_size);
