@@ -41,13 +41,22 @@ private:
 	ObjectData(class ObjectDataStorage &p_storage);
 
 private:
-	// ID used to reference this NodeData in the networked calls.
+	/// ID used to reference this ObjectData in the networked calls.
+	/// This id is set by the server and the client may not have it yet.
 	ObjectNetId net_id = ObjectNetId::NONE;
+
+	/// ID used to reference this ObjectData locally. This id is always set.
 	ObjectLocalId local_id = ObjectLocalId::NONE;
+
 	int controlled_by_peer = -1;
 
-	/// Associated controller.
-	class NetworkedControllerBase *controller = nullptr;
+public:
+	struct {
+		std::function<void(double /*delta*/, DataBuffer & /*r_data_buffer*/)> collect_input;
+		std::function<int(DataBuffer & /*p_data_buffer*/)> count_input_size;
+		std::function<bool(DataBuffer & /*p_data_buffer_A*/, DataBuffer & /*p_data_buffer_B*/)> are_inputs_different;
+		std::function<void(double /*delta*/, DataBuffer & /*p_data_buffer*/)> process;
+	} controller_funcs;
 
 public:
 	uint64_t instance_id = 0; // TODO remove this?
@@ -74,11 +83,13 @@ public:
 	bool has_registered_process_functions() const;
 	bool can_trickled_sync() const;
 
-	void set_controlled_by_peer(int p_peer);
+	void set_controlled_by_peer(
+			int p_peer,
+			std::function<void(double /*delta*/, DataBuffer & /*r_data_buffer*/)> p_collect_input_func = nullptr,
+			std::function<int(DataBuffer & /*p_data_buffer*/)> p_count_input_size_func = nullptr,
+			std::function<bool(DataBuffer & /*p_data_buffer_A*/, DataBuffer & /*p_data_buffer_B*/)> p_are_inputs_different_func = nullptr,
+			std::function<void(double /*delta*/, DataBuffer & /*p_data_buffer*/)> p_process_func = nullptr);
 	int get_controlled_by_peer() const;
-
-	void set_controller(class NetworkedControllerBase *p_controller);
-	class NetworkedControllerBase *get_controller() const;
 
 	VarId find_variable_id(const std::string &p_var_name) const;
 };

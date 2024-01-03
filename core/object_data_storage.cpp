@@ -25,7 +25,6 @@ ObjectDataStorage::~ObjectDataStorage() {
 	free_local_indices.clear();
 	objects_data.clear();
 	objects_data_organized_by_netid.clear();
-	objects_data_controllers.clear();
 	objects_data_controlled_by_peers.clear();
 }
 
@@ -59,12 +58,6 @@ void ObjectDataStorage::deallocate_object_data(ObjectData &p_object_data) {
 	if (objects_data_organized_by_netid.size() > net_id.id) {
 		CRASH_COND(objects_data_organized_by_netid[net_id.id] != (&p_object_data));
 		objects_data_organized_by_netid[net_id.id] = nullptr;
-	}
-
-	// Clear the controller pointer.
-	if (p_object_data.controller) {
-		p_object_data.controller = nullptr;
-		notify_set_controller(p_object_data);
 	}
 
 	// Clear the peers array.
@@ -114,15 +107,6 @@ void ObjectDataStorage::object_set_net_id(ObjectData &p_object_data, ObjectNetId
 ObjectLocalId ObjectDataStorage::find_object_local_id(ObjectHandle p_handle) const {
 	for (auto od : objects_data) {
 		if (od && od->app_object_handle == p_handle) {
-			return od->local_id;
-		}
-	}
-	return ObjectLocalId::NONE;
-}
-
-ObjectLocalId ObjectDataStorage::find_object_local_id(const NetworkedControllerBase &p_controller) const {
-	for (auto od : objects_data_controllers) {
-		if (od->controller == (&p_controller)) {
 			return od->local_id;
 		}
 	}
@@ -185,10 +169,6 @@ const std::vector<ObjectData *> &ObjectDataStorage::get_objects_data() const {
 	return objects_data;
 }
 
-const std::vector<ObjectData *> &ObjectDataStorage::get_controllers_objects_data() const {
-	return objects_data_controllers;
-}
-
 const std::vector<ObjectData *> &ObjectDataStorage::get_sorted_objects_data() const {
 	return objects_data_organized_by_netid;
 }
@@ -223,19 +203,6 @@ bool ObjectDataStorage::is_empty() const {
 	}
 
 	return true;
-}
-
-void ObjectDataStorage::notify_set_controller(ObjectData &p_object) {
-	auto it = std::find(objects_data_controllers.begin(), objects_data_controllers.end(), &p_object);
-	if (p_object.controller) {
-		if (it == objects_data_controllers.end()) {
-			objects_data_controllers.push_back(&p_object);
-		}
-	} else {
-		if (it != objects_data_controllers.end()) {
-			objects_data_controllers.erase(it);
-		}
-	}
 }
 
 void ObjectDataStorage::notify_set_controlled_by_peer(int p_old_peer, ObjectData &p_object) {

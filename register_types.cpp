@@ -38,7 +38,6 @@
 #include "core/config/project_settings.h"
 #include "core/error/error_macros.h"
 #include "data_buffer.h"
-#include "godot4/gd_networked_controller.h"
 #include "godot4/gd_scene_synchronizer.h"
 #include "input_network_encoder.h"
 #include "modules/network_synchronizer/core/core.h"
@@ -73,7 +72,6 @@ void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
 				});
 
 		GDREGISTER_CLASS(DataBuffer);
-		GDREGISTER_CLASS(GdNetworkedController);
 		GDREGISTER_CLASS(GdSceneSynchronizer);
 		GDREGISTER_CLASS(InputNetworkEncoder);
 

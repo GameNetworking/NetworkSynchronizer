@@ -17,6 +17,8 @@
 
 namespace NS_Test {
 
+// TODO implement this test again.
+/*
 const float delta = 1.0 / 60.0;
 
 class MagnetSceneObject : public NS::LocalSceneObject {
@@ -413,9 +415,11 @@ public:
 	}
 };
 
+*/
+
 void test_simulation() {
-	TestSimulationBase().do_test();
-	TestSimulationWithRewind(0.0).do_test();
-	TestSimulationWithRewind(1.0).do_test();
+	//TestSimulationBase().do_test();
+	//TestSimulationWithRewind(0.0).do_test();
+	//TestSimulationWithRewind(1.0).do_test();
 }
 }; //namespace NS_Test

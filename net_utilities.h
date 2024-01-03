@@ -114,6 +114,15 @@ typename std::map<K, V>::iterator insert_if_new(std::map<K, V> &p_map, const K &
 	//const bool inserted = res.second;
 	return it;
 }
+
+/// Insert `p_val` only if `p_key` doesn't exists. With move.
+template <class K, class V>
+typename std::map<K, V>::iterator insert_if_new(std::map<K, V> &p_map, const K &p_key, V &&p_val) {
+	auto res = p_map.insert(std::make_pair(p_key, std::move(p_val)));
+	auto it = res.first;
+	//const bool inserted = res.second;
+	return it;
+}
 }; //namespace MapFunc
 
 namespace VecFunc {
@@ -456,8 +465,11 @@ public:
 	void set_compressed_latency(std::uint8_t p_compressed_latency) { compressed_latency = p_compressed_latency; }
 	std::uint8_t get_compressed_latency() const { return compressed_latency; }
 
-	NetworkedControllerBase &get_controller();
-	const NetworkedControllerBase *get_controller_optional() const {
+	void make_controller(class SceneSynchronizerBase &p_scene_sync, int p_peer);
+	NetworkedControllerBase *get_controller() {
+		return controller.get();
+	}
+	const NetworkedControllerBase *get_controller() const {
 		return controller.get();
 	}
 };
@@ -525,6 +537,9 @@ public:
 		}
 	};
 
+public:
+	SceneSynchronizerBase *scene_sync = nullptr;
+
 private:
 	bool simulated_sync_objects_list_changed = false;
 	LocalVector<SimulatedObjectInfo> simulated_sync_objects;
@@ -532,6 +547,7 @@ private:
 	bool trickled_sync_objects_list_changed = false;
 	LocalVector<TrickledObjectInfo> trickled_sync_objects;
 
+	/// Contains the list of peers being networked by this sync group.
 	std::vector<int> networked_peers;
 	std::vector<int> peers_with_newly_calculated_latency;
 
@@ -575,7 +591,7 @@ public:
 	void notify_peer_has_newly_calculated_latency(int p_peer);
 
 private:
-	void notify_controller_about_simulating_peers(struct ObjectData *p_object_data, bool p_simulating);
+	void notify_controller_about_simulating_peers(int p_peer, bool p_simulating);
 	void notify_controllers_about_simulating_peer(int p_peer, bool p_simulating);
 
 	std::size_t find_simulated(const struct ObjectData &p_object_data) const;

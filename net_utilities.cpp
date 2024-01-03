@@ -1,7 +1,11 @@
 #include "net_utilities.h"
 
 #include "core/object_data.h"
+#include "modules/network_synchronizer/net_utilities.h"
+#include "modules/network_synchronizer/networked_controller.h"
+#include "modules/network_synchronizer/scene_synchronizer_debugger.h"
 #include "networked_controller.h"
+#include "scene_synchronizer.h"
 #include "scene_synchronizer_debugger.h"
 #include <limits>
 #include <memory>
@@ -14,9 +18,9 @@ int NS::PeerData::get_latency() const {
 	return compressed_latency * 4.0;
 }
 
-NS::NetworkedControllerBase &NS::PeerData::get_controller() {
+void NS::PeerData::make_controller(NS::SceneSynchronizerBase &p_scene_sync, int p_peer) {
 	controller = std::make_unique<NS::NetworkedControllerBase>();
-	return *controller.get();
+	controller->setup_synchronizer(p_scene_sync, p_peer);
 }
 
 bool NS::SyncGroup::is_realtime_node_list_changed() const {
@@ -59,21 +63,46 @@ void NS::SyncGroup::mark_changes_as_notified() {
 
 void NS::SyncGroup::add_listening_peer(int p_peer) {
 	NS::VecFunc::insert_unique(listening_peers, p_peer);
+
+	// Make all the controlled objects as simulated.
+	const std::vector<ObjectData *> *controlled_objects_ptr = scene_sync->get_peer_controlled_objects_data(p_peer);
+	if (controlled_objects_ptr) {
+		for (ObjectData *od : (*controlled_objects_ptr)) {
+			add_new_sync_object(od, true);
+		}
+	}
+
 	notify_controllers_about_simulating_peer(p_peer, true);
 }
 
 void NS::SyncGroup::remove_listening_peer(int p_peer) {
 	NS::VecFunc::remove_unordered(listening_peers, p_peer);
+
+	// Remove all the controlled objects.
+	const std::vector<ObjectData *> *controlled_objects_ptr = scene_sync->get_peer_controlled_objects_data(p_peer);
+	if (controlled_objects_ptr) {
+		for (ObjectData *od : (*controlled_objects_ptr)) {
+			remove_sync_object(*od);
+		}
+	}
+
 	notify_controllers_about_simulating_peer(p_peer, false);
 }
 
 uint32_t NS::SyncGroup::add_new_sync_object(ObjectData *p_object_data, bool p_is_simulated) {
-	if (p_object_data->get_controller()) {
+	if (p_object_data->get_controlled_by_peer() != -1) {
 		// This is a controller with an associated peer, update the networked_peer list.
 		// Regardless if it's simulated or not.
-		const int peer = p_object_data->get_controller()->server_get_associated_peer();
+		const int peer = p_object_data->get_controlled_by_peer();
 		if (NS::VecFunc::insert_unique(networked_peers, peer)) {
 			NS::VecFunc::insert_unique(peers_with_newly_calculated_latency, peer);
+		}
+
+		const bool is_listener_controlled = NS::VecFunc::has(listening_peers, peer);
+		if (is_listener_controlled && !p_is_simulated) {
+			// This object is controlled by a listener, so it's always simulated.
+			p_is_simulated = true;
+			SceneSynchronizerDebugger::singleton()->print(NS::WARNING, "The object `" + p_object_data->object_name + "` is being controlled by a peer listening to this sync group, so it can't be made non simulating.");
 		}
 	}
 
@@ -100,7 +129,9 @@ uint32_t NS::SyncGroup::add_new_sync_object(ObjectData *p_object_data, bool p_is
 				notify_new_variable(p_object_data, p_object_data->vars[i].var.name);
 			}
 
-			notify_controller_about_simulating_peers(p_object_data, true);
+			if (p_object_data->get_controlled_by_peer() > 0) {
+				notify_controller_about_simulating_peers(p_object_data->get_controlled_by_peer(), true);
+			}
 		}
 
 		return index;
@@ -129,23 +160,56 @@ void NS::SyncGroup::remove_sync_object(std::size_t p_index, bool p_is_simulated)
 	int associted_peer = 0;
 
 	if (p_is_simulated) {
-		if (simulated_sync_objects[p_index].od->get_controller()) {
-			associted_peer = simulated_sync_objects[p_index].od->get_controller()->server_get_associated_peer();
+		if (simulated_sync_objects[p_index].od->get_controlled_by_peer() > 0) {
+			associted_peer = simulated_sync_objects[p_index].od->get_controlled_by_peer();
 		}
-		notify_controller_about_simulating_peers(simulated_sync_objects[p_index].od, false);
+	} else {
+		if (trickled_sync_objects[p_index].od->get_controlled_by_peer() > 0) {
+			associted_peer = trickled_sync_objects[p_index].od->get_controlled_by_peer();
+		}
+	}
+
+	const bool is_listener_controlled = NS::VecFunc::has(listening_peers, associted_peer);
+	ENSURE_MSG(!is_listener_controlled, "It's not possible to remove an object controlled by a listening peer from sync group.");
+
+	if (p_is_simulated) {
 		simulated_sync_objects.remove_at_unordered(p_index);
 		simulated_sync_objects_list_changed = true;
 	} else {
-		if (trickled_sync_objects[p_index].od->get_controller()) {
-			associted_peer = trickled_sync_objects[p_index].od->get_controller()->server_get_associated_peer();
-		}
 		trickled_sync_objects.remove_at_unordered(p_index);
 		trickled_sync_objects_list_changed = true;
 	}
 
-	if (associted_peer != 0) {
-		NS::VecFunc::remove_unordered(networked_peers, associted_peer);
-		NS::VecFunc::remove_unordered(peers_with_newly_calculated_latency, associted_peer);
+	if (associted_peer > 0) {
+		// If no other simulated objects controlled by `associated_peer` remove it from
+		bool is_simulating = false;
+		bool is_networking = false;
+		for (auto &soi : simulated_sync_objects) {
+			if (soi.od->get_controlled_by_peer() == associted_peer) {
+				is_networking = true;
+				is_simulating = true;
+				break;
+			}
+		}
+
+		if (!is_networking) {
+			for (auto &toi : trickled_sync_objects) {
+				if (toi.od->get_controlled_by_peer() == associted_peer) {
+					is_networking = true;
+					break;
+				}
+			}
+		}
+
+		if (!is_simulating) {
+			// No other objects associated to this peer are simulated, so notify the peer as non simulating.
+			notify_controller_about_simulating_peers(associted_peer, false);
+		}
+
+		if (!is_networking) {
+			NS::VecFunc::remove_unordered(networked_peers, associted_peer);
+			NS::VecFunc::remove_unordered(peers_with_newly_calculated_latency, associted_peer);
+		}
 	}
 }
 
@@ -279,21 +343,20 @@ void NS::SyncGroup::notify_peer_has_newly_calculated_latency(int p_peer) {
 	}
 }
 
-void NS::SyncGroup::notify_controller_about_simulating_peers(struct ObjectData *p_object_data, bool p_simulating) {
-	if (p_object_data->get_controller()) {
+void NS::SyncGroup::notify_controller_about_simulating_peers(int p_peer_controller, bool p_simulating) {
+	NS::NetworkedControllerBase *controller = scene_sync->get_controller_for_peer(p_peer_controller);
+	if (controller) {
 		// This is a controller, notify about simulating peers.
 		for (int peer : listening_peers) {
-			p_object_data->get_controller()->server_set_peer_simulating_this_controller(peer, p_simulating);
+			controller->server_set_peer_simulating_this_controller(peer, p_simulating);
 		}
 	}
 }
 
 void NS::SyncGroup::notify_controllers_about_simulating_peer(int p_peer, bool p_simulating) {
-	for (auto sso : simulated_sync_objects) {
-		if (sso.od->get_controller()) {
-			// This is a controller, notify about simulating peers.
-			sso.od->get_controller()->server_set_peer_simulating_this_controller(p_peer, p_simulating);
-		}
+	for (const int listening_peer : listening_peers) {
+		NetworkedControllerBase *controller = scene_sync->get_controller_for_peer(listening_peer, false);
+		controller->server_set_peer_simulating_this_controller(p_peer, p_simulating);
 	}
 }
 

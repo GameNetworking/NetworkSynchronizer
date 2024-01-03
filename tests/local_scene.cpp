@@ -139,14 +139,6 @@ bool LocalSceneSynchronizer::get_variable(const ObjectHandle p_app_object_handle
 	}
 }
 
-NS::NetworkedControllerBase *LocalSceneSynchronizer::extract_network_controller(ObjectHandle p_app_object_handle) {
-	return dynamic_cast<NS::NetworkedControllerBase *>(from_handle(p_app_object_handle));
-}
-
-const NS::NetworkedControllerBase *LocalSceneSynchronizer::extract_network_controller(const ObjectHandle p_app_object_handle) const {
-	return dynamic_cast<const NS::NetworkedControllerBase *>(from_handle(p_app_object_handle));
-}
-
 LocalScene *LocalSceneObject::get_scene() const {
 	return scene_owner;
 }
