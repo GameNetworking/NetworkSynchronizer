@@ -52,8 +52,6 @@ public:
 	virtual void setup_synchronizer_for(ObjectHandle p_app_object_handle, ObjectLocalId p_id) override;
 	virtual void set_variable(ObjectHandle p_app_object_handle, const char *p_var_name, const VarData &p_val) override;
 	virtual bool get_variable(ObjectHandle p_app_object_handle, const char *p_var_name, VarData &p_val) const override;
-	virtual NS::NetworkedControllerBase *extract_network_controller(ObjectHandle p_app_object_handle) override;
-	virtual const NS::NetworkedControllerBase *extract_network_controller(ObjectHandle p_app_object_handle) const override;
 };
 
 class LocalScene {

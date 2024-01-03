@@ -82,9 +82,6 @@ public: // ---------------------------------------- Scene Synchronizer Interface
 	virtual void set_variable(NS::ObjectHandle p_app_object_handle, const char *p_name, const NS::VarData &p_val) override;
 	virtual bool get_variable(NS::ObjectHandle p_app_object_handle, const char *p_name, NS::VarData &p_val) const override;
 
-	virtual NS::NetworkedControllerBase *extract_network_controller(NS::ObjectHandle p_app_object_handle) override;
-	virtual const NS::NetworkedControllerBase *extract_network_controller(NS::ObjectHandle p_app_object_handle) const override;
-
 public: // ------------------------------------------------------- RPC Interface
 	// This funtion is used to sync data betweend the server and the client.
 	void _rpc_net_sync_reliable(const Vector<uint8_t> &p_args);

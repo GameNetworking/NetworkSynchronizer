@@ -19,18 +19,6 @@ struct PlayerController;
 struct DollController;
 struct NoNetController;
 
-struct ControllableObjectData {
-	ObjectLocalId local_id = ObjectLocalId::NONE;
-	ObjectNetId net_id = ObjectNetId::NONE;
-
-	std::function<void(double /*delta*/, DataBuffer & /*r_data_buffer*/)> collect_input_func;
-	std::function<int(DataBuffer & /*p_data_buffer*/)> count_input_size_func;
-	std::function<bool(DataBuffer & /*p_data_buffer_A*/, DataBuffer & /*p_data_buffer_B*/)> are_inputs_different_func;
-	std::function<void(double /*delta*/, DataBuffer & /*p_data_buffer*/)> process_func;
-
-	bool operator==(const ControllableObjectData &p_cod) const { return local_id == p_cod.local_id; }
-};
-
 /// The `NetworkedController` is responsible to sync the `Player` inputs between
 /// the peers. This allows to control a character, or an object with high precision
 /// and replicates that movement on all connected peers.
@@ -122,14 +110,9 @@ private:
 	NS::SceneSynchronizerBase *scene_synchronizer = nullptr;
 
 	bool are_controllable_objects_sorted = false;
-	std::vector<ControllableObjectData> controllable_objects;
-	std::vector<ControllableObjectData> _sorted_controllable_objects;
+	std::vector<ObjectData *> _sorted_controllable_objects;
 
 	bool has_player_new_input = false;
-
-	ObjectNetId net_id = ObjectNetId::NONE;
-
-	NS::PHandler process_handler_process = NS::NullPHandler;
 
 	NS::PHandler event_handler_rewind_frame_begin = NS::NullPHandler;
 	NS::PHandler event_handler_state_validated = NS::NullPHandler;
@@ -145,18 +128,9 @@ public:
 	~NetworkedControllerBase();
 
 public: // ---------------------------------------------------------------- APIs
-	/// Adds controllable object.
-	void add_controllable_object(
-			ObjectLocalId p_id,
-			std::function<void(double /*delta*/, DataBuffer & /*r_data_buffer*/)> p_collect_input_func,
-			std::function<int(DataBuffer & /*p_data_buffer*/)> p_count_input_size_func,
-			std::function<bool(DataBuffer & /*p_data_buffer_A*/, DataBuffer & /*p_data_buffer_B*/)> p_are_inputs_different_func,
-			std::function<void(double /*delta*/, DataBuffer & /*p_data_buffer*/)> p_process_func);
+	void notify_controllable_objects_changed();
 
-	// Removes a controllable object.
-	void remove_controllable_object(ObjectLocalId p_id);
-
-	const std::vector<ControllableObjectData> &get_sorted_controllable_objects();
+	const std::vector<ObjectData *> &get_sorted_controllable_objects();
 
 	void set_server_controlled(bool p_server_controlled);
 	bool get_server_controlled() const;
@@ -214,12 +188,15 @@ public: // -------------------------------------------------------------- Events
 public:
 	void set_inputs_buffer(const BitArray &p_new_buffer, uint32_t p_metadata_size_in_bit, uint32_t p_size_in_bit);
 
-	void unregister_with_synchronizer(NS::SceneSynchronizerBase *p_synchronizer);
-	void notify_registered_with_synchronizer(NS::SceneSynchronizerBase *p_synchronizer, NS::ObjectData &p_nd);
+	void setup_synchronizer(NS::SceneSynchronizerBase &p_synchronizer, int p_peer);
+	void remove_synchronizer();
+
+	int get_authority_peer() const { return authority_peer; }
+
 	NS::SceneSynchronizerBase *get_scene_synchronizer() const;
 	bool has_scene_synchronizer() const;
 
-	void on_peer_status_updated(const NS::ObjectData *p_object_data, int p_peer_id, bool p_connected, bool p_enabled);
+	void on_peer_status_updated(int p_peer_id, bool p_connected, bool p_enabled);
 	void on_state_validated(FrameIndex p_frame_index);
 	void on_rewind_frame_begin(FrameIndex p_input_id, int p_index, int p_count);
 

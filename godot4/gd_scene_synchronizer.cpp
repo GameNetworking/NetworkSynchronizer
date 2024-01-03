@@ -8,7 +8,6 @@
 #include "modules/network_synchronizer/core/processor.h"
 #include "modules/network_synchronizer/data_buffer.h"
 #include "modules/network_synchronizer/godot4/gd_network_interface.h"
-#include "modules/network_synchronizer/godot4/gd_networked_controller.h"
 #include "modules/network_synchronizer/godot4/gd_scene_synchronizer.h"
 #include "modules/network_synchronizer/net_utilities.h"
 #include "modules/network_synchronizer/scene_synchronizer.h"
@@ -126,7 +125,7 @@ void GdSceneSynchronizer::_bind_methods() {
 
 	ADD_SIGNAL(MethodInfo("sync_started"));
 	ADD_SIGNAL(MethodInfo("sync_paused"));
-	ADD_SIGNAL(MethodInfo("peer_status_updated", PropertyInfo(Variant::OBJECT, "controlled_node"), PropertyInfo(Variant::INT, "node_data_id"), PropertyInfo(Variant::INT, "peer"), PropertyInfo(Variant::BOOL, "connected"), PropertyInfo(Variant::BOOL, "enabled")));
+	ADD_SIGNAL(MethodInfo("peer_status_updated", PropertyInfo(Variant::INT, "peer"), PropertyInfo(Variant::BOOL, "connected"), PropertyInfo(Variant::BOOL, "enabled")));
 
 	ADD_SIGNAL(MethodInfo("state_validated", PropertyInfo(Variant::INT, "input_id"), PropertyInfo(Variant::BOOL, "desync_detected")));
 	ADD_SIGNAL(MethodInfo("rewind_frame_begin", PropertyInfo(Variant::INT, "input_id"), PropertyInfo(Variant::INT, "index"), PropertyInfo(Variant::INT, "count")));
@@ -163,12 +162,9 @@ GdSceneSynchronizer::GdSceneSynchronizer() :
 			});
 
 	event_handler_peer_status_updated =
-			scene_synchronizer.event_peer_status_updated.bind([this](const NS::ObjectData *p_object_data, int p_peer, bool p_connected, bool p_enabled) -> void {
-				Object *obj_null = nullptr;
+			scene_synchronizer.event_peer_status_updated.bind([this](int p_peer, bool p_connected, bool p_enabled) -> void {
 				emit_signal(
 						"peer_status_updated",
-						p_object_data ? GdSceneSynchronizer::SyncClass::from_handle(p_object_data->app_object_handle) : obj_null,
-						p_object_data ? p_object_data->get_net_id().id : NS::ObjectNetId::NONE.id,
 						p_peer,
 						p_connected,
 						p_enabled);
@@ -369,20 +365,6 @@ bool GdSceneSynchronizer::get_variable(NS::ObjectHandle p_app_object_handle, con
 		GdSceneSynchronizer::convert(r_val, val);
 	}
 	return valid;
-}
-
-NS::NetworkedControllerBase *GdSceneSynchronizer::extract_network_controller(NS::ObjectHandle p_app_object_handle) {
-	if (GdNetworkedController *c = Object::cast_to<GdNetworkedController>(scene_synchronizer.from_handle(p_app_object_handle))) {
-		return c->get_networked_controller();
-	}
-	return nullptr;
-}
-
-const NS::NetworkedControllerBase *GdSceneSynchronizer::extract_network_controller(NS::ObjectHandle p_app_object_handle) const {
-	if (const GdNetworkedController *c = Object::cast_to<const GdNetworkedController>(scene_synchronizer.from_handle(p_app_object_handle))) {
-		return c->get_networked_controller();
-	}
-	return nullptr;
 }
 
 void GdSceneSynchronizer::set_tick_speedup_notification_delay(float p_delay) {

@@ -5,6 +5,8 @@
 
 #include "core/ensure.h"
 #include "modules/network_synchronizer/core/core.h"
+#include "modules/network_synchronizer/core/ensure.h"
+#include "modules/network_synchronizer/core/object_data.h"
 #include "modules/network_synchronizer/net_utilities.h"
 #include "modules/network_synchronizer/networked_controller.h"
 #include "modules/network_synchronizer/scene_synchronizer_debugger.h"
@@ -23,7 +25,6 @@ NetworkedControllerBase::NetworkedControllerBase() {
 }
 
 NetworkedControllerBase::~NetworkedControllerBase() {
-	controllable_objects.clear();
 	_sorted_controllable_objects.clear();
 
 	memdelete(inputs_buffer);
@@ -36,52 +37,25 @@ NetworkedControllerBase::~NetworkedControllerBase() {
 	}
 }
 
-void NetworkedControllerBase::add_controllable_object(
-		ObjectLocalId p_id,
-		std::function<void(double /*delta*/, DataBuffer & /*r_data_buffer*/)> p_collect_input_func,
-		std::function<int(DataBuffer & /*p_data_buffer*/)> p_count_input_size_func,
-		std::function<bool(DataBuffer & /*p_data_buffer_A*/, DataBuffer & /*p_data_buffer_B*/)> p_are_inputs_different_func,
-		std::function<void(double /*delta*/, DataBuffer & /*p_data_buffer*/)> p_process_func) {
-	ControllableObjectData *cod = nullptr;
-	{
-		ControllableObjectData c;
-		c.local_id = p_id;
-		cod = &NS::VecFunc::insert_unique_and_get(controllable_objects, c);
-	}
-
-	cod->net_id = ObjectNetId::NONE; // The net id is resolved later.
-	cod->collect_input_func = p_collect_input_func;
-	cod->count_input_size_func = p_count_input_size_func;
-	cod->are_inputs_different_func = p_are_inputs_different_func;
-	cod->process_func = p_process_func;
-
+void NetworkedControllerBase::notify_controllable_objects_changed() {
 	are_controllable_objects_sorted = false;
 }
 
-void NetworkedControllerBase::remove_controllable_object(ObjectLocalId p_id) {
-	are_controllable_objects_sorted = false;
-
-	ControllableObjectData cod;
-	cod.local_id = p_id;
-	NS::VecFunc::remove_unordered(controllable_objects, cod);
-}
-
-const std::vector<ControllableObjectData> &NetworkedControllerBase::get_sorted_controllable_objects() {
+const std::vector<ObjectData *> &NetworkedControllerBase::get_sorted_controllable_objects() {
 	if (!are_controllable_objects_sorted) {
-		_sorted_controllable_objects.clear();
 		are_controllable_objects_sorted = true;
+		_sorted_controllable_objects.clear();
 
-		// Take the net id for each app object.
-		for (auto &co : controllable_objects) {
-			if (co.net_id == ObjectNetId::NONE) {
-				co.net_id = scene_synchronizer->get_app_object_net_id(co.local_id);
-				if (co.net_id == ObjectNetId::NONE) {
-					// The net id is still unknown, so do not include this into the sorted vector
-					// and mark this as need refreshing the sorted array.
-					are_controllable_objects_sorted = false;
+		const std::vector<ObjectData *> *controlled_objects = scene_synchronizer->get_peer_controlled_objects_data(get_authority_peer());
+		if (controlled_objects) {
+			for (ObjectData *controlled_object_data : *controlled_objects) {
+				if (is_player_controller()) {
+					if (controlled_object_data->realtime_sync_enabled_on_client) {
+						// This client is simulating it.
+						_sorted_controllable_objects.push_back(controlled_object_data);
+					}
 				} else {
-					// The net is was found.
-					_sorted_controllable_objects.push_back(co);
+					_sorted_controllable_objects.push_back(controlled_object_data);
 				}
 			}
 		}
@@ -279,42 +253,14 @@ void NetworkedControllerBase::set_inputs_buffer(const BitArray &p_new_buffer, ui
 	inputs_buffer->shrink_to(p_metadata_size_in_bit, p_size_in_bit);
 }
 
-void NetworkedControllerBase::unregister_with_synchronizer(NS::SceneSynchronizerBase *p_synchronizer) {
-	if (scene_synchronizer == nullptr) {
-		// Nothing to unregister.
-		return;
-	}
-	ENSURE_MSG(p_synchronizer == scene_synchronizer, "Cannot unregister because the given `SceneSynchronizer` is not the old one. This is a bug, one `SceneSynchronizer` should not try to unregister another one's controller.");
-	// Unregister the event processors with the scene synchronizer.
-	scene_synchronizer->event_peer_status_updated.unbind(event_handler_peer_status_updated);
-	scene_synchronizer->event_state_validated.unbind(event_handler_state_validated);
-	scene_synchronizer->event_rewind_frame_begin.unbind(event_handler_rewind_frame_begin);
-	event_handler_rewind_frame_begin = NS::NullPHandler;
-	event_handler_state_validated = NS::NullPHandler;
-	event_handler_peer_status_updated = NS::NullPHandler;
-	// Unregister the process handler with the scene synchronizer.
-	NS::ObjectLocalId local_id = scene_synchronizer->find_object_local_id(*this);
-	scene_synchronizer->unregister_process(local_id, PROCESSPHASE_PROCESS, process_handler_process);
-	process_handler_process = NS::NullPHandler;
-	// Empty the network controller variables.
-	net_id = ObjectNetId::NONE;
-	scene_synchronizer = nullptr;
-}
-
-void NetworkedControllerBase::notify_registered_with_synchronizer(NS::SceneSynchronizerBase *p_synchronizer, NS::ObjectData &p_nd) {
+void NetworkedControllerBase::setup_synchronizer(NS::SceneSynchronizerBase &p_synchronizer, int p_peer) {
 	ENSURE_MSG(scene_synchronizer == nullptr, "Cannot register with a new `SceneSynchronizer` because this controller is already registered with one. This is a bug, one controller should not be registered with two `SceneSynchronizer`s.");
-	net_id = ObjectNetId::NONE;
-	scene_synchronizer = p_synchronizer;
-
-	process_handler_process =
-			scene_synchronizer->register_process(
-					p_nd.get_local_id(),
-					PROCESSPHASE_PROCESS,
-					[this](float p_delta) -> void { process(p_delta); });
+	scene_synchronizer = &p_synchronizer;
+	authority_peer = p_peer;
 
 	event_handler_peer_status_updated =
-			scene_synchronizer->event_peer_status_updated.bind([this](const NS::ObjectData *p_object_data, int p_peer_id, bool p_connected, bool p_enabled) -> void {
-				on_peer_status_updated(p_object_data, p_peer_id, p_connected, p_enabled);
+			scene_synchronizer->event_peer_status_updated.bind([this](int p_peer_id, bool p_connected, bool p_enabled) -> void {
+				on_peer_status_updated(p_peer_id, p_connected, p_enabled);
 			});
 
 	event_handler_state_validated =
@@ -328,6 +274,23 @@ void NetworkedControllerBase::notify_registered_with_synchronizer(NS::SceneSynch
 			});
 }
 
+void NetworkedControllerBase::remove_synchronizer() {
+	if (scene_synchronizer == nullptr) {
+		// Nothing to unregister.
+		return;
+	}
+	authority_peer = -1;
+
+	// Unregister the event processors with the scene synchronizer.
+	scene_synchronizer->event_peer_status_updated.unbind(event_handler_peer_status_updated);
+	scene_synchronizer->event_state_validated.unbind(event_handler_state_validated);
+	scene_synchronizer->event_rewind_frame_begin.unbind(event_handler_rewind_frame_begin);
+	event_handler_rewind_frame_begin = NS::NullPHandler;
+	event_handler_state_validated = NS::NullPHandler;
+	event_handler_peer_status_updated = NS::NullPHandler;
+	scene_synchronizer = nullptr;
+}
+
 NS::SceneSynchronizerBase *NetworkedControllerBase::get_scene_synchronizer() const {
 	return scene_synchronizer;
 }
@@ -336,12 +299,8 @@ bool NetworkedControllerBase::has_scene_synchronizer() const {
 	return scene_synchronizer;
 }
 
-void NetworkedControllerBase::on_peer_status_updated(const NS::ObjectData *p_object_data, int p_peer_id, bool p_connected, bool p_enabled) {
-	if (!p_object_data) {
-		return;
-	}
-
-	if (p_object_data->get_controller() == this) {
+void NetworkedControllerBase::on_peer_status_updated(int p_peer_id, bool p_connected, bool p_enabled) {
+	if (authority_peer == p_peer_id) {
 		if (is_server_controller()) {
 			get_server_controller()->on_peer_update(p_connected && p_enabled);
 		}
@@ -361,25 +320,25 @@ void NetworkedControllerBase::on_rewind_frame_begin(FrameIndex p_input_id, int p
 }
 
 void NetworkedControllerBase::controllable_collect_input(double p_delta, DataBuffer &r_data_buffer) {
-	const std::vector<ControllableObjectData> &sorted_controllable_objects = get_sorted_controllable_objects();
-	for (auto &co : sorted_controllable_objects) {
-		co.collect_input_func(p_delta, r_data_buffer);
+	const std::vector<ObjectData *> &sorted_controllable_objects = get_sorted_controllable_objects();
+	for (ObjectData *object_data : sorted_controllable_objects) {
+		object_data->controller_funcs.collect_input(p_delta, r_data_buffer);
 	}
 }
 
 int NetworkedControllerBase::controllable_count_input_size(DataBuffer &p_data_buffer) {
 	int size = 0;
-	const std::vector<ControllableObjectData> &sorted_controllable_objects = get_sorted_controllable_objects();
-	for (auto &co : sorted_controllable_objects) {
-		size += co.count_input_size_func(p_data_buffer);
+	const std::vector<ObjectData *> &sorted_controllable_objects = get_sorted_controllable_objects();
+	for (ObjectData *object_data : sorted_controllable_objects) {
+		size += object_data->controller_funcs.count_input_size(p_data_buffer);
 	}
 	return size;
 }
 
 bool NetworkedControllerBase::controllable_are_inputs_different(DataBuffer &p_data_buffer_A, DataBuffer &p_data_buffer_B) {
-	const std::vector<ControllableObjectData> &sorted_controllable_objects = get_sorted_controllable_objects();
-	for (auto &co : sorted_controllable_objects) {
-		if (co.are_inputs_different_func(p_data_buffer_A, p_data_buffer_B)) {
+	const std::vector<ObjectData *> &sorted_controllable_objects = get_sorted_controllable_objects();
+	for (ObjectData *object_data : sorted_controllable_objects) {
+		if (object_data->controller_funcs.are_inputs_different(p_data_buffer_A, p_data_buffer_B)) {
 			return true;
 		}
 	}
@@ -387,9 +346,9 @@ bool NetworkedControllerBase::controllable_are_inputs_different(DataBuffer &p_da
 }
 
 void NetworkedControllerBase::controllable_process(double p_delta, DataBuffer &p_data_buffer) {
-	const std::vector<ControllableObjectData> &sorted_controllable_objects = get_sorted_controllable_objects();
-	for (auto &co : sorted_controllable_objects) {
-		co.process_func(p_delta, p_data_buffer);
+	const std::vector<ObjectData *> &sorted_controllable_objects = get_sorted_controllable_objects();
+	for (ObjectData *object_data : sorted_controllable_objects) {
+		object_data->controller_funcs.process(p_delta, p_data_buffer);
 	}
 }
 
@@ -416,18 +375,17 @@ bool NetworkedControllerBase::player_has_new_input() const {
 }
 
 bool NetworkedControllerBase::is_realtime_enabled() {
-	if (net_id == ObjectNetId::NONE) {
-		if (scene_synchronizer) {
-			const ObjectLocalId lid = scene_synchronizer->find_object_local_id(*this);
-			if (lid != ObjectLocalId::NONE) {
-				net_id = scene_synchronizer->get_object_data(lid)->get_net_id();
+	if (is_server_controller()) {
+		return true;
+	} else if (scene_synchronizer) {
+		// TODO optimize by avoiding fetching the controlled objects in this way?
+		const std::vector<ObjectData *> *controlled_objects = scene_synchronizer->get_peer_controlled_objects_data(get_authority_peer());
+		if (controlled_objects) {
+			for (const ObjectData *od : *controlled_objects) {
+				if (od->realtime_sync_enabled_on_client) {
+					return true;
+				}
 			}
-		}
-	}
-	if (net_id != ObjectNetId::NONE) {
-		NS::ObjectData *nd = scene_synchronizer->get_object_data(net_id);
-		if (nd) {
-			return nd->realtime_sync_enabled_on_client;
 		}
 	}
 	return false;

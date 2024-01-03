@@ -6,6 +6,7 @@
 #include "core/object_data_storage.h"
 #include "core/processor.h"
 #include "modules/network_synchronizer/data_buffer.h"
+#include "modules/network_synchronizer/networked_controller.h"
 #include "snapshot.h"
 #include <deque>
 #include <map>
@@ -44,9 +45,6 @@ public:
 	virtual void setup_synchronizer_for(ObjectHandle p_app_object_handle, ObjectLocalId p_id) = 0;
 	virtual void set_variable(ObjectHandle p_app_object_handle, const char *p_var_name, const VarData &p_val) = 0;
 	virtual bool get_variable(ObjectHandle p_app_object_handle, const char *p_var_name, VarData &p_val) const = 0;
-
-	virtual class NetworkedControllerBase *extract_network_controller(ObjectHandle p_app_object_handle) = 0;
-	virtual const NetworkedControllerBase *extract_network_controller(ObjectHandle p_app_object_handle) const = 0;
 };
 
 /// # SceneSynchronizer
@@ -203,7 +201,6 @@ protected:
 	bool rewinding_in_progress = false;
 	bool end_sync = false;
 
-	bool peer_dirty = false;
 	std::map<int, NS::PeerData> peer_data;
 
 	bool generate_id = false;
@@ -222,7 +219,7 @@ protected:
 public: // -------------------------------------------------------------- Events
 	Processor<> event_sync_started;
 	Processor<> event_sync_paused;
-	Processor<const NS::ObjectData * /*p_object_data*/, int /*p_peer*/, bool /*p_connected*/, bool /*p_enabled*/> event_peer_status_updated;
+	Processor<int /*p_peer*/, bool /*p_connected*/, bool /*p_enabled*/> event_peer_status_updated;
 	Processor<FrameIndex, bool /*p_desync_detected*/> event_state_validated;
 	Processor<FrameIndex, int /*p_peer*/> event_sent_snapshot;
 	Processor<FrameIndex, int /*p_index*/, int /*p_count*/> event_rewind_frame_begin;
@@ -391,9 +388,9 @@ public: // ---------------------------------------------------------------- APIs
 	/// Returns the latency (RTT in ms) for this peer or -1 if the latency is not available.
 	int get_peer_latency(int p_peer) const;
 
-	/// Creates a realtime sync group containing a list of nodes.
+	/// Creates a sync group containing the list of sync objects.
 	/// The Peers listening to this group will receive the updates only
-	/// from the nodes within this group.
+	/// from the objects within this group.
 	SyncGroupId sync_group_create();
 	const NS::SyncGroup *sync_group_get(SyncGroupId p_group_id) const;
 
@@ -428,8 +425,6 @@ public: // ---------------------------------------------------------------- APIs
 	/// This function works only on server.
 	void force_state_notify(SyncGroupId p_sync_group_id);
 	void force_state_notify_all();
-	/// Make peers as dirty, so they will be reloaded next frame.
-	void dirty_peers();
 
 	void set_enabled(bool p_enable);
 	bool is_enabled() const;
@@ -447,7 +442,6 @@ public: // ---------------------------------------------------------------- APIs
 
 	void notify_controller_control_mode_changed(NetworkedControllerBase *controller);
 
-	void update_peers();
 	void clear_peers();
 
 	void detect_and_signal_changed_variables(int p_flags);
@@ -465,7 +459,6 @@ public: // ------------------------------------------------------------ INTERNAL
 	void process_functions__execute();
 
 	ObjectLocalId find_object_local_id(ObjectHandle p_app_object) const;
-	ObjectLocalId find_object_local_id(const NetworkedControllerBase &p_controller) const;
 
 	ObjectData *get_object_data(ObjectLocalId p_id, bool p_expected = true);
 	const ObjectData *get_object_data(ObjectLocalId p_id, bool p_expected = true) const;
@@ -485,7 +478,7 @@ public: // ------------------------------------------------------------ INTERNAL
 	ObjectNetId get_biggest_object_id() const;
 
 	void reset_controllers();
-	void reset_controller(NS::ObjectData *p_controller);
+	void reset_controller(NetworkedControllerBase &p_controller);
 
 	float get_pretended_delta() const;
 
@@ -496,8 +489,6 @@ public: // ------------------------------------------------------------ INTERNAL
 	void drop_object_data(NS::ObjectData &p_object_data);
 
 	void notify_object_data_net_id_changed(ObjectData &p_object_data);
-
-	NetworkedControllerBase *fetch_controller_by_peer(int peer);
 
 	FrameIndex client_get_last_checked_frame_index() const;
 
@@ -529,7 +520,7 @@ public:
 	virtual void on_object_data_removed(NS::ObjectData &p_object_data) {}
 	virtual void on_variable_added(NS::ObjectData *p_object_data, const std::string &p_var_name) {}
 	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) {}
-	virtual void on_controller_reset(NS::ObjectData *p_object_data) {}
+	virtual void on_controller_reset(NetworkedControllerBase &p_controller) {}
 	virtual const std::vector<ObjectData *> &get_active_objects() const = 0;
 };
 
@@ -590,7 +581,7 @@ public:
 	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) override;
 	virtual const std::vector<ObjectData *> &get_active_objects() const override { return active_objects; }
 
-	void notify_need_full_snapshot(int p_peer);
+	void notify_need_full_snapshot(int p_peer, bool p_notify_ASAP);
 
 	SyncGroupId sync_group_create();
 	const NS::SyncGroup *sync_group_get(SyncGroupId p_group_id) const;
@@ -657,7 +648,7 @@ public:
 
 	std::vector<ObjectNetId> simulated_objects;
 	std::vector<ObjectData *> active_objects;
-	ObjectData *player_controller_object_data = nullptr;
+	NetworkedControllerBase *player_controller = nullptr;
 	std::map<ObjectNetId, std::string> objects_names;
 
 	Snapshot last_received_snapshot;
@@ -765,7 +756,7 @@ public:
 	virtual void on_object_data_removed(NS::ObjectData &p_object_data) override;
 	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) override;
 	void signal_end_sync_changed_variables_events();
-	virtual void on_controller_reset(NS::ObjectData *p_object_data) override;
+	virtual void on_controller_reset(NetworkedControllerBase &p_controller) override;
 	virtual const std::vector<ObjectData *> &get_active_objects() const override;
 
 	void receive_snapshot(DataBuffer &p_snapshot);
@@ -775,7 +766,6 @@ public:
 			void (*p_custom_data_parse)(void *p_user_pointer, VarData &&p_custom_data),
 			void (*p_ode_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
 			void (*p_input_id_parse)(void *p_user_pointer, FrameIndex p_frame_index),
-			void (*p_controller_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
 			void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, VarData &&p_value),
 			void (*p_simulated_objects_parse)(void *p_user_pointer, std::vector<ObjectNetId> &&p_simulated_objects));
 
@@ -803,7 +793,6 @@ private:
 
 	void __pcr__rewind(
 			const FrameIndex p_checkable_frame_index,
-			ObjectData *p_local_controller_object,
 			NetworkedControllerBase *p_controller,
 			struct PlayerController *p_player_controller);
 

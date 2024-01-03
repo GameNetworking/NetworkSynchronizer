@@ -19,9 +19,6 @@ class ObjectDataStorage {
 	// All registered objects, that have the NetId assigned, organized per NetId.
 	std::vector<ObjectData *> objects_data_organized_by_netid;
 
-	// All the controller nodes.
-	std::vector<ObjectData *> objects_data_controllers;
-
 	std::map<int, std::vector<ObjectData *>> objects_data_controlled_by_peers;
 
 public:
@@ -34,7 +31,6 @@ public:
 	void object_set_net_id(ObjectData &p_object_data, ObjectNetId p_new_id);
 
 	ObjectLocalId find_object_local_id(ObjectHandle p_handle) const;
-	ObjectLocalId find_object_local_id(const class NetworkedControllerBase &p_controller) const;
 
 	ObjectData *get_object_data(ObjectNetId p_net_id, bool p_expected = true);
 	const ObjectData *get_object_data(ObjectNetId p_net_id, bool p_expected = true) const;
@@ -45,7 +41,6 @@ public:
 	void reserve_net_ids(int p_count);
 
 	const std::vector<ObjectData *> &get_objects_data() const;
-	const std::vector<ObjectData *> &get_controllers_objects_data() const;
 	const std::vector<ObjectData *> &get_sorted_objects_data() const;
 	const std::map<int, std::vector<ObjectData *>> &get_peers_controlled_objects_data() const;
 	const std::vector<ObjectData *> *get_peer_controlled_objects_data(int p_peer) const;
@@ -53,7 +48,6 @@ public:
 	ObjectNetId generate_net_id() const;
 	bool is_empty() const;
 
-	void notify_set_controller(ObjectData &p_object);
 	void notify_set_controlled_by_peer(int p_old_peer, ObjectData &p_object);
 };
 
