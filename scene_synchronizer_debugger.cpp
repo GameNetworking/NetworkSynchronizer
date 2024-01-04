@@ -1,36 +1,4 @@
-/*************************************************************************/
-/*  scene_synchronizer_debugger.cpp                                      */
-/*************************************************************************/
-/*                       This file is part of:                           */
-/*                           GODOT ENGINE                                */
-/*                      https://godotengine.org                          */
-/*************************************************************************/
-/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
-/*                                                                       */
-/* Permission is hereby granted, free of charge, to any person obtaining */
-/* a copy of this software and associated documentation files (the       */
-/* "Software"), to deal in the Software without restriction, including   */
-/* without limitation the rights to use, copy, modify, merge, publish,   */
-/* distribute, sublicense, and/or sell copies of the Software, and to    */
-/* permit persons to whom the Software is furnished to do so, subject to */
-/* the following conditions:                                             */
-/*                                                                       */
-/* The above copyright notice and this permission notice shall be        */
-/* included in all copies or substantial portions of the Software.       */
-/*                                                                       */
-/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,       */
-/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF    */
-/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.*/
-/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY  */
-/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,  */
-/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
-/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
-/*************************************************************************/
-
 #include "scene_synchronizer_debugger.h"
-#include "modules/network_synchronizer/core/core.h"
-#include "modules/network_synchronizer/scene_synchronizer_debugger.h"
 
 #ifdef DEBUG_ENABLED
 
@@ -84,6 +52,14 @@ SceneSynchronizerDebugger::~SceneSynchronizerDebugger() {
 	frame_dump__data_buffer_reads.clear();
 	frame_dump__are_inputs_different_results.clear();
 #endif
+}
+
+void SceneSynchronizerDebugger::set_log_level(NS::PrintMessageType p_log_level) {
+	log_level = p_log_level;
+}
+
+NS::PrintMessageType SceneSynchronizerDebugger::get_log_level() const {
+	return log_level;
 }
 
 void SceneSynchronizerDebugger::set_dump_enabled(bool p_dump_enabled) {
@@ -606,7 +582,7 @@ void SceneSynchronizerDebugger::debug_print(NS::NetworkInterface *p_network_inte
 #ifdef DEBUG_ENABLED
 	print(
 			NS::PrintMessageType::INFO,
-			p_message.utf8().ptr(),
+			std::string(p_message.utf8()),
 			p_network_interface ? p_network_interface->get_owner_name() : "GLOBAL");
 #endif
 }
@@ -615,7 +591,7 @@ void SceneSynchronizerDebugger::debug_warning(NS::NetworkInterface *p_network_in
 #ifdef DEBUG_ENABLED
 	print(
 			NS::PrintMessageType::WARNING,
-			p_message.utf8().ptr(),
+			std::string(p_message.utf8()),
 			p_network_interface ? p_network_interface->get_owner_name() : "GLOBAL");
 #endif
 }
@@ -633,13 +609,13 @@ void SceneSynchronizerDebugger::print(NS::PrintMessageType p_level, const std::s
 
 	const std::string log_level_str = NS::get_log_level_txt(p_level);
 
-	if ((log_level & p_level) || p_force_print_to_log) {
+	if ((log_level <= p_level) || p_force_print_to_log) {
 		NS::SceneSynchronizerBase::__print_line(log_level_str + "[" + p_object_name + "] " + p_message);
 	}
 
 	__add_message(log_level_str + p_message, p_object_name);
 #else
-	if ((log_level & p_level) || p_force_print_to_log) {
+	if ((log_level <= p_level) || p_force_print_to_log) {
 		const std::string log_level_str = NS::get_log_level_txt(p_level);
 		NS::SceneSynchronizerBase::print_line(log_level_str + "[" + p_object_name + "] " + p_message);
 	}

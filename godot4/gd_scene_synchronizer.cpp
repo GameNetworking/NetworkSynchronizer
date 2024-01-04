@@ -276,6 +276,16 @@ void GdSceneSynchronizer::on_init_synchronizer(bool p_was_generating_ids) {
 		debugger_mode = "nonet";
 	}
 	SceneSynchronizerDebugger::singleton()->setup_debugger(debugger_mode, 0, get_tree());
+
+	// Setup the debugger log level.
+	const int log_level = GLOBAL_GET("NetworkSynchronizer/log_level");
+	if (log_level == 0) {
+		SceneSynchronizerDebugger::singleton()->set_log_level(NS::INFO);
+	} else if (log_level == 1) {
+		SceneSynchronizerDebugger::singleton()->set_log_level(NS::WARNING);
+	} else {
+		SceneSynchronizerDebugger::singleton()->set_log_level(NS::ERROR);
+	}
 }
 
 void GdSceneSynchronizer::on_uninit_synchronizer() {
@@ -316,7 +326,7 @@ void GdSceneSynchronizer::update_objects_relevancy() {
 	if (GDVIRTUAL_IS_OVERRIDDEN(_update_nodes_relevancy)) {
 		const bool executed = GDVIRTUAL_CALL(_update_nodes_relevancy);
 		if (executed == false) {
-			NET_DEBUG_ERR("The function _update_nodes_relevancy failed!");
+			SceneSynchronizerDebugger::singleton()->print(NS::ERROR, "The function _update_nodes_relevancy failed!");
 		}
 	}
 }
@@ -602,7 +612,7 @@ void GdSceneSynchronizer::setup_trickled_sync(Node *p_node, const Callable &p_co
 				a.push_back(p_update_rate);
 				p_collect_epoch_func.callv(a);
 			},
-			[p_apply_epoch_func](float delta, float alpha, DataBuffer &db_from, DataBuffer &db_to) -> void {
+			[p_apply_epoch_func](double delta, float alpha, DataBuffer &db_from, DataBuffer &db_to) -> void {
 				Array a;
 				a.push_back(delta);
 				a.push_back(alpha);
