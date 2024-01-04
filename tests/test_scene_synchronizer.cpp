@@ -6,13 +6,13 @@
 #include "local_scene.h"
 #include "modules/network_synchronizer/core/core.h"
 #include "modules/network_synchronizer/core/var_data.h"
+#include "modules/network_synchronizer/data_buffer.h"
 #include "modules/network_synchronizer/net_utilities.h"
 #include "modules/network_synchronizer/tests/local_network.h"
+#include <functional>
 
 namespace NS_Test {
 
-// TODO enable tests again.
-/*
 void test_ids() {
 	NS::VarId var_id_0 = { 0 };
 	NS::VarId var_id_0_2 = { 0 };
@@ -35,19 +35,15 @@ void test_ids() {
 	CRASH_COND(var_id_3.id != 3);
 }
 
-const float delta = 1.0 / 60.0;
+const double delta = 1.0 / 60.0;
 
-class LocalNetworkedController : public NS::NetworkedController<NS::LocalNetworkInterface>, public NS::NetworkedControllerManager, public NS::LocalSceneObject {
+class LocalNetworkedController : public NS::LocalSceneObject {
 public:
 	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
 
 	LocalNetworkedController() {}
 
 	virtual void on_scene_entry() override {
-		// Setup the NetworkInterface.
-		get_network_interface().init(get_scene()->get_network(), name, authoritative_peer_id);
-		setup(*this);
-
 		variables.insert(std::make_pair("position", NS::VarData()));
 
 		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
@@ -59,25 +55,34 @@ public:
 
 	virtual void setup_synchronizer(NS::LocalSceneSynchronizer &p_scene_sync, NS::ObjectLocalId p_id) override {
 		local_id = p_id;
+
+		p_scene_sync.setup_controller(
+				p_id,
+				authoritative_peer_id,
+				[this](double p_delta, DataBuffer &r_buffer) -> void { collect_inputs(p_delta, r_buffer); },
+				[this](DataBuffer &p_buffer) -> int { return count_input_size(p_buffer); },
+				[this](DataBuffer &p_buffer_A, DataBuffer &p_buffer_b) -> bool { return are_inputs_different(p_buffer_A, p_buffer_b); },
+				[this](double p_delta, DataBuffer &p_buffer) -> void { controller_process(p_delta, p_buffer); });
+
 		p_scene_sync.register_variable(p_id, "position");
 	}
 
-	virtual void collect_inputs(double p_delta, DataBuffer &r_buffer) override {
+	void collect_inputs(double p_delta, DataBuffer &r_buffer) {
 		r_buffer.add_bool(true);
 	}
 
-	virtual void controller_process(double p_delta, DataBuffer &p_buffer) override {
+	void controller_process(double p_delta, DataBuffer &p_buffer) {
 		if (p_buffer.read_bool()) {
 			const float one_meter = 1.0;
 			variables["position"].data.f32 += p_delta * one_meter;
 		}
 	}
 
-	virtual bool are_inputs_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B) override {
+	bool are_inputs_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B) {
 		return p_buffer_A.read_bool() != p_buffer_B.read_bool();
 	}
 
-	virtual uint32_t count_input_size(DataBuffer &p_buffer) override {
+	uint32_t count_input_size(DataBuffer &p_buffer) {
 		return p_buffer.get_bool_size();
 	}
 };
@@ -105,23 +110,68 @@ void test_client_and_server_initialization() {
 			peer_2_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
 	CRASH_COND_MSG(!peer_2_scene.scene_sync->is_client(), "This must be a cliet scene sync.");
 
-	// Add peer 1 controller.
+	// Make sure the controller exists right away the peer are connected.
+	ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(server_scene.get_peer(), false), "This must be NON null at this point.");
+	ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(server_scene.get_peer(), false), "This must be NON null at this point.");
+	ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(server_scene.get_peer(), false), "This must be NON null at this point.");
+
+	ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer(), false), "This must be NON null at this point.");
+	ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer(), false), "This must be NON null at this point.");
+	ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer(), false), "This must be NON null at this point.");
+
+	ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer(), false), "This must be NON null at this point.");
+	ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer(), false), "This must be NON null at this point.");
+	ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer(), false), "This must be NON null at this point.");
+
+	// Make sure all the controllers are disabled.
+	ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(server_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
+	ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(server_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
+	ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(server_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
+
+	ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
+	ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
+	ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
+
+	ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
+	ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
+	ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
+
+	// Validate the controllers mode.
+	ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(server_scene.get_peer())->is_server_controller(), "This must be a ServerController on this peer.");
+	ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(server_scene.get_peer())->is_doll_controller(), "This must be a PlayerController on this peer.");
+	ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(server_scene.get_peer())->is_doll_controller(), "This must be a DollController on this peer.");
+
+	ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->is_server_controller(), "This must be a ServerController on this peer.");
+	ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->is_player_controller(), "This must be a PlayerController on this peer.");
+	ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->is_doll_controller(), "This must be a DollController on this peer.");
+
+	ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->is_server_controller(), "This must be a ServerController on this peer.");
+	ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->is_doll_controller(), "This must be a DollController on this peer.");
+	ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->is_player_controller(), "This must be a PlayerController on this peer.");
+
+	// Spawn the object controlled by the peer 1
 	server_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
-	CRASH_COND_MSG(!server_scene.fetch_object<LocalNetworkedController>("controller_1")->is_server_controller(), "This must be a ServerController on this peer.");
-
 	peer_1_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
-	CRASH_COND_MSG(!peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->is_player_controller(), "This must be a PlayerController on this peer.");
-
 	peer_2_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
-	CRASH_COND_MSG(!peer_2_scene.fetch_object<LocalNetworkedController>("controller_1")->is_doll_controller(), "This must be a DollController on this peer.");
 
 	// Add peer 2 controller.
 	server_scene.add_object<LocalNetworkedController>("controller_2", peer_2_scene.get_peer());
-	CRASH_COND(!server_scene.fetch_object<LocalNetworkedController>("controller_2")->is_server_controller());
 	peer_1_scene.add_object<LocalNetworkedController>("controller_2", peer_2_scene.get_peer());
-	CRASH_COND(!peer_1_scene.fetch_object<LocalNetworkedController>("controller_2")->is_doll_controller());
 	peer_2_scene.add_object<LocalNetworkedController>("controller_2", peer_2_scene.get_peer());
-	CRASH_COND(!peer_2_scene.fetch_object<LocalNetworkedController>("controller_2")->is_player_controller());
+
+	// Make sure the realtime is now enabled.
+	ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->can_simulate(), "This must be enabled at this point.");
+	ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->can_simulate(), "This must be enabled at this point.");
+	ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->can_simulate() == false, "This must be disabled as the server sync never enabled at this point.");
+
+	ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->can_simulate(), "This must be enabled at this point.");
+	ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->can_simulate() == false, "This must be disabled as the server sync never enabled at this point.");
+	ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->can_simulate(), "This must be enabled at this point.");
+
+	// Though the server must be disabled as no objects are being controlled.
+	ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(server_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
+	ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(server_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
+	ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(server_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
 }
 
 class TestSceneObject : public NS::LocalSceneObject {
@@ -252,7 +302,7 @@ void test_state_notify() {
 			} else {
 				// Note: the +1 is needed because the change is recored on the snapshot
 				// the scene sync is going to created on the next "process".
-				const NS::FrameIndex change_made_on_frame = peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_frame_index() + 1;
+				const NS::FrameIndex change_made_on_frame = peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() + 1;
 
 				// When the local controller is set, the client scene sync compares the
 				// received server snapshot with the one recorded on the client on
@@ -277,7 +327,7 @@ void test_state_notify() {
 					// the server snapshot is expected to be applied right away.
 					CRASH_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 3);
 
-					if (change_made_on_frame == server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_frame_index()) {
+					if (change_made_on_frame == server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index()) {
 						// Break as soon as the server reaches the same snapshot.
 						break;
 					}
@@ -285,7 +335,7 @@ void test_state_notify() {
 
 				// Make sure the server is indeed at the same frame on which the
 				// client made the change.
-				CRASH_COND(change_made_on_frame != server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_frame_index());
+				CRASH_COND(change_made_on_frame != server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index());
 
 				// and now is time to check for the `peer_1`.
 				CRASH_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 3);
@@ -305,15 +355,15 @@ void test_state_notify() {
 				peer_2_scene.process(delta);
 			}
 
-			CRASH_COND(server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_frame_index() != NS::FrameIndex{ 0 });
-			CRASH_COND(peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_frame_index() != NS::FrameIndex{ 1 });
+			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ 0 });
+			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ 1 });
 			// NOTE: No need to check the peer_2, because it's not an authoritative controller anyway.
 		} else {
 			// Make sure the controllers have been processed at this point.
-			CRASH_COND(server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_frame_index() == NS::FrameIndex{ 0 });
-			CRASH_COND(server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_frame_index() == NS::FrameIndex::NONE);
-			CRASH_COND(peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_frame_index() == NS::FrameIndex{ 0 });
-			CRASH_COND(peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_frame_index() == NS::FrameIndex::NONE);
+			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex{ 0 });
+			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex::NONE);
+			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex{ 0 });
+			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex::NONE);
 
 			// NOTE: No need to check the peer_2, because it's not an authoritative controller anyway.
 		}
@@ -360,8 +410,8 @@ void test_processing_with_late_controller_registration() {
 
 	// Make sure the client can process right away as the NetId is networked
 	// already.
-	CRASH_COND(server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_frame_index() != NS::FrameIndex{ 0 });
-	CRASH_COND(peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_frame_index() != NS::FrameIndex{ 1 });
+	ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ 0 });
+	ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ 1 });
 }
 
 void test_snapshot_generation() {
@@ -426,16 +476,16 @@ void test_variable_change_event() {
 			peer_1_scene.process(delta);
 			peer_2_scene.process(delta);
 
-			CRASH_COND(is_server_change_event_triggered);
-			CRASH_COND(!is_p1_change_event_triggered);
-			CRASH_COND(!is_p2_change_event_triggered);
+			ASSERT_COND(!is_server_change_event_triggered);
+			ASSERT_COND(is_p1_change_event_triggered);
+			ASSERT_COND(is_p2_change_event_triggered);
 
 			// Now check it's triggered on the server too.
 			// NOTE: processing after the clients, so we do not trigger the
 			//       snapshot that would trigger the event.
 			server_scene.process(delta);
 
-			CRASH_COND(!is_server_change_event_triggered);
+			ASSERT_COND(is_server_change_event_triggered);
 
 			// Now reset everything and process again without chaning the values
 			is_server_change_event_triggered = false;
@@ -449,9 +499,9 @@ void test_variable_change_event() {
 			}
 
 			// Make sure the events are not called.
-			CRASH_COND(is_server_change_event_triggered);
-			CRASH_COND(is_p1_change_event_triggered);
-			CRASH_COND(is_p2_change_event_triggered);
+			ASSERT_COND(!is_server_change_event_triggered);
+			ASSERT_COND(!is_p1_change_event_triggered);
+			ASSERT_COND(!is_p2_change_event_triggered);
 
 			// Now unregister the listeners.
 			server_scene.scene_sync->untrack_variable_changes(server_lh);
@@ -476,9 +526,9 @@ void test_variable_change_event() {
 			}
 
 			// and make sure the events are not being called.
-			CRASH_COND(is_server_change_event_triggered);
-			CRASH_COND(is_p1_change_event_triggered);
-			CRASH_COND(is_p2_change_event_triggered);
+			ASSERT_COND(!is_server_change_event_triggered);
+			ASSERT_COND(!is_p1_change_event_triggered);
+			ASSERT_COND(!is_p2_change_event_triggered);
 		}
 
 		// Test the change event is triggered for the event `SYNC_RECONVER`
@@ -636,15 +686,15 @@ void test_variable_change_event() {
 				peer_2_scene.process(delta);
 			}
 
-			CRASH_COND(server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_frame_index() != NS::FrameIndex{ 0 });
-			CRASH_COND(peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_frame_index() != NS::FrameIndex{ 1 });
+			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ 0 });
+			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ 1 });
 			// NOTE: No need to check the peer_2, because it's not an authoritative controller anyway.
 		} else {
 			// Make sure the controllers have been processed at this point.
-			CRASH_COND(server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_frame_index() == NS::FrameIndex{ 0 });
-			CRASH_COND(server_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_frame_index() == NS::FrameIndex::NONE);
-			CRASH_COND(peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_frame_index() == NS::FrameIndex{ 0 });
-			CRASH_COND(peer_1_scene.fetch_object<LocalNetworkedController>("controller_1")->get_current_frame_index() == NS::FrameIndex::NONE);
+			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex{ 0 });
+			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex::NONE);
+			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex{ 0 });
+			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex::NONE);
 
 			// NOTE: No need to check the peer_2, because it's not an authoritative controller anyway.
 		}
@@ -658,17 +708,16 @@ void test_controller_processing() {
 void test_streaming() {
 	// TODO implement this.
 }
-*/
 
 void test_scene_synchronizer() {
-	//test_ids();
-	//test_client_and_server_initialization();
-	//test_state_notify();
-	//test_processing_with_late_controller_registration();
-	//test_snapshot_generation();
-	//test_state_notify_for_no_rewind_properties();
-	//test_variable_change_event();
-	//test_controller_processing();
-	//test_streaming();
+	test_ids();
+	test_client_and_server_initialization();
+	test_state_notify();
+	test_processing_with_late_controller_registration();
+	test_snapshot_generation();
+	test_state_notify_for_no_rewind_properties();
+	test_variable_change_event();
+	test_controller_processing();
+	test_streaming();
 }
 }; //namespace NS_Test

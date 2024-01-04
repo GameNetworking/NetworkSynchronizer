@@ -160,6 +160,7 @@ private: // ------------------------------------------------------- RPC internal
 template <typename... ARGs>
 void RpcHandle<ARGs...>::rpc(NetworkInterface &p_interface, int p_peer_id, ARGs... p_args) const {
 	ENSURE(p_interface.rpcs_info.size() > index);
+	ASSERT_COND_MSG(p_interface.fetch_local_peer_id() != p_peer_id, "Sending an rpc to self is not allowed.");
 
 	DataBuffer db;
 	db.begin_write(0);

@@ -81,7 +81,7 @@ public:
 
 	void remove_object(const char *p_object_name);
 
-	void process(float p_delta);
+	void process(double p_delta);
 };
 
 template <class T>

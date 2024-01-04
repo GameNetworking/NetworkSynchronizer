@@ -37,7 +37,7 @@ struct NoNetController;
 // instantiated.
 // The most important part is inside the `PlayerController`, `ServerController`,
 // `DollController`, `NoNetController`.
-class NetworkedControllerBase {
+class NetworkedControllerBase final {
 	friend class NS::SceneSynchronizerBase;
 	template <class NetInterfaceClass>
 	friend class NetworkedController;
@@ -214,7 +214,7 @@ private:
 public:
 	bool player_has_new_input() const;
 
-	bool is_realtime_enabled();
+	bool can_simulate();
 
 protected:
 	void notify_controller_reset();

@@ -314,7 +314,7 @@ void NetworkedControllerBase::on_state_validated(FrameIndex p_frame_index) {
 }
 
 void NetworkedControllerBase::on_rewind_frame_begin(FrameIndex p_input_id, int p_index, int p_count) {
-	if (controller && is_realtime_enabled()) {
+	if (controller && can_simulate()) {
 		controller->queue_instant_process(p_input_id, p_index, p_count);
 	}
 }
@@ -374,13 +374,15 @@ bool NetworkedControllerBase::player_has_new_input() const {
 	return has_player_new_input;
 }
 
-bool NetworkedControllerBase::is_realtime_enabled() {
-	if (is_server_controller()) {
-		return true;
-	} else if (scene_synchronizer) {
-		// TODO optimize by avoiding fetching the controlled objects in this way?
-		const std::vector<ObjectData *> *controlled_objects = scene_synchronizer->get_peer_controlled_objects_data(get_authority_peer());
-		if (controlled_objects) {
+bool NetworkedControllerBase::can_simulate() {
+	NS_PROFILE
+
+	const std::vector<ObjectData *> *controlled_objects = scene_synchronizer ? scene_synchronizer->get_peer_controlled_objects_data(get_authority_peer()) : nullptr;
+	if (controlled_objects) {
+		if (is_server_controller() || is_player_controller()) {
+			return controlled_objects->size() > 0;
+		} else {
+			// TODO optimize by avoiding fetching the controlled objects in this way?
 			for (const ObjectData *od : *controlled_objects) {
 				if (od->realtime_sync_enabled_on_client) {
 					return true;

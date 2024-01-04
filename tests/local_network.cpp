@@ -3,6 +3,7 @@
 
 #include "core/error/error_macros.h"
 #include "core/math/vector3.h"
+#include "modules/network_synchronizer/core/ensure.h"
 #include "modules/network_synchronizer/core/network_interface.h"
 #include "modules/network_synchronizer/core/processor.h"
 #include "modules/network_synchronizer/core/var_data.h"
@@ -39,11 +40,25 @@ void LocalNetwork::start_as_client(LocalNetwork &p_server_network) {
 	this_peer = peer;
 	p_server_network.peer_counter += 1;
 
+	// Insert this peer into the server connected peer.
 	p_server_network.connected_peers[peer] = this;
+
+	// Put the server into the list of connected peers.
 	connected_peers[1] = &p_server_network;
 
+	// Emit the connected event
 	p_server_network.connected_event.broadcast(peer);
 	connected_event.broadcast(1);
+
+	// Mark all the other peers as connected too.
+	for (auto [other_peer, other_local_network] : p_server_network.connected_peers) {
+		if (peer != other_peer) {
+			connected_peers[other_peer] = other_local_network;
+			other_local_network->connected_peers[peer] = this;
+			other_local_network->connected_event.broadcast(peer);
+			connected_event.broadcast(other_peer);
+		}
+	}
 }
 
 void LocalNetwork::register_object(LocalNetworkInterface &p_interface) {
@@ -99,14 +114,16 @@ void LocalNetwork::process(float p_delta) {
 }
 
 void LocalNetwork::rpc_send_internal(const std::shared_ptr<PendingPacket> &p_packet) {
+	ASSERT_COND_MSG(p_packet->peer_recipient != get_peer(), "During the integration test was generated an RPC to self. This is a bug.");
+
 	auto recipient = connected_peers.find(p_packet->peer_recipient);
-	CRASH_COND(recipient == connected_peers.end());
+	ASSERT_COND(recipient != connected_peers.end());
 
 	auto object_map_it = registered_objects.find(p_packet->object_name);
-	CRASH_COND(object_map_it == registered_objects.end());
+	ASSERT_COND(object_map_it != registered_objects.end());
 
 	LocalNetworkInterface *object_net_interface = object_map_it->second;
-	CRASH_COND(object_net_interface == nullptr);
+	ASSERT_COND(object_net_interface);
 
 	recipient->second->rpc_receive_internal(this_peer, p_packet);
 }
@@ -155,7 +172,7 @@ void LocalNetworkInterface::fetch_connected_peers(std::vector<int> &p_connected_
 	p_connected_peers.clear();
 	// Get all the connected peers.
 	for (const auto &[peer_id, _] : network->get_connected_peers()) {
-		if (peer_id != get_unit_authority()) {
+		if (peer_id != fetch_local_peer_id()) {
 			p_connected_peers.push_back(peer_id);
 		}
 	}
@@ -288,14 +305,22 @@ void NS_Test::test_local_network() {
 	CRASH_COND(peer_2_connection_event[0] != server.get_peer());
 
 	// Check the connected peers list is valid
-	std::vector<int> connected_peers;
-	server_obj_1.fetch_connected_peers(connected_peers);
-	CRASH_COND(std::find(connected_peers.begin(), connected_peers.end(), peer_1.get_peer()) == connected_peers.end());
-	CRASH_COND(std::find(connected_peers.begin(), connected_peers.end(), peer_2.get_peer()) == connected_peers.end());
-	peer_1_obj_1.fetch_connected_peers(connected_peers);
-	CRASH_COND(std::find(connected_peers.begin(), connected_peers.end(), server.get_peer()) == connected_peers.end());
-	peer_2_obj_1.fetch_connected_peers(connected_peers);
-	CRASH_COND(std::find(connected_peers.begin(), connected_peers.end(), server.get_peer()) == connected_peers.end());
+	{
+		std::vector<int> connected_peers;
+		server_obj_1.fetch_connected_peers(connected_peers);
+		ASSERT_COND(NS::VecFunc::has(connected_peers, peer_1.get_peer()));
+		ASSERT_COND(NS::VecFunc::has(connected_peers, peer_2.get_peer()));
+
+		connected_peers.clear();
+		peer_1_obj_1.fetch_connected_peers(connected_peers);
+		ASSERT_COND(NS::VecFunc::has(connected_peers, server.get_peer()));
+		ASSERT_COND(NS::VecFunc::has(connected_peers, peer_2.get_peer()));
+
+		connected_peers.clear();
+		peer_2_obj_1.fetch_connected_peers(connected_peers);
+		ASSERT_COND(NS::VecFunc::has(connected_peers, server.get_peer()));
+		ASSERT_COND(NS::VecFunc::has(connected_peers, peer_1.get_peer()));
+	}
 
 	Vector<uint8_t> vec;
 	vec.push_back(1);
