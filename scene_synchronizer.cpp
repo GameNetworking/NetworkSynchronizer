@@ -132,6 +132,9 @@ void SceneSynchronizerBase::setup(SynchronizerManager &p_synchronizer_interface)
 	// Make sure to reset all the assigned controllers.
 	reset_controllers();
 
+	// Spawn the self peer.
+	on_peer_connected(get_network_interface().fetch_local_peer_id());
+
 	// Init the peers already connected.
 	std::vector<int> peer_ids;
 	network_interface->fetch_connected_peers(peer_ids);
@@ -624,7 +627,7 @@ void SceneSynchronizerBase::untrack_variable_changes(ListenerHandle p_handle) {
 	delete listener;
 }
 
-NS::PHandler SceneSynchronizerBase::register_process(ObjectLocalId p_id, ProcessPhase p_phase, std::function<void(float)> p_func) {
+NS::PHandler SceneSynchronizerBase::register_process(ObjectLocalId p_id, ProcessPhase p_phase, std::function<void(double)> p_func) {
 	ERR_FAIL_COND_V(p_id == NS::ObjectLocalId::NONE, NS::NullPHandler);
 	ERR_FAIL_COND_V(!p_func, NS::NullPHandler);
 
@@ -651,7 +654,7 @@ void SceneSynchronizerBase::unregister_process(ObjectLocalId p_id, ProcessPhase 
 void SceneSynchronizerBase::set_trickled_sync(
 		ObjectLocalId p_id,
 		std::function<void(DataBuffer & /*out_buffer*/, float /*update_rate*/)> p_func_trickled_collect,
-		std::function<void(float /*delta*/, float /*interpolation_alpha*/, DataBuffer & /*past_buffer*/, DataBuffer & /*future_buffer*/)> p_func_trickled_apply) {
+		std::function<void(double /*delta*/, float /*interpolation_alpha*/, DataBuffer & /*past_buffer*/, DataBuffer & /*future_buffer*/)> p_func_trickled_apply) {
 	ERR_FAIL_COND(p_id == ObjectLocalId::NONE);
 
 	NS::ObjectData *od = get_object_data(p_id);
@@ -884,7 +887,13 @@ bool SceneSynchronizerBase::is_peer_networking_enabled(int p_peer) const {
 void SceneSynchronizerBase::on_peer_connected(int p_peer) {
 	PeerData npd;
 	auto pd_it = MapFunc::insert_if_new(peer_data, p_peer, std::move(npd));
+	if (pd_it->second.get_controller()) {
+		// Nothing to do, already initialized.
+		return;
+	}
+
 	pd_it->second.make_controller(*this, p_peer);
+	reset_controller(*pd_it->second.get_controller());
 
 	event_peer_status_updated.broadcast(p_peer, true, true);
 
@@ -1372,7 +1381,7 @@ void SceneSynchronizerBase::process_functions__execute() {
 		cached_process_functions_valid = true;
 	}
 
-	SceneSynchronizerDebugger::singleton()->debug_print(network_interface, "Process functions START", true);
+	SceneSynchronizerDebugger::singleton()->print(INFO, "Process functions START");
 
 	// Pre process phase
 	for (int process_phase = PROCESSPHASE_EARLY; process_phase < PROCESSPHASE_PROCESS; ++process_phase) {
@@ -1386,9 +1395,9 @@ void SceneSynchronizerBase::process_functions__execute() {
 		const std::string info = "process phase -- CONTROLLER --";
 		NS_PROFILE_WITH_INFO(info);
 
-		// TODO optimize this, as `is_realtime_enabled` is expensive.
+		// TODO optimize this, as `can_simulate` is expensive.
 		for (auto &pd : peer_data) {
-			if (pd.second.get_controller() && pd.second.get_controller()->is_realtime_enabled()) {
+			if (pd.second.get_controller() && pd.second.get_controller()->can_simulate()) {
 				pd.second.get_controller()->process(get_fixed_frame_delta());
 			}
 		}
@@ -1935,6 +1944,11 @@ void ServerSynchronizer::process_snapshot_notificator() {
 		delta_snapshot.begin_write(MD_SIZE);
 
 		for (int peer_id : group.get_listening_peers()) {
+			if (peer_id == scene_synchronizer->get_network_interface().fetch_local_peer_id()) {
+				// Never send the snapshot to self (notice `self` is the server).
+				continue;
+			}
+
 			NS::PeerData *peer = MapFunc::get_or_null(scene_synchronizer->peer_data, peer_id);
 			if (peer == nullptr) {
 				SceneSynchronizerDebugger::singleton()->print(ERROR, "The `process_snapshot_notificator` failed to lookup the peer_id `" + std::to_string(peer_id) + "`. Was it removed but never cleared from sync_groups. Report this error, as this is a bug.");
@@ -2243,6 +2257,11 @@ void ServerSynchronizer::process_latency_update() {
 	const std::chrono::high_resolution_clock::time_point now = std::chrono::high_resolution_clock::now();
 
 	for (auto &[peer, peer_data] : scene_synchronizer->get_peers()) {
+		if (peer == scene_synchronizer->get_network_interface().fetch_local_peer_id()) {
+			// No need to update the ping for `self` (the server).
+			continue;
+		}
+
 		std::map<int, PeerServerData>::iterator peer_server_data_it = NS::MapFunc::insert_if_new(peers_data, peer, PeerServerData());
 		if (peer_server_data_it->second.latency_calculation_in_progress) {
 			continue;
@@ -2291,7 +2310,7 @@ void ServerSynchronizer::process_adjust_clients_controller_tick_rate(double p_de
 }
 
 void ServerSynchronizer::process_adjust_client_controller_tick_rate(double p_delta, int p_controller_peer, NetworkedControllerBase &p_controller) {
-	CRASH_COND(!p_controller.is_server_controller());
+	ASSERT_COND(p_controller.is_server_controller());
 
 	if (!p_controller.get_server_controller_unchecked()->streaming_paused) {
 		return;
@@ -2368,7 +2387,7 @@ void ClientSynchronizer::process(double p_delta) {
 	process_trickled_sync(p_delta);
 
 #if DEBUG_ENABLED
-	if (player_controller) {
+	if (player_controller && player_controller->can_simulate()) {
 		const int client_peer = scene_synchronizer->network_interface->fetch_local_peer_id();
 		SceneSynchronizerDebugger::singleton()->write_dump(client_peer, player_controller->get_current_frame_index().id);
 		SceneSynchronizerDebugger::singleton()->start_new_frame();
@@ -2447,7 +2466,7 @@ void ClientSynchronizer::signal_end_sync_changed_variables_events() {
 }
 
 void ClientSynchronizer::on_controller_reset(NetworkedControllerBase &p_controller) {
-	if (player_controller->is_player_controller()) {
+	if (p_controller.is_player_controller()) {
 		// This can't trigger because the reset function creates the player
 		// controller when the following condition is true.
 		ASSERT_COND(p_controller.get_authority_peer() == scene_synchronizer->get_network_interface().fetch_local_peer_id());
@@ -2461,7 +2480,7 @@ void ClientSynchronizer::on_controller_reset(NetworkedControllerBase &p_controll
 }
 
 const std::vector<ObjectData *> &ClientSynchronizer::get_active_objects() const {
-	if make_likely (player_controller && enabled) {
+	if make_likely (player_controller && player_controller->can_simulate() && enabled) {
 		return active_objects;
 	} else {
 		// Since there is no player controller or the sync is disabled, this
@@ -2901,7 +2920,7 @@ int ClientSynchronizer::calculates_sub_ticks(const double p_delta) {
 void ClientSynchronizer::process_simulation(double p_delta) {
 	NS_PROFILE
 
-	if make_unlikely (player_controller == nullptr || enabled == false) {
+	if make_unlikely (player_controller == nullptr || enabled == false || !player_controller->can_simulate()) {
 		// No player controller so can't process the simulation.
 		// TODO Remove this constraint?
 
@@ -3434,7 +3453,7 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 		return false;
 	}
 
-	if make_unlikely (received_snapshot.input_id == FrameIndex::NONE && player_controller != nullptr) {
+	if make_unlikely (received_snapshot.input_id == FrameIndex::NONE && player_controller && player_controller->can_simulate()) {
 		// We espect that the player_controller is updated by this new snapshot,
 		// so make sure it's done so.
 		SceneSynchronizerDebugger::singleton()->print(ERROR, "The player controller (" + std::to_string(player_controller->get_authority_peer()) + ") was not part of the received snapshot, this happens when the server destroys the peer controller.");

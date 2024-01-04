@@ -211,7 +211,7 @@ protected:
 	std::vector<ChangesListener *> changes_listeners;
 
 	bool cached_process_functions_valid = false;
-	Processor<float> cached_process_functions[PROCESSPHASE_COUNT];
+	Processor<double> cached_process_functions[PROCESSPHASE_COUNT];
 
 	// Set at runtime by the constructor by reading the project settings.
 	bool debug_rewindings_enabled = false;
@@ -374,7 +374,7 @@ public: // ---------------------------------------------------------------- APIs
 	void untrack_variable_changes(ListenerHandle p_handle);
 
 	/// You can use the macro `callable_mp()` to register custom C++ function.
-	NS::PHandler register_process(ObjectLocalId p_id, ProcessPhase p_phase, std::function<void(float)> p_func);
+	NS::PHandler register_process(ObjectLocalId p_id, ProcessPhase p_phase, std::function<void(double)> p_func);
 	void unregister_process(ObjectLocalId p_id, ProcessPhase p_phase, NS::PHandler p_func_handler);
 
 	/// Setup the trickled sync method for this specific object.
@@ -383,7 +383,7 @@ public: // ---------------------------------------------------------------- APIs
 	void set_trickled_sync(
 			ObjectLocalId p_id,
 			std::function<void(DataBuffer & /*out_buffer*/, float /*update_rate*/)> p_func_trickled_collect,
-			std::function<void(float /*delta*/, float /*interpolation_alpha*/, DataBuffer & /*past_buffer*/, DataBuffer & /*future_buffer*/)> p_func_trickled_apply);
+			std::function<void(double /*delta*/, float /*interpolation_alpha*/, DataBuffer & /*past_buffer*/, DataBuffer & /*future_buffer*/)> p_func_trickled_apply);
 
 	/// Returns the latency (RTT in ms) for this peer or -1 if the latency is not available.
 	int get_peer_latency(int p_peer) const;

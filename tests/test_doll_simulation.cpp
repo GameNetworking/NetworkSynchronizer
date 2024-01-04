@@ -19,11 +19,9 @@
 
 namespace NS_Test {
 
-//TODO enable the test again.
-/*
-const float delta = 1.0 / 60.0;
+const double delta = 1.0 / 60.0;
 
-class TDSLocalNetworkedController : public NS::NetworkedController<NS::LocalNetworkInterface>, public NS::NetworkedControllerManager, public NS::LocalSceneObject {
+class TDSLocalNetworkedController : public NS::LocalSceneObject {
 public:
 	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
 
@@ -31,9 +29,6 @@ public:
 
 	virtual void on_scene_entry() override {
 		// Setup the NetworkInterface.
-		get_network_interface().init(get_scene()->get_network(), name, authoritative_peer_id);
-		setup(*this);
-
 		set_xi(0);
 
 		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
@@ -45,6 +40,15 @@ public:
 
 	virtual void setup_synchronizer(NS::LocalSceneSynchronizer &p_scene_sync, NS::ObjectLocalId p_id) override {
 		local_id = p_id;
+
+		p_scene_sync.setup_controller(
+				p_id,
+				authoritative_peer_id,
+				[this](double p_delta, DataBuffer &r_buffer) -> void { collect_inputs(p_delta, r_buffer); },
+				[this](DataBuffer &p_buffer) -> int { return count_input_size(p_buffer); },
+				[this](DataBuffer &p_buffer_A, DataBuffer &p_buffer_b) -> bool { return are_inputs_different(p_buffer_A, p_buffer_b); },
+				[this](double p_delta, DataBuffer &p_buffer) -> void { controller_process(p_delta, p_buffer); });
+
 		p_scene_sync.register_variable(p_id, "xi");
 	}
 
@@ -65,11 +69,11 @@ public:
 	}
 
 	// ------------------------------------------------- NetController interface
-	virtual void collect_inputs(double p_delta, DataBuffer &r_buffer) override {
+	void collect_inputs(double p_delta, DataBuffer &r_buffer) {
 		r_buffer.add(true);
 	}
 
-	virtual void controller_process(double p_delta, DataBuffer &p_buffer) override {
+	void controller_process(double p_delta, DataBuffer &p_buffer) {
 		bool advance_xi;
 		p_buffer.read(advance_xi);
 		if (advance_xi) {
@@ -77,13 +81,13 @@ public:
 		}
 	}
 
-	virtual bool are_inputs_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B) override {
+	bool are_inputs_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B) {
 		const bool v1 = p_buffer_A.read_bool();
 		const bool v2 = p_buffer_B.read_bool();
 		return v1 != v2;
 	}
 
-	virtual uint32_t count_input_size(DataBuffer &p_buffer) override {
+	uint32_t count_input_size(DataBuffer &p_buffer) {
 		return p_buffer.get_bool_size();
 	}
 };
@@ -107,10 +111,10 @@ struct TestDollSimulationBase {
 
 private:
 	virtual void on_scenes_initialized() {}
-	virtual void on_server_process(float p_delta) {}
-	virtual void on_client_1_process(float p_delta) {}
-	virtual void on_client_2_process(float p_delta) {}
-	virtual void on_scenes_processed(float p_delta) {}
+	virtual void on_server_process(double p_delta) {}
+	virtual void on_client_1_process(double p_delta) {}
+	virtual void on_client_2_process(double p_delta) {}
+	virtual void on_scenes_processed(double p_delta) {}
 
 public:
 	TestDollSimulationBase() {}
@@ -147,13 +151,13 @@ public:
 		controller_2_peer1 = peer_1_scene.add_object<TDSLocalNetworkedController>("controller_2", peer_2_scene.get_peer());
 		controller_2_peer2 = peer_2_scene.add_object<TDSLocalNetworkedController>("controller_2", peer_2_scene.get_peer());
 
-		server_scene.scene_sync->register_process(server_scene.scene_sync->find_local_id(), PROCESSPHASE_LATE, [=](float p_delta) -> void {
+		server_scene.scene_sync->register_process(server_scene.scene_sync->find_local_id(), PROCESSPHASE_LATE, [=](double p_delta) -> void {
 			on_server_process(p_delta);
 		});
-		peer_1_scene.scene_sync->register_process(peer_1_scene.scene_sync->find_local_id(), PROCESSPHASE_LATE, [=](float p_delta) -> void {
+		peer_1_scene.scene_sync->register_process(peer_1_scene.scene_sync->find_local_id(), PROCESSPHASE_LATE, [=](double p_delta) -> void {
 			on_client_1_process(p_delta);
 		});
-		peer_2_scene.scene_sync->register_process(peer_2_scene.scene_sync->find_local_id(), PROCESSPHASE_LATE, [=](float p_delta) -> void {
+		peer_2_scene.scene_sync->register_process(peer_2_scene.scene_sync->find_local_id(), PROCESSPHASE_LATE, [=](double p_delta) -> void {
 			on_client_2_process(p_delta);
 		});
 
@@ -210,14 +214,14 @@ void test_latency() {
 	test.do_test(10, true);
 
 	// Make sure the latency is the same between client and the server.
-	CRASH_COND(test.server_scene.scene_sync->get_peer_latency(peer1) != test.peer_1_scene.scene_sync->get_peer_latency(peer1));
-	CRASH_COND(test.server_scene.scene_sync->get_peer_latency(peer2) != test.peer_1_scene.scene_sync->get_peer_latency(peer2));
-	CRASH_COND(test.server_scene.scene_sync->get_peer_latency(peer1) != test.peer_2_scene.scene_sync->get_peer_latency(peer1));
-	CRASH_COND(test.server_scene.scene_sync->get_peer_latency(peer2) != test.peer_2_scene.scene_sync->get_peer_latency(peer2));
+	ASSERT_COND_MSG(test.server_scene.scene_sync->get_peer_latency(peer1) == test.peer_1_scene.scene_sync->get_peer_latency(peer1), "Server latency: " + std::to_string(test.server_scene.scene_sync->get_peer_latency(peer1)) + " Client latency: " + std::to_string(test.peer_1_scene.scene_sync->get_peer_latency(peer1)));
+	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency(peer2) == test.peer_1_scene.scene_sync->get_peer_latency(peer2));
+	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency(peer1) == test.peer_2_scene.scene_sync->get_peer_latency(peer1));
+	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency(peer2) == test.peer_2_scene.scene_sync->get_peer_latency(peer2));
 
 	// Now make sure the latency is below 5 for both, as there is no latency at this point.
-	CRASH_COND(test.server_scene.scene_sync->get_peer_latency(peer1) > 5);
-	CRASH_COND(test.server_scene.scene_sync->get_peer_latency(peer2) > 5);
+	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency(peer1) <= 5);
+	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency(peer2) <= 5);
 
 	// TEST 2 with 100 latency
 	test.network_properties.rtt_seconds = 0.1;
@@ -225,19 +229,18 @@ void test_latency() {
 	test.do_test(20, true);
 
 	// Make sure the latency is the same between client and the server.
-	CRASH_COND(test.server_scene.scene_sync->get_peer_latency(peer1) != test.peer_1_scene.scene_sync->get_peer_latency(peer1));
-	CRASH_COND(test.server_scene.scene_sync->get_peer_latency(peer2) != test.peer_1_scene.scene_sync->get_peer_latency(peer2));
-	CRASH_COND(test.server_scene.scene_sync->get_peer_latency(peer1) != test.peer_2_scene.scene_sync->get_peer_latency(peer1));
-	CRASH_COND(test.server_scene.scene_sync->get_peer_latency(peer2) != test.peer_2_scene.scene_sync->get_peer_latency(peer2));
+	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency(peer1) == test.peer_1_scene.scene_sync->get_peer_latency(peer1));
+	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency(peer2) == test.peer_1_scene.scene_sync->get_peer_latency(peer2));
+	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency(peer1) == test.peer_2_scene.scene_sync->get_peer_latency(peer1));
+	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency(peer2) == test.peer_2_scene.scene_sync->get_peer_latency(peer2));
 
 	// Now make sure the latency is around 100
-	CRASH_COND(test.server_scene.scene_sync->get_peer_latency(peer1) < 60 || test.server_scene.scene_sync->get_peer_latency(peer1) > 105);
-	CRASH_COND(test.server_scene.scene_sync->get_peer_latency(peer2) < 60 || test.server_scene.scene_sync->get_peer_latency(peer2) > 105);
+	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency(peer1) >= 60 && test.server_scene.scene_sync->get_peer_latency(peer1) <= 105);
+	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency(peer2) >= 60 && test.server_scene.scene_sync->get_peer_latency(peer2) <= 105);
 }
-*/
 
 void test_doll_simulation() {
-	//test_latency();
+	test_latency();
 }
 
 }; //namespace NS_Test

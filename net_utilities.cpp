@@ -15,7 +15,7 @@ void NS::PeerData::set_latency(int p_latency) {
 }
 
 int NS::PeerData::get_latency() const {
-	return compressed_latency * 4.0;
+	return int(compressed_latency) * 4;
 }
 
 void NS::PeerData::make_controller(NS::SceneSynchronizerBase &p_scene_sync, int p_peer) {
@@ -63,6 +63,9 @@ void NS::SyncGroup::mark_changes_as_notified() {
 
 void NS::SyncGroup::add_listening_peer(int p_peer) {
 	NS::VecFunc::insert_unique(listening_peers, p_peer);
+	if (NS::VecFunc::insert_unique(networked_peers, p_peer)) {
+		NS::VecFunc::insert_unique(peers_with_newly_calculated_latency, p_peer);
+	}
 
 	// Make all the controlled objects as simulated.
 	const std::vector<ObjectData *> *controlled_objects_ptr = scene_sync->get_peer_controlled_objects_data(p_peer);
@@ -184,11 +187,18 @@ void NS::SyncGroup::remove_sync_object(std::size_t p_index, bool p_is_simulated)
 		// If no other simulated objects controlled by `associated_peer` remove it from
 		bool is_simulating = false;
 		bool is_networking = false;
+
 		for (auto &soi : simulated_sync_objects) {
 			if (soi.od->get_controlled_by_peer() == associted_peer) {
 				is_networking = true;
 				is_simulating = true;
 				break;
+			}
+		}
+
+		if (!is_networking) {
+			if (NS::VecFunc::has(listening_peers, associted_peer)) {
+				is_networking = true;
 			}
 		}
 
