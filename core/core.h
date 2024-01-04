@@ -71,10 +71,10 @@ const char *get_process_phase_name(ProcessPhase pp);
 NS_NAMESPACE_BEGIN
 
 enum PrintMessageType : std::uint8_t {
-	INFO = 0,
-	WARNING = 1 << 0,
-	ERROR = 1 << 1,
-	__INTERNAL = 1 << 2,
+	__INTERNAL = 0,
+	INFO = 1,
+	WARNING = 2,
+	ERROR = 3,
 };
 
 std::string get_log_level_txt(NS::PrintMessageType p_level);

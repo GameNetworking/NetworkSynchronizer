@@ -2,6 +2,7 @@
 
 #include "modules/network_synchronizer/godot4/gd_network_interface.h"
 #include "modules/network_synchronizer/godot4/gd_scene_synchronizer.h"
+#include "modules/network_synchronizer/scene_synchronizer_debugger.h"
 #include "scene_synchronizer.h"
 
 void InputNetworkEncoder::_bind_methods() {
@@ -90,7 +91,7 @@ void InputNetworkEncoder::encode(const LocalVector<Variant> &p_input, DataBuffer
 
 #ifdef DEBUG_ENABLED
 		if (i < p_input.size() && info.default_value.get_type() != p_input[i].get_type() && p_input[i].get_type() != Variant::NIL) {
-			NET_DEBUG_ERR("During the input encoding the passed value `" + p_input[i].stringify() + "` has a different type to the expected one. Using the default value `" + info.default_value.stringify() + "`.");
+			SceneSynchronizerDebugger::singleton()->print(NS::ERROR, "During the input encoding the passed value `" + std::string(p_input[i].stringify().utf8()) + "` has a different type to the expected one. Using the default value `" + std::string(info.default_value.stringify().utf8()) + "`.");
 		}
 #endif
 

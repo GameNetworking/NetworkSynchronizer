@@ -80,7 +80,7 @@ void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
 
 		GLOBAL_DEF("NetworkSynchronizer/debug_server_speedup", false);
 		GLOBAL_DEF("NetworkSynchronizer/log_debug_rewindings", false);
-		GLOBAL_DEF("NetworkSynchronizer/log_debug_warnings_and_messages", true);
+		GLOBAL_DEF("NetworkSynchronizer/log_level", 3);
 		GLOBAL_DEF("NetworkSynchronizer/log_debug_nodes_relevancy_update", false);
 		GLOBAL_DEF("NetworkSynchronizer/debugger/dump_enabled", false);
 		GLOBAL_DEF("NetworkSynchronizer/debugger/dump_classes", Array());

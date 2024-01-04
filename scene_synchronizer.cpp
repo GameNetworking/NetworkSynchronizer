@@ -2555,7 +2555,7 @@ void ClientSynchronizer::process_received_server_state() {
 		return;
 	}
 
-	ENSURE_MSG(player_controller, "There is no player controller and the only allowed snapshot are the one with `FrameIndex` set to NONE. The current one is set to " + last_received_server_snapshot->input_id + " so it's ignored.");
+	ENSURE_MSG(player_controller && player_controller->can_simulate(), "There is no player controller and the only allowed snapshot are the one with `FrameIndex` set to NONE. The current one is set to " + last_received_server_snapshot->input_id + " so it's ignored.");
 
 	PlayerController *inner_player_controller = player_controller->get_player_controller();
 
@@ -3423,7 +3423,7 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 			// Parse InputID:
 			[](void *p_user_pointer, FrameIndex p_input_id) {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
-				if (pd->player_controller != nullptr) {
+				if (pd->player_controller != nullptr && pd->player_controller->can_simulate()) {
 					// This is the main controller, store the `InputID`.
 					pd->snapshot.input_id = p_input_id;
 				}
