@@ -6,6 +6,7 @@
 #include "core/core.h"
 #include "core/processor.h"
 #include "core/var_data.h"
+#include "modules/network_synchronizer/core/core.h"
 #include <chrono>
 #include <map>
 #include <memory>
@@ -523,6 +524,7 @@ public:
 	};
 
 public:
+	SyncGroupId group_id = SyncGroupId::NONE;
 	SceneSynchronizerBase *scene_sync = nullptr;
 
 private:
@@ -533,7 +535,13 @@ private:
 	LocalVector<TrickledObjectInfo> trickled_sync_objects;
 
 	/// Contains the list of peers being networked by this sync group.
+	/// In other terms, if an object controller by peer 76 is contained into
+	/// the simulated or trickled list that peer is into this array.
 	std::vector<int> networked_peers;
+	/// The list of peers that have at least one objects into the simulated
+	/// vector.
+	std::vector<int> simulating_peers;
+	/// The peers for which the server measured the latency.
 	std::vector<int> peers_with_newly_calculated_latency;
 
 	std::vector<int> listening_peers;
@@ -558,6 +566,8 @@ public:
 	void remove_listening_peer(int p_peer);
 	const std::vector<int> &get_listening_peers() const { return listening_peers; };
 
+	const std::vector<int> &get_simulating_peers() const { return simulating_peers; }
+
 	/// Returns the `index` or `UINT32_MAX` on error.
 	uint32_t add_new_sync_object(struct ObjectData *p_object_data, bool p_is_simulated);
 	void remove_sync_object(std::size_t p_index, bool p_is_simulated);
@@ -575,10 +585,13 @@ public:
 
 	void notify_peer_has_newly_calculated_latency(int p_peer);
 
-private:
-	void notify_controller_about_simulating_peers(int p_peer, bool p_simulating);
-	void notify_controllers_about_simulating_peer(int p_peer, bool p_simulating);
+	// Used when a new listener is added or removed.
+	void notify_simulating_peers_about_listener_status(int p_peer_listener, bool p_simulating);
+	// Used when a new simulated object (which is controlled) is added, to notify
+	// such controller about the listeners.
+	void update_listeners_to_simulating_peer(int p_simulating_peer, bool p_simulating);
 
+private:
 	std::size_t find_simulated(const struct ObjectData &p_object_data) const;
 	std::size_t find_trickled(const struct ObjectData &p_object_data) const;
 };

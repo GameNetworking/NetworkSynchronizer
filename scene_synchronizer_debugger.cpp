@@ -498,9 +498,9 @@ void SceneSynchronizerDebugger::databuffer_operation_begin_record(int p_peer, Da
 	frame_dump_data_buffer_dump_mode = p_mode;
 
 	if (frame_dump_data_buffer_dump_mode == DataBufferDumpMode::WRITE) {
-		print(NS::PrintMessageType::__INTERNAL, "[WRITE] DataBuffer start write.", frame_dump__data_buffer_name);
+		print(NS::PrintMessageType::VERBOSE, "[WRITE] DataBuffer start write.", frame_dump__data_buffer_name);
 	} else {
-		print(NS::PrintMessageType::__INTERNAL, "[READ] DataBuffer start read.", frame_dump__data_buffer_name);
+		print(NS::PrintMessageType::VERBOSE, "[READ] DataBuffer start read.", frame_dump__data_buffer_name);
 	}
 #endif
 }
@@ -512,9 +512,9 @@ void SceneSynchronizerDebugger::databuffer_operation_end_record() {
 	}
 
 	if (frame_dump_data_buffer_dump_mode == DataBufferDumpMode::WRITE) {
-		print(NS::PrintMessageType::__INTERNAL, "[WRITE] end.", frame_dump__data_buffer_name);
+		print(NS::PrintMessageType::VERBOSE, "[WRITE] end.", frame_dump__data_buffer_name);
 	} else {
-		print(NS::PrintMessageType::__INTERNAL, "[READ] end.", frame_dump__data_buffer_name);
+		print(NS::PrintMessageType::VERBOSE, "[READ] end.", frame_dump__data_buffer_name);
 	}
 
 	frame_dump_data_buffer_dump_mode = DataBufferDumpMode::NONE;
@@ -536,7 +536,7 @@ void SceneSynchronizerDebugger::databuffer_write(uint32_t p_data_type, uint32_t 
 
 	const std::string operation = "[WRITE]      [" + compression_level_to_string(p_compression_level) + "] [" + data_type_to_string(p_data_type) + "] [new offset: " + std::to_string(p_new_bit_offset) + "] " + val_string;
 
-	print(NS::PrintMessageType::__INTERNAL, operation, frame_dump__data_buffer_name);
+	print(NS::PrintMessageType::VERBOSE, operation, frame_dump__data_buffer_name);
 #endif
 }
 
@@ -554,7 +554,7 @@ void SceneSynchronizerDebugger::databuffer_read(uint32_t p_data_type, uint32_t p
 
 	const std::string operation = "[READ]     [" + compression_level_to_string(p_compression_level) + "] [" + data_type_to_string(p_data_type) + "] [new offset: " + std::to_string(p_new_bit_offset) + "] " + val_string;
 
-	print(NS::PrintMessageType::__INTERNAL, operation, frame_dump__data_buffer_name);
+	print(NS::PrintMessageType::VERBOSE, operation, frame_dump__data_buffer_name);
 #endif
 }
 
