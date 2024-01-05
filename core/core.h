@@ -71,7 +71,7 @@ const char *get_process_phase_name(ProcessPhase pp);
 NS_NAMESPACE_BEGIN
 
 enum PrintMessageType : std::uint8_t {
-	__INTERNAL = 0,
+	VERBOSE = 0,
 	INFO = 1,
 	WARNING = 2,
 	ERROR = 3,

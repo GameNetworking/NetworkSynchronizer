@@ -686,8 +686,13 @@ const NS::SyncGroup *SceneSynchronizerBase::sync_group_get(SyncGroupId p_group_i
 	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get(p_group_id);
 }
 
-void SceneSynchronizerBase::sync_group_add_object_by_id(ObjectNetId p_node_id, SyncGroupId p_group_id, bool p_realtime) {
-	NS::ObjectData *nd = get_object_data(p_node_id);
+void SceneSynchronizerBase::sync_group_add_object(ObjectLocalId p_id, SyncGroupId p_group_id, bool p_realtime) {
+	NS::ObjectData *nd = get_object_data(p_id);
+	sync_group_add_object(nd, p_group_id, p_realtime);
+}
+
+void SceneSynchronizerBase::sync_group_add_object(ObjectNetId p_id, SyncGroupId p_group_id, bool p_realtime) {
+	NS::ObjectData *nd = get_object_data(p_id);
 	sync_group_add_object(nd, p_group_id, p_realtime);
 }
 
@@ -696,14 +701,34 @@ void SceneSynchronizerBase::sync_group_add_object(NS::ObjectData *p_object_data,
 	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_add_object(p_object_data, p_group_id, p_realtime);
 }
 
-void SceneSynchronizerBase::sync_group_remove_object_by_id(ObjectNetId p_node_id, SyncGroupId p_group_id) {
-	NS::ObjectData *nd = get_object_data(p_node_id);
+void SceneSynchronizerBase::sync_group_remove_object(ObjectLocalId p_id, SyncGroupId p_group_id) {
+	NS::ObjectData *nd = get_object_data(p_id);
+	sync_group_remove_object(nd, p_group_id);
+}
+
+void SceneSynchronizerBase::sync_group_remove_object(ObjectNetId p_id, SyncGroupId p_group_id) {
+	NS::ObjectData *nd = get_object_data(p_id);
 	sync_group_remove_object(nd, p_group_id);
 }
 
 void SceneSynchronizerBase::sync_group_remove_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id) {
 	ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
 	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_remove_object(p_object_data, p_group_id);
+}
+
+void SceneSynchronizerBase::sync_group_fetch_object_grups(NS::ObjectLocalId p_id, std::vector<SyncGroupId> &r_simulated_groups, std::vector<SyncGroupId> &r_trickled_groups) const {
+	const NS::ObjectData *object_data = get_object_data(p_id);
+	sync_group_fetch_object_grups(object_data, r_simulated_groups, r_trickled_groups);
+}
+
+void SceneSynchronizerBase::sync_group_fetch_object_grups(NS::ObjectNetId p_id, std::vector<SyncGroupId> &r_simulated_groups, std::vector<SyncGroupId> &r_trickled_groups) const {
+	const NS::ObjectData *object_data = get_object_data(p_id);
+	sync_group_fetch_object_grups(object_data, r_simulated_groups, r_trickled_groups);
+}
+
+void SceneSynchronizerBase::sync_group_fetch_object_grups(const NS::ObjectData *p_object_data, std::vector<SyncGroupId> &r_simulated_groups, std::vector<SyncGroupId> &r_trickled_groups) const {
+	ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
+	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_fetch_object_grups(p_object_data, r_simulated_groups, r_trickled_groups);
 }
 
 void SceneSynchronizerBase::sync_group_replace_objects(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes) {
@@ -746,6 +771,11 @@ SyncGroupId SceneSynchronizerBase::sync_group_get_peer_group(int p_peer_id) cons
 const std::vector<int> *SceneSynchronizerBase::sync_group_get_listening_peers(SyncGroupId p_group_id) const {
 	ENSURE_V_MSG(is_server(), nullptr, "This function CAN be used only on the server.");
 	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get_listening_peers(p_group_id);
+}
+
+const std::vector<int> *SceneSynchronizerBase::sync_group_get_simulating_peers(SyncGroupId p_group_id) const {
+	ENSURE_V_MSG(is_server(), nullptr, "This function CAN be used only on the server.");
+	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get_simulating_peers(p_group_id);
 }
 
 void SceneSynchronizerBase::sync_group_set_trickled_update_rate(ObjectLocalId p_node_id, SyncGroupId p_group_id, float p_update_rate) {
@@ -1769,6 +1799,7 @@ SyncGroupId ServerSynchronizer::sync_group_create() {
 	SyncGroupId id;
 	id.id = sync_groups.size();
 	sync_groups.resize(id.id + 1);
+	sync_groups[id.id].group_id = id;
 	sync_groups[id.id].scene_sync = scene_synchronizer;
 	return id;
 }
@@ -1779,17 +1810,37 @@ const NS::SyncGroup *ServerSynchronizer::sync_group_get(SyncGroupId p_group_id) 
 }
 
 void ServerSynchronizer::sync_group_add_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime) {
-	ERR_FAIL_COND(p_object_data == nullptr);
+	ENSURE(p_object_data);
 	ERR_FAIL_COND_MSG(p_group_id.id >= sync_groups.size(), "The group id `" + itos(p_group_id.id) + "` doesn't exist.");
 	ERR_FAIL_COND_MSG(p_group_id == SyncGroupId::GLOBAL, "You can't change this SyncGroup in any way. Create a new one.");
 	sync_groups[p_group_id.id].add_new_sync_object(p_object_data, p_realtime);
 }
 
 void ServerSynchronizer::sync_group_remove_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id) {
-	ERR_FAIL_COND(p_object_data == nullptr);
 	ERR_FAIL_COND_MSG(p_group_id.id >= sync_groups.size(), "The group id `" + itos(p_group_id.id) + "` doesn't exist.");
+	ENSURE(p_object_data);
 	ERR_FAIL_COND_MSG(p_group_id == SyncGroupId::GLOBAL, "You can't change this SyncGroup in any way. Create a new one.");
 	sync_groups[p_group_id.id].remove_sync_object(*p_object_data);
+}
+
+void ServerSynchronizer::sync_group_fetch_object_grups(const ObjectData *p_object_data, std::vector<SyncGroupId> &r_simulated_groups, std::vector<SyncGroupId> &r_trickled_groups) const {
+	ENSURE(p_object_data);
+
+	r_simulated_groups.clear();
+	r_trickled_groups.clear();
+
+	SyncGroupId id = { 0 };
+	for (const SyncGroup &group : sync_groups) {
+		if (group.get_simulated_sync_objects().find(SyncGroup::SimulatedObjectInfo(const_cast<ObjectData *>(p_object_data))) != -1) {
+			r_simulated_groups.push_back(id);
+		}
+
+		if (group.get_trickled_sync_objects().find(SyncGroup::TrickledObjectInfo(const_cast<ObjectData *>(p_object_data))) != -1) {
+			r_trickled_groups.push_back(id);
+		}
+
+		id += 1;
+	}
 }
 
 void ServerSynchronizer::sync_group_replace_object(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes) {
@@ -1834,8 +1885,13 @@ void ServerSynchronizer::sync_group_update(int p_peer_id) {
 }
 
 const std::vector<int> *ServerSynchronizer::sync_group_get_listening_peers(SyncGroupId p_group_id) const {
-	ERR_FAIL_COND_V_MSG(p_group_id.id >= sync_groups.size(), nullptr, "The group id `" + itos(p_group_id.id) + "` doesn't exist.");
+	ENSURE_V_MSG(p_group_id.id < sync_groups.size(), nullptr, "The group id `" + std::string(p_group_id) + "` doesn't exist.");
 	return &sync_groups[p_group_id.id].get_listening_peers();
+}
+
+const std::vector<int> *ServerSynchronizer::sync_group_get_simulating_peers(SyncGroupId p_group_id) const {
+	ENSURE_V_MSG(p_group_id.id < sync_groups.size(), nullptr, "The group id `" + std::string(p_group_id) + "` doesn't exist.");
+	return &sync_groups[p_group_id.id].get_simulating_peers();
 }
 
 void ServerSynchronizer::set_peer_networking_enable(int p_peer, bool p_enable) {
@@ -2622,7 +2678,7 @@ void ClientSynchronizer::process_received_server_state() {
 	if (need_rewind) {
 		SceneSynchronizerDebugger::singleton()->notify_event(SceneSynchronizerDebugger::FrameEvent::CLIENT_DESYNC_DETECTED);
 		SceneSynchronizerDebugger::singleton()->print(
-				__INTERNAL,
+				VERBOSE,
 				std::string("Recover input: ") + std::string(last_checked_input) + " - Last input: " + std::string(inner_player_controller->get_stored_frame_index(-1)),
 				scene_synchronizer->get_network_interface().get_owner_name());
 

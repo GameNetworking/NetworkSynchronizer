@@ -649,7 +649,7 @@ const NS::SyncGroup *GdSceneSynchronizer::sync_group_get(uint32_t p_group_id) co
 }
 
 void GdSceneSynchronizer::sync_group_add_node_by_id(uint32_t p_net_id, uint32_t p_group_id, bool p_realtime) {
-	scene_synchronizer.sync_group_add_object_by_id({ p_net_id }, NS::SyncGroupId{ p_group_id }, p_realtime);
+	scene_synchronizer.sync_group_add_object(NS::ObjectNetId{ p_net_id }, NS::SyncGroupId{ p_group_id }, p_realtime);
 }
 
 void GdSceneSynchronizer::sync_group_add_node(NS::ObjectData *p_object_data, uint32_t p_group_id, bool p_realtime) {
@@ -657,7 +657,7 @@ void GdSceneSynchronizer::sync_group_add_node(NS::ObjectData *p_object_data, uin
 }
 
 void GdSceneSynchronizer::sync_group_remove_node_by_id(uint32_t p_net_id, uint32_t p_group_id) {
-	scene_synchronizer.sync_group_remove_object_by_id({ p_net_id }, NS::SyncGroupId{ p_group_id });
+	scene_synchronizer.sync_group_remove_object(NS::ObjectNetId{ p_net_id }, NS::SyncGroupId{ p_group_id });
 }
 
 void GdSceneSynchronizer::sync_group_remove_node(NS::ObjectData *p_object_data, uint32_t p_group_id) {

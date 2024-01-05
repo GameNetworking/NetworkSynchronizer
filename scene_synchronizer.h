@@ -5,6 +5,7 @@
 #include "core/network_interface.h"
 #include "core/object_data_storage.h"
 #include "core/processor.h"
+#include "modules/network_synchronizer/core/core.h"
 #include "modules/network_synchronizer/data_buffer.h"
 #include "modules/network_synchronizer/networked_controller.h"
 #include "snapshot.h"
@@ -392,12 +393,21 @@ public: // ---------------------------------------------------------------- APIs
 	/// The Peers listening to this group will receive the updates only
 	/// from the objects within this group.
 	SyncGroupId sync_group_create();
+
+	/// IMPORTANT: The pointer returned is invalid at the end of the scope executing this function. Never store it.
 	const NS::SyncGroup *sync_group_get(SyncGroupId p_group_id) const;
 
-	void sync_group_add_object_by_id(ObjectNetId p_id, SyncGroupId p_group_id, bool p_realtime);
+	void sync_group_add_object(ObjectLocalId p_id, SyncGroupId p_group_id, bool p_realtime);
+	void sync_group_add_object(ObjectNetId p_id, SyncGroupId p_group_id, bool p_realtime);
 	void sync_group_add_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime);
-	void sync_group_remove_object_by_id(ObjectNetId p_node_id, SyncGroupId p_group_id);
+
+	void sync_group_remove_object(ObjectLocalId p_id, SyncGroupId p_group_id);
+	void sync_group_remove_object(ObjectNetId p_id, SyncGroupId p_group_id);
 	void sync_group_remove_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id);
+
+	void sync_group_fetch_object_grups(NS::ObjectLocalId p_id, std::vector<SyncGroupId> &r_simulated_groups, std::vector<SyncGroupId> &r_trickled_groups) const;
+	void sync_group_fetch_object_grups(NS::ObjectNetId p_id, std::vector<SyncGroupId> &r_simulated_groups, std::vector<SyncGroupId> &r_trickled_groups) const;
+	void sync_group_fetch_object_grups(const NS::ObjectData *p_object_data, std::vector<SyncGroupId> &r_simulated_groups, std::vector<SyncGroupId> &r_trickled_groups) const;
 
 	/// Use `std::move()` to transfer `p_new_realtime_object` and `p_new_trickled_objects`.
 	void sync_group_replace_objects(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_objects, LocalVector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_objects);
@@ -406,6 +416,7 @@ public: // ---------------------------------------------------------------- APIs
 	void sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id);
 	SyncGroupId sync_group_get_peer_group(int p_peer_id) const;
 	const std::vector<int> *sync_group_get_listening_peers(SyncGroupId p_group_id) const;
+	const std::vector<int> *sync_group_get_simulating_peers(SyncGroupId p_group_id) const;
 
 	void sync_group_set_trickled_update_rate(ObjectLocalId p_id, SyncGroupId p_group_id, float p_update_rate);
 	void sync_group_set_trickled_update_rate(ObjectNetId p_id, SyncGroupId p_group_id, float p_update_rate);
@@ -584,14 +595,18 @@ public:
 	void notify_need_full_snapshot(int p_peer, bool p_notify_ASAP);
 
 	SyncGroupId sync_group_create();
+	/// IMPORTANT: The pointer returned is invalid at the end of the scope executing this function. Never store it.
 	const NS::SyncGroup *sync_group_get(SyncGroupId p_group_id) const;
+
 	void sync_group_add_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime);
 	void sync_group_remove_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id);
+	void sync_group_fetch_object_grups(const NS::ObjectData *p_object_data, std::vector<SyncGroupId> &r_simulated_groups, std::vector<SyncGroupId> &r_trickled_groups) const;
 	void sync_group_replace_object(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes);
 	void sync_group_remove_all_objects(SyncGroupId p_group_id);
 	void sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id);
 	void sync_group_update(int p_peer_id);
 	const std::vector<int> *sync_group_get_listening_peers(SyncGroupId p_group_id) const;
+	const std::vector<int> *sync_group_get_simulating_peers(SyncGroupId p_group_id) const;
 
 	void set_peer_networking_enable(int p_peer, bool p_enable);
 

@@ -32,14 +32,14 @@ const char *get_process_phase_name(ProcessPhase pp) {
 
 std::string get_log_level_txt(NS::PrintMessageType p_level) {
 	std::string log_level_str = "";
-	if (NS::PrintMessageType::INFO == p_level) {
+	if (NS::PrintMessageType::VERBOSE == p_level) {
+		log_level_str = "[VERBOSE] ";
+	} else if (NS::PrintMessageType::INFO == p_level) {
 		log_level_str = "[INFO] ";
 	} else if (NS::PrintMessageType::WARNING == p_level) {
 		log_level_str = "[WARNING] ";
 	} else if (NS::PrintMessageType::ERROR == p_level) {
 		log_level_str = "[ERROR] ";
-	} else if (NS::PrintMessageType::__INTERNAL == p_level) {
-		log_level_str = "";
 	}
 	return log_level_str;
 }
