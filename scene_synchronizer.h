@@ -529,6 +529,7 @@ public:
 	virtual void on_peer_disconnected(int p_peer_id) {}
 	virtual void on_object_data_added(NS::ObjectData *p_object_data) {}
 	virtual void on_object_data_removed(NS::ObjectData &p_object_data) {}
+	virtual void on_object_data_controller_changed(NS::ObjectData *p_object_data, int p_previous_controlling_peer) {}
 	virtual void on_variable_added(NS::ObjectData *p_object_data, const std::string &p_var_name) {}
 	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) {}
 	virtual void on_controller_reset(NetworkedControllerBase &p_controller) {}
@@ -588,6 +589,7 @@ public:
 	virtual void on_peer_disconnected(int p_peer_id) override;
 	virtual void on_object_data_added(NS::ObjectData *p_object_data) override;
 	virtual void on_object_data_removed(NS::ObjectData &p_object_data) override;
+	virtual void on_object_data_controller_changed(NS::ObjectData *p_object_data, int p_previous_controlling_peer) override;
 	virtual void on_variable_added(NS::ObjectData *p_object_data, const std::string &p_var_name) override;
 	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) override;
 	virtual const std::vector<ObjectData *> &get_active_objects() const override { return active_objects; }

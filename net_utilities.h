@@ -566,6 +566,7 @@ public:
 	void remove_listening_peer(int p_peer);
 	const std::vector<int> &get_listening_peers() const { return listening_peers; };
 
+	const std::vector<int> &get_networked_peers() const { return networked_peers; }
 	const std::vector<int> &get_simulating_peers() const { return simulating_peers; }
 
 	/// Returns the `index` or `UINT32_MAX` on error.
@@ -585,11 +586,17 @@ public:
 
 	void notify_peer_has_newly_calculated_latency(int p_peer);
 
+	void notify_controller_changed(NS::ObjectData *p_object_data, int p_previous_controlling_peer);
+
 	// Used when a new listener is added or removed.
 	void notify_simulating_peers_about_listener_status(int p_peer_listener, bool p_simulating);
 	// Used when a new simulated object (which is controlled) is added, to notify
 	// such controller about the listeners.
 	void update_listeners_to_simulating_peer(int p_simulating_peer, bool p_simulating);
+
+	// Removes the peer from this sync group if it's not associated to any object
+	// data into this group.
+	void validate_peer_association(int p_peer);
 
 private:
 	std::size_t find_simulated(const struct ObjectData &p_object_data) const;
