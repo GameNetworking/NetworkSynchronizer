@@ -384,6 +384,7 @@ void SceneSynchronizerBase::setup_controller(
 	NS::ObjectData *object_data = get_object_data(p_id);
 	ENSURE(object_data != nullptr);
 
+	const int previous_controlling_peer = object_data->get_controlled_by_peer();
 	object_data->set_controlled_by_peer(p_peer, p_collect_input_func, p_count_input_size_func, p_are_inputs_different_func, p_process_func);
 
 	NetworkedControllerBase *controller = get_controller_for_peer(p_peer);
@@ -391,8 +392,8 @@ void SceneSynchronizerBase::setup_controller(
 		controller->notify_controllable_objects_changed();
 	}
 
-	if (is_server()) {
-		static_cast<ServerSynchronizer *>(synchronizer)->notify_need_full_snapshot(p_peer, true);
+	if (synchronizer) {
+		synchronizer->on_object_data_controller_changed(object_data, previous_controlling_peer);
 	}
 }
 
@@ -1757,6 +1758,20 @@ void ServerSynchronizer::on_object_data_removed(NS::ObjectData &p_object_data) {
 	// Make sure to remove this `NodeData` from any sync group.
 	for (uint32_t i = 0; i < sync_groups.size(); ++i) {
 		sync_groups[i].remove_sync_object(p_object_data);
+	}
+}
+
+void ServerSynchronizer::on_object_data_controller_changed(NS::ObjectData *p_object_data, int p_previous_controlling_peer) {
+	if (p_object_data->get_controlled_by_peer() == p_previous_controlling_peer) {
+		return;
+	}
+
+	if (p_object_data->get_controlled_by_peer() > 0) {
+		notify_need_full_snapshot(p_object_data->get_controlled_by_peer(), true);
+	}
+
+	for (SyncGroup &sync_group : sync_groups) {
+		sync_group.notify_controller_changed(p_object_data, p_previous_controlling_peer);
 	}
 }
 

@@ -216,20 +216,20 @@ void test_sync_groups() {
 			peer_2_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
 
 	// Add 2 objects controlled by the peer 1.
-	const NS::ObjectLocalId controller_1_id = server_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer())->local_id;
+	const NS::ObjectLocalId controlled_obj_1_id = server_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer())->local_id;
 	peer_1_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
 	peer_2_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
 
-	const NS::ObjectLocalId controller_2_id = server_scene.add_object<LocalNetworkedController>("controller_2", peer_1_scene.get_peer())->local_id;
+	const NS::ObjectLocalId controlled_obj_2_id = server_scene.add_object<LocalNetworkedController>("controller_2", peer_1_scene.get_peer())->local_id;
 	peer_1_scene.add_object<LocalNetworkedController>("controller_2", peer_1_scene.get_peer());
 	peer_2_scene.add_object<LocalNetworkedController>("controller_2", peer_1_scene.get_peer());
 
 	// Add 2 objects controlled by the peer 2.
-	const NS::ObjectLocalId controller_3_id = server_scene.add_object<LocalNetworkedController>("controller_3", peer_2_scene.get_peer())->local_id;
+	const NS::ObjectLocalId controlled_obj_3_id = server_scene.add_object<LocalNetworkedController>("controller_3", peer_2_scene.get_peer())->local_id;
 	peer_1_scene.add_object<LocalNetworkedController>("controller_3", peer_2_scene.get_peer());
 	peer_2_scene.add_object<LocalNetworkedController>("controller_3", peer_2_scene.get_peer());
 
-	const NS::ObjectLocalId controller_4_id = server_scene.add_object<LocalNetworkedController>("controller_4", peer_2_scene.get_peer())->local_id;
+	const NS::ObjectLocalId controlled_obj_4_id = server_scene.add_object<LocalNetworkedController>("controller_4", peer_2_scene.get_peer())->local_id;
 	peer_1_scene.add_object<LocalNetworkedController>("controller_4", peer_2_scene.get_peer());
 	peer_2_scene.add_object<LocalNetworkedController>("controller_4", peer_2_scene.get_peer());
 
@@ -298,6 +298,17 @@ void test_sync_groups() {
 		}
 	};
 
+	auto assert_networked = [](NS::SceneSynchronizerBase *scene_sync, NS::SyncGroupId p_id, const std::vector<int> &p_expected_peers, const std::vector<int> &p_not_expected_peers) {
+		const NS::SyncGroup *sync_group = scene_sync->sync_group_get(p_id);
+
+		for (int peer : p_expected_peers) {
+			ASSERT_COND(NS::VecFunc::has(sync_group->get_networked_peers(), peer));
+		}
+		for (int peer : p_not_expected_peers) {
+			ASSERT_COND(!NS::VecFunc::has(sync_group->get_networked_peers(), peer));
+		}
+	};
+
 	// ----------------------------------------------------------- TEST DEFAULTS
 
 	// Verify that by default all the peers are listening to the GLOBAL sync group.
@@ -307,17 +318,32 @@ void test_sync_groups() {
 	assert_listening(server_scene.scene_sync, NS::SyncGroupId::GLOBAL, { server_scene.get_peer(), peer_1_scene.get_peer(), peer_2_scene.get_peer() }, {});
 
 	// Verify that by default all the objects are into the global group and always as simulating.
-	assert_group(server_scene.scene_sync, controller_1_id, { NS::SyncGroupId::GLOBAL }, {}, { group_1, group_2, group_3 });
-	assert_group(server_scene.scene_sync, controller_2_id, { NS::SyncGroupId::GLOBAL }, {}, { group_1, group_2, group_3 });
-	assert_group(server_scene.scene_sync, controller_3_id, { NS::SyncGroupId::GLOBAL }, {}, { group_1, group_2, group_3 });
-	assert_group(server_scene.scene_sync, controller_4_id, { NS::SyncGroupId::GLOBAL }, {}, { group_1, group_2, group_3 });
+	assert_group(server_scene.scene_sync, controlled_obj_1_id, { NS::SyncGroupId::GLOBAL }, {}, { group_1, group_2, group_3 });
+	assert_group(server_scene.scene_sync, controlled_obj_2_id, { NS::SyncGroupId::GLOBAL }, {}, { group_1, group_2, group_3 });
+	assert_group(server_scene.scene_sync, controlled_obj_3_id, { NS::SyncGroupId::GLOBAL }, {}, { group_1, group_2, group_3 });
+	assert_group(server_scene.scene_sync, controlled_obj_4_id, { NS::SyncGroupId::GLOBAL }, {}, { group_1, group_2, group_3 });
 	assert_group(server_scene.scene_sync, obj_1_id, { NS::SyncGroupId::GLOBAL }, {}, { group_1, group_2, group_3 });
 
-	// ----------------------------------------------- MODIFY DEFAULT SYNC GROUP
+	assert_listening(server_scene.scene_sync, NS::SyncGroupId::GLOBAL, { server_scene.get_peer(), peer_1_scene.get_peer(), peer_2_scene.get_peer() }, {});
+	assert_listening(server_scene.scene_sync, group_1, {}, { server_scene.get_peer(), peer_1_scene.get_peer(), peer_2_scene.get_peer() });
+	assert_listening(server_scene.scene_sync, group_2, {}, { server_scene.get_peer(), peer_1_scene.get_peer(), peer_2_scene.get_peer() });
+	assert_listening(server_scene.scene_sync, group_3, {}, { server_scene.get_peer(), peer_1_scene.get_peer(), peer_2_scene.get_peer() });
+
+	// Notice that the server, since it doesn't have a controller, is not into any sync group.
+	assert_networked(server_scene.scene_sync, NS::SyncGroupId::GLOBAL, { peer_1_scene.get_peer(), peer_2_scene.get_peer() }, { server_scene.get_peer() });
+	assert_networked(server_scene.scene_sync, group_1, {}, { server_scene.get_peer(), peer_1_scene.get_peer(), peer_2_scene.get_peer() });
+	assert_networked(server_scene.scene_sync, group_2, {}, { server_scene.get_peer(), peer_1_scene.get_peer(), peer_2_scene.get_peer() });
+	assert_networked(server_scene.scene_sync, group_3, {}, { server_scene.get_peer(), peer_1_scene.get_peer(), peer_2_scene.get_peer() });
+
+	// ------------------------------------------------ MODIFY GLOBAL SYNC GROUP
 
 	// Try to modify the sync group, and make sure it was not modified as the
 	// global sync group can't be modified.
 	server_scene.scene_sync->sync_group_add_object(obj_1_id, NS::SyncGroupId::GLOBAL, false);
+	assert_group(server_scene.scene_sync, obj_1_id, { NS::SyncGroupId::GLOBAL }, {}, { group_1, group_2, group_3 });
+
+	// Try again with another API.
+	server_scene.scene_sync->sync_group_remove_object(obj_1_id, NS::SyncGroupId::GLOBAL);
 	assert_group(server_scene.scene_sync, obj_1_id, { NS::SyncGroupId::GLOBAL }, {}, { group_1, group_2, group_3 });
 
 	// ---------------------------------------------------- MOVE LISTENING PEERs
@@ -337,11 +363,17 @@ void test_sync_groups() {
 	ASSERT_COND(server_scene.scene_sync->sync_group_get_peer_group(peer_2_scene.get_peer()) == group_3);
 
 	// Verify that objects didn't change group.
-	assert_group(server_scene.scene_sync, controller_1_id, { NS::SyncGroupId::GLOBAL }, {}, { group_1, group_2, group_3 });
-	assert_group(server_scene.scene_sync, controller_2_id, { NS::SyncGroupId::GLOBAL }, {}, { group_1, group_2, group_3 });
-	assert_group(server_scene.scene_sync, controller_3_id, { NS::SyncGroupId::GLOBAL }, {}, { group_1, group_2, group_3 });
-	assert_group(server_scene.scene_sync, controller_4_id, { NS::SyncGroupId::GLOBAL }, {}, { group_1, group_2, group_3 });
+	assert_group(server_scene.scene_sync, controlled_obj_1_id, { NS::SyncGroupId::GLOBAL }, {}, { group_1, group_2, group_3 });
+	assert_group(server_scene.scene_sync, controlled_obj_2_id, { NS::SyncGroupId::GLOBAL }, {}, { group_1, group_2, group_3 });
+	assert_group(server_scene.scene_sync, controlled_obj_3_id, { NS::SyncGroupId::GLOBAL }, {}, { group_1, group_2, group_3 });
+	assert_group(server_scene.scene_sync, controlled_obj_4_id, { NS::SyncGroupId::GLOBAL }, {}, { group_1, group_2, group_3 });
 	assert_group(server_scene.scene_sync, obj_1_id, { NS::SyncGroupId::GLOBAL }, {}, { group_1, group_2, group_3 });
+
+	// At this point, there is nothing to listen, so any peer is simulating.
+	ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->server_is_peer_simulating_this_controller(peer_1_scene.get_peer()));
+	ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_1_scene.get_peer()));
+	ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->server_is_peer_simulating_this_controller(peer_2_scene.get_peer()));
+	ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_2_scene.get_peer()));
 
 	// ------------------------------------------- MOVE OBJECTS INTO SYNC GROUPs
 
@@ -356,20 +388,26 @@ void test_sync_groups() {
 
 	// Move the controlled objects 1 and 2 into group 2 as simulated
 	// and the controlled object 2 into group 3 as trickled.
-	server_scene.scene_sync->sync_group_add_object(controller_1_id, group_2, true);
-	server_scene.scene_sync->sync_group_add_object(controller_2_id, group_2, true);
-	server_scene.scene_sync->sync_group_add_object(controller_2_id, group_3, false);
+	server_scene.scene_sync->sync_group_add_object(controlled_obj_1_id, group_2, true);
+	server_scene.scene_sync->sync_group_add_object(controlled_obj_2_id, group_2, true);
+	server_scene.scene_sync->sync_group_add_object(controlled_obj_2_id, group_3, false);
 
 	// Now move the controlled objects 3 into group 2 as simulated
 	// and the controlled object 4 into group 2 as trickled.
-	server_scene.scene_sync->sync_group_add_object(controller_3_id, group_2, true);
-	server_scene.scene_sync->sync_group_add_object(controller_4_id, group_2, false);
+	server_scene.scene_sync->sync_group_add_object(controlled_obj_3_id, group_2, true);
+	server_scene.scene_sync->sync_group_add_object(controlled_obj_4_id, group_2, false);
 
 	// Assert the change was made.
-	assert_group(server_scene.scene_sync, controller_1_id, { NS::SyncGroupId::GLOBAL, group_2 }, {}, { group_1, group_3 });
-	assert_group(server_scene.scene_sync, controller_2_id, { NS::SyncGroupId::GLOBAL, group_2 }, { group_3 }, { group_1 });
-	assert_group(server_scene.scene_sync, controller_3_id, { NS::SyncGroupId::GLOBAL, group_2 }, {}, { group_1, group_3 });
-	assert_group(server_scene.scene_sync, controller_4_id, { NS::SyncGroupId::GLOBAL }, { group_2 }, { group_1, group_3 });
+	assert_group(server_scene.scene_sync, controlled_obj_1_id, { NS::SyncGroupId::GLOBAL, group_2 }, {}, { group_1, group_3 });
+	assert_group(server_scene.scene_sync, controlled_obj_2_id, { NS::SyncGroupId::GLOBAL, group_2 }, { group_3 }, { group_1 });
+	assert_group(server_scene.scene_sync, controlled_obj_3_id, { NS::SyncGroupId::GLOBAL, group_2 }, {}, { group_1, group_3 });
+	assert_group(server_scene.scene_sync, controlled_obj_4_id, { NS::SyncGroupId::GLOBAL }, { group_2 }, { group_1, group_3 });
+
+	// Assert the networked list is as expected, after the move.
+	assert_networked(server_scene.scene_sync, NS::SyncGroupId::GLOBAL, { peer_1_scene.get_peer(), peer_2_scene.get_peer() }, { server_scene.get_peer() });
+	assert_networked(server_scene.scene_sync, group_1, {}, { server_scene.get_peer(), peer_1_scene.get_peer(), peer_2_scene.get_peer() });
+	assert_networked(server_scene.scene_sync, group_2, { peer_1_scene.get_peer(), peer_2_scene.get_peer() }, { server_scene.get_peer() });
+	assert_networked(server_scene.scene_sync, group_3, { peer_1_scene.get_peer() }, { server_scene.get_peer(), peer_2_scene.get_peer() });
 
 	// --------------------------------------------- CONTROLLER SIMULATION CHECK
 
@@ -416,7 +454,7 @@ void test_sync_groups() {
 	ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_1_scene.get_peer()));
 
 	// Now, remove the object controlled by the peer 2 from group 2.
-	server_scene.scene_sync->sync_group_remove_object(controller_3_id, group_2);
+	server_scene.scene_sync->sync_group_remove_object(controlled_obj_3_id, group_2);
 
 	// Make sure the peer 2 controller is not simulating on peer 1 anylonger.
 	ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_1_scene.get_peer()));
@@ -430,10 +468,10 @@ void test_sync_groups() {
 	ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_2_scene.get_peer()));
 
 	// Verify that the controlled_3 is only on the global group.
-	assert_group(server_scene.scene_sync, controller_3_id, { NS::SyncGroupId::GLOBAL }, {}, { group_1, group_2, group_3 });
+	assert_group(server_scene.scene_sync, controlled_obj_3_id, { NS::SyncGroupId::GLOBAL }, {}, { group_1, group_2, group_3 });
 
 	// Add the object to group 1
-	server_scene.scene_sync->sync_group_add_object(controller_3_id, group_1, true);
+	server_scene.scene_sync->sync_group_add_object(controlled_obj_3_id, group_1, true);
 
 	// Make sure that the peer 2 is now simulating on peer 2.
 	ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_2_scene.get_peer()));
@@ -441,16 +479,19 @@ void test_sync_groups() {
 	// -------------------------------- MOVING OBJECT FROM SIMULATED TO TRICKLED
 
 	// Verify that the controlled_3 is only on the global group.
-	assert_group(server_scene.scene_sync, controller_3_id, { NS::SyncGroupId::GLOBAL, group_1 }, {}, { group_2, group_3 });
+	assert_group(server_scene.scene_sync, controlled_obj_3_id, { NS::SyncGroupId::GLOBAL, group_1 }, {}, { group_2, group_3 });
 
 	// Change the object mode from simulated to trickled.
-	server_scene.scene_sync->sync_group_add_object(controller_3_id, group_1, false);
+	server_scene.scene_sync->sync_group_add_object(controlled_obj_3_id, group_1, false);
 
 	// Make sure the controlled_3 is trickling.
-	assert_group(server_scene.scene_sync, controller_3_id, { NS::SyncGroupId::GLOBAL }, { group_1 }, { group_2, group_3 });
+	assert_group(server_scene.scene_sync, controlled_obj_3_id, { NS::SyncGroupId::GLOBAL }, { group_1 }, { group_2, group_3 });
 
 	// So, make sure the peer 2 is not simulating anymore on peer 2.
 	ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_2_scene.get_peer()));
+
+	// The peer 2 is still networked despite not anylonger simulating.
+	assert_networked(server_scene.scene_sync, group_1, { peer_2_scene.get_peer() }, { server_scene.get_peer(), peer_1_scene.get_peer() });
 }
 
 void test_state_notify() {
