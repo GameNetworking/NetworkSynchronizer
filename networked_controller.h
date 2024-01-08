@@ -373,7 +373,7 @@ struct PlayerController final : public Controller {
 struct DollController final : public RemotelyControlledController {
 	DollController(NetworkedControllerBase *p_node);
 
-	FrameIndex last_checked_input = { 0 };
+	FrameIndex last_checked_input = FrameIndex::NONE;
 	int queued_instant_to_process = -1;
 
 	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;

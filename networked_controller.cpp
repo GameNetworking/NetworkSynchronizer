@@ -9,6 +9,7 @@
 #include "modules/network_synchronizer/core/object_data.h"
 #include "modules/network_synchronizer/net_utilities.h"
 #include "modules/network_synchronizer/networked_controller.h"
+#include "modules/network_synchronizer/scene_synchronizer.h"
 #include "modules/network_synchronizer/scene_synchronizer_debugger.h"
 #include "net_utilities.h"
 #include "scene_synchronizer.h"
@@ -35,6 +36,8 @@ NetworkedControllerBase::~NetworkedControllerBase() {
 		controller = nullptr;
 		controller_type = CONTROLLER_TYPE_NULL;
 	}
+
+	remove_synchronizer();
 }
 
 void NetworkedControllerBase::notify_controllable_objects_changed() {
@@ -1367,7 +1370,7 @@ bool DollController::receive_inputs(const Vector<uint8_t> &p_data) {
 				SCParseTmpData *pd = static_cast<SCParseTmpData *>(p_user_pointer);
 
 				ASSERT_COND(p_frame_index != FrameIndex::NONE);
-				if (pd->controller->last_checked_input >= p_frame_index) {
+				if (pd->controller->last_checked_input != FrameIndex::NONE && pd->controller->last_checked_input >= p_frame_index) {
 					// This input is already processed.
 					return;
 				}
