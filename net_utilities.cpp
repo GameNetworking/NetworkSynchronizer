@@ -323,14 +323,18 @@ void NS::SyncGroup::notify_controller_changed(NS::ObjectData *p_object_data, int
 void NS::SyncGroup::notify_simulating_peers_about_listener_status(int p_peer_listener, bool p_simulating) {
 	for (int peer : simulating_peers) {
 		NetworkedControllerBase *controller = scene_sync->get_controller_for_peer(peer);
-		controller->server_set_peer_simulating_this_controller(p_peer_listener, p_simulating);
+		if (controller) {
+			controller->server_set_peer_simulating_this_controller(p_peer_listener, p_simulating);
+		}
 	}
 }
 
 void NS::SyncGroup::update_listeners_to_simulating_peer(int p_simulating_peer, bool p_simulating) {
 	NetworkedControllerBase *controller = scene_sync->get_controller_for_peer(p_simulating_peer);
-	for (int peer : listening_peers) {
-		controller->server_set_peer_simulating_this_controller(peer, p_simulating);
+	if (controller) {
+		for (int peer : listening_peers) {
+			controller->server_set_peer_simulating_this_controller(peer, p_simulating);
+		}
 	}
 }
 

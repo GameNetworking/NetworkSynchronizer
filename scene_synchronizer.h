@@ -672,7 +672,7 @@ public:
 	std::deque<Snapshot> client_snapshots;
 	FrameIndex last_received_server_snapshot_index = FrameIndex::NONE;
 	std::optional<Snapshot> last_received_server_snapshot;
-	FrameIndex last_checked_input = { 0 };
+	FrameIndex last_checked_input = FrameIndex::NONE;
 	bool enabled = true;
 	bool want_to_enable = false;
 
