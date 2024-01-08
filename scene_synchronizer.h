@@ -495,7 +495,7 @@ public: // ------------------------------------------------------------ INTERNAL
 
 	/// Read the object variables and store the value if is different from the
 	/// previous one and emits a signal.
-	void pull_object_changes(NS::ObjectData *p_object_data);
+	void pull_object_changes(NS::ObjectData &p_object_data);
 
 	void drop_object_data(NS::ObjectData &p_object_data);
 
