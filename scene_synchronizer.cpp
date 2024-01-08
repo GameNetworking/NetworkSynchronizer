@@ -1215,7 +1215,7 @@ void SceneSynchronizerBase::detect_and_signal_changed_variables(int p_flags) {
 
 	for (auto od : active_objects) {
 		if (od) {
-			pull_object_changes(od);
+			pull_object_changes(*od);
 		}
 	}
 	change_events_flush();
@@ -1570,30 +1570,29 @@ void SceneSynchronizerBase::reset_controller(NetworkedControllerBase &p_controll
 	}
 }
 
-void SceneSynchronizerBase::pull_object_changes(NS::ObjectData *p_object_data) {
+void SceneSynchronizerBase::pull_object_changes(NS::ObjectData &p_object_data) {
 	NS_PROFILE
 
-	for (VarId var_id = { 0 }; var_id < VarId{ uint32_t(p_object_data->vars.size()) }; var_id += 1) {
-		if (p_object_data->vars[var_id.id].enabled == false) {
+	for (VarDescriptor &var_desc : p_object_data.vars) {
+		if (var_desc.enabled == false) {
 			continue;
 		}
 
-		const VarData &old_val = p_object_data->vars[var_id.id].var.value;
 		VarData new_val;
 		{
 			NS_PROFILE_NAMED("get_variable")
 			synchronizer_manager->get_variable(
-					p_object_data->app_object_handle,
-					p_object_data->vars[var_id.id].var.name.c_str(),
+					p_object_data.app_object_handle,
+					var_desc.var.name.c_str(),
 					new_val);
 		}
 
-		if (!SceneSynchronizerBase::var_data_compare(old_val, new_val)) {
+		if (!SceneSynchronizerBase::var_data_compare(var_desc.var.value, new_val)) {
 			change_event_add(
-					p_object_data,
-					var_id,
-					old_val);
-			p_object_data->vars[var_id.id].var.value = std::move(new_val);
+					&p_object_data,
+					var_desc.id,
+					var_desc.var.value);
+			var_desc.var.value = std::move(new_val);
 		}
 	}
 }
