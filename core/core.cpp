@@ -18,7 +18,7 @@ const ObjectLocalId ObjectLocalId::NONE = { std::numeric_limits<uint32_t>::max()
 const ObjectNetId ObjectNetId::NONE = { std::numeric_limits<uint32_t>::max() };
 const ObjectHandle ObjectHandle::NONE = { 0 };
 
-static const char *ProcessPhaseName[PROCESSPHASE_COUNT] = {
+static const char *ProcessPhaseName[PROCESS_PHASE_COUNT] = {
 	"EARLY PROCESS",
 	"PRE PROCESS",
 	"PROCESS",

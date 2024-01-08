@@ -40,7 +40,7 @@ ObjectLocalId ObjectData::get_local_id() const {
 }
 
 bool ObjectData::has_registered_process_functions() const {
-	for (int process_phase = PROCESSPHASE_EARLY; process_phase < PROCESSPHASE_COUNT; ++process_phase) {
+	for (int process_phase = PROCESS_PHASE_EARLY; process_phase < PROCESS_PHASE_COUNT; ++process_phase) {
 		if (functions[process_phase].size() > 0) {
 			return true;
 		}

@@ -151,13 +151,13 @@ public:
 		controller_2_peer1 = peer_1_scene.add_object<TDSLocalNetworkedController>("controller_2", peer_2_scene.get_peer());
 		controller_2_peer2 = peer_2_scene.add_object<TDSLocalNetworkedController>("controller_2", peer_2_scene.get_peer());
 
-		server_scene.scene_sync->register_process(server_scene.scene_sync->find_local_id(), PROCESSPHASE_LATE, [=](double p_delta) -> void {
+		server_scene.scene_sync->register_process(server_scene.scene_sync->find_local_id(), PROCESS_PHASE_LATE, [=](double p_delta) -> void {
 			on_server_process(p_delta);
 		});
-		peer_1_scene.scene_sync->register_process(peer_1_scene.scene_sync->find_local_id(), PROCESSPHASE_LATE, [=](double p_delta) -> void {
+		peer_1_scene.scene_sync->register_process(peer_1_scene.scene_sync->find_local_id(), PROCESS_PHASE_LATE, [=](double p_delta) -> void {
 			on_client_1_process(p_delta);
 		});
-		peer_2_scene.scene_sync->register_process(peer_2_scene.scene_sync->find_local_id(), PROCESSPHASE_LATE, [=](double p_delta) -> void {
+		peer_2_scene.scene_sync->register_process(peer_2_scene.scene_sync->find_local_id(), PROCESS_PHASE_LATE, [=](double p_delta) -> void {
 			on_client_2_process(p_delta);
 		});
 
