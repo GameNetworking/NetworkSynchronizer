@@ -34,11 +34,11 @@ void GdSceneSynchronizer::_bind_methods() {
 	BIND_ENUM_CONSTANT(SYNC)
 	BIND_ENUM_CONSTANT(ALWAYS)
 
-	BIND_ENUM_CONSTANT(PROCESSPHASE_EARLY)
-	BIND_ENUM_CONSTANT(PROCESSPHASE_PRE)
-	BIND_ENUM_CONSTANT(PROCESSPHASE_PROCESS)
-	BIND_ENUM_CONSTANT(PROCESSPHASE_POST)
-	BIND_ENUM_CONSTANT(PROCESSPHASE_LATE)
+	BIND_ENUM_CONSTANT(PROCESS_PHASE_EARLY)
+	BIND_ENUM_CONSTANT(PROCESS_PHASE_PRE)
+	BIND_ENUM_CONSTANT(PROCESS_PHASE_PROCESS)
+	BIND_ENUM_CONSTANT(PROCESS_PHASE_POST)
+	BIND_ENUM_CONSTANT(PROCESS_PHASE_LATE)
 
 	ClassDB::bind_method(D_METHOD("reset_synchronizer_mode"), &GdSceneSynchronizer::reset_synchronizer_mode);
 	ClassDB::bind_method(D_METHOD("clear"), &GdSceneSynchronizer::clear);
@@ -604,7 +604,7 @@ void GdSceneSynchronizer::setup_simulated_sync(
 }
 
 void GdSceneSynchronizer::setup_trickled_sync(Node *p_node, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func) {
-	scene_synchronizer.set_trickled_sync(
+	scene_synchronizer.setup_trickled_sync(
 			scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node)),
 			[p_collect_epoch_func](DataBuffer &db, float p_update_rate) -> void {
 				Array a;

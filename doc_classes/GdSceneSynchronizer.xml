@@ -301,15 +301,15 @@
 		</constant>
 		<constant name="ALWAYS" value="31" enum="NetEventFlag">
 		</constant>
-		<constant name="PROCESSPHASE_EARLY" value="0" enum="ProcessPhase">
+		<constant name="PROCESS_PHASE_EARLY" value="0" enum="ProcessPhase">
 		</constant>
-		<constant name="PROCESSPHASE_PRE" value="1" enum="ProcessPhase">
+		<constant name="PROCESS_PHASE_PRE" value="1" enum="ProcessPhase">
 		</constant>
-		<constant name="PROCESSPHASE_PROCESS" value="2" enum="ProcessPhase">
+		<constant name="PROCESS_PHASE_PROCESS" value="2" enum="ProcessPhase">
 		</constant>
-		<constant name="PROCESSPHASE_POST" value="3" enum="ProcessPhase">
+		<constant name="PROCESS_PHASE_POST" value="3" enum="ProcessPhase">
 		</constant>
-		<constant name="PROCESSPHASE_LATE" value="4" enum="ProcessPhase">
+		<constant name="PROCESS_PHASE_LATE" value="4" enum="ProcessPhase">
 		</constant>
 	</constants>
 </class>

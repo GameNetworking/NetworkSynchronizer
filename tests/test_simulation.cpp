@@ -283,16 +283,16 @@ public:
 		MagnetSceneObject *heavy_magnet_p1 = peer_1_scene.add_object<MagnetSceneObject>("magnet_2", server_scene.get_peer());
 
 		// Register the process
-		server_scene.scene_sync->register_process(controlled_obj_server->local_id, PROCESSPHASE_POST, [=](double p_delta) -> void {
+		server_scene.scene_sync->register_process(controlled_obj_server->local_id, PROCESS_PHASE_POST, [=](double p_delta) -> void {
 			process_magnets_simulation(*server_scene.scene_sync, p_delta);
 		});
-		peer_1_scene.scene_sync->register_process(controlled_obj_p1->local_id, PROCESSPHASE_POST, [=](double p_delta) -> void {
+		peer_1_scene.scene_sync->register_process(controlled_obj_p1->local_id, PROCESS_PHASE_POST, [=](double p_delta) -> void {
 			process_magnets_simulation(*peer_1_scene.scene_sync, p_delta);
 		});
-		server_scene.scene_sync->register_process(controlled_obj_server->local_id, PROCESSPHASE_LATE, [=](double p_delta) -> void {
+		server_scene.scene_sync->register_process(controlled_obj_server->local_id, PROCESS_PHASE_LATE, [=](double p_delta) -> void {
 			on_server_process(p_delta);
 		});
-		peer_1_scene.scene_sync->register_process(controlled_obj_p1->local_id, PROCESSPHASE_LATE, [=](double p_delta) -> void {
+		peer_1_scene.scene_sync->register_process(controlled_obj_p1->local_id, PROCESS_PHASE_LATE, [=](double p_delta) -> void {
 			on_client_process(p_delta);
 		});
 

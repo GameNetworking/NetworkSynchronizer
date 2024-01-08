@@ -69,7 +69,7 @@ public:
 	/// The sync variables of this node. The order of this vector matters
 	/// because the index is the `VarId`.
 	std::vector<VarDescriptor> vars;
-	NS::Processor<double> functions[PROCESSPHASE_COUNT];
+	NS::Processor<double> functions[PROCESS_PHASE_COUNT];
 
 	std::function<void(DataBuffer & /*out_buffer*/, float /*update_rate*/)> func_trickled_collect;
 	std::function<void(double /*delta*/, float /*interpolation_alpha*/, DataBuffer & /*past_buffer*/, DataBuffer & /*future_buffer*/)> func_trickled_apply;

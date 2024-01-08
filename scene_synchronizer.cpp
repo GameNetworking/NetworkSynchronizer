@@ -652,7 +652,7 @@ void SceneSynchronizerBase::unregister_process(ObjectLocalId p_id, ProcessPhase 
 	}
 }
 
-void SceneSynchronizerBase::set_trickled_sync(
+void SceneSynchronizerBase::setup_trickled_sync(
 		ObjectLocalId p_id,
 		std::function<void(DataBuffer & /*out_buffer*/, float /*update_rate*/)> p_func_trickled_collect,
 		std::function<void(double /*delta*/, float /*interpolation_alpha*/, DataBuffer & /*past_buffer*/, DataBuffer & /*future_buffer*/)> p_func_trickled_apply) {
@@ -1391,7 +1391,7 @@ void SceneSynchronizerBase::process_functions__execute() {
 
 	if (cached_process_functions_valid == false) {
 		// Clear the process_functions.
-		for (int process_phase = PROCESSPHASE_EARLY; process_phase < PROCESSPHASE_COUNT; ++process_phase) {
+		for (int process_phase = PROCESS_PHASE_EARLY; process_phase < PROCESS_PHASE_COUNT; ++process_phase) {
 			cached_process_functions[process_phase].clear();
 		}
 
@@ -1403,7 +1403,7 @@ void SceneSynchronizerBase::process_functions__execute() {
 			}
 
 			// For each valid NodeData.
-			for (int process_phase = PROCESSPHASE_EARLY; process_phase < PROCESSPHASE_COUNT; ++process_phase) {
+			for (int process_phase = PROCESS_PHASE_EARLY; process_phase < PROCESS_PHASE_COUNT; ++process_phase) {
 				// Append the contained functions.
 				cached_process_functions[process_phase].append(od->functions[process_phase]);
 			}
@@ -1415,7 +1415,7 @@ void SceneSynchronizerBase::process_functions__execute() {
 	SceneSynchronizerDebugger::singleton()->print(INFO, "Process functions START");
 
 	// Pre process phase
-	for (int process_phase = PROCESSPHASE_EARLY; process_phase < PROCESSPHASE_PROCESS; ++process_phase) {
+	for (int process_phase = PROCESS_PHASE_EARLY; process_phase < PROCESS_PHASE_PROCESS; ++process_phase) {
 		const std::string info = "process phase: " + std::to_string(process_phase);
 		NS_PROFILE_WITH_INFO(info);
 		cached_process_functions[process_phase].broadcast(get_fixed_frame_delta());
@@ -1435,7 +1435,7 @@ void SceneSynchronizerBase::process_functions__execute() {
 	}
 
 	// Post process
-	for (int process_phase = PROCESSPHASE_PROCESS; process_phase < PROCESSPHASE_COUNT; ++process_phase) {
+	for (int process_phase = PROCESS_PHASE_PROCESS; process_phase < PROCESS_PHASE_COUNT; ++process_phase) {
 		const std::string info = "process phase: " + std::to_string(process_phase);
 		NS_PROFILE_WITH_INFO(info);
 		cached_process_functions[process_phase].broadcast(get_fixed_frame_delta());

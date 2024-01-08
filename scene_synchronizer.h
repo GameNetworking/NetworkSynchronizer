@@ -212,7 +212,7 @@ protected:
 	std::vector<ChangesListener *> changes_listeners;
 
 	bool cached_process_functions_valid = false;
-	Processor<double> cached_process_functions[PROCESSPHASE_COUNT];
+	Processor<double> cached_process_functions[PROCESS_PHASE_COUNT];
 
 	// Set at runtime by the constructor by reading the project settings.
 	bool debug_rewindings_enabled = false;
