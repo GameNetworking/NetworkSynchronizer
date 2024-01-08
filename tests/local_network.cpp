@@ -1,14 +1,14 @@
 
 #include "local_network.h"
 
+#include "../core/ensure.h"
+#include "../core/network_interface.h"
+#include "../core/processor.h"
+#include "../core/var_data.h"
+#include "../peer_networked_controller.h"
+#include "../scene_synchronizer.h"
 #include "core/error/error_macros.h"
 #include "core/math/vector3.h"
-#include "modules/network_synchronizer/core/ensure.h"
-#include "modules/network_synchronizer/core/network_interface.h"
-#include "modules/network_synchronizer/core/processor.h"
-#include "modules/network_synchronizer/core/var_data.h"
-#include "modules/network_synchronizer/networked_controller.h"
-#include "modules/network_synchronizer/scene_synchronizer.h"
 #include <functional>
 #include <map>
 #include <memory>

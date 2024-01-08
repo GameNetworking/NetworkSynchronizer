@@ -233,10 +233,10 @@ struct TestSimulationBase {
 	NS::LocalScene peer_1_scene;
 
 	TSLocalNetworkedController *controlled_obj_server = nullptr;
-	NS::NetworkedControllerBase *controller_server = nullptr;
+	NS::PeerNetworkedController *controller_server = nullptr;
 
 	TSLocalNetworkedController *controlled_obj_p1 = nullptr;
-	NS::NetworkedControllerBase *controller_p1 = nullptr;
+	NS::PeerNetworkedController *controller_p1 = nullptr;
 
 	NS::FrameIndex process_until_frame = { 300 };
 	int process_until_frame_timeout = 20;

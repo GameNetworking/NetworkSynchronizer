@@ -1,7 +1,4 @@
 #include "local_scene.h"
-#include "modules/network_synchronizer/core/core.h"
-#include "modules/network_synchronizer/networked_controller.h"
-#include "modules/network_synchronizer/scene_synchronizer.h"
 #include <memory>
 #include <string>
 

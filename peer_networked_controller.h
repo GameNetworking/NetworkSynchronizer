@@ -3,8 +3,6 @@
 #include "core/core.h"
 #include "core/processor.h"
 #include "data_buffer.h"
-#include "modules/network_synchronizer/core/core.h"
-#include "modules/network_synchronizer/networked_controller.h"
 #include "net_utilities.h"
 #include <deque>
 
@@ -37,7 +35,7 @@ struct NoNetController;
 // instantiated.
 // The most important part is inside the `PlayerController`, `ServerController`,
 // `DollController`, `NoNetController`.
-class NetworkedControllerBase final {
+class PeerNetworkedController final {
 	friend class NS::SceneSynchronizerBase;
 	template <class NetInterfaceClass>
 	friend class NetworkedController;
@@ -124,8 +122,8 @@ public: // -------------------------------------------------------------- Events
 	Processor<uint32_t /*p_input_worst_receival_time_ms*/, int /*p_optimal_frame_delay*/, int /*p_current_frame_delay*/, int /*p_distance_to_optimal*/> event_client_speedup_adjusted;
 
 public:
-	NetworkedControllerBase();
-	~NetworkedControllerBase();
+	PeerNetworkedController();
+	~PeerNetworkedController();
 
 public: // ---------------------------------------------------------------- APIs
 	void notify_controllable_objects_changed();
@@ -250,10 +248,10 @@ struct FrameSnapshot {
 };
 
 struct Controller {
-	NetworkedControllerBase *node;
+	PeerNetworkedController *peer_controller;
 
-	Controller(NetworkedControllerBase *p_node) :
-			node(p_node) {}
+	Controller(PeerNetworkedController *p_peer_controller) :
+			peer_controller(p_peer_controller) {}
 
 	virtual ~Controller() = default;
 
@@ -276,7 +274,7 @@ struct RemotelyControlledController : public Controller {
 	bool peer_enabled = false;
 
 public:
-	RemotelyControlledController(NetworkedControllerBase *p_node);
+	RemotelyControlledController(PeerNetworkedController *p_node);
 
 	virtual void on_peer_update(bool p_peer_enabled);
 
@@ -304,7 +302,7 @@ struct ServerController : public RemotelyControlledController {
 	NS::StatisticalRingBuffer<int> consecutive_input_watcher;
 
 	ServerController(
-			NetworkedControllerBase *p_node,
+			PeerNetworkedController *p_node,
 			int p_traced_frames);
 
 	virtual void process(double p_delta) override;
@@ -324,7 +322,7 @@ struct ServerController : public RemotelyControlledController {
 
 struct AutonomousServerController final : public ServerController {
 	AutonomousServerController(
-			NetworkedControllerBase *p_node);
+			PeerNetworkedController *p_node);
 
 	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;
 	virtual int get_inputs_count() const override;
@@ -340,7 +338,7 @@ struct PlayerController final : public Controller {
 	LocalVector<uint8_t> cached_packet_data;
 	int queued_instant_to_process = -1;
 
-	PlayerController(NetworkedControllerBase *p_node);
+	PlayerController(PeerNetworkedController *p_node);
 
 	void notify_frame_checked(FrameIndex p_input_id);
 	int get_frames_count() const;
@@ -371,7 +369,7 @@ struct PlayerController final : public Controller {
 /// After the execution of the inputs, the puppet start to act like the player,
 /// because it wait the player status from the server to correct its motion.
 struct DollController final : public RemotelyControlledController {
-	DollController(NetworkedControllerBase *p_node);
+	DollController(PeerNetworkedController *p_node);
 
 	FrameIndex last_checked_input = FrameIndex::NONE;
 	int queued_instant_to_process = -1;
@@ -390,7 +388,7 @@ struct DollController final : public RemotelyControlledController {
 struct NoNetController : public Controller {
 	FrameIndex frame_id;
 
-	NoNetController(NetworkedControllerBase *p_node);
+	NoNetController(PeerNetworkedController *p_node);
 
 	virtual void process(double p_delta) override;
 	virtual FrameIndex get_current_frame_index() const override;

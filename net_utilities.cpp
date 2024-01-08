@@ -1,10 +1,8 @@
 #include "net_utilities.h"
 
+#include "core/ensure.h"
 #include "core/object_data.h"
-#include "modules/network_synchronizer/net_utilities.h"
-#include "modules/network_synchronizer/networked_controller.h"
-#include "modules/network_synchronizer/scene_synchronizer_debugger.h"
-#include "networked_controller.h"
+#include "peer_networked_controller.h"
 #include "scene_synchronizer.h"
 #include "scene_synchronizer_debugger.h"
 #include <limits>
@@ -19,7 +17,7 @@ int NS::PeerData::get_latency() const {
 }
 
 void NS::PeerData::make_controller(NS::SceneSynchronizerBase &p_scene_sync, int p_peer) {
-	controller = std::make_unique<NS::NetworkedControllerBase>();
+	controller = std::make_unique<NS::PeerNetworkedController>();
 	controller->setup_synchronizer(p_scene_sync, p_peer);
 }
 
@@ -322,7 +320,7 @@ void NS::SyncGroup::notify_controller_changed(NS::ObjectData *p_object_data, int
 
 void NS::SyncGroup::notify_simulating_peers_about_listener_status(int p_peer_listener, bool p_simulating) {
 	for (int peer : simulating_peers) {
-		NetworkedControllerBase *controller = scene_sync->get_controller_for_peer(peer);
+		PeerNetworkedController *controller = scene_sync->get_controller_for_peer(peer);
 		if (controller) {
 			controller->server_set_peer_simulating_this_controller(p_peer_listener, p_simulating);
 		}
@@ -330,7 +328,7 @@ void NS::SyncGroup::notify_simulating_peers_about_listener_status(int p_peer_lis
 }
 
 void NS::SyncGroup::update_listeners_to_simulating_peer(int p_simulating_peer, bool p_simulating) {
-	NetworkedControllerBase *controller = scene_sync->get_controller_for_peer(p_simulating_peer);
+	PeerNetworkedController *controller = scene_sync->get_controller_for_peer(p_simulating_peer);
 	if (controller) {
 		for (int peer : listening_peers) {
 			controller->server_set_peer_simulating_this_controller(peer, p_simulating);

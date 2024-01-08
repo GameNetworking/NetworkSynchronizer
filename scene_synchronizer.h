@@ -5,9 +5,6 @@
 #include "core/network_interface.h"
 #include "core/object_data_storage.h"
 #include "core/processor.h"
-#include "modules/network_synchronizer/core/core.h"
-#include "modules/network_synchronizer/data_buffer.h"
-#include "modules/network_synchronizer/networked_controller.h"
 #include "snapshot.h"
 #include <deque>
 #include <map>
@@ -381,7 +378,7 @@ public: // ---------------------------------------------------------------- APIs
 	/// Setup the trickled sync method for this specific object.
 	/// The trickled-sync is different from the realtime-sync because the data
 	/// is streamed and not simulated.
-	void set_trickled_sync(
+	void setup_trickled_sync(
 			ObjectLocalId p_id,
 			std::function<void(DataBuffer & /*out_buffer*/, float /*update_rate*/)> p_func_trickled_collect,
 			std::function<void(double /*delta*/, float /*interpolation_alpha*/, DataBuffer & /*past_buffer*/, DataBuffer & /*future_buffer*/)> p_func_trickled_apply);
@@ -451,7 +448,7 @@ public: // ---------------------------------------------------------------- APIs
 	void reset_synchronizer_mode();
 	void clear();
 
-	void notify_controller_control_mode_changed(NetworkedControllerBase *controller);
+	void notify_controller_control_mode_changed(PeerNetworkedController *controller);
 
 	void clear_peers();
 
@@ -477,19 +474,19 @@ public: // ------------------------------------------------------------ INTERNAL
 	ObjectData *get_object_data(ObjectNetId p_id, bool p_expected = true);
 	const ObjectData *get_object_data(ObjectNetId p_id, bool p_expected = true) const;
 
-	NetworkedControllerBase *get_controller_for_peer(int p_peer, bool p_expected = true);
-	const NetworkedControllerBase *get_controller_for_peer(int p_peer, bool p_expected = true) const;
+	PeerNetworkedController *get_controller_for_peer(int p_peer, bool p_expected = true);
+	const PeerNetworkedController *get_controller_for_peer(int p_peer, bool p_expected = true) const;
 
 	const std::map<int, NS::PeerData> &get_peers() const;
 	std::map<int, NS::PeerData> &get_peers();
-	PeerData *get_peer_data_for_controller(const NetworkedControllerBase &p_controller, bool p_expected = true);
-	const PeerData *get_peer_data_for_controller(const NetworkedControllerBase &p_controller, bool p_expected = true) const;
+	PeerData *get_peer_data_for_controller(const PeerNetworkedController &p_controller, bool p_expected = true);
+	const PeerData *get_peer_data_for_controller(const PeerNetworkedController &p_controller, bool p_expected = true) const;
 
 	/// Returns the latest generated `ObjectNetId`.
 	ObjectNetId get_biggest_object_id() const;
 
 	void reset_controllers();
-	void reset_controller(NetworkedControllerBase &p_controller);
+	void reset_controller(PeerNetworkedController &p_controller);
 
 	float get_pretended_delta() const;
 
@@ -532,7 +529,7 @@ public:
 	virtual void on_object_data_controller_changed(NS::ObjectData *p_object_data, int p_previous_controlling_peer) {}
 	virtual void on_variable_added(NS::ObjectData *p_object_data, const std::string &p_var_name) {}
 	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) {}
-	virtual void on_controller_reset(NetworkedControllerBase &p_controller) {}
+	virtual void on_controller_reset(PeerNetworkedController &p_controller) {}
 	virtual const std::vector<ObjectData *> &get_active_objects() const = 0;
 };
 
@@ -649,7 +646,7 @@ public:
 	/// reason the server tells the client to slowdown so to keep the `frames_inputs`
 	/// size moderate to the needs.
 	void process_adjust_clients_controller_tick_rate(double p_delta);
-	void process_adjust_client_controller_tick_rate(double p_delta, int p_controller_peer, NetworkedControllerBase &p_controller);
+	void process_adjust_client_controller_tick_rate(double p_delta, int p_controller_peer, PeerNetworkedController &p_controller);
 
 	int fetch_sub_processes_count(double p_delta);
 };
@@ -665,7 +662,7 @@ public:
 
 	std::vector<ObjectNetId> simulated_objects;
 	std::vector<ObjectData *> active_objects;
-	NetworkedControllerBase *player_controller = nullptr;
+	PeerNetworkedController *player_controller = nullptr;
 	std::map<ObjectNetId, std::string> objects_names;
 
 	Snapshot last_received_snapshot;
@@ -773,7 +770,7 @@ public:
 	virtual void on_object_data_removed(NS::ObjectData &p_object_data) override;
 	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) override;
 	void signal_end_sync_changed_variables_events();
-	virtual void on_controller_reset(NetworkedControllerBase &p_controller) override;
+	virtual void on_controller_reset(PeerNetworkedController &p_controller) override;
 	virtual const std::vector<ObjectData *> &get_active_objects() const override;
 
 	void receive_snapshot(DataBuffer &p_snapshot);
@@ -810,7 +807,7 @@ private:
 
 	void __pcr__rewind(
 			const FrameIndex p_checkable_frame_index,
-			NetworkedControllerBase *p_controller,
+			PeerNetworkedController *p_controller,
 			struct PlayerController *p_player_controller);
 
 	void __pcr__sync__no_rewind(
