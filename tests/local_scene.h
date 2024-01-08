@@ -1,10 +1,10 @@
 #pragma once
 
+#include "../core/core.h"
+#include "../core/network_interface.h"
+#include "../peer_networked_controller.h"
+#include "../scene_synchronizer.h"
 #include "local_network.h"
-#include "modules/network_synchronizer/core/core.h"
-#include "modules/network_synchronizer/core/network_interface.h"
-#include "modules/network_synchronizer/networked_controller.h"
-#include "modules/network_synchronizer/scene_synchronizer.h"
 #include <memory>
 #include <string>
 

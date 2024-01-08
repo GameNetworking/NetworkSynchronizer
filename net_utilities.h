@@ -6,10 +6,8 @@
 #include "core/core.h"
 #include "core/processor.h"
 #include "core/var_data.h"
-#include "modules/network_synchronizer/core/core.h"
 #include <chrono>
 #include <map>
-#include <memory>
 #include <string>
 #include <vector>
 
@@ -433,7 +431,7 @@ struct PeerAuthorityData {
 };
 
 struct PeerData {
-	std::unique_ptr<class NetworkedControllerBase> controller;
+	std::unique_ptr<class PeerNetworkedController> controller;
 
 public:
 	PeerAuthorityData authority_data;
@@ -452,10 +450,10 @@ public:
 	std::uint8_t get_compressed_latency() const { return compressed_latency; }
 
 	void make_controller(class SceneSynchronizerBase &p_scene_sync, int p_peer);
-	NetworkedControllerBase *get_controller() {
+	PeerNetworkedController *get_controller() {
 		return controller.get();
 	}
-	const NetworkedControllerBase *get_controller() const {
+	const PeerNetworkedController *get_controller() const {
 		return controller.get();
 	}
 };
