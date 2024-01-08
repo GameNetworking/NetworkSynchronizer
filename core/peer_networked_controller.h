@@ -1,9 +1,9 @@
 #pragma once
 
-#include "core/core.h"
-#include "core/processor.h"
-#include "data_buffer.h"
+#include "../data_buffer.h"
 #include "net_utilities.h"
+#include "core.h"
+#include "processor.h"
 #include <deque>
 
 NS_NAMESPACE_BEGIN

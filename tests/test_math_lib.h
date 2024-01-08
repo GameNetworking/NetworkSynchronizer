@@ -1,6 +1,6 @@
 #pragma once
 
-#include "modules/network_synchronizer/core/var_data.h"
+#include "../core/var_data.h"
 
 namespace NS_Test {
 

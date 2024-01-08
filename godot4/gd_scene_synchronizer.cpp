@@ -4,14 +4,14 @@
 #include "core/string/string_name.h"
 #include "core/string/ustring.h"
 #include "modules/network_synchronizer/core/core.h"
+#include "modules/network_synchronizer/core/net_utilities.h"
 #include "modules/network_synchronizer/core/object_data.h"
 #include "modules/network_synchronizer/core/processor.h"
+#include "modules/network_synchronizer/core/scene_synchronizer_debugger.h"
 #include "modules/network_synchronizer/data_buffer.h"
 #include "modules/network_synchronizer/godot4/gd_network_interface.h"
 #include "modules/network_synchronizer/godot4/gd_scene_synchronizer.h"
-#include "modules/network_synchronizer/net_utilities.h"
 #include "modules/network_synchronizer/scene_synchronizer.h"
-#include "modules/network_synchronizer/scene_synchronizer_debugger.h"
 #include "modules/network_synchronizer/snapshot.h"
 #include "scene/main/multiplayer_api.h"
 #include "scene/main/node.h"
@@ -294,7 +294,7 @@ void GdSceneSynchronizer::on_uninit_synchronizer() {
 }
 
 void GdSceneSynchronizer::on_add_object_data(NS::ObjectData &p_object_data) {
-	SceneSynchronizerDebugger::singleton()->register_class_for_node_to_dump(SyncClass::from_handle(p_object_data.app_object_handle));
+	//SceneSynchronizerDebugger::singleton()->register_class_for_node_to_dump(SyncClass::from_handle(p_object_data.app_object_handle));
 }
 
 #ifdef DEBUG_ENABLED

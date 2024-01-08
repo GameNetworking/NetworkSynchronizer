@@ -1,15 +1,14 @@
 #include "test_scene_synchronizer.h"
 
 #include "core/error/error_macros.h"
-#include "core/math/vector3.h"
-#include "core/variant/variant.h"
+
+#include "../core/core.h"
+#include "../core/ensure.h"
+#include "../core/net_utilities.h"
+#include "../core/var_data.h"
+#include "../data_buffer.h"
+#include "../tests/local_network.h"
 #include "local_scene.h"
-#include "modules/network_synchronizer/core/core.h"
-#include "modules/network_synchronizer/core/ensure.h"
-#include "modules/network_synchronizer/core/var_data.h"
-#include "modules/network_synchronizer/data_buffer.h"
-#include "modules/network_synchronizer/net_utilities.h"
-#include "modules/network_synchronizer/tests/local_network.h"
 #include <functional>
 #include <vector>
 

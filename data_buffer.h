@@ -2,7 +2,7 @@
 
 #include "core/object/class_db.h"
 
-#include "bit_array.h"
+#include "core/bit_array.h"
 #include <string>
 
 class DataBuffer : public Object {

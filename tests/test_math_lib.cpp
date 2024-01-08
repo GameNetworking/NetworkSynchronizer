@@ -1,5 +1,5 @@
 #include "test_math_lib.h"
-#include "modules/network_synchronizer/tests/test_math_lib.h"
+
 #include <cmath>
 
 namespace NS_Test {

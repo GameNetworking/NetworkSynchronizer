@@ -2,12 +2,9 @@
 
 #include "core/error/error_macros.h"
 #include "core/os/memory.h"
-#include "modules/network_synchronizer/core/core.h"
-#include "modules/network_synchronizer/core/object_data.h"
-#include "modules/network_synchronizer/core/var_data.h"
-#include "modules/network_synchronizer/net_utilities.h"
-#include "modules/network_synchronizer/scene_synchronizer.h"
-#include <vector>
+
+#include "../scene_synchronizer.h"
+#include "var_data.h"
 
 NS_NAMESPACE_BEGIN
 

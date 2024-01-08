@@ -1,9 +1,9 @@
 #include "net_utilities.h"
 
-#include "core/ensure.h"
-#include "core/object_data.h"
+#include "../scene_synchronizer.h"
+#include "ensure.h"
+#include "object_data.h"
 #include "peer_networked_controller.h"
-#include "scene_synchronizer.h"
 #include "scene_synchronizer_debugger.h"
 #include <limits>
 #include <memory>

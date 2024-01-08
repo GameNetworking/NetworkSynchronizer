@@ -2,7 +2,7 @@
 
 #include "../core/core.h"
 #include "../core/network_interface.h"
-#include "../peer_networked_controller.h"
+#include "../core/peer_networked_controller.h"
 #include "../scene_synchronizer.h"
 #include "local_network.h"
 #include <memory>

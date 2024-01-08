@@ -1,11 +1,11 @@
 #include "peer_networked_controller.h"
 
 #include "core/io/marshalls.h"
+#include "core/os/os.h"
 #include "core/templates/vector.h"
 
-#include "core/ensure.h"
-#include "net_utilities.h"
-#include "scene_synchronizer.h"
+#include "../scene_synchronizer.h"
+#include "ensure.h"
 #include "scene_synchronizer_debugger.h"
 #include <algorithm>
 #include <string>

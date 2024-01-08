@@ -1,14 +1,14 @@
 
 #include "local_network.h"
 
+#include "core/error/error_macros.h"
+
 #include "../core/ensure.h"
 #include "../core/network_interface.h"
+#include "../core/peer_networked_controller.h"
 #include "../core/processor.h"
 #include "../core/var_data.h"
-#include "../peer_networked_controller.h"
 #include "../scene_synchronizer.h"
-#include "core/error/error_macros.h"
-#include "core/math/vector3.h"
 #include <functional>
 #include <map>
 #include <memory>

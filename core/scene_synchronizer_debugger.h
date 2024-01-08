@@ -1,12 +1,11 @@
 #pragma once
 
-#include "scene/main/node.h"
-
 #ifdef DEBUG_ENABLED
 
-#include "core/core.h"
-#include "core/json.hpp"
-#include "core/templates/oa_hash_map.h"
+#include "core/string/ustring.h"
+
+#include "core.h"
+#include "json.hpp"
 #include <string>
 
 #endif
@@ -20,23 +19,10 @@ namespace NS {
 class NetworkInterface;
 };
 
-class SceneSynchronizerDebugger : public Node {
-	GDCLASS(SceneSynchronizerDebugger, Node);
-
+class SceneSynchronizerDebugger {
 	static SceneSynchronizerDebugger *the_singleton;
 
 public:
-	struct TrackedNode {
-		Node *node = nullptr;
-		List<PropertyInfo> *properties = nullptr;
-		TrackedNode() = default;
-		TrackedNode(Node *p_node) :
-				node(p_node) {}
-		TrackedNode(Node *p_node, List<PropertyInfo> *p_properties) :
-				node(p_node), properties(p_properties) {}
-		bool operator==(const TrackedNode &p_t) const { return p_t.node == node; }
-	};
-
 	enum DataBufferDumpMode {
 		NONE,
 		WRITE,
@@ -51,14 +37,12 @@ public:
 
 public:
 	static SceneSynchronizerDebugger *singleton();
-	static void _bind_methods();
 
 private:
 	NS::PrintMessageType log_level = NS::PrintMessageType::ERROR;
 
 #ifdef DEBUG_ENABLED
 	bool dump_enabled = false;
-	LocalVector<StringName> dump_classes;
 	bool setup_done = false;
 
 	uint32_t log_counter = 0;
@@ -66,12 +50,6 @@ private:
 	std::string main_dump_directory_path;
 	std::string dump_name;
 
-	std::vector<TrackedNode> tracked_nodes;
-
-	// HashMap between class name and property list: to avoid fetching the property list per object each frame.
-	OAHashMap<StringName, List<PropertyInfo>> classes_property_lists;
-
-	// JSON of dictionary containing nodes info.
 	nlohmann::json::object_t frame_dump__begin_state;
 
 	// JSON of dictionary containing nodes info.
@@ -114,18 +92,11 @@ public:
 	void set_dump_enabled(bool p_dump_enabled);
 	bool get_dump_enabled() const;
 
-	void register_class_for_node_to_dump(Node *p_node);
-	void register_class_to_dump(const StringName &p_class);
-	void unregister_class_to_dump(const StringName &p_class);
-
 	void setup_debugger(const std::string &p_dump_name, int p_peer, SceneTree *p_scene_tree);
 
 private:
 	void prepare_dumping(int p_peer, SceneTree *p_scene_tree);
 	void setup_debugger_python_ui();
-	void track_node(Node *p_node, bool p_recursive);
-	void on_node_added(Node *p_node);
-	void on_node_removed(Node *p_node);
 
 public:
 	void write_dump(int p_peer, uint32_t p_frame_index);

@@ -9,7 +9,7 @@
 #include "scene/main/node.h"
 
 #include "modules/network_synchronizer/core/core.h"
-#include "modules/network_synchronizer/net_utilities.h"
+#include "modules/network_synchronizer/core/net_utilities.h"
 
 class GdSceneSynchronizer : public Node, public NS::SynchronizerManager {
 	GDCLASS(GdSceneSynchronizer, Node);

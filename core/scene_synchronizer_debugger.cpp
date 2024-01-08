@@ -3,15 +3,15 @@
 #ifdef DEBUG_ENABLED
 
 #include "__generated__debugger_ui.h"
+
 #include "core/io/dir_access.h"
 #include "core/io/file_access.h"
-#include "core/network_interface.h"
 #include "core/os/os.h"
-#include "data_buffer.h"
+
+#include "../data_buffer.h"
+#include "../scene_synchronizer.h"
 #include "net_utilities.h"
-#include "scene/main/viewport.h"
-#include "scene/main/window.h"
-#include "scene_synchronizer.h"
+#include "network_interface.h"
 #include <string>
 
 #endif
@@ -22,13 +22,7 @@ SceneSynchronizerDebugger *SceneSynchronizerDebugger::singleton() {
 	return the_singleton;
 }
 
-void SceneSynchronizerDebugger::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("on_node_added"), &SceneSynchronizerDebugger::on_node_added);
-	ClassDB::bind_method(D_METHOD("on_node_removed"), &SceneSynchronizerDebugger::on_node_removed);
-}
-
-SceneSynchronizerDebugger::SceneSynchronizerDebugger() :
-		Node() {
+SceneSynchronizerDebugger::SceneSynchronizerDebugger() {
 	if (the_singleton == nullptr) {
 		the_singleton = this;
 	}
@@ -43,8 +37,6 @@ SceneSynchronizerDebugger::~SceneSynchronizerDebugger() {
 	}
 
 #ifdef DEBUG_ENABLED
-	tracked_nodes.clear();
-	classes_property_lists.clear();
 	frame_dump__begin_state.clear();
 	frame_dump__end_state.clear();
 	frame_dump__node_log.clear();
@@ -76,51 +68,10 @@ bool SceneSynchronizerDebugger::get_dump_enabled() const {
 #endif
 }
 
-void SceneSynchronizerDebugger::register_class_for_node_to_dump(Node *p_node) {
-#ifdef DEBUG_ENABLED
-	register_class_to_dump(p_node->get_class_name());
-	track_node(p_node, false);
-#endif
-}
-
-void SceneSynchronizerDebugger::register_class_to_dump(const StringName &p_class) {
-#ifdef DEBUG_ENABLED
-	ERR_FAIL_COND(p_class == StringName());
-
-	if (dump_classes.find(p_class) == -1) {
-		dump_classes.push_back(p_class);
-	}
-#endif
-}
-
-void SceneSynchronizerDebugger::unregister_class_to_dump(const StringName &p_class) {
-#ifdef DEBUG_ENABLED
-	const int64_t index = dump_classes.find(p_class);
-	if (index >= 0) {
-		dump_classes.remove_at_unordered(index);
-	}
-#endif
-}
-
 void SceneSynchronizerDebugger::setup_debugger(const std::string &p_dump_name, int p_peer, SceneTree *p_scene_tree) {
 #ifdef DEBUG_ENABLED
 	if (setup_done == false) {
 		setup_done = true;
-
-		// Setup `dump_enabled`
-		if (!dump_enabled) {
-			dump_enabled = GLOBAL_GET("NetworkSynchronizer/debugger/dump_enabled");
-		}
-
-		// Setup `dump_classes`.
-		{
-			Array classes = GLOBAL_GET("NetworkSynchronizer/debugger/dump_classes");
-			for (uint32_t i = 0; i < uint32_t(classes.size()); i += 1) {
-				if (classes[i].get_type() == Variant::STRING) {
-					register_class_to_dump(classes[i]);
-				}
-			}
-		}
 	}
 
 	// Setup directories.
@@ -185,22 +136,7 @@ void SceneSynchronizerDebugger::prepare_dumping(int p_peer, SceneTree *p_scene_t
 		file->store_string(d.dump().c_str());
 	}
 
-	if (scene_tree) {
-		scene_tree->disconnect(SNAME("node_added"), Callable(this, SNAME("on_node_added")));
-		scene_tree->disconnect(SNAME("node_removed"), Callable(this, SNAME("on_node_removed")));
-	}
-
-	tracked_nodes.clear();
-	classes_property_lists.clear();
 	scene_tree = p_scene_tree;
-
-	if (scene_tree) {
-		scene_tree->connect(SNAME("node_added"), Callable(this, SNAME("on_node_added")));
-		scene_tree->connect(SNAME("node_removed"), Callable(this, SNAME("on_node_removed")));
-
-		// Start by tracking the existing node.
-		track_node(scene_tree->get_root(), true);
-	}
 #endif
 }
 
@@ -219,51 +155,6 @@ void SceneSynchronizerDebugger::setup_debugger_python_ui() {
 	ENSURE_MSG(!f.is_null(), "Can't create the `" + path + "` file.");
 
 	f->store_buffer((uint8_t *)__debugger_ui_code, __debugger_ui_code_size);
-#endif
-}
-
-void SceneSynchronizerDebugger::track_node(Node *p_node, bool p_recursive) {
-#ifdef DEBUG_ENABLED
-	if (!NS::VecFunc::has(tracked_nodes, p_node)) {
-		const bool is_tracked = dump_classes.find(p_node->get_class_name()) != -1;
-		if (is_tracked) {
-			// Verify if the property list already exists.
-			if (!classes_property_lists.has(p_node->get_class_name())) {
-				// Property list not yet cached, fetch it now.
-				classes_property_lists.insert(p_node->get_class_name(), List<PropertyInfo>());
-				List<PropertyInfo> *properties = classes_property_lists.lookup_ptr(p_node->get_class_name());
-
-				p_node->get_property_list(properties);
-			}
-
-			List<PropertyInfo> *properties = classes_property_lists.lookup_ptr(p_node->get_class_name());
-
-			// Can't happen, as it was just created.
-			CRASH_COND(properties == nullptr);
-
-			// Assign the property list pointer for fast access.
-			tracked_nodes.push_back(TrackedNode(p_node, properties));
-		}
-	}
-
-	if (p_recursive) {
-		for (int i = 0; i < p_node->get_child_count(); i += 1) {
-			Node *child = p_node->get_child(i);
-			track_node(child, true);
-		}
-	}
-#endif
-}
-
-void SceneSynchronizerDebugger::on_node_added(Node *p_node) {
-#ifdef DEBUG_ENABLED
-	track_node(p_node, false);
-#endif
-}
-
-void SceneSynchronizerDebugger::on_node_removed(Node *p_node) {
-#ifdef DEBUG_ENABLED
-	NS::VecFunc::remove_unordered(tracked_nodes, p_node);
 #endif
 }
 
@@ -651,6 +542,7 @@ void SceneSynchronizerDebugger::dump_tracked_objects(const NS::SceneSynchronizer
 #ifdef DEBUG_ENABLED
 	p_dump.clear();
 
+	/*
 	for (uint32_t i = 0; i < tracked_nodes.size(); i += 1) {
 		nlohmann::json object_dump;
 
@@ -669,5 +561,6 @@ void SceneSynchronizerDebugger::dump_tracked_objects(const NS::SceneSynchronizer
 
 		p_dump[node_path] = object_dump;
 	}
+	*/
 #endif
 }

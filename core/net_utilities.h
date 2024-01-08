@@ -3,9 +3,9 @@
 #include "core/config/project_settings.h"
 #include "core/templates/local_vector.h"
 
-#include "core/core.h"
-#include "core/processor.h"
-#include "core/var_data.h"
+#include "core.h"
+#include "processor.h"
+#include "var_data.h"
 #include <chrono>
 #include <map>
 #include <string>

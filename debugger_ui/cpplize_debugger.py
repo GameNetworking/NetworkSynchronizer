@@ -3,7 +3,7 @@ from os.path import isfile, join, isdir, exists
 
 def create_debugger_header():
     
-    f = open("__generated__debugger_ui.h", "w", encoding="utf-8")
+    f = open("core/__generated__debugger_ui.h", "w", encoding="utf-8")
     f.write("#pragma once\n")
     f.write("\n")
     f.write("/// This is a generated file by `cpplize_debugger.py`, executed by `SCsub`.\n")

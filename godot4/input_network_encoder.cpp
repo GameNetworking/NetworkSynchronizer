@@ -1,9 +1,9 @@
 #include "input_network_encoder.h"
 
+#include "../scene_synchronizer.h"
+#include "modules/network_synchronizer/core/scene_synchronizer_debugger.h"
 #include "modules/network_synchronizer/godot4/gd_network_interface.h"
 #include "modules/network_synchronizer/godot4/gd_scene_synchronizer.h"
-#include "modules/network_synchronizer/scene_synchronizer_debugger.h"
-#include "scene_synchronizer.h"
 
 void InputNetworkEncoder::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("register_input", "name", "default_value", "type", "compression_level", "comparison_floating_point_precision"), &InputNetworkEncoder::register_input, DEFVAL(CMP_EPSILON));

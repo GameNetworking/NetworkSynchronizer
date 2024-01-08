@@ -1,8 +1,8 @@
 #pragma once
 
 #include "core.h"
-#include "modules/network_synchronizer/core/object_data.h"
-#include "modules/network_synchronizer/net_utilities.h"
+#include "net_utilities.h"
+#include "object_data.h"
 #include <map>
 #include <vector>
 

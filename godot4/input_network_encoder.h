@@ -1,9 +1,9 @@
 #pragma once
 
+#include "../data_buffer.h"
 #include "core/io/resource.h"
 #include "core/templates/local_vector.h"
 #include "core/variant/variant.h"
-#include "data_buffer.h"
 
 struct NetworkedInputInfo {
 	StringName name;

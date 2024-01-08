@@ -2,7 +2,7 @@
 
 #include "core/object_data.h"
 #include "core/var_data.h"
-#include "net_utilities.h"
+#include "core/net_utilities.h"
 
 namespace NS {
 class SceneSynchronizerBase;
