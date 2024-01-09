@@ -10,9 +10,9 @@
 #include "core/object_data.h"
 #include "core/peer_networked_controller.h"
 #include "core/scene_synchronizer_debugger.h"
+#include "core/snapshot.h"
 #include "core/var_data.h"
 #include "data_buffer.h"
-#include "snapshot.h"
 #include <chrono>
 #include <limits>
 #include <string>
@@ -2479,6 +2479,8 @@ void ClientSynchronizer::receive_snapshot(DataBuffer &p_snapshot) {
 		return;
 	}
 
+	scene_synchronizer->event_received_snapshot.broadcast(last_received_snapshot);
+
 	// Finalize data.
 	store_controllers_snapshot(last_received_snapshot);
 }
@@ -3665,10 +3667,23 @@ void ClientSynchronizer::apply_snapshot(
 			continue;
 		}
 
+		if (object_data->get_controlled_by_peer() > 0) {
+			PeerNetworkedController *controller = scene_synchronizer->get_controller_for_peer(object_data->get_controlled_by_peer(), false);
+			if (controller && controller->is_doll_controller()) {
+				// This object data is being controller by a doll controller;
+				// in this case the rewind is handled by the controller.
+				controller->get_doll_controller()->notify_applied_snapshot(p_snapshot.input_id, object_data->get_net_id());
+				if (r_applied_data_info) {
+					r_applied_data_info->push_back("Applied snapshot forwarded to DollController for the object: " + object_data->object_name);
+				}
+				continue;
+			}
+		}
+
 		const std::vector<NS::NameAndVar> &snap_object_vars = snap_objects_vars[net_node_id.id];
 
 		if (r_applied_data_info) {
-			r_applied_data_info->push_back("Applied snapshot data on the node: " + std::string(object_data->object_name.c_str()));
+			r_applied_data_info->push_back("Applied snapshot on the object: " + object_data->object_name);
 		}
 
 		// NOTE: The vars may not contain ALL the variables: it depends on how
@@ -3711,7 +3726,7 @@ void ClientSynchronizer::apply_snapshot(
 							object_data->app_object_handle,
 							variable_name.c_str(),
 							current_val);
-					ASSERT_COND_MSG(SceneSynchronizerBase::var_data_compare(current_val, snap_value), "There was a fatal error while setting the propertly `" + variable_name + "` on the object `" + object_data->object_name + "`. The set data differs from the property set by the NetSync: set data `" + scene_synchronizer->var_data_stringify(current_val, true).c_str() + "` NetSync data `" + scene_synchronizer->var_data_stringify(snap_value, true) + "`");
+					ASSERT_COND_MSG(SceneSynchronizerBase::var_data_compare(current_val, snap_value), "There was a fatal error while setting the propertly `" + variable_name + "` on the object `" + object_data->object_name + "`. The set data differs from the property set by the NetSync: set data `" + scene_synchronizer->var_data_stringify(current_val, true) + "` NetSync data `" + scene_synchronizer->var_data_stringify(snap_value, true) + "`");
 				}
 #endif
 

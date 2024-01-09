@@ -4,6 +4,7 @@
 #include "core.h"
 #include "net_utilities.h"
 #include "processor.h"
+#include "snapshot.h"
 #include <deque>
 
 NS_NAMESPACE_BEGIN
@@ -369,17 +370,44 @@ struct PlayerController final : public Controller {
 /// After the execution of the inputs, the puppet start to act like the player,
 /// because it wait the player status from the server to correct its motion.
 struct DollController final : public RemotelyControlledController {
-	DollController(PeerNetworkedController *p_node);
+public:
+	struct DollSnapshot {
+		FrameIndex index = FrameIndex::NONE;
+		std::map<ObjectNetId, std::vector<NameAndVar>> objects_vars;
 
+		DollSnapshot() = default;
+		DollSnapshot(DollSnapshot &&p_other) = default;
+		DollSnapshot &operator=(DollSnapshot &&p_other) = default;
+
+		DollSnapshot(const DollSnapshot &p_other) = delete;
+		DollSnapshot operator=(const DollSnapshot &p_other) = delete;
+
+		DollSnapshot(FrameIndex p_index) :
+				index(p_index) {}
+
+		bool operator==(const DollSnapshot &p_other) const { return index == p_other.index; }
+	};
+
+public:
+	NS::PHandler event_handler_received_snapshot = NS::NullPHandler;
 	FrameIndex last_checked_input = FrameIndex::NONE;
 	int queued_instant_to_process = -1;
+	// Contains the controlled nodes frames snapshot.
+	std::vector<DollSnapshot> snapshots;
+
+public:
+	DollController(PeerNetworkedController *p_node);
+	~DollController();
 
 	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;
+	void received_snapshot(const Snapshot &p_snapshot);
 	virtual void queue_instant_process(FrameIndex p_input_id, int p_index, int p_count) override;
 	virtual bool fetch_next_input(double p_delta) override;
 	virtual void process(double p_delta) override;
 	virtual void on_state_validated(FrameIndex p_frame_index) override;
 	void notify_frame_checked(FrameIndex p_input_id);
+
+	void notify_applied_snapshot(FrameIndex frame_index, ObjectNetId p_id);
 };
 
 /// This controller is used when the game instance is not a peer of any kind.

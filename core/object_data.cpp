@@ -6,9 +6,27 @@
 
 NS_NAMESPACE_BEGIN
 
+NameAndVar::NameAndVar(NameAndVar &&p_other) :
+		name(std::move(p_other.name)),
+		value(std::move(p_other.value)) {
+}
+
+NameAndVar &NameAndVar::operator=(NameAndVar &&p_other) {
+	name = std::move(p_other.name);
+	value = std::move(p_other.value);
+	return *this;
+}
+
 void NameAndVar::copy(const NameAndVar &p_nav) {
 	name = p_nav.name;
 	value.copy(p_nav.value);
+}
+
+NameAndVar NameAndVar::make_copy(const NameAndVar &p_other) {
+	NameAndVar named_var;
+	named_var.name = p_other.name;
+	named_var.value.copy(p_other.value);
+	return named_var;
 }
 
 VarDescriptor::VarDescriptor(VarId p_id, const std::string &p_name, VarData &&p_val, bool p_skip_rewinding, bool p_enabled) :

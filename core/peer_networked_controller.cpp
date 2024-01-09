@@ -1339,6 +1339,15 @@ bool PlayerController::can_accept_new_inputs() const {
 
 DollController::DollController(PeerNetworkedController *p_peer_controller) :
 		RemotelyControlledController(p_peer_controller) {
+	event_handler_received_snapshot = peer_controller->scene_synchronizer->event_received_snapshot.bind(
+			[this](const Snapshot &p_received_snapshot) -> void {
+				received_snapshot(p_received_snapshot);
+			});
+}
+
+DollController::~DollController() {
+	peer_controller->scene_synchronizer->event_received_snapshot.unbind(event_handler_received_snapshot);
+	event_handler_received_snapshot = NS::NullPHandler;
 }
 
 bool DollController::receive_inputs(const Vector<uint8_t> &p_data) {
@@ -1394,6 +1403,49 @@ bool DollController::receive_inputs(const Vector<uint8_t> &p_data) {
 	}
 
 	return success;
+}
+
+bool is_doll_snap_A_older(const DollController::DollSnapshot &p_snap_a, const DollController::DollSnapshot &p_snap_b) {
+	return p_snap_a.index < p_snap_b.index;
+}
+
+void DollController::received_snapshot(const Snapshot &p_snapshot) {
+	const std::vector<ObjectData *> *controlled_objects = peer_controller->scene_synchronizer->get_peer_controlled_objects_data(peer_controller->get_authority_peer());
+	if (!controlled_objects) {
+		// Nothing to store.
+		return;
+	}
+
+	if (last_checked_input != FrameIndex::NONE && last_checked_input >= p_snapshot.input_id) {
+		// Snapshot already checked, no need to store this.
+		return;
+	}
+
+	DollSnapshot *snap;
+	if (VecFunc::has(snapshots, DollSnapshot(p_snapshot.input_id))) {
+		std::vector<DollSnapshot>::iterator it = VecFunc::find(snapshots, DollSnapshot(p_snapshot.input_id));
+		snap = &*it;
+	} else {
+		snapshots.push_back(DollSnapshot(p_snapshot.input_id));
+		snap = &snapshots.back();
+	}
+
+	// This can't trigger because of the above check.
+	ASSERT_COND(snap->index == p_snapshot.input_id);
+
+	for (ObjectData *object_data : *controlled_objects) {
+		const std::vector<NameAndVar> *vars = p_snapshot.get_object_vars(object_data->get_net_id());
+		ENSURE_CONTINUE_MSG(vars, "The snapshot didn't contain the object: " + object_data->get_net_id() + ". If this error spams for a long period (5/10 seconds), it's a bug.");
+		std::map<ObjectNetId, std::vector<NameAndVar>>::iterator snap_object_vars = MapFunc::insert_if_new(snap->objects_vars, object_data->get_net_id(), std::vector<NameAndVar>());
+		for (const NameAndVar &nav : *vars) {
+			snap_object_vars->second.push_back(NameAndVar::make_copy(nav));
+		}
+	}
+
+	std::sort(
+			snapshots.begin(),
+			snapshots.end(),
+			is_doll_snap_A_older);
 }
 
 void DollController::queue_instant_process(FrameIndex p_frame_index, int p_index, int p_count) {
@@ -1482,7 +1534,7 @@ void DollController::notify_frame_checked(FrameIndex p_frame_index) {
 		return;
 	}
 
-	// Removes all the inputs older the known one (included).
+	// Removes all the inputs older than the known one (included).
 	while (frames_input.empty() == false && frames_input.front().id <= p_frame_index) {
 		if (frames_input.front().id == p_frame_index) {
 			// Pause the streaming if the last frame is empty.
@@ -1492,6 +1544,10 @@ void DollController::notify_frame_checked(FrameIndex p_frame_index) {
 	}
 
 	last_checked_input = p_frame_index;
+}
+
+void DollController::notify_applied_snapshot(FrameIndex frame_index, ObjectNetId p_id) {
+	ASSERT_NO_ENTRY(); // TODO implement.
 }
 
 NoNetController::NoNetController(PeerNetworkedController *p_peer_controller) :

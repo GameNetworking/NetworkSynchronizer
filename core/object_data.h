@@ -16,7 +16,16 @@ struct NameAndVar {
 	std::string name;
 	VarData value;
 
+	NameAndVar() = default;
+
+	NameAndVar(const NameAndVar &) = delete;
+	NameAndVar &operator=(const NameAndVar &) = delete;
+
+	NameAndVar(NameAndVar &&p_other);
+	NameAndVar &operator=(NameAndVar &&p_other);
+
 	void copy(const NameAndVar &p_nav);
+	static NameAndVar make_copy(const NameAndVar &p_other);
 };
 
 struct VarDescriptor {

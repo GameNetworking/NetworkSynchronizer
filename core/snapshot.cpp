@@ -1,20 +1,18 @@
 #include "snapshot.h"
 
-#include "scene/main/node.h"
-#include "scene_synchronizer.h"
-#include <cstddef>
+#include "../scene_synchronizer.h"
 
-NS::Snapshot::operator String() const {
-	String s;
-	s += "Snapshot input ID: " + uitos(input_id.id);
+NS::Snapshot::operator std::string() const {
+	std::string s;
+	s += "Snapshot input ID: " + input_id;
 
 	for (std::size_t net_node_id = 0; net_node_id < object_vars.size(); net_node_id += 1) {
-		s += "\nNode Data: " + itos(net_node_id);
+		s += "\nObject Data: " + std::to_string(net_node_id);
 		for (std::size_t i = 0; i < object_vars[net_node_id].size(); i += 1) {
 			s += "\n|- Variable: ";
-			s += object_vars[net_node_id][i].name.c_str();
+			s += object_vars[net_node_id][i].name;
 			s += " = ";
-			s += SceneSynchronizerBase::var_data_stringify(object_vars[net_node_id][i].value).c_str();
+			s += SceneSynchronizerBase::var_data_stringify(object_vars[net_node_id][i].value);
 		}
 	}
 	s += "\nCUSTOM DATA:\n";
@@ -101,6 +99,13 @@ bool compare_vars(
 #else
 	return true;
 #endif
+}
+
+const std::vector<NS::NameAndVar> *NS::Snapshot::get_object_vars(ObjectNetId p_id) const {
+	if (object_vars.size() > p_id.id) {
+		return &object_vars[p_id.id];
+	}
+	return nullptr;
 }
 
 NS::Snapshot NS::Snapshot::make_copy(const Snapshot &p_other) {
