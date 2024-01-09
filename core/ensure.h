@@ -41,10 +41,11 @@ void _ns_print_flush_stdout();
 
 /// Ensures `m_cond` is true.
 /// If `m_cond` is false the current function returns.
-#define ENSURE(m_cond)        \
-	if make_likely (m_cond) { \
-	} else {                  \
-		return;               \
+#define ENSURE(m_cond)                                                                                                                         \
+	if make_likely (m_cond) {                                                                                                                  \
+	} else {                                                                                                                                   \
+		_ns_print_code_message(FUNCTION_STR, __FILE__, __LINE__, "Condition \"" _STR(m_cond) "\" is false.", "", NS::PrintMessageType::ERROR); \
+		return;                                                                                                                                \
 	}
 
 /// Ensures `m_cond` is true.
@@ -58,10 +59,11 @@ void _ns_print_flush_stdout();
 
 /// Ensures `m_cond` is true.
 /// If `m_cond` is false, the current function returns `m_retval`.
-#define ENSURE_V(m_cond, m_retval) \
-	if make_likely (m_cond) {      \
-	} else {                       \
-		return m_retval;           \
+#define ENSURE_V(m_cond, m_retval)                                                                                                                                        \
+	if make_likely (m_cond) {                                                                                                                                             \
+	} else {                                                                                                                                                              \
+		_ns_print_code_message(FUNCTION_STR, __FILE__, __LINE__, "Condition \"" _STR(m_cond) "\" is false. Returning: " _STR(m_retval), "", NS::PrintMessageType::ERROR); \
+		return m_retval;                                                                                                                                                  \
 	}
 
 /// Ensures `m_cond` is true.
@@ -71,6 +73,24 @@ void _ns_print_flush_stdout();
 	} else {                                                                                                                                                                 \
 		_ns_print_code_message(FUNCTION_STR, __FILE__, __LINE__, "Condition \"" _STR(m_cond) "\" is false. Returning: " _STR(m_retval), m_msg, NS::PrintMessageType::ERROR); \
 		return m_retval;                                                                                                                                                     \
+	}
+
+/// Ensures `m_cond` is true.
+/// If `m_cond` is false the current function returns.
+#define ENSURE_CONTINUE(m_cond)                                                                                                                \
+	if make_likely (m_cond) {                                                                                                                  \
+	} else {                                                                                                                                   \
+		_ns_print_code_message(FUNCTION_STR, __FILE__, __LINE__, "Condition \"" _STR(m_cond) "\" is false.", "", NS::PrintMessageType::ERROR); \
+		continue;                                                                                                                              \
+	}
+
+/// Ensures `m_cond` is true.
+/// If `m_cond` is false the current function returns.
+#define ENSURE_CONTINUE_MSG(m_cond, m_msg)                                                                                                        \
+	if make_likely (m_cond) {                                                                                                                     \
+	} else {                                                                                                                                      \
+		_ns_print_code_message(FUNCTION_STR, __FILE__, __LINE__, "Condition \"" _STR(m_cond) "\" is false.", m_msg, NS::PrintMessageType::ERROR); \
+		continue;                                                                                                                                 \
 	}
 
 #define ASSERT_NO_ENTRY()                                                                                                    \

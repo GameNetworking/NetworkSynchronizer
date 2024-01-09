@@ -1,8 +1,8 @@
 #pragma once
 
-#include "core/object_data.h"
-#include "core/var_data.h"
-#include "core/net_utilities.h"
+#include "net_utilities.h"
+#include "object_data.h"
+#include "var_data.h"
 
 namespace NS {
 class SceneSynchronizerBase;
@@ -11,7 +11,7 @@ struct Snapshot {
 	FrameIndex input_id = FrameIndex::NONE;
 	std::vector<NS::ObjectNetId> simulated_objects;
 	/// The Node variables in a particular frame. The order of this vector
-	/// matters because the index is the `NetNodeId`.
+	/// matters because the index is the `ObjectNetId`.
 	/// The variable array order also matter.
 	std::vector<std::vector<NameAndVar>> object_vars;
 
@@ -22,7 +22,9 @@ struct Snapshot {
 	VarData custom_data;
 
 public:
-	operator String() const;
+	operator std::string() const;
+
+	const std::vector<NameAndVar> *get_object_vars(ObjectNetId p_id) const;
 
 	/// Copy the given snapshot.
 	static Snapshot make_copy(const Snapshot &p_other);

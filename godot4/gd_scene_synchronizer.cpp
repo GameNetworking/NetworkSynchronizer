@@ -13,7 +13,6 @@
 #include "modules/network_synchronizer/godot4/gd_network_interface.h"
 #include "modules/network_synchronizer/godot4/gd_scene_synchronizer.h"
 #include "modules/network_synchronizer/scene_synchronizer.h"
-#include "modules/network_synchronizer/snapshot.h"
 #include "scene/main/multiplayer_api.h"
 #include "scene/main/node.h"
 #include "scene/main/window.h"
