@@ -1,5 +1,6 @@
 #include "peer_networked_controller.h"
 
+#include "core/config/project_settings.h"
 #include "core/io/marshalls.h"
 #include "core/os/os.h"
 #include "core/templates/vector.h"

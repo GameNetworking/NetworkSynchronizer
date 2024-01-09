@@ -1,5 +1,6 @@
 #include "gd_scene_synchronizer.h"
 
+#include "core/config/project_settings.h"
 #include "core/object/object.h"
 #include "core/string/string_name.h"
 #include "core/string/ustring.h"

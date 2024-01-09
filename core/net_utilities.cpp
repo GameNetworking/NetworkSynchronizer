@@ -242,15 +242,15 @@ void NS::SyncGroup::remove_all_nodes() {
 void NS::SyncGroup::notify_new_variable(ObjectData *p_object_data, const std::string &p_var_name) {
 	int index = simulated_sync_objects.find(p_object_data);
 	if (index >= 0) {
-		simulated_sync_objects[index].change.vars.insert(p_var_name);
-		simulated_sync_objects[index].change.uknown_vars.insert(p_var_name);
+		VecFunc::insert_unique(simulated_sync_objects[index].change.vars, p_var_name);
+		VecFunc::insert_unique(simulated_sync_objects[index].change.uknown_vars, p_var_name);
 	}
 }
 
 void NS::SyncGroup::notify_variable_changed(ObjectData *p_object_data, const std::string &p_var_name) {
 	int index = simulated_sync_objects.find(p_object_data);
 	if (index >= 0) {
-		simulated_sync_objects[index].change.vars.insert(p_var_name);
+		VecFunc::insert_unique(simulated_sync_objects[index].change.vars, p_var_name);
 	}
 }
 

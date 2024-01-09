@@ -1,11 +1,11 @@
 #pragma once
 
-#include "core/config/project_settings.h"
 #include "core/templates/local_vector.h"
 
 #include "core.h"
 #include "processor.h"
 #include "var_data.h"
+#include <math.h>
 #include <chrono>
 #include <map>
 #include <string>
@@ -361,7 +361,7 @@ T StatisticalRingBuffer<T>::average() const {
 	a = a / T(data.size());
 	T b = avg_sum / T(data.size());
 	const T difference = a > b ? a - b : b - a;
-	ERR_FAIL_COND_V_MSG(difference > (CMP_EPSILON * 4.0), b, "The `avg_sum` accumulated a sensible precision loss: " + rtos(difference));
+	ERR_FAIL_COND_V_MSG(difference > (std::numeric_limits<T>::epsilon() * 4.0), b, "The `avg_sum` accumulated a sensible precision loss: " + rtos(difference));
 	return b;
 #else
 	// Divide it by the buffer size is wrong when the buffer is not yet fully
@@ -381,10 +381,10 @@ T StatisticalRingBuffer<T>::average_rounded() const {
 	for (uint32_t i = 1; i < data.size(); i += 1) {
 		a += data[i];
 	}
-	a = Math::round(double(a) / double(data.size()));
-	T b = Math::round(double(avg_sum) / double(data.size()));
+	a = round(double(a) / double(data.size()));
+	T b = round(double(avg_sum) / double(data.size()));
 	const T difference = a > b ? a - b : b - a;
-	ERR_FAIL_COND_V_MSG(difference > (CMP_EPSILON * 4.0), b, "The `avg_sum` accumulated a sensible precision loss: " + rtos(difference));
+	ERR_FAIL_COND_V_MSG(difference > (std::numeric_limits<T>::epsilon() * 4.0), b, "The `avg_sum` accumulated a sensible precision loss: " + rtos(difference));
 	return b;
 #else
 	// Divide it by the buffer size is wrong when the buffer is not yet fully
@@ -403,10 +403,10 @@ T StatisticalRingBuffer<T>::get_deviation(T p_mean) const {
 
 	double r = 0;
 	for (uint32_t i = 0; i < data.size(); i += 1) {
-		r += Math::pow(double(data[i]) - double(p_mean), 2.0);
+		r += pow(double(data[i]) - double(p_mean), 2.0);
 	}
 
-	return Math::sqrt(r / double(data.size()));
+	return sqrt(r / double(data.size()));
 }
 
 template <class T>
@@ -474,8 +474,8 @@ struct SyncGroup {
 public:
 	struct Change {
 		bool unknown = false;
-		RBSet<std::string> uknown_vars;
-		RBSet<std::string> vars;
+		std::vector<std::string> uknown_vars;
+		std::vector<std::string> vars;
 	};
 
 	struct SimulatedObjectInfo {
