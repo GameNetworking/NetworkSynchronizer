@@ -439,7 +439,7 @@ bool PeerNetworkedController::__input_data_parse(
 
 		// Pad to 8 bits.
 		const int input_size_padded =
-				Math::ceil((static_cast<float>(input_size_in_bits)) / 8.0);
+				Math::ceil(static_cast<float>(input_size_in_bits) / 8.0);
 		ENSURE_V_MSG(ofs + input_size_padded <= data_len, false, "The arrived packet size doesn't meet the expected size.");
 
 		// Extract the data and copy into a BitArray.
@@ -512,7 +512,7 @@ void RemotelyControlledController::on_peer_update(bool p_peer_enabled) {
 
 	// Client inputs reset.
 	ghost_input_count = 0;
-	snapshots.clear();
+	frames_input.clear();
 }
 
 FrameIndex RemotelyControlledController::get_current_frame_index() const {
@@ -520,12 +520,12 @@ FrameIndex RemotelyControlledController::get_current_frame_index() const {
 }
 
 int RemotelyControlledController::get_inputs_count() const {
-	return snapshots.size();
+	return frames_input.size();
 }
 
 FrameIndex RemotelyControlledController::last_known_frame_index() const {
-	if (snapshots.size() > 0) {
-		return snapshots.back().id;
+	if (frames_input.size() > 0) {
+		return frames_input.back().id;
 	} else {
 		return FrameIndex::NONE;
 	}
@@ -536,10 +536,10 @@ bool RemotelyControlledController::fetch_next_input(double p_delta) {
 
 	if (unlikely(current_input_buffer_id == FrameIndex::NONE)) {
 		// As initial packet, anything is good.
-		if (snapshots.empty() == false) {
+		if (frames_input.empty() == false) {
 			// First input arrived.
-			set_frame_input(snapshots.front(), true);
-			snapshots.pop_front();
+			set_frame_input(frames_input.front(), true);
+			frames_input.pop_front();
 			// Start tracing the packets from this moment on.
 			SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] Input `" + current_input_buffer_id + "` selected as first input.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 		} else {
@@ -553,13 +553,13 @@ bool RemotelyControlledController::fetch_next_input(double p_delta) {
 		if (unlikely(streaming_paused)) {
 			SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] The streaming is paused.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 			// Stream is paused.
-			if (snapshots.empty() == false &&
-					snapshots.front().id >= next_input_id) {
+			if (frames_input.empty() == false &&
+					frames_input.front().id >= next_input_id) {
 				// A new input has arrived while the stream is paused.
-				const bool is_buffer_void = (snapshots.front().buffer_size_bit - METADATA_SIZE) == 0;
+				const bool is_buffer_void = (frames_input.front().buffer_size_bit - METADATA_SIZE) == 0;
 				streaming_paused = is_buffer_void;
-				set_frame_input(snapshots.front(), true);
-				snapshots.pop_front();
+				set_frame_input(frames_input.front(), true);
+				frames_input.pop_front();
 				is_new_input = true;
 			} else {
 				// No inputs, or we are not yet arrived to the client input,
@@ -567,7 +567,7 @@ bool RemotelyControlledController::fetch_next_input(double p_delta) {
 				peer_controller->set_inputs_buffer(BitArray(METADATA_SIZE), METADATA_SIZE, 0);
 				is_new_input = false;
 			}
-		} else if (unlikely(snapshots.empty() == true)) {
+		} else if (unlikely(frames_input.empty() == true)) {
 			// The input buffer is empty; a packet is missing.
 			SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] Missing input: " + std::to_string(next_input_id.id) + " Input buffer is void, i'm using the previous one!", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
@@ -578,12 +578,12 @@ bool RemotelyControlledController::fetch_next_input(double p_delta) {
 			SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] The input buffer is not empty, so looking for the next input. Hopefully `" + std::to_string(next_input_id.id) + "`", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
 			// The input buffer is not empty, search the new input.
-			if (next_input_id == snapshots.front().id) {
+			if (next_input_id == frames_input.front().id) {
 				SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] The input `" + std::to_string(next_input_id.id) + "` was found.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
 				// Wow, the next input is perfect!
-				set_frame_input(snapshots.front(), false);
-				snapshots.pop_front();
+				set_frame_input(frames_input.front(), false);
+				frames_input.pop_front();
 
 				ghost_input_count = 0;
 			} else {
@@ -625,28 +625,28 @@ bool RemotelyControlledController::fetch_next_input(double p_delta) {
 				SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] The input `" + std::to_string(next_input_id.id) + "` was NOT found. Recovering process started.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 				SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] ghost_input_count: `" + std::to_string(ghost_input_count) + "`", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
-				const int size = MIN(ghost_input_count, snapshots.size());
+				const int size = MIN(ghost_input_count, frames_input.size());
 				const FrameIndex ghost_packet_id = next_input_id + ghost_input_count;
 
 				bool recovered = false;
-				FrameSnapshot pi;
+				FrameInput pi;
 
 				DataBuffer *pir_A = memnew(DataBuffer);
 				DataBuffer *pir_B = memnew(DataBuffer);
 				pir_A->copy(peer_controller->get_inputs_buffer());
 
 				for (int i = 0; i < size; i += 1) {
-					SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] checking if `" + std::string(snapshots.front().id) + "` can be used to recover `" + std::string(next_input_id) + "`.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+					SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] checking if `" + std::string(frames_input.front().id) + "` can be used to recover `" + std::string(next_input_id) + "`.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
-					if (ghost_packet_id < snapshots.front().id) {
-						SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] The input `" + snapshots.front().id + "` can't be used as the ghost_packet_id (`" + std::string(ghost_packet_id) + "`) is more than the input.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+					if (ghost_packet_id < frames_input.front().id) {
+						SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] The input `" + frames_input.front().id + "` can't be used as the ghost_packet_id (`" + std::string(ghost_packet_id) + "`) is more than the input.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 						break;
 					} else {
-						const FrameIndex input_id = snapshots.front().id;
+						const FrameIndex input_id = frames_input.front().id;
 						SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] The input `" + std::string(input_id) + "` is eligible as next frame.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
-						pi = snapshots.front();
-						snapshots.pop_front();
+						pi = frames_input.front();
+						frames_input.pop_front();
 						recovered = true;
 
 						// If this input has some important changes compared to the last
@@ -690,16 +690,16 @@ bool RemotelyControlledController::fetch_next_input(double p_delta) {
 	}
 
 #ifdef DEBUG_ENABLED
-	if (snapshots.empty() == false && current_input_buffer_id != FrameIndex::NONE) {
+	if (frames_input.empty() == false && current_input_buffer_id != FrameIndex::NONE) {
 		// At this point is guaranteed that the current_input_buffer_id is never
 		// greater than the first item contained by `snapshots`.
-		ASSERT_COND(current_input_buffer_id < snapshots.front().id);
+		ASSERT_COND(current_input_buffer_id < frames_input.front().id);
 	}
 #endif
 	return is_new_input;
 }
 
-void RemotelyControlledController::set_frame_input(const FrameSnapshot &p_frame_snapshot, bool p_first_input) {
+void RemotelyControlledController::set_frame_input(const FrameInput &p_frame_snapshot, bool p_first_input) {
 	peer_controller->set_inputs_buffer(
 			p_frame_snapshot.inputs_buffer,
 			METADATA_SIZE,
@@ -733,19 +733,17 @@ void RemotelyControlledController::process(double p_delta) {
 	SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
 }
 
-bool is_remote_frame_A_older(const FrameSnapshot &p_snap_a, const FrameSnapshot &p_snap_b) {
+bool is_remote_frame_A_older(const FrameInput &p_snap_a, const FrameInput &p_snap_b) {
 	return p_snap_a.id < p_snap_b.id;
 }
 
 bool RemotelyControlledController::receive_inputs(const Vector<uint8_t> &p_data) {
 	const uint32_t now = OS::get_singleton()->get_ticks_msec();
 	struct SCParseTmpData {
-		RemotelyControlledController *controller;
-		PeerNetworkedController *peer_controller_controller;
+		RemotelyControlledController &controller;
 		uint32_t now;
 	} tmp = {
-		this,
-		peer_controller,
+		*this,
 		now
 	};
 
@@ -757,17 +755,17 @@ bool RemotelyControlledController::receive_inputs(const Vector<uint8_t> &p_data)
 			[](void *p_user_pointer, FrameIndex p_input_id, int p_input_size_in_bits, const BitArray &p_bit_array) -> void {
 				SCParseTmpData *pd = static_cast<SCParseTmpData *>(p_user_pointer);
 
-				if (unlikely(pd->controller->current_input_buffer_id != FrameIndex::NONE && pd->controller->current_input_buffer_id >= p_input_id)) {
+				if (unlikely(pd->controller.current_input_buffer_id != FrameIndex::NONE && pd->controller.current_input_buffer_id >= p_input_id)) {
 					// We already have this input, so we don't need it anymore.
 					return;
 				}
 
-				FrameSnapshot rfs;
+				FrameInput rfs;
 				rfs.id = p_input_id;
 
 				const bool found = std::binary_search(
-						pd->controller->snapshots.begin(),
-						pd->controller->snapshots.end(),
+						pd->controller.frames_input.begin(),
+						pd->controller.frames_input.end(),
 						rfs,
 						is_remote_frame_A_older);
 
@@ -776,21 +774,21 @@ bool RemotelyControlledController::receive_inputs(const Vector<uint8_t> &p_data)
 					rfs.inputs_buffer = p_bit_array;
 					rfs.received_timestamp = pd->now;
 
-					pd->controller->snapshots.push_back(rfs);
+					pd->controller.frames_input.push_back(rfs);
 
-					// Sort the new inserted snapshot.
+					// Sort the added frame input.
 					std::sort(
-							pd->controller->snapshots.begin(),
-							pd->controller->snapshots.end(),
+							pd->controller.frames_input.begin(),
+							pd->controller.frames_input.end(),
 							is_remote_frame_A_older);
 				}
 			});
 
 #ifdef DEBUG_ENABLED
-	if (snapshots.empty() == false && current_input_buffer_id != FrameIndex::NONE) {
+	if (frames_input.empty() == false && current_input_buffer_id != FrameIndex::NONE) {
 		// At this point is guaranteed that the current_input_buffer_id is never
 		// greater than the first item contained by `snapshots`.
-		ASSERT_COND(current_input_buffer_id < snapshots.front().id);
+		ASSERT_COND(current_input_buffer_id < frames_input.front().id);
 	}
 #endif
 
@@ -815,8 +813,8 @@ void ServerController::process(double p_delta) {
 	if (!streaming_paused) {
 		// Update the consecutive inputs.
 		int consecutive_inputs = 0;
-		for (std::size_t i = 0; i < snapshots.size(); i += 1) {
-			if (snapshots[i].id == (current_input_buffer_id + consecutive_inputs + 1)) {
+		for (std::size_t i = 0; i < frames_input.size(); i += 1) {
+			if (frames_input[i].id == (current_input_buffer_id + consecutive_inputs + 1)) {
 				consecutive_inputs += 1;
 			}
 		}
@@ -839,7 +837,7 @@ void ServerController::on_peer_update(bool p_peer_enabled) {
 	consecutive_input_watcher.reset(0.0);
 }
 
-void ServerController::set_frame_input(const FrameSnapshot &p_frame_snapshot, bool p_first_input) {
+void ServerController::set_frame_input(const FrameInput &p_frame_snapshot, bool p_first_input) {
 	// If `previous_frame_received_timestamp` is bigger: the controller was
 	// disabled, so nothing to do.
 	if (previous_frame_received_timestamp < p_frame_snapshot.received_timestamp) {
@@ -1019,21 +1017,21 @@ void PlayerController::notify_frame_checked(FrameIndex p_frame_index) {
 
 	// Remove inputs prior to the known one. We may still need the known one
 	// when the stream is paused.
-	while (frames_snapshot.empty() == false && frames_snapshot.front().id <= p_frame_index) {
-		if (frames_snapshot.front().id == p_frame_index) {
-			streaming_paused = (frames_snapshot.front().buffer_size_bit - METADATA_SIZE) <= 0;
+	while (frames_input.empty() == false && frames_input.front().id <= p_frame_index) {
+		if (frames_input.front().id == p_frame_index) {
+			streaming_paused = (frames_input.front().buffer_size_bit - METADATA_SIZE) <= 0;
 		}
-		frames_snapshot.pop_front();
+		frames_input.pop_front();
 	}
 
 #ifdef DEBUG_ENABLED
 	// Unreachable, because the next frame have always the next `p_frame_index` or empty.
-	ASSERT_COND(frames_snapshot.empty() || (p_frame_index + 1) == frames_snapshot.front().id);
+	ASSERT_COND(frames_input.empty() || (p_frame_index + 1) == frames_input.front().id);
 #endif
 
 	// Make sure the remaining inputs are 0 sized, if not streaming can't be paused.
 	if (streaming_paused) {
-		for (auto it = frames_snapshot.begin(); it != frames_snapshot.end(); it += 1) {
+		for (auto it = frames_input.begin(); it != frames_input.end(); it += 1) {
 			if ((it->buffer_size_bit - METADATA_SIZE) > 0) {
 				// Streaming can't be paused.
 				streaming_paused = false;
@@ -1044,7 +1042,7 @@ void PlayerController::notify_frame_checked(FrameIndex p_frame_index) {
 }
 
 int PlayerController::get_frames_count() const {
-	return frames_snapshot.size();
+	return frames_input.size();
 }
 
 FrameIndex PlayerController::last_known_frame_index() const {
@@ -1053,15 +1051,15 @@ FrameIndex PlayerController::last_known_frame_index() const {
 
 FrameIndex PlayerController::get_stored_frame_index(int p_i) const {
 	if (p_i < 0) {
-		if (frames_snapshot.empty() == false) {
-			return frames_snapshot.back().id;
+		if (frames_input.empty() == false) {
+			return frames_input.back().id;
 		} else {
 			return FrameIndex::NONE;
 		}
 	} else {
 		const size_t i = p_i;
-		if (i < frames_snapshot.size()) {
-			return frames_snapshot[i].id;
+		if (i < frames_input.size()) {
+			return frames_input[i].id;
 		} else {
 			return FrameIndex::NONE;
 		}
@@ -1069,11 +1067,11 @@ FrameIndex PlayerController::get_stored_frame_index(int p_i) const {
 }
 
 void PlayerController::queue_instant_process(FrameIndex p_frame_index, int p_index, int p_count) {
-	if (p_index >= 0 && p_index < int(frames_snapshot.size())) {
+	if (p_index >= 0 && p_index < int(frames_input.size())) {
 		queued_instant_to_process = p_index;
 #ifdef DEBUG_ENABLED
 		// IMPOSSIBLE to trigger - without bugs.
-		ASSERT_COND(frames_snapshot[p_index].id == p_frame_index);
+		ASSERT_COND(frames_input[p_index].id == p_frame_index);
 #endif
 	} else {
 		queued_instant_to_process = -1;
@@ -1081,8 +1079,8 @@ void PlayerController::queue_instant_process(FrameIndex p_frame_index, int p_ind
 }
 
 bool PlayerController::has_another_instant_to_process_after(int p_i) const {
-	if (p_i >= 0 && p_i < int(frames_snapshot.size())) {
-		return (p_i + 1) < int(frames_snapshot.size());
+	if (p_i >= 0 && p_i < int(frames_input.size())) {
+		return (p_i + 1) < int(frames_input.size());
 	} else {
 		return false;
 	}
@@ -1092,8 +1090,8 @@ void PlayerController::process(double p_delta) {
 	if (unlikely(queued_instant_to_process >= 0)) {
 		// There is a queued instant. It means the SceneSync is rewinding:
 		// instead to fetch a new input, read it from the stored snapshots.
-		DataBuffer ib(frames_snapshot[queued_instant_to_process].inputs_buffer);
-		ib.shrink_to(METADATA_SIZE, frames_snapshot[queued_instant_to_process].buffer_size_bit - METADATA_SIZE);
+		DataBuffer ib(frames_input[queued_instant_to_process].inputs_buffer);
+		ib.shrink_to(METADATA_SIZE, frames_input[queued_instant_to_process].buffer_size_bit - METADATA_SIZE);
 		ib.begin_read();
 		ib.seek(METADATA_SIZE);
 		peer_controller->controllable_process(p_delta, ib);
@@ -1173,13 +1171,13 @@ bool PlayerController::receive_inputs(const Vector<uint8_t> &p_data) {
 }
 
 void PlayerController::store_input_buffer(FrameIndex p_frame_index) {
-	FrameSnapshot inputs;
+	FrameInput inputs;
 	inputs.id = p_frame_index;
 	inputs.inputs_buffer = peer_controller->get_inputs_buffer().get_buffer();
 	inputs.buffer_size_bit = peer_controller->get_inputs_buffer().size() + METADATA_SIZE;
 	inputs.similarity = FrameIndex::NONE;
 	inputs.received_timestamp = UINT32_MAX;
-	frames_snapshot.push_back(inputs);
+	frames_input.push_back(inputs);
 }
 
 void PlayerController::send_frame_input_buffer_to_server() {
@@ -1189,12 +1187,12 @@ void PlayerController::send_frame_input_buffer_to_server() {
 	// |-- First byte the amount of times this input is duplicated in the packet.
 	// |-- Input buffer.
 
-	const size_t inputs_count = MIN(frames_snapshot.size(), static_cast<size_t>(peer_controller->get_max_redundant_inputs() + 1));
+	const size_t inputs_count = MIN(frames_input.size(), static_cast<size_t>(peer_controller->get_max_redundant_inputs() + 1));
 	// This is unreachable because `can_accept_new_inputs()`, used just before
-	// this function, checks the `frames_snapshot` array to definite
+	// this function, checks the `frames_input` array to definite
 	// whether the client can collects new inputs and make sure it always contains
 	// at least 1 input.
-	// It means that, unless the streaming is paused, the `frames_snapshots`
+	// It means that, unless the streaming is paused, the `frames_inputs`
 	// is never going to be empty at this point.
 	ASSERT_COND(inputs_count >= 1);
 
@@ -1206,7 +1204,7 @@ void PlayerController::send_frame_input_buffer_to_server() {
 
 	// Let's store the ID of the first snapshot.
 	MAKE_ROOM(4);
-	const FrameIndex first_input_id = frames_snapshot[frames_snapshot.size() - inputs_count].id;
+	const FrameIndex first_input_id = frames_input[frames_input.size() - inputs_count].id;
 	ofs += encode_uint32(first_input_id.id, cached_packet_data.ptr() + ofs);
 
 	FrameIndex previous_input_id = FrameIndex::NONE;
@@ -1219,7 +1217,7 @@ void PlayerController::send_frame_input_buffer_to_server() {
 	pir_A->copy(peer_controller->get_inputs_buffer().get_buffer());
 
 	// Compose the packets
-	for (size_t i = frames_snapshot.size() - inputs_count; i < frames_snapshot.size(); i += 1) {
+	for (size_t i = frames_input.size() - inputs_count; i < frames_input.size(); i += 1) {
 		bool is_similar = false;
 
 		if (previous_input_id == FrameIndex::NONE) {
@@ -1230,11 +1228,11 @@ void PlayerController::send_frame_input_buffer_to_server() {
 			// Prevent to overflow the `uint8_t`.
 			is_similar = false;
 		} else {
-			if (frames_snapshot[i].similarity != previous_input_id) {
-				if (frames_snapshot[i].similarity == FrameIndex::NONE) {
+			if (frames_input[i].similarity != previous_input_id) {
+				if (frames_input[i].similarity == FrameIndex::NONE) {
 					// This input was never compared, let's do it now.
-					pir_B->copy(frames_snapshot[i].inputs_buffer);
-					pir_B->shrink_to(METADATA_SIZE, frames_snapshot[i].buffer_size_bit - METADATA_SIZE);
+					pir_B->copy(frames_input[i].inputs_buffer);
+					pir_B->shrink_to(METADATA_SIZE, frames_input[i].buffer_size_bit - METADATA_SIZE);
 
 					pir_A->begin_read();
 					pir_A->seek(METADATA_SIZE);
@@ -1244,7 +1242,7 @@ void PlayerController::send_frame_input_buffer_to_server() {
 					const bool are_different = peer_controller->controllable_are_inputs_different(*pir_A, *pir_B);
 					is_similar = !are_different;
 
-				} else if (frames_snapshot[i].similarity == previous_input_similarity) {
+				} else if (frames_input[i].similarity == previous_input_similarity) {
 					// This input is similar to the previous one, the thing is
 					// that the similarity check was done on an older input.
 					// Fortunatelly we are able to compare the similarity id
@@ -1261,8 +1259,8 @@ void PlayerController::send_frame_input_buffer_to_server() {
 		}
 
 		if (current_input_id == previous_input_id) {
-			SceneSynchronizerDebugger::singleton()->notify_are_inputs_different_result(peer_controller->authority_peer, frames_snapshot[i].id.id, is_similar);
-		} else if (current_input_id == frames_snapshot[i].id) {
+			SceneSynchronizerDebugger::singleton()->notify_are_inputs_different_result(peer_controller->authority_peer, frames_input[i].id.id, is_similar);
+		} else if (current_input_id == frames_input[i].id) {
 			SceneSynchronizerDebugger::singleton()->notify_are_inputs_different_result(peer_controller->authority_peer, previous_input_id.id, is_similar);
 		}
 
@@ -1270,15 +1268,15 @@ void PlayerController::send_frame_input_buffer_to_server() {
 			// This input is similar to the previous one, so just duplicate it.
 			duplication_count += 1;
 			// In this way, we don't need to compare these frames again.
-			frames_snapshot[i].similarity = previous_input_id;
+			frames_input[i].similarity = previous_input_id;
 
-			SceneSynchronizerDebugger::singleton()->notify_input_sent_to_server(peer_controller->authority_peer, frames_snapshot[i].id.id, previous_input_id.id);
+			SceneSynchronizerDebugger::singleton()->notify_input_sent_to_server(peer_controller->authority_peer, frames_input[i].id.id, previous_input_id.id);
 
 		} else {
 			// This input is different from the previous one, so let's
 			// finalize the previous and start another one.
 
-			SceneSynchronizerDebugger::singleton()->notify_input_sent_to_server(peer_controller->authority_peer, frames_snapshot[i].id.id, frames_snapshot[i].id.id);
+			SceneSynchronizerDebugger::singleton()->notify_input_sent_to_server(peer_controller->authority_peer, frames_input[i].id.id, frames_input[i].id.id);
 
 			if (previous_input_id != FrameIndex::NONE) {
 				// We can finally finalize the previous input
@@ -1294,21 +1292,21 @@ void PlayerController::send_frame_input_buffer_to_server() {
 			ofs += 1;
 
 			// Write the inputs
-			const int buffer_size = frames_snapshot[i].inputs_buffer.get_bytes().size();
+			const int buffer_size = frames_input[i].inputs_buffer.get_bytes().size();
 			MAKE_ROOM(buffer_size);
 			memcpy(
 					cached_packet_data.ptr() + ofs,
-					frames_snapshot[i].inputs_buffer.get_bytes().ptr(),
+					frames_input[i].inputs_buffer.get_bytes().ptr(),
 					buffer_size);
 			ofs += buffer_size;
 
 			// Let's see if we can duplicate this input.
-			previous_input_id = frames_snapshot[i].id;
-			previous_input_similarity = frames_snapshot[i].similarity;
+			previous_input_id = frames_input[i].id;
+			previous_input_similarity = frames_input[i].similarity;
 			previous_buffer_size = buffer_size;
 
-			pir_A->get_buffer_mut() = frames_snapshot[i].inputs_buffer;
-			pir_A->shrink_to(METADATA_SIZE, frames_snapshot[i].buffer_size_bit - METADATA_SIZE);
+			pir_A->get_buffer_mut() = frames_input[i].inputs_buffer;
+			pir_A->shrink_to(METADATA_SIZE, frames_input[i].buffer_size_bit - METADATA_SIZE);
 		}
 	}
 
@@ -1336,7 +1334,7 @@ void PlayerController::send_frame_input_buffer_to_server() {
 }
 
 bool PlayerController::can_accept_new_inputs() const {
-	return frames_snapshot.size() < peer_controller->scene_synchronizer->get_client_max_frames_storage_size();
+	return frames_input.size() < peer_controller->scene_synchronizer->get_client_max_frames_storage_size();
 }
 
 DollController::DollController(PeerNetworkedController *p_peer_controller) :
@@ -1346,12 +1344,10 @@ DollController::DollController(PeerNetworkedController *p_peer_controller) :
 bool DollController::receive_inputs(const Vector<uint8_t> &p_data) {
 	const uint32_t now = OS::get_singleton()->get_ticks_msec();
 	struct SCParseTmpData {
-		DollController *controller;
-		PeerNetworkedController *peer_controller_controller;
+		DollController &controller;
 		uint32_t now;
 	} tmp = {
-		this,
-		peer_controller,
+		*this,
 		now
 	};
 
@@ -1364,17 +1360,17 @@ bool DollController::receive_inputs(const Vector<uint8_t> &p_data) {
 				SCParseTmpData *pd = static_cast<SCParseTmpData *>(p_user_pointer);
 
 				ASSERT_COND(p_frame_index != FrameIndex::NONE);
-				if (pd->controller->last_checked_input != FrameIndex::NONE && pd->controller->last_checked_input >= p_frame_index) {
+				if (pd->controller.last_checked_input != FrameIndex::NONE && pd->controller.last_checked_input >= p_frame_index) {
 					// This input is already processed.
 					return;
 				}
 
-				FrameSnapshot rfs;
+				FrameInput rfs;
 				rfs.id = p_frame_index;
 
 				const bool found = std::binary_search(
-						pd->controller->snapshots.begin(),
-						pd->controller->snapshots.end(),
+						pd->controller.frames_input.begin(),
+						pd->controller.frames_input.end(),
 						rfs,
 						is_remote_frame_A_older);
 
@@ -1383,12 +1379,12 @@ bool DollController::receive_inputs(const Vector<uint8_t> &p_data) {
 					rfs.inputs_buffer = p_bit_array;
 					rfs.received_timestamp = pd->now;
 
-					pd->controller->snapshots.push_back(rfs);
+					pd->controller.frames_input.push_back(std::move(rfs));
 
-					// Sort the new inserted snapshots.
+					// Sort the added frame input.
 					std::sort(
-							pd->controller->snapshots.begin(),
-							pd->controller->snapshots.end(),
+							pd->controller.frames_input.begin(),
+							pd->controller.frames_input.end(),
 							is_remote_frame_A_older);
 				}
 			});
@@ -1405,33 +1401,33 @@ void DollController::queue_instant_process(FrameIndex p_frame_index, int p_index
 		return;
 	}
 
-	for (size_t i = 0; i < snapshots.size(); ++i) {
-		if (snapshots[i].id == p_frame_index) {
+	for (size_t i = 0; i < frames_input.size(); ++i) {
+		if (frames_input[i].id == p_frame_index) {
 			queued_instant_to_process = i;
 			return;
 		}
 	}
 
 	SceneSynchronizerDebugger::singleton()->print(WARNING, "DollController was uable to find the input: " + std::string(p_frame_index) + " maybe it was never received?", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
-	queued_instant_to_process = snapshots.size();
+	queued_instant_to_process = frames_input.size();
 	return;
 }
 
 bool DollController::fetch_next_input(double p_delta) {
 	if (queued_instant_to_process >= 0) {
-		if (queued_instant_to_process >= int(snapshots.size())) {
+		if (queued_instant_to_process >= int(frames_input.size())) {
 			return false;
 		} else {
 			// The SceneSync is rewinding the scene, so let's find the
-			set_frame_input(snapshots[queued_instant_to_process], false);
+			set_frame_input(frames_input[queued_instant_to_process], false);
 			return true;
 		}
 
 	} else {
 		if (current_input_buffer_id == FrameIndex::NONE) {
-			if (snapshots.size() > 0) {
+			if (frames_input.size() > 0) {
 				// Anything, as first input is good.
-				set_frame_input(snapshots.front(), true);
+				set_frame_input(frames_input.front(), true);
 				return true;
 			} else {
 				return false;
@@ -1439,16 +1435,16 @@ bool DollController::fetch_next_input(double p_delta) {
 		} else {
 			const FrameIndex next_input_id = current_input_buffer_id + 1;
 			// Loop the snapshots.
-			for (size_t i = 0; i < snapshots.size(); ++i) {
+			for (size_t i = 0; i < frames_input.size(); ++i) {
 				// Take any NEXT snapshot. Eventually the rewind will fix this.
 				// NOTE: the snapshots are sorted.
-				if (snapshots[i].id >= next_input_id) {
-					set_frame_input(snapshots[i], false);
+				if (frames_input[i].id >= next_input_id) {
+					set_frame_input(frames_input[i], false);
 					return true;
 				}
 			}
-			if (snapshots.size() > 0) {
-				set_frame_input(snapshots.back(), false);
+			if (frames_input.size() > 0) {
+				set_frame_input(frames_input.back(), false);
 				// true anyway, don't stop the processing, just use the input.
 				return true;
 			}
@@ -1486,13 +1482,13 @@ void DollController::notify_frame_checked(FrameIndex p_frame_index) {
 		return;
 	}
 
-	// Remove inputs prior to the known one. We may still need the known one
-	// when the stream is paused.
-	while (snapshots.empty() == false && snapshots.front().id <= p_frame_index) {
-		if (snapshots.front().id == p_frame_index) {
-			streaming_paused = (snapshots.front().buffer_size_bit - METADATA_SIZE) <= 0;
+	// Removes all the inputs older the known one (included).
+	while (frames_input.empty() == false && frames_input.front().id <= p_frame_index) {
+		if (frames_input.front().id == p_frame_index) {
+			// Pause the streaming if the last frame is empty.
+			streaming_paused = (frames_input.front().buffer_size_bit - METADATA_SIZE) <= 0;
 		}
-		snapshots.pop_front();
+		frames_input.pop_front();
 	}
 
 	last_checked_input = p_frame_index;

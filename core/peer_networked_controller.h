@@ -1,8 +1,8 @@
 #pragma once
 
 #include "../data_buffer.h"
-#include "net_utilities.h"
 #include "core.h"
+#include "net_utilities.h"
 #include "processor.h"
 #include <deque>
 
@@ -234,15 +234,15 @@ public:
 			uint32_t p_input_id);
 };
 
-struct FrameSnapshot {
-	FrameIndex id;
+struct FrameInput {
+	FrameIndex id = FrameIndex::NONE;
 	BitArray inputs_buffer;
-	uint32_t buffer_size_bit;
-	FrameIndex similarity;
+	uint32_t buffer_size_bit = 0;
+	FrameIndex similarity = FrameIndex::NONE;
 	/// Local timestamp.
-	uint32_t received_timestamp;
+	uint32_t received_timestamp = 0;
 
-	bool operator==(const FrameSnapshot &p_other) const {
+	bool operator==(const FrameInput &p_other) const {
 		return p_other.id == id;
 	}
 };
@@ -267,7 +267,7 @@ struct Controller {
 struct RemotelyControlledController : public Controller {
 	FrameIndex current_input_buffer_id = FrameIndex::NONE;
 	uint32_t ghost_input_count = 0;
-	std::deque<FrameSnapshot> snapshots;
+	std::deque<FrameInput> frames_input;
 	// The stream is paused when the client send an empty buffer.
 	bool streaming_paused = false;
 
@@ -285,7 +285,7 @@ public:
 	/// Fetch the next inputs, returns true if the input is new.
 	virtual bool fetch_next_input(double p_delta);
 
-	virtual void set_frame_input(const FrameSnapshot &p_frame_snapshot, bool p_first_input);
+	virtual void set_frame_input(const FrameInput &p_frame_snapshot, bool p_first_input);
 
 	virtual void process(double p_delta) override;
 
@@ -309,7 +309,7 @@ struct ServerController : public RemotelyControlledController {
 
 	virtual void on_peer_update(bool p_peer_enabled) override;
 
-	virtual void set_frame_input(const FrameSnapshot &p_frame_snapshot, bool p_first_input) override;
+	virtual void set_frame_input(const FrameInput &p_frame_snapshot, bool p_first_input) override;
 
 	void notify_send_state();
 
@@ -334,7 +334,7 @@ struct PlayerController final : public Controller {
 	uint32_t input_buffers_counter;
 	bool streaming_paused = false;
 
-	std::deque<FrameSnapshot> frames_snapshot;
+	std::deque<FrameInput> frames_input;
 	LocalVector<uint8_t> cached_packet_data;
 	int queued_instant_to_process = -1;
 
