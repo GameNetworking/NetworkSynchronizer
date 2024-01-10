@@ -437,7 +437,7 @@ public:
 	PeerAuthorityData authority_data;
 
 private:
-	std::uint8_t compressed_latency = -1;
+	std::uint8_t compressed_latency = 0;
 
 public:
 	// In ms

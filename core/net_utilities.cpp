@@ -9,7 +9,7 @@
 #include <memory>
 
 void NS::PeerData::set_latency(int p_latency) {
-	compressed_latency = std::round(float(std::min(p_latency, 1000)) / 4.0);
+	compressed_latency = std::round(float(std::clamp(p_latency, 0, 1000)) / 4.0);
 }
 
 int NS::PeerData::get_latency() const {
