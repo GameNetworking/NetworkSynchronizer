@@ -172,9 +172,11 @@ bool PeerNetworkedController::has_another_instant_to_process_after(int p_i) cons
 }
 
 void PeerNetworkedController::process(double p_delta) {
-	// This function is registered as processed function, so it's called by the
-	// `SceneSync` in sync with the scene processing.
-	controller->process(p_delta);
+	if make_likely (controller && can_simulate()) {
+		// This function is registered as processed function, so it's called by the
+		// `SceneSync` in sync with the scene processing.
+		controller->process(p_delta);
+	}
 }
 
 ServerController *PeerNetworkedController::get_server_controller() {

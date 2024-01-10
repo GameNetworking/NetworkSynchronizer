@@ -16,9 +16,8 @@ int NS::PeerData::get_latency() const {
 	return int(compressed_latency) * 4;
 }
 
-void NS::PeerData::make_controller(NS::SceneSynchronizerBase &p_scene_sync, int p_peer) {
+void NS::PeerData::make_controller() {
 	controller = std::make_unique<NS::PeerNetworkedController>();
-	controller->setup_synchronizer(p_scene_sync, p_peer);
 }
 
 bool NS::SyncGroup::is_realtime_node_list_changed() const {

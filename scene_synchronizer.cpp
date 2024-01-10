@@ -919,7 +919,10 @@ void SceneSynchronizerBase::on_peer_connected(int p_peer) {
 		return;
 	}
 
-	pd_it->second.make_controller(*this, p_peer);
+	pd_it->second.make_controller();
+	pd_it->second.get_controller()->setup_synchronizer(*this, p_peer);
+	// Clear the process function because they need to be rebuild to include the new peer.
+	process_functions__clear();
 	reset_controller(*pd_it->second.get_controller());
 
 	event_peer_status_updated.broadcast(p_peer, true, true);
@@ -939,6 +942,9 @@ void SceneSynchronizerBase::on_peer_disconnected(int p_peer) {
 	event_peer_status_updated.broadcast(p_peer, false, false);
 
 	peer_data.erase(p_peer);
+
+	// Clear the process function to make sure the peer process functions are removed.
+	process_functions__clear();
 
 #ifdef DEBUG_ENABLED
 	ASSERT_COND_MSG(peer_data.count(p_peer) <= 0, "The peer was just removed. This can't be triggered.");
@@ -1386,9 +1392,27 @@ void SceneSynchronizerBase::process_functions__execute() {
 	NS_PROFILE_WITH_INFO(info);
 
 	if (cached_process_functions_valid == false) {
-		// Clear the process_functions.
+		// Clear all the process_functions.
 		for (int process_phase = PROCESS_PHASE_EARLY; process_phase < PROCESS_PHASE_COUNT; ++process_phase) {
 			cached_process_functions[process_phase].clear();
+		}
+
+		// Add a new process function for each peer
+		{
+			// Fetch the connected peers and sort them
+			std::vector<int> peers;
+			for (const auto &[peer, _] : peer_data) {
+				peers.push_back(peer);
+			}
+			std::sort(peers.begin(), peers.end());
+
+			// For each peer, add the process function.
+			for (int peer : peers) {
+				PeerNetworkedController *peer_controller = get_controller_for_peer(peer, false);
+				if (peer_controller) {
+					cached_process_functions[PROCESS_PHASE_PROCESS].bind(std::bind(&PeerNetworkedController::process, peer_controller, std::placeholders::_1));
+				}
+			}
 		}
 
 		// Build the cached_process_functions, making sure the node data order is kept.
@@ -1411,27 +1435,7 @@ void SceneSynchronizerBase::process_functions__execute() {
 	SceneSynchronizerDebugger::singleton()->print(INFO, "Process functions START");
 
 	// Pre process phase
-	for (int process_phase = PROCESS_PHASE_EARLY; process_phase < PROCESS_PHASE_PROCESS; ++process_phase) {
-		const std::string info = "process phase: " + std::to_string(process_phase);
-		NS_PROFILE_WITH_INFO(info);
-		cached_process_functions[process_phase].broadcast(get_fixed_frame_delta());
-	}
-
-	// Controller process
-	{
-		const std::string info = "process phase -- CONTROLLER --";
-		NS_PROFILE_WITH_INFO(info);
-
-		// TODO optimize this, as `can_simulate` is expensive.
-		for (auto &pd : peer_data) {
-			if (pd.second.get_controller() && pd.second.get_controller()->can_simulate()) {
-				pd.second.get_controller()->process(get_fixed_frame_delta());
-			}
-		}
-	}
-
-	// Post process
-	for (int process_phase = PROCESS_PHASE_PROCESS; process_phase < PROCESS_PHASE_COUNT; ++process_phase) {
+	for (int process_phase = PROCESS_PHASE_EARLY; process_phase < PROCESS_PHASE_COUNT; ++process_phase) {
 		const std::string info = "process phase: " + std::to_string(process_phase);
 		NS_PROFILE_WITH_INFO(info);
 		cached_process_functions[process_phase].broadcast(get_fixed_frame_delta());

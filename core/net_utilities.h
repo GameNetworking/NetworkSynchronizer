@@ -449,7 +449,7 @@ public:
 	void set_compressed_latency(std::uint8_t p_compressed_latency) { compressed_latency = p_compressed_latency; }
 	std::uint8_t get_compressed_latency() const { return compressed_latency; }
 
-	void make_controller(class SceneSynchronizerBase &p_scene_sync, int p_peer);
+	void make_controller();
 	PeerNetworkedController *get_controller() {
 		return controller.get();
 	}
@@ -523,7 +523,7 @@ public:
 
 public:
 	SyncGroupId group_id = SyncGroupId::NONE;
-	SceneSynchronizerBase *scene_sync = nullptr;
+	class SceneSynchronizerBase *scene_sync = nullptr;
 
 private:
 	bool simulated_sync_objects_list_changed = false;
