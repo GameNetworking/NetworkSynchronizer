@@ -3667,18 +3667,18 @@ void ClientSynchronizer::apply_snapshot(
 			continue;
 		}
 
-		if (object_data->get_controlled_by_peer() > 0) {
-			PeerNetworkedController *controller = scene_synchronizer->get_controller_for_peer(object_data->get_controlled_by_peer(), false);
-			if (controller && controller->is_doll_controller()) {
-				// This object data is being controller by a doll controller;
-				// in this case the rewind is handled by the controller.
-				controller->get_doll_controller()->notify_applied_snapshot(p_snapshot.input_id, object_data->get_net_id());
-				if (r_applied_data_info) {
-					r_applied_data_info->push_back("Applied snapshot forwarded to DollController for the object: " + object_data->object_name);
-				}
-				continue;
-			}
-		}
+		//if (object_data->get_controlled_by_peer() > 0) {
+		//	PeerNetworkedController *controller = scene_synchronizer->get_controller_for_peer(object_data->get_controlled_by_peer(), false);
+		//	if (controller && controller->is_doll_controller()) {
+		//		// This object data is being controller by a doll controller;
+		//		// in this case the rewind is handled by the controller.
+		//		controller->get_doll_controller()->notify_applied_snapshot(p_snapshot.input_id, object_data->get_net_id());
+		//		if (r_applied_data_info) {
+		//			r_applied_data_info->push_back("Applied snapshot forwarded to DollController for the object: " + object_data->object_name);
+		//		}
+		//		continue;
+		//	}
+		//}
 
 		const std::vector<NS::NameAndVar> &snap_object_vars = snap_objects_vars[net_node_id.id];
 

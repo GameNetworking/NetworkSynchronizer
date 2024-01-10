@@ -1410,6 +1410,9 @@ bool is_doll_snap_A_older(const DollController::DollSnapshot &p_snap_a, const Do
 }
 
 void DollController::received_snapshot(const Snapshot &p_snapshot) {
+	// TODO enable this.
+	return;
+
 	const std::vector<ObjectData *> *controlled_objects = peer_controller->scene_synchronizer->get_peer_controlled_objects_data(peer_controller->get_authority_peer());
 	if (!controlled_objects) {
 		// Nothing to store.
