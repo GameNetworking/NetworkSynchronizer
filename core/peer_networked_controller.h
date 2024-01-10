@@ -196,7 +196,7 @@ public:
 	bool has_scene_synchronizer() const;
 
 	void on_peer_status_updated(int p_peer_id, bool p_connected, bool p_enabled);
-	void on_state_validated(FrameIndex p_frame_index);
+	void on_state_validated(FrameIndex p_frame_index, bool p_detected_desync);
 	void on_rewind_frame_begin(FrameIndex p_input_id, int p_index, int p_count);
 
 	void controllable_collect_input(double p_delta, DataBuffer &r_data_buffer);

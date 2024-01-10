@@ -258,19 +258,13 @@ void PeerNetworkedController::setup_synchronizer(NS::SceneSynchronizerBase &p_sy
 	authority_peer = p_peer;
 
 	event_handler_peer_status_updated =
-			scene_synchronizer->event_peer_status_updated.bind([this](int p_peer_id, bool p_connected, bool p_enabled) -> void {
-				on_peer_status_updated(p_peer_id, p_connected, p_enabled);
-			});
+			scene_synchronizer->event_peer_status_updated.bind(std::bind(&PeerNetworkedController::on_peer_status_updated, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 
 	event_handler_state_validated =
-			scene_synchronizer->event_state_validated.bind([this](FrameIndex p_input_id, bool p_desync_detected) -> void {
-				on_state_validated(p_input_id);
-			});
+			scene_synchronizer->event_state_validated.bind(std::bind(&PeerNetworkedController::on_state_validated, this, std::placeholders::_1, std::placeholders::_2));
 
 	event_handler_rewind_frame_begin =
-			scene_synchronizer->event_rewind_frame_begin.bind([this](FrameIndex p_frame_index, int p_index, int p_count) -> void {
-				on_rewind_frame_begin(p_frame_index, p_index, p_count);
-			});
+			scene_synchronizer->event_rewind_frame_begin.bind(std::bind(&PeerNetworkedController::on_rewind_frame_begin, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 }
 
 void PeerNetworkedController::remove_synchronizer() {
@@ -306,7 +300,7 @@ void PeerNetworkedController::on_peer_status_updated(int p_peer_id, bool p_conne
 	}
 }
 
-void PeerNetworkedController::on_state_validated(FrameIndex p_frame_index) {
+void PeerNetworkedController::on_state_validated(FrameIndex p_frame_index, bool p_detected_desync) {
 	if (controller) {
 		controller->on_state_validated(p_frame_index);
 	}
