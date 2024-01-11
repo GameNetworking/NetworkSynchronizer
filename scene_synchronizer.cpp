@@ -2680,6 +2680,7 @@ void ClientSynchronizer::process_received_server_state() {
 
 		need_rewind = __pcr__fetch_recovery_info(
 				last_checked_input,
+				*inner_player_controller,
 				no_rewind_recover);
 
 		// Popout the client snapshot.
@@ -2731,6 +2732,7 @@ void ClientSynchronizer::process_received_server_state() {
 
 bool ClientSynchronizer::__pcr__fetch_recovery_info(
 		const FrameIndex p_input_id,
+		const PlayerController &p_local_player_controller,
 		NS::Snapshot &r_no_rewind_recover) {
 	NS_PROFILE
 	std::vector<std::string> differences_info;
@@ -2739,18 +2741,43 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 	std::vector<ObjectNetId> different_node_data;
 #endif
 
-	const bool is_equal = NS::Snapshot::compare(
+	bool is_equal = NS::Snapshot::compare(
 			*scene_synchronizer,
 			*last_received_server_snapshot,
 			client_snapshots.front(),
+			scene_synchronizer->network_interface->fetch_local_peer_id(),
 			&r_no_rewind_recover,
 			scene_synchronizer->debug_rewindings_enabled ? &differences_info : nullptr
 #ifdef DEBUG_ENABLED
 			,
-			&different_node_data);
-#else
-	);
+			&different_node_data
 #endif
+	);
+
+	if (is_equal) {
+		const int frames_count_after_input_id = p_local_player_controller.count_frames_after(p_input_id);
+
+		// The snapshots are equals, make sure the dolls doesn't need to be reconciled.
+		for (const auto &[peer, data] : scene_synchronizer->peer_data) {
+			if (data.get_controller() && data.get_controller()->is_doll_controller()) {
+				const bool is_doll_state_valid = data.get_controller()->get_doll_controller()->__pcr__fetch_recovery_info(
+						p_input_id,
+						frames_count_after_input_id,
+						scene_synchronizer->debug_rewindings_enabled ? &differences_info : nullptr
+#ifdef DEBUG_ENABLED
+						,
+						&different_node_data
+#endif
+				);
+
+				if (!is_doll_state_valid) {
+					// This doll needs a reconciliation.
+					is_equal = false;
+					break;
+				}
+			}
+		}
+	}
 
 #ifdef DEBUG_ENABLED
 	// Emit the de-sync detected signal.
@@ -3657,6 +3684,7 @@ void ClientSynchronizer::apply_snapshot(
 	const std::vector<NS::NameAndVar> *snap_objects_vars = p_snapshot.object_vars.data();
 
 	scene_synchronizer->change_events_begin(p_flag);
+	const int this_peer = scene_synchronizer->network_interface->fetch_local_peer_id();
 
 	update_simulated_objects_list(p_snapshot.simulated_objects);
 
@@ -3665,28 +3693,22 @@ void ClientSynchronizer::apply_snapshot(
 
 		if (object_data == nullptr) {
 			// This can happen, and it's totally expected, because the server
-			// doesn't always sync ALL the node_data: so that will result in a
-			// not registered node.
+			// doesn't always sync ALL the object_data: so that will result in a
+			// not registered object.
 			continue;
 		}
 
 		if (object_data->realtime_sync_enabled_on_client == false) {
-			// This node sync is disabled.
+			// This is not a simulated object.
 			continue;
 		}
 
-		//if (object_data->get_controlled_by_peer() > 0) {
-		//	PeerNetworkedController *controller = scene_synchronizer->get_controller_for_peer(object_data->get_controlled_by_peer(), false);
-		//	if (controller && controller->is_doll_controller()) {
-		//		// This object data is being controller by a doll controller;
-		//		// in this case the rewind is handled by the controller.
-		//		controller->get_doll_controller()->notify_applied_snapshot(p_snapshot.input_id, object_data->get_net_id());
-		//		if (r_applied_data_info) {
-		//			r_applied_data_info->push_back("Applied snapshot forwarded to DollController for the object: " + object_data->object_name);
-		//		}
-		//		continue;
-		//	}
-		//}
+		if (object_data->get_controlled_by_peer() > 0 && object_data->get_controlled_by_peer() != this_peer) {
+			// This object is controlled by a doll, which simulation / reconcilation
+			// is mostly doll-controller driven.
+			// The dolls are notified at the end of this loop.
+			continue;
+		}
 
 		const std::vector<NS::NameAndVar> &snap_object_vars = snap_objects_vars[net_node_id.id];
 
@@ -3748,6 +3770,20 @@ void ClientSynchronizer::apply_snapshot(
 	if (p_snapshot.has_custom_data && !p_skip_custom_data) {
 		scene_synchronizer->synchronizer_manager->snapshot_set_custom_data(p_snapshot.custom_data);
 	}
+
+	// TODO here the dolls should be nofied that a reconciliation rewind is about to be performed?
+	//{
+	//	PeerNetworkedController *controller = scene_synchronizer->get_controller_for_peer(object_data->get_controlled_by_peer(), false);
+	//	if (controller && controller->is_doll_controller()) {
+	//		// This object data is being controller by a doll controller;
+	//		// in this case the rewind is handled by the controller.
+	//		controller->get_doll_controller()->notify_applied_snapshot(p_snapshot.input_id, object_data->get_net_id());
+	//		if (r_applied_data_info) {
+	//			r_applied_data_info->push_back("Applied snapshot forwarded to DollController for the object: " + object_data->object_name);
+	//		}
+	//		continue;
+	//	}
+	//}
 
 	scene_synchronizer->change_events_flush();
 }

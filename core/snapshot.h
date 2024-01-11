@@ -31,9 +31,10 @@ public:
 	void copy(const Snapshot &p_other);
 
 	static bool compare(
-			NS::SceneSynchronizerBase &scene_synchronizer,
+			const NS::SceneSynchronizerBase &scene_synchronizer,
 			const Snapshot &p_snap_A,
 			const Snapshot &p_snap_B,
+			const int p_skip_objects_not_controlled_by_peer,
 			Snapshot *r_no_rewind_recover,
 			std::vector<std::string> *r_differences_info
 #ifdef DEBUG_ENABLED

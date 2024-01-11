@@ -259,12 +259,6 @@ void PeerNetworkedController::setup_synchronizer(NS::SceneSynchronizerBase &p_sy
 
 	event_handler_peer_status_updated =
 			scene_synchronizer->event_peer_status_updated.bind(std::bind(&PeerNetworkedController::on_peer_status_updated, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
-
-	event_handler_state_validated =
-			scene_synchronizer->event_state_validated.bind(std::bind(&PeerNetworkedController::on_state_validated, this, std::placeholders::_1, std::placeholders::_2));
-
-	event_handler_rewind_frame_begin =
-			scene_synchronizer->event_rewind_frame_begin.bind(std::bind(&PeerNetworkedController::on_rewind_frame_begin, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 }
 
 void PeerNetworkedController::remove_synchronizer() {
@@ -276,10 +270,6 @@ void PeerNetworkedController::remove_synchronizer() {
 
 	// Unregister the event processors with the scene synchronizer.
 	scene_synchronizer->event_peer_status_updated.unbind(event_handler_peer_status_updated);
-	scene_synchronizer->event_state_validated.unbind(event_handler_state_validated);
-	scene_synchronizer->event_rewind_frame_begin.unbind(event_handler_rewind_frame_begin);
-	event_handler_rewind_frame_begin = NS::NullPHandler;
-	event_handler_state_validated = NS::NullPHandler;
 	event_handler_peer_status_updated = NS::NullPHandler;
 	scene_synchronizer = nullptr;
 }
@@ -297,18 +287,6 @@ void PeerNetworkedController::on_peer_status_updated(int p_peer_id, bool p_conne
 		if (is_server_controller()) {
 			get_server_controller()->on_peer_update(p_connected && p_enabled);
 		}
-	}
-}
-
-void PeerNetworkedController::on_state_validated(FrameIndex p_frame_index, bool p_detected_desync) {
-	if (controller) {
-		controller->on_state_validated(p_frame_index);
-	}
-}
-
-void PeerNetworkedController::on_rewind_frame_begin(FrameIndex p_input_id, int p_index, int p_count) {
-	if (controller && can_simulate()) {
-		controller->queue_instant_process(p_input_id, p_index, p_count);
 	}
 }
 
@@ -1003,6 +981,19 @@ PlayerController::PlayerController(PeerNetworkedController *p_peer_controller) :
 		Controller(p_peer_controller),
 		current_input_id(FrameIndex::NONE),
 		input_buffers_counter(0) {
+	event_handler_rewind_frame_begin =
+			peer_controller->scene_synchronizer->event_rewind_frame_begin.bind(std::bind(&PlayerController::on_rewind_frame_begin, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+
+	event_handler_state_validated =
+			peer_controller->scene_synchronizer->event_state_validated.bind(std::bind(&PlayerController::on_state_validated, this, std::placeholders::_1, std::placeholders::_2));
+}
+
+PlayerController::~PlayerController() {
+	peer_controller->scene_synchronizer->event_rewind_frame_begin.unbind(event_handler_rewind_frame_begin);
+	event_handler_rewind_frame_begin = NS::NullPHandler;
+
+	peer_controller->scene_synchronizer->event_state_validated.unbind(event_handler_state_validated);
+	event_handler_state_validated = NS::NullPHandler;
 }
 
 void PlayerController::notify_frame_checked(FrameIndex p_frame_index) {
@@ -1041,6 +1032,20 @@ int PlayerController::get_frames_count() const {
 	return frames_input.size();
 }
 
+int PlayerController::count_frames_after(FrameIndex p_frame_index) const {
+	NS_PROFILE
+
+	int count = 0;
+
+	for (const FrameInput &frame : frames_input) {
+		if (frame.id > p_frame_index) {
+			count += 1;
+		}
+	}
+
+	return count;
+}
+
 FrameIndex PlayerController::last_known_frame_index() const {
 	return get_stored_frame_index(-1);
 }
@@ -1062,7 +1067,11 @@ FrameIndex PlayerController::get_stored_frame_index(int p_i) const {
 	}
 }
 
-void PlayerController::queue_instant_process(FrameIndex p_frame_index, int p_index, int p_count) {
+void PlayerController::on_rewind_frame_begin(FrameIndex p_frame_index, int p_index, int p_count) {
+	if (!peer_controller->can_simulate()) {
+		return;
+	}
+
 	if (p_index >= 0 && p_index < int(frames_input.size())) {
 		queued_instant_to_process = p_index;
 #ifdef DEBUG_ENABLED
@@ -1153,7 +1162,7 @@ void PlayerController::process(double p_delta) {
 	}
 }
 
-void PlayerController::on_state_validated(FrameIndex p_frame_index) {
+void PlayerController::on_state_validated(FrameIndex p_frame_index, bool p_detected_desync) {
 	notify_frame_checked(p_frame_index);
 }
 
@@ -1335,15 +1344,25 @@ bool PlayerController::can_accept_new_inputs() const {
 
 DollController::DollController(PeerNetworkedController *p_peer_controller) :
 		RemotelyControlledController(p_peer_controller) {
-	event_handler_received_snapshot = peer_controller->scene_synchronizer->event_received_snapshot.bind(
-			[this](const Snapshot &p_received_snapshot) -> void {
-				received_snapshot(p_received_snapshot);
-			});
+	event_handler_received_snapshot =
+			peer_controller->scene_synchronizer->event_received_snapshot.bind(std::bind(&DollController::received_snapshot, this, std::placeholders::_1));
+
+	event_handler_rewind_frame_begin =
+			peer_controller->scene_synchronizer->event_rewind_frame_begin.bind(std::bind(&DollController::on_rewind_frame_begin, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+
+	event_handler_state_validated =
+			peer_controller->scene_synchronizer->event_state_validated.bind(std::bind(&DollController::on_state_validated, this, std::placeholders::_1, std::placeholders::_2));
 }
 
 DollController::~DollController() {
 	peer_controller->scene_synchronizer->event_received_snapshot.unbind(event_handler_received_snapshot);
 	event_handler_received_snapshot = NS::NullPHandler;
+
+	peer_controller->scene_synchronizer->event_rewind_frame_begin.unbind(event_handler_rewind_frame_begin);
+	event_handler_rewind_frame_begin = NS::NullPHandler;
+
+	peer_controller->scene_synchronizer->event_state_validated.unbind(event_handler_state_validated);
+	event_handler_state_validated = NS::NullPHandler;
 }
 
 bool DollController::receive_inputs(const Vector<uint8_t> &p_data) {
@@ -1406,9 +1425,6 @@ bool is_doll_snap_A_older(const DollController::DollSnapshot &p_snap_a, const Do
 }
 
 void DollController::received_snapshot(const Snapshot &p_snapshot) {
-	// TODO enable this.
-	return;
-
 	const std::vector<ObjectData *> *controlled_objects = peer_controller->scene_synchronizer->get_peer_controlled_objects_data(peer_controller->get_authority_peer());
 	if (!controlled_objects) {
 		// Nothing to store.
@@ -1447,7 +1463,11 @@ void DollController::received_snapshot(const Snapshot &p_snapshot) {
 			is_doll_snap_A_older);
 }
 
-void DollController::queue_instant_process(FrameIndex p_frame_index, int p_index, int p_count) {
+void DollController::on_rewind_frame_begin(FrameIndex p_frame_index, int p_index, int p_count) {
+	if (!peer_controller->can_simulate()) {
+		return;
+	}
+
 	if (streaming_paused) {
 		return;
 	}
@@ -1523,7 +1543,7 @@ void DollController::process(double p_delta) {
 	queued_instant_to_process = -1;
 }
 
-void DollController::on_state_validated(FrameIndex p_frame_index) {
+void DollController::on_state_validated(FrameIndex p_frame_index, bool p_detected_desync) {
 	notify_frame_checked(p_frame_index);
 }
 
@@ -1545,8 +1565,21 @@ void DollController::notify_frame_checked(FrameIndex p_frame_index) {
 	last_checked_input = p_frame_index;
 }
 
+bool DollController::__pcr__fetch_recovery_info(
+		FrameIndex p_checking_frame_index,
+		int p_predicted_frames,
+		std::vector<std::string> *r_differences_info
+#ifdef DEBUG_ENABLED
+		,
+		std::vector<ObjectNetId> *r_different_node_data
+#endif
+) const {
+	// TODO please implement this.
+	return true;
+}
+
 void DollController::notify_applied_snapshot(FrameIndex frame_index, ObjectNetId p_id) {
-	ASSERT_NO_ENTRY(); // TODO implement.
+	ASSERT_NO_ENTRY(); // TODO implement or remove this function if not implemented.
 }
 
 NoNetController::NoNetController(PeerNetworkedController *p_peer_controller) :

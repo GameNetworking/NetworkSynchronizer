@@ -802,6 +802,7 @@ private:
 
 	bool __pcr__fetch_recovery_info(
 			const FrameIndex p_input_id,
+			const struct PlayerController &p_local_player_controller,
 			Snapshot &r_no_rewind_recover);
 
 	void __pcr__sync__rewind();
@@ -809,7 +810,7 @@ private:
 	void __pcr__rewind(
 			const FrameIndex p_checkable_frame_index,
 			PeerNetworkedController *p_controller,
-			struct PlayerController *p_player_controller);
+			PlayerController *p_player_controller);
 
 	void __pcr__sync__no_rewind(
 			const Snapshot &p_postponed_recover);

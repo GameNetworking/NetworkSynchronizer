@@ -113,8 +113,6 @@ private:
 
 	bool has_player_new_input = false;
 
-	NS::PHandler event_handler_rewind_frame_begin = NS::NullPHandler;
-	NS::PHandler event_handler_state_validated = NS::NullPHandler;
 	NS::PHandler event_handler_peer_status_updated = NS::NullPHandler;
 
 public: // -------------------------------------------------------------- Events
@@ -196,8 +194,6 @@ public:
 	bool has_scene_synchronizer() const;
 
 	void on_peer_status_updated(int p_peer_id, bool p_connected, bool p_enabled);
-	void on_state_validated(FrameIndex p_frame_index, bool p_detected_desync);
-	void on_rewind_frame_begin(FrameIndex p_input_id, int p_index, int p_count);
 
 	void controllable_collect_input(double p_delta, DataBuffer &r_data_buffer);
 	int controllable_count_input_size(DataBuffer &p_data_buffer);
@@ -259,10 +255,8 @@ struct Controller {
 	virtual void ready() {}
 	virtual FrameIndex get_current_frame_index() const = 0;
 	virtual void process(double p_delta) = 0;
-	virtual void on_state_validated(FrameIndex p_frame_index) {}
 
 	virtual bool receive_inputs(const Vector<uint8_t> &p_data) { return false; };
-	virtual void queue_instant_process(FrameIndex p_input_id, int p_index, int p_count) {}
 };
 
 struct RemotelyControlledController : public Controller {
@@ -331,6 +325,9 @@ struct AutonomousServerController final : public ServerController {
 };
 
 struct PlayerController final : public Controller {
+	NS::PHandler event_handler_rewind_frame_begin = NS::NullPHandler;
+	NS::PHandler event_handler_state_validated = NS::NullPHandler;
+
 	FrameIndex current_input_id;
 	uint32_t input_buffers_counter;
 	bool streaming_paused = false;
@@ -340,17 +337,19 @@ struct PlayerController final : public Controller {
 	int queued_instant_to_process = -1;
 
 	PlayerController(PeerNetworkedController *p_node);
+	~PlayerController();
 
 	void notify_frame_checked(FrameIndex p_input_id);
 	int get_frames_count() const;
+	int count_frames_after(FrameIndex p_frame_index) const;
 	FrameIndex last_known_frame_index() const;
 	FrameIndex get_stored_frame_index(int p_i) const;
 	virtual FrameIndex get_current_frame_index() const override;
 
-	virtual void queue_instant_process(FrameIndex p_input_id, int p_index, int p_count) override;
+	void on_rewind_frame_begin(FrameIndex p_input_id, int p_index, int p_count);
 	bool has_another_instant_to_process_after(int p_i) const;
 	virtual void process(double p_delta) override;
-	virtual void on_state_validated(FrameIndex p_frame_index) override;
+	void on_state_validated(FrameIndex p_frame_index, bool p_detected_desync);
 
 	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;
 
@@ -390,6 +389,9 @@ public:
 
 public:
 	NS::PHandler event_handler_received_snapshot = NS::NullPHandler;
+	NS::PHandler event_handler_rewind_frame_begin = NS::NullPHandler;
+	NS::PHandler event_handler_state_validated = NS::NullPHandler;
+
 	FrameIndex last_checked_input = FrameIndex::NONE;
 	int queued_instant_to_process = -1;
 	// Contains the controlled nodes frames snapshot.
@@ -401,13 +403,25 @@ public:
 
 	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;
 	void received_snapshot(const Snapshot &p_snapshot);
-	virtual void queue_instant_process(FrameIndex p_input_id, int p_index, int p_count) override;
+	void on_rewind_frame_begin(FrameIndex p_input_id, int p_index, int p_count);
 	virtual bool fetch_next_input(double p_delta) override;
 	virtual void process(double p_delta) override;
-	virtual void on_state_validated(FrameIndex p_frame_index) override;
+	void on_state_validated(FrameIndex p_frame_index, bool p_detected_desync);
 	void notify_frame_checked(FrameIndex p_input_id);
 
-	void notify_applied_snapshot(FrameIndex frame_index, ObjectNetId p_id);
+	// Checks whether this doll requires a reconciliation.
+	// The check done is relative to the doll timeline, and not the scene sync timeline.
+	bool __pcr__fetch_recovery_info(
+			FrameIndex p_checking_frame_index,
+			int p_predicted_frames,
+			std::vector<std::string> *r_differences_info
+#ifdef DEBUG_ENABLED
+			,
+			std::vector<ObjectNetId> *r_different_node_data
+#endif
+	) const;
+
+	void notify_applied_snapshot(FrameIndex p_frame_index, ObjectNetId p_id);
 };
 
 /// This controller is used when the game instance is not a peer of any kind.

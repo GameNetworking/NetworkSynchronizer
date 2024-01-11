@@ -21,8 +21,7 @@ NS::Snapshot::operator std::string() const {
 }
 
 bool compare_vars(
-		NS::SceneSynchronizerBase &scene_synchronizer,
-		const NS::ObjectData *p_synchronizer_node_data,
+		const NS::ObjectData &p_object_data,
 		const std::vector<NS::NameAndVar> &p_server_vars,
 		const std::vector<NS::NameAndVar> &p_client_vars,
 		NS::Snapshot *r_no_rewind_recover,
@@ -55,13 +54,13 @@ bool compare_vars(
 						c_vars[var_index].value);
 
 		if (different) {
-			if (p_synchronizer_node_data->vars[var_index].skip_rewinding) {
+			if (p_object_data.vars[var_index].skip_rewinding) {
 				// The vars are different, but we don't need to trigger a rewind.
 				if (r_no_rewind_recover) {
-					if (uint32_t(r_no_rewind_recover->object_vars.data()[p_synchronizer_node_data->get_net_id().id].size()) <= var_index) {
-						r_no_rewind_recover->object_vars.data()[p_synchronizer_node_data->get_net_id().id].resize(var_index + 1);
+					if (uint32_t(r_no_rewind_recover->object_vars.data()[p_object_data.get_net_id().id].size()) <= var_index) {
+						r_no_rewind_recover->object_vars.data()[p_object_data.get_net_id().id].resize(var_index + 1);
 					}
-					r_no_rewind_recover->object_vars.data()[p_synchronizer_node_data->get_net_id().id].data()[var_index].copy(s_vars[var_index]);
+					r_no_rewind_recover->object_vars.data()[p_object_data.get_net_id().id].data()[var_index].copy(s_vars[var_index]);
 					// Sets `input_id` to 0 to signal that this snapshot contains
 					// no-rewind data.
 					r_no_rewind_recover->input_id = NS::FrameIndex{ 0 };
@@ -69,7 +68,7 @@ bool compare_vars(
 
 				if (r_differences_info) {
 					r_differences_info->push_back(
-							"[NO REWIND] Difference found on var #" + std::to_string(var_index) + " " + p_synchronizer_node_data->vars[var_index].var.name + " " +
+							"[NO REWIND] Difference found on var #" + std::to_string(var_index) + " " + p_object_data.vars[var_index].var.name + " " +
 							"Server value: `" + NS::SceneSynchronizerBase::var_data_stringify(s_vars[var_index].value) + "` " +
 							"Client value: `" + NS::SceneSynchronizerBase::var_data_stringify(c_vars[var_index].value) + "`.    " +
 							"[Server name: `" + s_vars[var_index].name + "` " +
@@ -79,7 +78,7 @@ bool compare_vars(
 				// The vars are different.
 				if (r_differences_info) {
 					r_differences_info->push_back(
-							"Difference found on var #" + std::to_string(var_index) + " " + p_synchronizer_node_data->vars[var_index].var.name + " " +
+							"Difference found on var #" + std::to_string(var_index) + " " + p_object_data.vars[var_index].var.name + " " +
 							"Server value: `" + NS::SceneSynchronizerBase::var_data_stringify(s_vars[var_index].value) + "` " +
 							"Client value: `" + NS::SceneSynchronizerBase::var_data_stringify(c_vars[var_index].value) + "`.    " +
 							"[Server name: `" + s_vars[var_index].name + "` " +
@@ -130,9 +129,10 @@ void NS::Snapshot::copy(const Snapshot &p_other) {
 }
 
 bool NS::Snapshot::compare(
-		NS::SceneSynchronizerBase &scene_synchronizer,
+		const NS::SceneSynchronizerBase &scene_synchronizer,
 		const Snapshot &p_snap_A,
 		const Snapshot &p_snap_B,
+		const int p_skip_objects_not_controlled_by_peer,
 		Snapshot *r_no_rewind_recover,
 		std::vector<std::string> *r_differences_info
 #ifdef DEBUG_ENABLED
@@ -194,16 +194,24 @@ bool NS::Snapshot::compare(
 		r_no_rewind_recover->object_vars.resize(MAX(p_snap_A.object_vars.size(), p_snap_B.object_vars.size()));
 	}
 
-	for (ObjectNetId net_node_id = { 0 }; net_node_id < ObjectNetId{ uint32_t(p_snap_A.object_vars.size()) }; net_node_id += 1) {
-		NS::ObjectData *rew_node_data = scene_synchronizer.get_object_data(net_node_id);
-		if (rew_node_data == nullptr || rew_node_data->realtime_sync_enabled_on_client == false) {
+	for (ObjectNetId net_object_id = { 0 }; net_object_id < ObjectNetId{ uint32_t(p_snap_A.object_vars.size()) }; net_object_id += 1) {
+		const NS::ObjectData *rew_object_data = scene_synchronizer.get_object_data(net_object_id);
+		if (rew_object_data == nullptr || rew_object_data->realtime_sync_enabled_on_client == false) {
+			continue;
+		}
+
+		if (rew_object_data->get_controlled_by_peer() > 0 && rew_object_data->get_controlled_by_peer() != p_skip_objects_not_controlled_by_peer) {
+			// This object is being controlled by a doll, which mostly handles
+			// the reconciliation. The doll will be asked if a rewind is needed
+			// separately from this.
+			// There is nothing more to do for this object at this time.
 			continue;
 		}
 
 		bool are_nodes_different = false;
-		if (net_node_id >= ObjectNetId{ uint32_t(p_snap_B.object_vars.size()) }) {
+		if (net_object_id >= ObjectNetId{ uint32_t(p_snap_B.object_vars.size()) }) {
 			if (r_differences_info) {
-				r_differences_info->push_back("Difference detected: The B snapshot doesn't contain this node: " + rew_node_data->object_name);
+				r_differences_info->push_back("Difference detected: The B snapshot doesn't contain this node: " + rew_object_data->object_name);
 			}
 #ifdef DEBUG_ENABLED
 			is_equal = false;
@@ -213,16 +221,15 @@ bool NS::Snapshot::compare(
 			are_nodes_different = true;
 		} else {
 			are_nodes_different = !compare_vars(
-					scene_synchronizer,
-					rew_node_data,
-					p_snap_A.object_vars[net_node_id.id],
-					p_snap_B.object_vars[net_node_id.id],
+					*rew_object_data,
+					p_snap_A.object_vars[net_object_id.id],
+					p_snap_B.object_vars[net_object_id.id],
 					r_no_rewind_recover,
 					r_differences_info);
 
 			if (are_nodes_different) {
 				if (r_differences_info) {
-					r_differences_info->push_back("Difference detected: The node status on snapshot B is different. NODE: " + rew_node_data->object_name);
+					r_differences_info->push_back("Difference detected: The node status on snapshot B is different. NODE: " + rew_object_data->object_name);
 				}
 #ifdef DEBUG_ENABLED
 				is_equal = false;
@@ -234,7 +241,7 @@ bool NS::Snapshot::compare(
 
 #ifdef DEBUG_ENABLED
 		if (are_nodes_different && r_different_node_data) {
-			r_different_node_data->push_back(net_node_id);
+			r_different_node_data->push_back(net_object_id);
 		}
 #endif
 	}
