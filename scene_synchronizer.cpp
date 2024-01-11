@@ -2688,6 +2688,9 @@ void ClientSynchronizer::process_received_server_state() {
 		// This case is less likely to happen, and in this case the client
 		// received the same frame (from the server) twice, so just assume we
 		// need a rewind.
+		// The server may send the same snapshot twice in case the client has
+		// stopped sending their inputs. By rewinding we can make sure the client
+		// is not stuck in a dead loop.
 		need_rewind = true;
 	}
 
@@ -2734,20 +2737,28 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 
 #ifdef DEBUG_ENABLED
 	std::vector<ObjectNetId> different_node_data;
+#endif
+
 	const bool is_equal = NS::Snapshot::compare(
 			*scene_synchronizer,
 			*last_received_server_snapshot,
 			client_snapshots.front(),
 			&r_no_rewind_recover,
-			scene_synchronizer->debug_rewindings_enabled ? &differences_info : nullptr,
+			scene_synchronizer->debug_rewindings_enabled ? &differences_info : nullptr
+#ifdef DEBUG_ENABLED
+			,
 			&different_node_data);
+#else
+	);
+#endif
 
+#ifdef DEBUG_ENABLED
+	// Emit the de-sync detected signal.
 	if (!is_equal) {
 		std::vector<std::string> variable_names;
 		std::vector<VarData> server_values;
 		std::vector<VarData> client_values;
 
-		// Emit the de-sync detected signal.
 		for (
 				int i = 0;
 				i < int(different_node_data.size());
@@ -2783,13 +2794,6 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 			scene_synchronizer->event_desync_detected_with_info.broadcast(p_input_id, rew_node_data->app_object_handle, variable_names, client_values, server_values);
 		}
 	}
-#else
-	const bool is_equal = NS::Snapshot::compare(
-			*scene_synchronizer,
-			server_snapshots.front(),
-			client_snapshots.front(),
-			&r_no_rewind_recover,
-			scene_synchronizer->debug_rewindings_enabled ? &differences_info : nullptr);
 #endif
 
 	// Prints the comparison info.
