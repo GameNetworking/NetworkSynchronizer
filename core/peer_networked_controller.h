@@ -370,10 +370,12 @@ struct PlayerController final : public Controller {
 /// because it wait the player status from the server to correct its motion.
 struct DollController final : public RemotelyControlledController {
 public:
-	struct DollSnapshot {
-		FrameIndex index = FrameIndex::NONE;
-		std::map<ObjectNetId, std::vector<NameAndVar>> objects_vars;
+	struct DollSnapshot final {
+		// Contains the data useful for the Doll.
+		Snapshot data;
+		FrameIndex doll_executed_input = FrameIndex::NONE;
 
+	public:
 		DollSnapshot() = default;
 		DollSnapshot(DollSnapshot &&p_other) = default;
 		DollSnapshot &operator=(DollSnapshot &&p_other) = default;
@@ -381,38 +383,49 @@ public:
 		DollSnapshot(const DollSnapshot &p_other) = delete;
 		DollSnapshot operator=(const DollSnapshot &p_other) = delete;
 
-		DollSnapshot(FrameIndex p_index) :
-				index(p_index) {}
+		DollSnapshot(FrameIndex p_index) { data.input_id = p_index; }
 
-		bool operator==(const DollSnapshot &p_other) const { return index == p_other.index; }
+		bool operator==(const DollSnapshot &p_other) const { return data.input_id == p_other.data.input_id; }
 	};
 
 public:
 	NS::PHandler event_handler_received_snapshot = NS::NullPHandler;
 	NS::PHandler event_handler_rewind_frame_begin = NS::NullPHandler;
 	NS::PHandler event_handler_state_validated = NS::NullPHandler;
+	NS::PHandler event_handler_client_snapshot_updated = NS::NullPHandler;
+	NS::PHandler event_handler_snapshot_applied = NS::NullPHandler;
 
 	FrameIndex last_checked_input = FrameIndex::NONE;
 	int queued_instant_to_process = -1;
+
 	// Contains the controlled nodes frames snapshot.
-	std::vector<DollSnapshot> snapshots;
+	std::vector<DollSnapshot> server_snapshots;
+
+	// Contains the controlled nodes frames snapshot.
+	std::vector<DollSnapshot> client_snapshots;
 
 public:
 	DollController(PeerNetworkedController *p_node);
 	~DollController();
 
 	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;
-	void received_snapshot(const Snapshot &p_snapshot);
 	void on_rewind_frame_begin(FrameIndex p_input_id, int p_index, int p_count);
+	int count_queued_inputs() const;
+	int fetch_optimal_queued_inputs() const;
 	virtual bool fetch_next_input(double p_delta) override;
 	virtual void process(double p_delta) override;
 	void on_state_validated(FrameIndex p_frame_index, bool p_detected_desync);
 	void notify_frame_checked(FrameIndex p_input_id);
 
+	void on_received_server_snapshot(const Snapshot &p_snapshot);
+	void on_snapshot_update_finished(const Snapshot &p_snapshot);
+	void copy_controlled_objects_snapshot(const Snapshot &p_snapshot, FrameIndex p_doll_executed_input, std::vector<DollSnapshot> &r_snapshots);
+
 	// Checks whether this doll requires a reconciliation.
 	// The check done is relative to the doll timeline, and not the scene sync timeline.
 	bool __pcr__fetch_recovery_info(
 			FrameIndex p_checking_frame_index,
+			Snapshot *r_no_rewind_recover,
 			int p_predicted_frames,
 			std::vector<std::string> *r_differences_info
 #ifdef DEBUG_ENABLED
@@ -421,7 +434,7 @@ public:
 #endif
 	) const;
 
-	void notify_applied_snapshot(FrameIndex p_frame_index, ObjectNetId p_id);
+	void on_snapshot_applied(const Snapshot &p_snapshot);
 };
 
 /// This controller is used when the game instance is not a peer of any kind.

@@ -1345,24 +1345,36 @@ bool PlayerController::can_accept_new_inputs() const {
 DollController::DollController(PeerNetworkedController *p_peer_controller) :
 		RemotelyControlledController(p_peer_controller) {
 	event_handler_received_snapshot =
-			peer_controller->scene_synchronizer->event_received_snapshot.bind(std::bind(&DollController::received_snapshot, this, std::placeholders::_1));
+			peer_controller->scene_synchronizer->event_received_server_snapshot.bind(std::bind(&DollController::on_received_server_snapshot, this, std::placeholders::_1));
+
+	event_handler_client_snapshot_updated =
+			peer_controller->scene_synchronizer->event_snapshot_update_finished.bind(std::bind(&DollController::on_snapshot_update_finished, this, std::placeholders::_1));
 
 	event_handler_rewind_frame_begin =
 			peer_controller->scene_synchronizer->event_rewind_frame_begin.bind(std::bind(&DollController::on_rewind_frame_begin, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 
 	event_handler_state_validated =
 			peer_controller->scene_synchronizer->event_state_validated.bind(std::bind(&DollController::on_state_validated, this, std::placeholders::_1, std::placeholders::_2));
+
+	event_handler_state_validated =
+			peer_controller->scene_synchronizer->event_snapshot_applied.bind(std::bind(&DollController::on_snapshot_applied, this, std::placeholders::_1));
 }
 
 DollController::~DollController() {
-	peer_controller->scene_synchronizer->event_received_snapshot.unbind(event_handler_received_snapshot);
+	peer_controller->scene_synchronizer->event_received_server_snapshot.unbind(event_handler_received_snapshot);
 	event_handler_received_snapshot = NS::NullPHandler;
+
+	peer_controller->scene_synchronizer->event_snapshot_update_finished.unbind(event_handler_client_snapshot_updated);
+	event_handler_client_snapshot_updated = NS::NullPHandler;
 
 	peer_controller->scene_synchronizer->event_rewind_frame_begin.unbind(event_handler_rewind_frame_begin);
 	event_handler_rewind_frame_begin = NS::NullPHandler;
 
 	peer_controller->scene_synchronizer->event_state_validated.unbind(event_handler_state_validated);
 	event_handler_state_validated = NS::NullPHandler;
+
+	peer_controller->scene_synchronizer->event_snapshot_applied.unbind(event_handler_snapshot_applied);
+	event_handler_snapshot_applied = NS::NullPHandler;
 }
 
 bool DollController::receive_inputs(const Vector<uint8_t> &p_data) {
@@ -1421,46 +1433,7 @@ bool DollController::receive_inputs(const Vector<uint8_t> &p_data) {
 }
 
 bool is_doll_snap_A_older(const DollController::DollSnapshot &p_snap_a, const DollController::DollSnapshot &p_snap_b) {
-	return p_snap_a.index < p_snap_b.index;
-}
-
-void DollController::received_snapshot(const Snapshot &p_snapshot) {
-	const std::vector<ObjectData *> *controlled_objects = peer_controller->scene_synchronizer->get_peer_controlled_objects_data(peer_controller->get_authority_peer());
-	if (!controlled_objects) {
-		// Nothing to store.
-		return;
-	}
-
-	if (last_checked_input != FrameIndex::NONE && last_checked_input >= p_snapshot.input_id) {
-		// Snapshot already checked, no need to store this.
-		return;
-	}
-
-	DollSnapshot *snap;
-	if (VecFunc::has(snapshots, DollSnapshot(p_snapshot.input_id))) {
-		std::vector<DollSnapshot>::iterator it = VecFunc::find(snapshots, DollSnapshot(p_snapshot.input_id));
-		snap = &*it;
-	} else {
-		snapshots.push_back(DollSnapshot(p_snapshot.input_id));
-		snap = &snapshots.back();
-	}
-
-	// This can't trigger because of the above check.
-	ASSERT_COND(snap->index == p_snapshot.input_id);
-
-	for (ObjectData *object_data : *controlled_objects) {
-		const std::vector<NameAndVar> *vars = p_snapshot.get_object_vars(object_data->get_net_id());
-		ENSURE_CONTINUE_MSG(vars, "The snapshot didn't contain the object: " + object_data->get_net_id() + ". If this error spams for a long period (5/10 seconds), it's a bug.");
-		std::map<ObjectNetId, std::vector<NameAndVar>>::iterator snap_object_vars = MapFunc::insert_if_new(snap->objects_vars, object_data->get_net_id(), std::vector<NameAndVar>());
-		for (const NameAndVar &nav : *vars) {
-			snap_object_vars->second.push_back(NameAndVar::make_copy(nav));
-		}
-	}
-
-	std::sort(
-			snapshots.begin(),
-			snapshots.end(),
-			is_doll_snap_A_older);
+	return p_snap_a.data.input_id < p_snap_b.data.input_id;
 }
 
 void DollController::on_rewind_frame_begin(FrameIndex p_frame_index, int p_index, int p_count) {
@@ -1484,48 +1457,113 @@ void DollController::on_rewind_frame_begin(FrameIndex p_frame_index, int p_index
 	return;
 }
 
+int DollController::count_queued_inputs() const {
+	int queued_inputs_count = 0;
+	for (const FrameInput &frame : frames_input) {
+		if (frame.id > current_input_buffer_id) {
+			queued_inputs_count += 1;
+		}
+	}
+	return queued_inputs_count;
+}
+
+int DollController::fetch_optimal_queued_inputs() const {
+	// The optimal virtual delay is a number that refers to the amount of queued
+	// frames the DollController should try to have on each frame to avoid
+	// remaining without inputs.
+	// This delay should increase when the internet connection is bad (packet loss)
+	// and decrease otherwise, allowing the inputs more time to be received.
+	//
+	// TODO: At the moment this value is fixed to the min_frame_delay, but at some
+	// point we will want to change this value dynamically depending on packet loss.
+	return peer_controller->get_min_frames_delay();
+}
+
 bool DollController::fetch_next_input(double p_delta) {
 	if (queued_instant_to_process >= 0) {
-		if (queued_instant_to_process >= int(frames_input.size())) {
-			return false;
-		} else {
+		if (queued_instant_to_process < int(frames_input.size())) {
 			// The SceneSync is rewinding the scene, so let's find the
 			set_frame_input(frames_input[queued_instant_to_process], false);
 			return true;
 		}
+		return false;
+	}
 
-	} else {
-		if (current_input_buffer_id == FrameIndex::NONE) {
-			if (frames_input.size() > 0) {
-				// Anything, as first input is good.
-				set_frame_input(frames_input.front(), true);
-				return true;
-			} else {
-				return false;
-			}
+	if make_unlikely (current_input_buffer_id == FrameIndex::NONE) {
+		if (frames_input.size() > 0) {
+			// Anything, as first input is good.
+			set_frame_input(frames_input.front(), true);
+			return true;
+		}
+		return false;
+	}
+
+	// -------------------------------------------------------- Lag compensation
+	// The following code performs a lag compensation check to ensure it never
+	// run out of inputs.
+
+	// This parameter is used to enstablish the percentage of the lag compensation
+	// algorithm to be activated.
+	// This percentage is increased linearly by the distance the queue_inputs_count is relative to optimal_queued_inputs.
+	// So, the bigger the distance is, the likely an action can happen.
+	const float lag_compensation_base_percentage = 0.3;
+
+	// 1. Count the queued inputs (the inputs that are not being processed yet).
+	const int queued_inputs_count = count_queued_inputs();
+	// 2. Fetch the optimal queued inputs (how many inputs should be queued based
+	//    on the current connection).
+	//    NOTE: The `+1` is needed to ensure the `queued_inputs_count` tend toward
+	//    optmal AFTER the input is consumed, that is about to happen just after
+	//    this function is executed.
+	const int optimal_queued_inputs = fetch_optimal_queued_inputs() + 1;
+
+	// The likeliness is used to scale the `lag_compensation_percentage`
+	// to make it likely something to happen.
+	const float factor = std::abs(float(optimal_queued_inputs) - float(queued_inputs_count)) / float(optimal_queued_inputs);
+
+	const float lag_compensation_percentage = lag_compensation_base_percentage * factor;
+
+	// 3. Based on the the virtual delay and queue_inputs_count it fetches the next input id.
+	FrameIndex next_input_id = current_input_buffer_id + 1;
+	const float r = float(rand()) / float(RAND_MAX);
+	if (r < lag_compensation_percentage) {
+		// Lag compensation activated.
+		if (queued_inputs_count > optimal_queued_inputs) {
+			// It has more queued inputs than the established optimal.
+			// so let's skip 1 input so we can tend toward the optimal queued inputs.
+			next_input_id += 1;
+		} else if (queued_inputs_count == optimal_queued_inputs) {
+			// It has the exact number of queued inputs.
+			// Nothing to do.
 		} else {
-			const FrameIndex next_input_id = current_input_buffer_id + 1;
-			// Loop the snapshots.
-			for (size_t i = 0; i < frames_input.size(); ++i) {
-				// Take any NEXT snapshot. Eventually the rewind will fix this.
-				// NOTE: the snapshots are sorted.
-				if (frames_input[i].id >= next_input_id) {
-					set_frame_input(frames_input[i], false);
-					return true;
-				}
-			}
-			if (frames_input.size() > 0) {
-				set_frame_input(frames_input.back(), false);
-				// true anyway, don't stop the processing, just use the input.
-				return true;
-			}
+			// It has less queued input than the established optimal,
+			// so let's use the old input for an extra frame, so we can
+			// build the queue again.
+			next_input_id -= 1;
 		}
 	}
+
+	// -------------------------------------------------------- Search the input
+	for (size_t i = 0; i < frames_input.size(); ++i) {
+		if (frames_input[i].id >= next_input_id) {
+			set_frame_input(frames_input[i], false);
+			return true;
+		}
+	}
+
+	if (frames_input.size() > 0) {
+		set_frame_input(frames_input.back(), false);
+		// It was impossible to find the input, so just pick the oldest one:
+		// it's better than to stop the processing.
+		return true;
+	}
+
 	return false;
 }
 
 void DollController::process(double p_delta) {
 	notify_frame_checked(peer_controller->scene_synchronizer->client_get_last_checked_frame_index());
+
 	const bool is_new_input = fetch_next_input(p_delta);
 
 	if (is_new_input) {
@@ -1565,8 +1603,83 @@ void DollController::notify_frame_checked(FrameIndex p_frame_index) {
 	last_checked_input = p_frame_index;
 }
 
+void DollController::on_received_server_snapshot(const Snapshot &p_snapshot) {
+	if (last_checked_input != FrameIndex::NONE && last_checked_input >= p_snapshot.input_id) {
+		// Snapshot already checked, no need to store this.
+		return;
+	}
+
+	copy_controlled_objects_snapshot(p_snapshot, p_snapshot.input_id, server_snapshots);
+}
+
+void DollController::on_snapshot_update_finished(const Snapshot &p_snapshot) {
+	copy_controlled_objects_snapshot(p_snapshot, current_input_buffer_id, client_snapshots);
+}
+
+void DollController::copy_controlled_objects_snapshot(
+		const Snapshot &p_snapshot,
+		FrameIndex p_doll_executed_input,
+		std::vector<DollSnapshot> &r_snapshots) {
+	const std::vector<ObjectData *> *controlled_objects = peer_controller->scene_synchronizer->get_peer_controlled_objects_data(peer_controller->get_authority_peer());
+	if (!controlled_objects || controlled_objects->size() <= 0) {
+		// Nothing to store.
+		return;
+	}
+
+	DollSnapshot *snap;
+	{
+		std::vector<DollSnapshot>::iterator it = VecFunc::find(r_snapshots, DollSnapshot(p_snapshot.input_id));
+		if (r_snapshots.end() != it) {
+			snap = &*it;
+		} else {
+			r_snapshots.push_back(DollSnapshot(p_snapshot.input_id));
+			snap = &r_snapshots.back();
+		}
+	}
+
+	// This can't trigger because of the above check.
+	ASSERT_COND(snap->data.input_id == p_snapshot.input_id);
+	snap->doll_executed_input = p_doll_executed_input;
+
+	// Find the biggest ID to initialize the snapshot.
+	{
+		ObjectNetId biggest_id = { 0 };
+		for (ObjectData *object_data : *controlled_objects) {
+			if (object_data->get_net_id() > biggest_id) {
+				biggest_id = object_data->get_net_id();
+			}
+		}
+		snap->data.object_vars.resize(biggest_id.id + 1);
+	}
+
+	// Now store the vars info.
+	for (ObjectData *object_data : *controlled_objects) {
+		if (!VecFunc::has(p_snapshot.simulated_objects, object_data->get_net_id())) {
+			// This object was not simulated.
+			continue;
+		}
+
+		const std::vector<NameAndVar> *vars = p_snapshot.get_object_vars(object_data->get_net_id());
+		ENSURE_CONTINUE_MSG(vars, "The snapshot didn't contain the object: " + object_data->get_net_id() + ". If this error spams for a long period (5/10 seconds), it's a bug.");
+
+		snap->data.simulated_objects.push_back(object_data->get_net_id());
+
+		for (const NameAndVar &nav : *vars) {
+			snap->data.object_vars[object_data->get_net_id().id].push_back(NameAndVar::make_copy(nav));
+		}
+	}
+
+	// This array must be always sorted to ensure the snapshots order.
+	std::sort(
+			r_snapshots.begin(),
+			r_snapshots.end(),
+			is_doll_snap_A_older);
+}
+
 bool DollController::__pcr__fetch_recovery_info(
 		FrameIndex p_checking_frame_index,
+		Snapshot *r_no_rewind_recover,
+		// The frames to process afterward.
 		int p_predicted_frames,
 		std::vector<std::string> *r_differences_info
 #ifdef DEBUG_ENABLED
@@ -1574,12 +1687,59 @@ bool DollController::__pcr__fetch_recovery_info(
 		std::vector<ObjectNetId> *r_different_node_data
 #endif
 ) const {
-	// TODO please implement this.
-	return true;
+
+	// 1. Fetch the server snapshot.
+	//    The server snapshot can be fetched, normally, using the index.
+	std::vector<DollSnapshot>::const_iterator server_snap_it = VecFunc::find(server_snapshots, DollSnapshot(p_checking_frame_index));
+	// The server snapshot was not found, this is impossible because we store
+	// all the snapshots.
+	ENSURE_V_MSG(server_snapshots.end() != server_snap_it, false, "Doll fetch recovery info failed because the snapshot was not found, though this should be impossible to trigger. checking_frame_index: " + p_checking_frame_index);
+
+	const DollSnapshot *server_snapshot = &*server_snap_it;
+	ENSURE_V(server_snapshot, false);
+
+	// 2. Now fetch the client snapshot.
+	//    Since the doll is following a a different timeline, we need to fetch the
+	//    client frame by checking the `doll_executed_index` instead.
+	const DollSnapshot *client_snapshot = nullptr;
+	for (const DollSnapshot &snapshot : client_snapshots) {
+		if (snapshot.doll_executed_input == p_checking_frame_index) {
+			client_snapshot = &snapshot;
+		}
+	}
+	ENSURE_V_MSG(client_snapshot, false, "Doll fetch recovery info failed because the client snapshot was not found. checking_frame: " + p_checking_frame_index)
+
+	// Now just compare the two snapshots.
+	return Snapshot::compare(
+			*peer_controller->scene_synchronizer,
+			server_snapshot->data,
+			client_snapshot->data,
+			-1,
+			r_no_rewind_recover,
+			r_differences_info
+#ifdef DEBUG_ENABLED
+			,
+			r_different_node_data
+#endif
+	);
 }
 
-void DollController::notify_applied_snapshot(FrameIndex frame_index, ObjectNetId p_id) {
-	ASSERT_NO_ENTRY(); // TODO implement or remove this function if not implemented.
+void DollController::on_snapshot_applied(const Snapshot &p_snapshot) {
+	// Since this doll is executing on a different timeline, we can't apply
+	// the received snapshot.
+	// 1. Search which input was executed by this doll when this snapshot was executed.
+	FrameIndex doll_executed_input;
+	{
+		const auto client_snap_it = VecFunc::find(client_snapshots, DollSnapshot(p_snapshot.input_id));
+		ENSURE_MSG(client_snap_it != client_snapshots.end(), "The doll was unable to set the snapshot because it was unable to find the client snapshot with ID: " + p_snapshot.input_id);
+
+		doll_executed_input = client_snap_it->doll_executed_input;
+	}
+
+	// Now it has the executed input so, fetch the snapshot to apply.
+	// 2. Fetch the server snapshot.
+	const auto server_snap_it = VecFunc::find(server_snapshots, DollSnapshot(doll_executed_input));
+	if (server_snap_it ==)
 }
 
 NoNetController::NoNetController(PeerNetworkedController *p_peer_controller) :
