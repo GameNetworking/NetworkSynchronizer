@@ -2483,7 +2483,7 @@ void ClientSynchronizer::receive_snapshot(DataBuffer &p_snapshot) {
 		return;
 	}
 
-	scene_synchronizer->event_received_snapshot.broadcast(last_received_snapshot);
+	scene_synchronizer->event_received_server_snapshot.broadcast(last_received_snapshot);
 
 	// Finalize data.
 	store_controllers_snapshot(last_received_snapshot);
@@ -2762,6 +2762,7 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 			if (data.get_controller() && data.get_controller()->is_doll_controller()) {
 				const bool is_doll_state_valid = data.get_controller()->get_doll_controller()->__pcr__fetch_recovery_info(
 						p_input_id,
+						&r_no_rewind_recover,
 						frames_count_after_input_id,
 						scene_synchronizer->debug_rewindings_enabled ? &differences_info : nullptr
 #ifdef DEBUG_ENABLED
@@ -3597,7 +3598,7 @@ void ClientSynchronizer::update_client_snapshot(NS::Snapshot &r_snapshot) {
 	// Make sure we have room for all the NodeData.
 	r_snapshot.object_vars.resize(scene_synchronizer->objects_data_storage.get_sorted_objects_data().size());
 
-	// Fetch the data.
+	// Create the snapshot, even for the objects controlled by the dolls.
 	for (const NS::ObjectData *od : scene_synchronizer->objects_data_storage.get_sorted_objects_data()) {
 		NS_PROFILE_NAMED("Update object data");
 
@@ -3635,6 +3636,8 @@ void ClientSynchronizer::update_client_snapshot(NS::Snapshot &r_snapshot) {
 			}
 		}
 	}
+
+	scene_synchronizer->event_snapshot_update_finished.broadcast(r_snapshot);
 }
 
 void ClientSynchronizer::update_simulated_objects_list(const std::vector<ObjectNetId> &p_simulated_objects) {
@@ -3706,7 +3709,8 @@ void ClientSynchronizer::apply_snapshot(
 		if (object_data->get_controlled_by_peer() > 0 && object_data->get_controlled_by_peer() != this_peer) {
 			// This object is controlled by a doll, which simulation / reconcilation
 			// is mostly doll-controller driven.
-			// The dolls are notified at the end of this loop.
+			// The dolls are notified at the end of this loop, when the event
+			// `event_snapshot_applied` is emitted.
 			continue;
 		}
 
@@ -3771,19 +3775,7 @@ void ClientSynchronizer::apply_snapshot(
 		scene_synchronizer->synchronizer_manager->snapshot_set_custom_data(p_snapshot.custom_data);
 	}
 
-	// TODO here the dolls should be nofied that a reconciliation rewind is about to be performed?
-	//{
-	//	PeerNetworkedController *controller = scene_synchronizer->get_controller_for_peer(object_data->get_controlled_by_peer(), false);
-	//	if (controller && controller->is_doll_controller()) {
-	//		// This object data is being controller by a doll controller;
-	//		// in this case the rewind is handled by the controller.
-	//		controller->get_doll_controller()->notify_applied_snapshot(p_snapshot.input_id, object_data->get_net_id());
-	//		if (r_applied_data_info) {
-	//			r_applied_data_info->push_back("Applied snapshot forwarded to DollController for the object: " + object_data->object_name);
-	//		}
-	//		continue;
-	//	}
-	//}
+	scene_synchronizer->event_snapshot_applied.broadcast(p_snapshot);
 
 	scene_synchronizer->change_events_flush();
 }

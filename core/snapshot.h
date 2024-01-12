@@ -7,7 +7,7 @@
 namespace NS {
 class SceneSynchronizerBase;
 
-struct Snapshot {
+struct Snapshot final {
 	FrameIndex input_id = FrameIndex::NONE;
 	std::vector<NS::ObjectNetId> simulated_objects;
 	/// The Node variables in a particular frame. The order of this vector

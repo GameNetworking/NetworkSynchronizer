@@ -220,7 +220,14 @@ public: // -------------------------------------------------------------- Events
 	Processor<int /*p_peer*/, bool /*p_connected*/, bool /*p_enabled*/> event_peer_status_updated;
 	Processor<FrameIndex, bool /*p_desync_detected*/> event_state_validated;
 	Processor<FrameIndex, int /*p_peer*/> event_sent_snapshot;
-	Processor<const Snapshot & /*p_received_snapshot*/> event_received_snapshot;
+	/// This event is emitted when the current client state is stored into the snapshot.
+	/// NOTE: This even is also executed during the rewinding, to update the previously stored states.
+	/// NOTE: Something to remark is that the Snapshot data passed, is equal to
+	///       the data read through the get functions, at the moment of the event.
+	///       So, you can assume the snapshot contains the result of the last executed input.
+	Processor<const Snapshot & /*p_snapshot*/> event_snapshot_update_finished;
+	Processor<const Snapshot & /*p_snapshot*/> event_snapshot_applied;
+	Processor<const Snapshot & /*p_received_snapshot*/> event_received_server_snapshot;
 	Processor<FrameIndex, int /*p_index*/, int /*p_count*/> event_rewind_frame_begin;
 	Processor<FrameIndex, ObjectHandle /*p_app_object_handle*/, const std::vector<std::string> & /*p_var_names*/, const std::vector<VarData> & /*p_client_values*/, const std::vector<VarData> & /*p_server_values*/> event_desync_detected_with_info;
 

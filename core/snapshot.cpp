@@ -144,6 +144,7 @@ bool NS::Snapshot::compare(
 	bool is_equal = true;
 #endif
 
+	// Compares the simualted object first.
 	if (p_snap_A.simulated_objects.size() != p_snap_B.simulated_objects.size()) {
 		if (r_differences_info) {
 			r_differences_info->push_back("Difference detected: simulated_object count is different snapA: " + std::to_string(p_snap_A.simulated_objects.size()) + " snapB: " + std::to_string(p_snap_B.simulated_objects.size()) + ".");
