@@ -10,7 +10,8 @@ VarData::VarData() {
 	memset(&data, 0, sizeof(data));
 }
 
-VarData::VarData(double x, double y, double z, double w) {
+VarData::VarData(double x, double y, double z, double w) :
+		VarData() {
 	data.vec.x = x;
 	data.vec.y = y;
 	data.vec.z = z;

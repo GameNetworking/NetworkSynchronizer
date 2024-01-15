@@ -20,16 +20,13 @@ namespace NS_Test {
 
 const double delta = 1.0 / 60.0;
 
-class TDSLocalNetworkedController : public NS::LocalSceneObject {
+class TDSControlledObject : public NS::LocalSceneObject {
 public:
 	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
 
-	TDSLocalNetworkedController() = default;
+	TDSControlledObject() = default;
 
 	virtual void on_scene_entry() override {
-		// Setup the NetworkInterface.
-		set_xi(0);
-
 		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
 	}
 
@@ -43,40 +40,49 @@ public:
 		p_scene_sync.setup_controller(
 				p_id,
 				authoritative_peer_id,
-				[this](double p_delta, DataBuffer &r_buffer) -> void { collect_inputs(p_delta, r_buffer); },
-				[this](DataBuffer &p_buffer) -> int { return count_input_size(p_buffer); },
-				[this](DataBuffer &p_buffer_A, DataBuffer &p_buffer_b) -> bool { return are_inputs_different(p_buffer_A, p_buffer_b); },
-				[this](double p_delta, DataBuffer &p_buffer) -> void { controller_process(p_delta, p_buffer); });
+				std::bind(&TDSControlledObject::collect_inputs, this, std::placeholders::_1, std::placeholders::_2),
+				std::bind(&TDSControlledObject::count_input_size, this, std::placeholders::_1),
+				std::bind(&TDSControlledObject::are_inputs_different, this, std::placeholders::_1, std::placeholders::_2),
+				std::bind(&TDSControlledObject::controller_process, this, std::placeholders::_1, std::placeholders::_2));
 
-		p_scene_sync.register_variable(p_id, "xi");
+		p_scene_sync.register_variable(p_id, "xy");
 	}
 
-	void set_xi(int p_xi) {
+	void set_xy(float x, float y) {
 		NS::VarData vd;
-		vd.data.i32 = 1;
+		vd.data.vec.x = x;
+		vd.data.vec.y = y;
 		vd.type = 0;
 		NS::MapFunc::assign(variables, std::string("xi"), std::move(vd));
 	}
 
-	int get_xi() const {
+	NS::VarData get_xy() const {
 		const NS::VarData *vd = NS::MapFunc::get_or_null(variables, std::string("xi"));
 		if (vd) {
-			return vd->data.i32;
+			return NS::VarData::make_copy(*vd);
 		} else {
-			return 0;
+			return NS::VarData(0, 0);
 		}
 	}
 
 	// ------------------------------------------------- NetController interface
+	bool previous_input = true;
 	void collect_inputs(double p_delta, DataBuffer &r_buffer) {
-		r_buffer.add(true);
+		// Write true or false alternating each other.
+		r_buffer.add(!previous_input);
+		previous_input = !previous_input;
 	}
 
 	void controller_process(double p_delta, DataBuffer &p_buffer) {
-		bool advance_xi;
-		p_buffer.read(advance_xi);
-		if (advance_xi) {
-			set_xi(get_xi() + 1);
+		bool advance_or_turn;
+		p_buffer.read(advance_or_turn);
+		NS::VarData current = get_xy();
+		if (advance_or_turn) {
+			// Advance
+			set_xy(current.data.vec.x + 1, current.data.vec.y);
+		} else {
+			// Turn
+			set_xy(current.data.vec.x, current.data.vec.y + 1);
 		}
 	}
 
@@ -95,18 +101,20 @@ public:
 /// This class is made in a way which allows to be overriden to test the sync
 /// still works under bad network conditions.
 struct TestDollSimulationBase {
+	bool assert_if_desync = false;
+
 	NS::LocalNetworkProps network_properties;
 
 	NS::LocalScene server_scene;
 	NS::LocalScene peer_1_scene;
 	NS::LocalScene peer_2_scene;
-	TDSLocalNetworkedController *controller_1_serv = nullptr;
-	TDSLocalNetworkedController *controller_1_peer1 = nullptr;
-	TDSLocalNetworkedController *controller_1_peer2 = nullptr;
+	TDSControlledObject *controlled_1_serv = nullptr;
+	TDSControlledObject *controlled_1_peer1 = nullptr;
+	TDSControlledObject *controlled_1_peer2 = nullptr;
 
-	TDSLocalNetworkedController *controller_2_serv = nullptr;
-	TDSLocalNetworkedController *controller_2_peer1 = nullptr;
-	TDSLocalNetworkedController *controller_2_peer2 = nullptr;
+	TDSControlledObject *controlled_2_serv = nullptr;
+	TDSControlledObject *controlled_2_peer1 = nullptr;
+	TDSControlledObject *controlled_2_peer2 = nullptr;
 
 private:
 	virtual void on_scenes_initialized() {}
@@ -142,13 +150,13 @@ public:
 				peer_2_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
 
 		// Then compose the scene: 2 controllers.
-		controller_1_serv = server_scene.add_object<TDSLocalNetworkedController>("controller_1", peer_1_scene.get_peer());
-		controller_1_peer1 = peer_1_scene.add_object<TDSLocalNetworkedController>("controller_1", peer_1_scene.get_peer());
-		controller_1_peer2 = peer_2_scene.add_object<TDSLocalNetworkedController>("controller_1", peer_1_scene.get_peer());
+		controlled_1_serv = server_scene.add_object<TDSControlledObject>("controller_1", peer_1_scene.get_peer());
+		controlled_1_peer1 = peer_1_scene.add_object<TDSControlledObject>("controller_1", peer_1_scene.get_peer());
+		controlled_1_peer2 = peer_2_scene.add_object<TDSControlledObject>("controller_1", peer_1_scene.get_peer());
 
-		controller_2_serv = server_scene.add_object<TDSLocalNetworkedController>("controller_2", peer_2_scene.get_peer());
-		controller_2_peer1 = peer_1_scene.add_object<TDSLocalNetworkedController>("controller_2", peer_2_scene.get_peer());
-		controller_2_peer2 = peer_2_scene.add_object<TDSLocalNetworkedController>("controller_2", peer_2_scene.get_peer());
+		controlled_2_serv = server_scene.add_object<TDSControlledObject>("controller_2", peer_2_scene.get_peer());
+		controlled_2_peer1 = peer_1_scene.add_object<TDSControlledObject>("controller_2", peer_2_scene.get_peer());
+		controlled_2_peer2 = peer_2_scene.add_object<TDSControlledObject>("controller_2", peer_2_scene.get_peer());
 
 		server_scene.scene_sync->register_process(server_scene.scene_sync->find_local_id(), PROCESS_PHASE_LATE, [=](double p_delta) -> void {
 			on_server_process(p_delta);
@@ -160,16 +168,25 @@ public:
 			on_client_2_process(p_delta);
 		});
 
-		on_scenes_initialized();
+		if (assert_if_desync) {
+			peer_1_scene.scene_sync->event_state_validated.bind([](NS::FrameIndex fi, bool p_desync_detected) -> void {
+				ASSERT_COND(!p_desync_detected);
+			});
+			peer_2_scene.scene_sync->event_state_validated.bind([](NS::FrameIndex fi, bool p_desync_detected) -> void {
+				ASSERT_COND(!p_desync_detected);
+			});
+		}
 
 		// Set the position of each object:
-		controller_1_serv->set_xi(100);
-		controller_1_peer1->set_xi(100);
-		controller_1_peer2->set_xi(100);
+		controlled_1_serv->set_xy(100, 0);
+		controlled_1_peer1->set_xy(100, 0);
+		controlled_1_peer2->set_xy(100, 0);
 
-		controller_2_serv->set_xi(0);
-		controller_2_peer1->set_xi(0);
-		controller_2_peer2->set_xi(0);
+		controlled_2_serv->set_xy(0, 0);
+		controlled_2_peer1->set_xy(0, 0);
+		controlled_2_peer2->set_xy(0, 0);
+
+		on_scenes_initialized();
 	}
 
 	double rand_range(double M, double N) {
@@ -196,6 +213,62 @@ public:
 		}
 	}
 };
+
+struct TestDollSimulationWithoutReconciliation : public TestDollSimulationBase {
+	virtual void on_scenes_initialized() override {
+		// Notify instantly
+		server_scene.scene_sync->set_frame_confirmation_timespan(0.0);
+
+		// Ensure the controllers are at their initial location as defined by the doll simulation class.
+		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_1_serv->get_xy(), NS::VarData(100, 0)));
+		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_1_peer1->get_xy(), NS::VarData(100, 0)));
+		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_1_peer2->get_xy(), NS::VarData(100, 0)));
+
+		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_2_serv->get_xy(), NS::VarData(0, 0)));
+		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_2_peer2->get_xy(), NS::VarData(0, 0)));
+		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_2_peer1->get_xy(), NS::VarData(0, 0)));
+	}
+
+	std::vector<NS::VarData> controlled_1_player_position;
+	std::vector<NS::VarData> controlled_2_player_position;
+
+	virtual void on_scenes_processed(double p_delta) override {
+		controlled_1_player_position.push_back(controlled_1_peer1->get_xy());
+		controlled_2_player_position.push_back(controlled_2_peer2->get_xy());
+
+		const NS::FrameIndex controller_1_player_frame_index = peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index();
+		const NS::FrameIndex controller_2_player_frame_index = peer_2_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->get_current_frame_index();
+
+		const NS::FrameIndex controller_2_doll_frame_index = peer_1_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->get_current_frame_index();
+		const NS::FrameIndex controller_1_doll_frame_index = peer_2_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index();
+
+		if (controller_1_doll_frame_index != NS::FrameIndex::NONE) {
+			// Make sure the players are always ahead the dolls.
+			ASSERT_COND(controller_1_player_frame_index > controller_2_doll_frame_index);
+			ASSERT_COND(controller_2_player_frame_index > controller_1_doll_frame_index);
+
+			// Verify the doll are at the exact location they were on the player.
+			const NS::VarData doll_1_position = controlled_1_peer2->get_xy();
+			const NS::VarData doll_2_position = controlled_2_peer1->get_xy();
+			ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_1_player_position[controller_1_doll_frame_index.id], doll_1_position));
+			ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_2_player_position[controller_2_doll_frame_index.id], doll_2_position));
+		}
+
+		int a = 0;
+	}
+};
+
+void test_simulation_without_reconciliation() {
+	TestDollSimulationWithoutReconciliation test;
+	// This test is not triggering any desynchronization.
+	test.assert_if_desync = true;
+	test.init_test();
+
+	test.do_test(100);
+
+	// Asserted.
+	ASSERT_COND(false);
+}
 
 void test_latency() {
 	TestDollSimulationBase test;
@@ -239,6 +312,11 @@ void test_latency() {
 }
 
 void test_doll_simulation() {
+	test_simulation_without_reconciliation();
+	// TODO test with latency.
+	// TODO test with long confirmation time.
+	// TODO test with reconciliation.
+	// TODO test lag compensation.
 	test_latency();
 }
 
