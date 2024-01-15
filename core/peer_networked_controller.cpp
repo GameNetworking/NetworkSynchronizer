@@ -686,7 +686,7 @@ void RemotelyControlledController::process(double p_delta) {
 
 	if (unlikely(current_input_buffer_id == FrameIndex::NONE)) {
 		// Skip this until the first input arrive.
-		SceneSynchronizerDebugger::singleton()->print(INFO, "Server skips this frame as the current_input_buffer_id == UINT32_MAX", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+		SceneSynchronizerDebugger::singleton()->print(INFO, "Server skips this frame as the current_input_buffer_id == FrameIndex::NONE", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 		return;
 	}
 
@@ -1356,7 +1356,7 @@ DollController::DollController(PeerNetworkedController *p_peer_controller) :
 	event_handler_state_validated =
 			peer_controller->scene_synchronizer->event_state_validated.bind(std::bind(&DollController::on_state_validated, this, std::placeholders::_1, std::placeholders::_2));
 
-	event_handler_state_validated =
+	event_handler_snapshot_applied =
 			peer_controller->scene_synchronizer->event_snapshot_applied.bind(std::bind(&DollController::on_snapshot_applied, this, std::placeholders::_1));
 }
 
@@ -1562,6 +1562,24 @@ bool DollController::fetch_next_input(double p_delta) {
 }
 
 void DollController::process(double p_delta) {
+	if (queued_instant_to_process >= 0 && queued_instant_to_process < int(frames_input.size())) {
+		// Rewinding in progress.
+		// On the doll the rewind's processing takes care to apply the server
+		// snapshot if it's found.
+		// This operation is done here, because the doll process on a different
+		// timeline than the one processed by the client.
+		const FrameIndex frame_index = frames_input[queued_instant_to_process].id;
+		// 1. Skil the first frame as there is nomthing before it.
+		if (frame_index > FrameIndex{ 0 }) {
+			// 2. Try fetching the previous server snapshot.
+			auto server_snap_it = VecFunc::find(server_snapshots, DollSnapshot(frame_index - 1));
+			if (server_snap_it != server_snapshots.end()) {
+				// The snapshot was found, so apply it.
+				static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(server_snap_it->data, 0, nullptr, true, true, true, true, true);
+			}
+		}
+	}
+
 	notify_frame_checked(peer_controller->scene_synchronizer->client_get_last_checked_frame_index());
 
 	const bool is_new_input = fetch_next_input(p_delta);
@@ -1592,12 +1610,20 @@ void DollController::notify_frame_checked(FrameIndex p_frame_index) {
 	}
 
 	// Removes all the inputs older than the known one (included).
-	while (frames_input.empty() == false && frames_input.front().id <= p_frame_index) {
+	while (!frames_input.empty() && frames_input.front().id <= p_frame_index) {
 		if (frames_input.front().id == p_frame_index) {
 			// Pause the streaming if the last frame is empty.
 			streaming_paused = (frames_input.front().buffer_size_bit - METADATA_SIZE) <= 0;
 		}
 		frames_input.pop_front();
+	}
+
+	while (!server_snapshots.empty() && server_snapshots.front().data.input_id <= p_frame_index) {
+		VecFunc::remove_at(server_snapshots, 0);
+	}
+
+	while (!client_snapshots.empty() && client_snapshots.front().doll_executed_input <= p_frame_index) {
+		VecFunc::remove_at(client_snapshots, 0);
 	}
 
 	last_checked_input = p_frame_index;
