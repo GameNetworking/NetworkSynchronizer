@@ -1609,6 +1609,17 @@ void DollController::on_received_server_snapshot(const Snapshot &p_snapshot) {
 		return;
 	}
 
+	// This check ensure that the server_snapshots contains just a single FrameIndex::NONE
+	// snapshot or a bunch of indexed one.
+	if (p_snapshot.input_id == FrameIndex::NONE) {
+		// The received snapshot doesn't have a FrameIndex set, it means there is no controller
+		// so assume this is the most up-to-date snapshot.
+		server_snapshots.clear();
+	} else {
+		// Make sure to remove all the snapshots with FrameIndex::NONE received before this one.
+		VecFunc::remove(server_snapshots, DollSnapshot(FrameIndex::NONE));
+	}
+
 	copy_controlled_objects_snapshot(p_snapshot, p_snapshot.input_id, server_snapshots);
 }
 
@@ -1622,7 +1633,7 @@ void DollController::copy_controlled_objects_snapshot(
 		std::vector<DollSnapshot> &r_snapshots) {
 	const std::vector<ObjectData *> *controlled_objects = peer_controller->scene_synchronizer->get_peer_controlled_objects_data(peer_controller->get_authority_peer());
 	if (!controlled_objects || controlled_objects->size() <= 0) {
-		// Nothing to store.
+		// Nothing to store for this doll.
 		return;
 	}
 
@@ -1691,12 +1702,12 @@ bool DollController::__pcr__fetch_recovery_info(
 	// 1. Fetch the server snapshot.
 	//    The server snapshot can be fetched, normally, using the index.
 	std::vector<DollSnapshot>::const_iterator server_snap_it = VecFunc::find(server_snapshots, DollSnapshot(p_checking_frame_index));
-	// The server snapshot was not found, this is impossible because we store
-	// all the snapshots.
-	ENSURE_V_MSG(server_snapshots.end() != server_snap_it, false, "Doll fetch recovery info failed because the snapshot was not found, though this should be impossible to trigger. checking_frame_index: " + p_checking_frame_index);
-
-	const DollSnapshot *server_snapshot = &*server_snap_it;
-	ENSURE_V(server_snapshot, false);
+	if (server_snapshots.end() == server_snap_it) {
+		// The server snapshot was not found on this doll, that can only happen
+		// when this doll is not simulating anything on this client.
+		// So, just return true.
+		return true;
+	}
 
 	// 2. Now fetch the client snapshot.
 	//    Since the doll is following a a different timeline, we need to fetch the
@@ -1707,12 +1718,16 @@ bool DollController::__pcr__fetch_recovery_info(
 			client_snapshot = &snapshot;
 		}
 	}
-	ENSURE_V_MSG(client_snapshot, false, "Doll fetch recovery info failed because the client snapshot was not found. checking_frame: " + p_checking_frame_index)
+	if (!client_snapshot) {
+		// The client was not found, most likely there was nothing to store,
+		// it can be considered as the two snapshots are different.
+		return false;
+	}
 
 	// Now just compare the two snapshots.
 	return Snapshot::compare(
 			*peer_controller->scene_synchronizer,
-			server_snapshot->data,
+			server_snap_it->data,
 			client_snapshot->data,
 			-1,
 			r_no_rewind_recover,
@@ -1725,21 +1740,19 @@ bool DollController::__pcr__fetch_recovery_info(
 }
 
 void DollController::on_snapshot_applied(const Snapshot &p_snapshot) {
-	// Since this doll is executing on a different timeline, we can't apply
-	// the received snapshot.
-	// 1. Search which input was executed by this doll when this snapshot was executed.
-	FrameIndex doll_executed_input;
-	{
-		const auto client_snap_it = VecFunc::find(client_snapshots, DollSnapshot(p_snapshot.input_id));
-		ENSURE_MSG(client_snap_it != client_snapshots.end(), "The doll was unable to set the snapshot because it was unable to find the client snapshot with ID: " + p_snapshot.input_id);
+	// This function can't run on the server.
+	ENSURE(peer_controller->scene_synchronizer->is_client());
 
-		doll_executed_input = client_snap_it->doll_executed_input;
-	}
+	// At this point it's necessary to mention that due to the fact the doll is
+	// processing on a different timeline, we may not have the server snapshot
+	// to reconcile the doll with the server right away.
+	// For this reason, this function apply the client snapshot, and leaves to
+	// Rewinding's process function the task to apply the server snapshot.
 
-	// Now it has the executed input so, fetch the snapshot to apply.
-	// 2. Fetch the server snapshot.
-	const auto server_snap_it = VecFunc::find(server_snapshots, DollSnapshot(doll_executed_input));
-	if (server_snap_it ==)
+	const auto client_snap_it = VecFunc::find(client_snapshots, DollSnapshot(p_snapshot.input_id));
+	ENSURE_MSG(client_snap_it != client_snapshots.end(), "The doll was unable to set the snapshot because it was unable to find the client snapshot with ID: " + p_snapshot.input_id);
+
+	static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(p_snapshot, 0, nullptr, true, true, true, true, true);
 }
 
 NoNetController::NoNetController(PeerNetworkedController *p_peer_controller) :
