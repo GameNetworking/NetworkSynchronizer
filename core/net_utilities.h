@@ -199,23 +199,24 @@ void remove_unordered(std::vector<V> &r_vec, const T &p_val) {
 }
 
 // Swap the element at position with the last one, then removes it.
-template <class V, typename T>
+template <class V>
 void remove_at(std::vector<V> &r_vec, std::size_t p_index) {
-	if (r_vec.size() >= p_index) {
+	if (r_vec.size() <= p_index) {
 		return;
 	}
 
-	remove(r_vec, r_vec.begin() + p_index);
+	r_vec.erase(r_vec.begin() + p_index);
 }
 
 // Swap the element at position with the last one, then removes it.
-template <class V, typename T>
+template <class V>
 void remove_at_unordered(std::vector<V> &r_vec, std::size_t p_index) {
-	if (r_vec.size() >= p_index) {
+	if (r_vec.size() <= p_index) {
 		return;
 	}
 
-	remove_unordered(r_vec, r_vec.begin() + p_index);
+	std::iter_swap(r_vec.begin() + p_index, r_vec.rbegin());
+	r_vec.pop_back();
 }
 } //namespace VecFunc
 
