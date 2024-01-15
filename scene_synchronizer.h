@@ -284,6 +284,9 @@ public:
 		return *synchronizer_manager;
 	}
 
+	const Synchronizer *get_synchronizer_internal() const { return synchronizer; }
+	Synchronizer *get_synchronizer_internal() { return synchronizer; }
+
 	void set_frames_per_seconds(int p_fps);
 	int get_frames_per_seconds() const;
 
@@ -838,11 +841,17 @@ private:
 
 	void update_client_snapshot(Snapshot &p_snapshot);
 	void update_simulated_objects_list(const std::vector<ObjectNetId> &p_simulated_objects);
+
+public:
 	void apply_snapshot(
 			const Snapshot &p_snapshot,
-			int p_flag,
+			const int p_flag,
 			std::vector<std::string> *r_applied_data_info,
-			bool p_skip_custom_data = false);
+			const bool p_skip_custom_data = false,
+			const bool p_skip_simulated_objects_update = false,
+			const bool p_disable_apply_non_doll_controlled_only = false,
+			const bool p_skip_snapshot_applied_event_broadcast = false,
+			const bool p_skip_change_event = false);
 };
 
 /// This is used to make sure we can safely convert any `BaseType` defined by

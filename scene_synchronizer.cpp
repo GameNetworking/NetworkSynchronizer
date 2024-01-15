@@ -3679,19 +3679,27 @@ void ClientSynchronizer::update_simulated_objects_list(const std::vector<ObjectN
 
 void ClientSynchronizer::apply_snapshot(
 		const NS::Snapshot &p_snapshot,
-		int p_flag,
+		const int p_flag,
 		std::vector<std::string> *r_applied_data_info,
-		bool p_skip_custom_data) {
+		const bool p_skip_custom_data,
+		const bool p_skip_simulated_objects_update,
+		const bool p_disable_apply_non_doll_controlled_only,
+		const bool p_skip_snapshot_applied_event_broadcast,
+		const bool p_skip_change_event) {
 	NS_PROFILE
 
 	const std::vector<NS::NameAndVar> *snap_objects_vars = p_snapshot.object_vars.data();
 
-	scene_synchronizer->change_events_begin(p_flag);
+	if (!p_skip_change_event) {
+		scene_synchronizer->change_events_begin(p_flag);
+	}
 	const int this_peer = scene_synchronizer->network_interface->fetch_local_peer_id();
 
-	update_simulated_objects_list(p_snapshot.simulated_objects);
+	if (!p_skip_simulated_objects_update) {
+		update_simulated_objects_list(p_snapshot.simulated_objects);
+	}
 
-	for (ObjectNetId net_node_id = { 0 }; net_node_id < ObjectNetId{ uint32_t(p_snapshot.object_vars.size()) }; net_node_id += 1) {
+	for (ObjectNetId net_node_id : p_snapshot.simulated_objects) {
 		NS::ObjectData *object_data = scene_synchronizer->get_object_data(net_node_id);
 
 		if (object_data == nullptr) {
@@ -3701,12 +3709,17 @@ void ClientSynchronizer::apply_snapshot(
 			continue;
 		}
 
-		if (object_data->realtime_sync_enabled_on_client == false) {
-			// This is not a simulated object.
-			continue;
+#ifdef DEBUG_ENABLED
+		if (!p_skip_simulated_objects_update) {
+			// This can't trigger because the `update_simulated_objects_list` make sure to set this.
+			ASSERT_COND(object_data->realtime_sync_enabled_on_client);
 		}
+#endif
 
-		if (object_data->get_controlled_by_peer() > 0 && object_data->get_controlled_by_peer() != this_peer) {
+		if (
+				!p_disable_apply_non_doll_controlled_only &&
+				object_data->get_controlled_by_peer() > 0 &&
+				object_data->get_controlled_by_peer() != this_peer) {
 			// This object is controlled by a doll, which simulation / reconcilation
 			// is mostly doll-controller driven.
 			// The dolls are notified at the end of this loop, when the event
@@ -3775,9 +3788,13 @@ void ClientSynchronizer::apply_snapshot(
 		scene_synchronizer->synchronizer_manager->snapshot_set_custom_data(p_snapshot.custom_data);
 	}
 
-	scene_synchronizer->event_snapshot_applied.broadcast(p_snapshot);
+	if (!p_skip_snapshot_applied_event_broadcast) {
+		scene_synchronizer->event_snapshot_applied.broadcast(p_snapshot);
+	}
 
-	scene_synchronizer->change_events_flush();
+	if (!p_skip_change_event) {
+		scene_synchronizer->change_events_flush();
+	}
 }
 
 NS_NAMESPACE_END
