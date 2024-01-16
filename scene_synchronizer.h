@@ -226,7 +226,7 @@ public: // -------------------------------------------------------------- Events
 	///       the data read through the get functions, at the moment of the event.
 	///       So, you can assume the snapshot contains the result of the last executed input.
 	Processor<const Snapshot & /*p_snapshot*/> event_snapshot_update_finished;
-	Processor<const Snapshot & /*p_snapshot*/> event_snapshot_applied;
+	Processor<const Snapshot & /*p_snapshot*/, int /*p_frame_count_to_rewind*/> event_snapshot_applied;
 	Processor<const Snapshot & /*p_received_snapshot*/> event_received_server_snapshot;
 	Processor<FrameIndex, int /*p_index*/, int /*p_count*/> event_rewind_frame_begin;
 	Processor<FrameIndex, ObjectHandle /*p_app_object_handle*/, const std::vector<std::string> & /*p_var_names*/, const std::vector<VarData> & /*p_client_values*/, const std::vector<VarData> & /*p_server_values*/> event_desync_detected_with_info;
@@ -816,7 +816,7 @@ private:
 			const struct PlayerController &p_local_player_controller,
 			Snapshot &r_no_rewind_recover);
 
-	void __pcr__sync__rewind();
+	void __pcr__sync__rewind(FrameIndex p_last_checked_input_id, const PlayerController &p_local_player_controller);
 
 	void __pcr__rewind(
 			const FrameIndex p_checkable_frame_index,
@@ -847,6 +847,8 @@ public:
 	void apply_snapshot(
 			const Snapshot &p_snapshot,
 			const int p_flag,
+			// The frames rewinded just after this function.
+			const int p_frame_count_to_rewind,
 			std::vector<std::string> *r_applied_data_info,
 			const bool p_skip_custom_data = false,
 			const bool p_skip_simulated_objects_update = false,

@@ -2644,7 +2644,7 @@ void ClientSynchronizer::process_received_server_state() {
 		// The server last received snapshot is a no input snapshot. Just assume it's the most up-to-date.
 		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The client received a \"no input\" snapshot, so the client is setting it right away assuming is the most updated one.", true);
 
-		apply_snapshot(*last_received_server_snapshot, NetEventFlag::SYNC_RECOVER, nullptr);
+		apply_snapshot(*last_received_server_snapshot, NetEventFlag::SYNC_RECOVER, 0, nullptr);
 		last_received_server_snapshot.reset();
 		return;
 	}
@@ -2726,7 +2726,9 @@ void ClientSynchronizer::process_received_server_state() {
 				scene_synchronizer->get_network_interface().get_owner_name());
 
 		// Sync.
-		__pcr__sync__rewind();
+		__pcr__sync__rewind(
+				last_checked_input,
+				*inner_player_controller);
 
 		// Rewind.
 		__pcr__rewind(
@@ -2774,15 +2776,12 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 	);
 
 	if (is_equal) {
-		const int frames_count_after_input_id = p_local_player_controller.count_frames_after(p_input_id);
-
 		// The snapshots are equals, make sure the dolls doesn't need to be reconciled.
 		for (const auto &[peer, data] : scene_synchronizer->peer_data) {
 			if (data.get_controller() && data.get_controller()->is_doll_controller()) {
 				const bool is_doll_state_valid = data.get_controller()->get_doll_controller()->__pcr__fetch_recovery_info(
 						p_input_id,
 						&r_no_rewind_recover,
-						frames_count_after_input_id,
 						scene_synchronizer->debug_rewindings_enabled ? &differences_info : nullptr
 #ifdef DEBUG_ENABLED
 						,
@@ -2854,10 +2853,14 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 	return !is_equal;
 }
 
-void ClientSynchronizer::__pcr__sync__rewind() {
+void ClientSynchronizer::__pcr__sync__rewind(
+		FrameIndex p_last_checked_input_id,
+		const PlayerController &p_local_player_controller) {
 	NS_PROFILE
 	// Apply the server snapshot so to go back in time till that moment,
 	// so to be able to correctly reply the movements.
+
+	const int frame_count_after_input_id = p_local_player_controller.count_frames_after(p_last_checked_input_id);
 
 	std::vector<std::string> applied_data_info;
 
@@ -2865,6 +2868,7 @@ void ClientSynchronizer::__pcr__sync__rewind() {
 	apply_snapshot(
 			server_snapshot,
 			NetEventFlag::SYNC_RECOVER | NetEventFlag::SYNC_RESET,
+			frame_count_after_input_id,
 			scene_synchronizer->debug_rewindings_enabled ? &applied_data_info : nullptr);
 
 	if (applied_data_info.size() > 0) {
@@ -2950,6 +2954,7 @@ void ClientSynchronizer::__pcr__sync__no_rewind(const NS::Snapshot &p_no_rewind_
 	apply_snapshot(
 			p_no_rewind_recover,
 			NetEventFlag::SYNC_RECOVER,
+			0,
 			scene_synchronizer->debug_rewindings_enabled ? &applied_data_info : nullptr,
 			// ALWAYS skips custom data because partial snapshots don't contain custom_data.
 			true);
@@ -2986,6 +2991,7 @@ void ClientSynchronizer::process_paused_controller_recovery() {
 	apply_snapshot(
 			*last_received_server_snapshot,
 			NetEventFlag::SYNC_RECOVER,
+			0,
 			&applied_data_info);
 
 	last_received_server_snapshot.reset();
@@ -3738,6 +3744,7 @@ void ClientSynchronizer::update_simulated_objects_list(const std::vector<ObjectN
 void ClientSynchronizer::apply_snapshot(
 		const NS::Snapshot &p_snapshot,
 		const int p_flag,
+		const int p_frame_count_to_rewind,
 		std::vector<std::string> *r_applied_data_info,
 		const bool p_skip_custom_data,
 		const bool p_skip_simulated_objects_update,
@@ -3847,7 +3854,7 @@ void ClientSynchronizer::apply_snapshot(
 	}
 
 	if (!p_skip_snapshot_applied_event_broadcast) {
-		scene_synchronizer->event_snapshot_applied.broadcast(p_snapshot);
+		scene_synchronizer->event_snapshot_applied.broadcast(p_snapshot, p_frame_count_to_rewind);
 	}
 
 	if (!p_skip_change_event) {

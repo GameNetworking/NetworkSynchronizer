@@ -86,22 +86,25 @@ public:
 		}
 
 		// TODO remove this, is here just for debug.
-		if (authoritative_peer_id != 2) {
-			return;
-		}
-		NS::PeerNetworkedController *controller = scene_owner->scene_sync->get_controller_for_peer(authoritative_peer_id);
-		NS::FrameIndex fi = controller->get_current_frame_index();
-		std::string frame_info;
-		frame_info += "FrameIndex: " + fi;
-		frame_info += " initial X: " + std::to_string(current.data.vec.x) + " Y: " + std::to_string(current.data.vec.y);
-		frame_info += " input: " + std::string(advance_or_turn ? "advance" : "turn");
+		const bool debug_procesing = false;
+		if (!debug_procesing) {
+			if (authoritative_peer_id != 2) {
+				return;
+			}
+			NS::PeerNetworkedController *controller = scene_owner->scene_sync->get_controller_for_peer(authoritative_peer_id);
+			NS::FrameIndex fi = controller->get_current_frame_index();
+			std::string frame_info;
+			frame_info += "FrameIndex: " + fi;
+			frame_info += " initial X: " + std::to_string(current.data.vec.x) + " Y: " + std::to_string(current.data.vec.y);
+			frame_info += " input: " + std::string(advance_or_turn ? "advance" : "turn");
 
-		if (controller->is_doll_controller()) {
-			NS::SceneSynchronizerBase::__print_line("Doll controller " + frame_info);
-		} else if (controller->is_player_controller()) {
-			NS::SceneSynchronizerBase::__print_line("Player controller " + frame_info);
-		} else if (controller->is_server_controller()) {
-			NS::SceneSynchronizerBase::__print_line("Server controller " + frame_info);
+			if (controller->is_doll_controller()) {
+				NS::SceneSynchronizerBase::__print_line("Doll controller " + frame_info);
+			} else if (controller->is_player_controller()) {
+				NS::SceneSynchronizerBase::__print_line("Player controller " + frame_info);
+			} else if (controller->is_server_controller()) {
+				NS::SceneSynchronizerBase::__print_line("Server controller " + frame_info);
+			}
 		}
 	}
 
