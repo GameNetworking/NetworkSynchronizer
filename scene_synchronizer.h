@@ -789,7 +789,8 @@ public:
 			DataBuffer &p_snapshot,
 			void *p_user_pointer,
 			void (*p_custom_data_parse)(void *p_user_pointer, VarData &&p_custom_data),
-			void (*p_ode_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
+			void (*p_object_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
+			void (*p_peers_frame_index_parse)(void *p_user_pointer, std::map<int, FrameIndex> &&p_frames_index),
 			void (*p_input_id_parse)(void *p_user_pointer, FrameIndex p_frame_index),
 			void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, VarData &&p_value),
 			void (*p_simulated_objects_parse)(void *p_user_pointer, std::vector<ObjectNetId> &&p_simulated_objects));

@@ -15,6 +15,12 @@ struct Snapshot final {
 	/// The variable array order also matter.
 	std::vector<std::vector<NameAndVar>> object_vars;
 
+	/// The executed FrameIndex for the simulating peers.
+	/// NOTE: Due to the nature of the doll simulation, when comparing the
+	///       server snapshot with the client snapshot this map is never checked.
+	///       This map is used by the Doll-controller's reconciliation algorithm.
+	std::map<int, FrameIndex> peers_frames_index;
+
 	bool has_custom_data = false;
 
 	/// Custom variable specified by the user.

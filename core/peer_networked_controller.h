@@ -219,16 +219,6 @@ public:
 			const Vector<uint8_t> &p_data,
 			void *p_user_pointer,
 			void (*p_input_parse)(void *p_user_pointer, FrameIndex p_input_id, int p_input_size_in_bits, const BitArray &p_input));
-
-	/// This function is able to get the InputId for this buffer.
-	bool __input_data_get_first_input_id(
-			const Vector<uint8_t> &p_data,
-			uint32_t &p_input_id) const;
-
-	/// This function is able to set a new InputId for this buffer.
-	bool __input_data_set_first_input_id(
-			Vector<uint8_t> &p_data,
-			uint32_t p_input_id);
 };
 
 struct FrameInput {
@@ -310,8 +300,6 @@ struct ServerController : public RemotelyControlledController {
 
 	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;
 
-	uint32_t convert_input_id_to(int p_other_peer, uint32_t p_input_id) const;
-
 	std::int8_t compute_client_tick_rate_distance_to_optimal();
 };
 
@@ -383,9 +371,9 @@ public:
 		DollSnapshot(const DollSnapshot &p_other) = delete;
 		DollSnapshot operator=(const DollSnapshot &p_other) = delete;
 
-		DollSnapshot(FrameIndex p_index) { data.input_id = p_index; }
+		DollSnapshot(FrameIndex p_index) { doll_executed_input = p_index; }
 
-		bool operator==(const DollSnapshot &p_other) const { return data.input_id == p_other.data.input_id; }
+		bool operator==(const DollSnapshot &p_other) const { return doll_executed_input == p_other.doll_executed_input; }
 	};
 
 public:
@@ -396,6 +384,7 @@ public:
 	NS::PHandler event_handler_snapshot_applied = NS::NullPHandler;
 
 	FrameIndex last_checked_input = FrameIndex::NONE;
+	FrameIndex last_doll_checked_input = FrameIndex::NONE;
 	int queued_instant_to_process = -1;
 
 	// Contains the controlled nodes frames snapshot.
@@ -419,7 +408,7 @@ public:
 
 	void on_received_server_snapshot(const Snapshot &p_snapshot);
 	void on_snapshot_update_finished(const Snapshot &p_snapshot);
-	void copy_controlled_objects_snapshot(const Snapshot &p_snapshot, FrameIndex p_doll_executed_input, std::vector<DollSnapshot> &r_snapshots);
+	void copy_controlled_objects_snapshot(const Snapshot &p_snapshot, std::vector<DollSnapshot> &r_snapshots);
 
 	// Checks whether this doll requires a reconciliation.
 	// The check done is relative to the doll timeline, and not the scene sync timeline.
@@ -435,6 +424,9 @@ public:
 	) const;
 
 	void on_snapshot_applied(const Snapshot &p_snapshot);
+
+	DollSnapshot *find_snapshot_by_snapshot_id(std::vector<DollSnapshot> &p_snapshots, FrameIndex p_index) const;
+	const DollSnapshot *find_snapshot_by_snapshot_id(const std::vector<DollSnapshot> &p_snapshots, FrameIndex p_index) const;
 };
 
 /// This controller is used when the game instance is not a peer of any kind.

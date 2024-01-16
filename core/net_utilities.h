@@ -78,13 +78,13 @@ const V &at(const std::map<K, V> &p_map, const K &p_key, const V &p_default) {
 	}
 }
 
-/// Insert or assign the `p_val` into the map at index `p_key`.
+/// Insert or update the `p_val` into the map at index `p_key`.
 template <class K, class V>
 void assign(std::map<K, V> &p_map, const K &p_key, const V &p_val) {
 	p_map.insert_or_assign(p_key, p_val);
 }
 
-/// Insert or assign the `p_val` into the map at index `p_key`.
+/// Insert or update the `p_val` into the map at index `p_key`.
 template <class K, class V>
 void assign(std::map<K, V> &p_map, const K &p_key, V &&p_val) {
 	p_map.insert_or_assign(p_key, std::move(p_val));
