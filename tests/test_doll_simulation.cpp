@@ -84,6 +84,25 @@ public:
 			// Turn
 			set_xy(current.data.vec.x, current.data.vec.y + 1);
 		}
+
+		// TODO remove this, is here just for debug.
+		if (authoritative_peer_id != 2) {
+			return;
+		}
+		NS::PeerNetworkedController *controller = scene_owner->scene_sync->get_controller_for_peer(authoritative_peer_id);
+		NS::FrameIndex fi = controller->get_current_frame_index();
+		std::string frame_info;
+		frame_info += "FrameIndex: " + fi;
+		frame_info += " initial X: " + std::to_string(current.data.vec.x) + " Y: " + std::to_string(current.data.vec.y);
+		frame_info += " input: " + std::string(advance_or_turn ? "advance" : "turn");
+
+		if (controller->is_doll_controller()) {
+			NS::SceneSynchronizerBase::__print_line("Doll controller " + frame_info);
+		} else if (controller->is_player_controller()) {
+			NS::SceneSynchronizerBase::__print_line("Player controller " + frame_info);
+		} else if (controller->is_server_controller()) {
+			NS::SceneSynchronizerBase::__print_line("Server controller " + frame_info);
+		}
 	}
 
 	bool are_inputs_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B) {
@@ -101,7 +120,8 @@ public:
 /// This class is made in a way which allows to be overriden to test the sync
 /// still works under bad network conditions.
 struct TestDollSimulationBase {
-	bool assert_if_desync = false;
+	std::vector<NS::FrameIndex> peer1_desync_detected;
+	std::vector<NS::FrameIndex> peer2_desync_detected;
 
 	NS::LocalNetworkProps network_properties;
 
@@ -115,6 +135,8 @@ struct TestDollSimulationBase {
 	TDSControlledObject *controlled_2_serv = nullptr;
 	TDSControlledObject *controlled_2_peer1 = nullptr;
 	TDSControlledObject *controlled_2_peer2 = nullptr;
+
+	float frame_confirmation_timespan = 1. / 60.;
 
 private:
 	virtual void on_scenes_initialized() {}
@@ -149,6 +171,8 @@ public:
 		peer_2_scene.scene_sync =
 				peer_2_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
 
+		server_scene.scene_sync->set_frame_confirmation_timespan(frame_confirmation_timespan);
+
 		// Then compose the scene: 2 controllers.
 		controlled_1_serv = server_scene.add_object<TDSControlledObject>("controller_1", peer_1_scene.get_peer());
 		controlled_1_peer1 = peer_1_scene.add_object<TDSControlledObject>("controller_1", peer_1_scene.get_peer());
@@ -168,14 +192,16 @@ public:
 			on_client_2_process(p_delta);
 		});
 
-		if (assert_if_desync) {
-			peer_1_scene.scene_sync->event_state_validated.bind([](NS::FrameIndex fi, bool p_desync_detected) -> void {
-				ASSERT_COND(!p_desync_detected);
-			});
-			peer_2_scene.scene_sync->event_state_validated.bind([](NS::FrameIndex fi, bool p_desync_detected) -> void {
-				ASSERT_COND(!p_desync_detected);
-			});
-		}
+		peer_1_scene.scene_sync->event_state_validated.bind([this](NS::FrameIndex fi, bool p_desync_detected) -> void {
+			if (p_desync_detected) {
+				peer1_desync_detected.push_back(fi);
+			}
+		});
+		peer_2_scene.scene_sync->event_state_validated.bind([this](NS::FrameIndex fi, bool p_desync_detected) -> void {
+			if (p_desync_detected) {
+				peer2_desync_detected.push_back(fi);
+			}
+		});
 
 		// Set the position of each object:
 		controlled_1_serv->set_xy(100, 0);
@@ -214,11 +240,8 @@ public:
 	}
 };
 
-struct TestDollSimulationWithoutReconciliation : public TestDollSimulationBase {
+struct TestDollSimulationWithPositionCheck : public TestDollSimulationBase {
 	virtual void on_scenes_initialized() override {
-		// Notify instantly
-		server_scene.scene_sync->set_frame_confirmation_timespan(0.0);
-
 		// Ensure the controllers are at their initial location as defined by the doll simulation class.
 		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_1_serv->get_xy(), NS::VarData(100, 0)));
 		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_1_peer1->get_xy(), NS::VarData(100, 0)));
@@ -232,10 +255,19 @@ struct TestDollSimulationWithoutReconciliation : public TestDollSimulationBase {
 	std::vector<NS::VarData> controlled_1_player_position;
 	std::vector<NS::VarData> controlled_2_player_position;
 
-	virtual void on_scenes_processed(double p_delta) override {
-		controlled_1_player_position.push_back(controlled_1_peer1->get_xy());
-		controlled_2_player_position.push_back(controlled_2_peer2->get_xy());
+	virtual void on_server_process(double p_delta) override {
+		// Nothing to do.
+	}
 
+	virtual void on_client_1_process(double p_delta) override {
+		controlled_1_player_position.push_back(controlled_1_peer1->get_xy());
+	}
+
+	virtual void on_client_2_process(double p_delta) override {
+		controlled_2_player_position.push_back(controlled_2_peer2->get_xy());
+	}
+
+	virtual void on_scenes_processed(double p_delta) override {
 		const NS::FrameIndex controller_1_player_frame_index = peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index();
 		const NS::FrameIndex controller_2_player_frame_index = peer_2_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->get_current_frame_index();
 
@@ -250,24 +282,24 @@ struct TestDollSimulationWithoutReconciliation : public TestDollSimulationBase {
 			// Verify the doll are at the exact location they were on the player.
 			const NS::VarData doll_1_position = controlled_1_peer2->get_xy();
 			const NS::VarData doll_2_position = controlled_2_peer1->get_xy();
-			ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_1_player_position[controller_1_doll_frame_index.id], doll_1_position));
-			ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_2_player_position[controller_2_doll_frame_index.id], doll_2_position));
+			const NS::VarData &player_1_position = controlled_1_player_position[controller_1_doll_frame_index.id];
+			const NS::VarData &player_2_position = controlled_2_player_position[controller_2_doll_frame_index.id];
+			ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(player_1_position, doll_1_position));
+			ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(player_2_position, doll_2_position));
 		}
-
-		int a = 0;
 	}
 };
 
-void test_simulation_without_reconciliation() {
-	TestDollSimulationWithoutReconciliation test;
+void test_simulation_without_reconciliation(float p_frame_confirmation_timespan) {
+	TestDollSimulationWithPositionCheck test;
+	test.frame_confirmation_timespan = p_frame_confirmation_timespan;
 	// This test is not triggering any desynchronization.
-	test.assert_if_desync = true;
 	test.init_test();
 
 	test.do_test(100);
 
-	// Asserted.
-	ASSERT_COND(false);
+	ASSERT_COND(test.peer1_desync_detected.size() == 0);
+	ASSERT_COND(test.peer2_desync_detected.size() == 0);
 }
 
 void test_latency() {
@@ -312,12 +344,16 @@ void test_latency() {
 }
 
 void test_doll_simulation() {
-	test_simulation_without_reconciliation();
-	// TODO test with latency.
-	// TODO test with long confirmation time.
+	// TODO enable this
+	// test_simulation_without_reconciliation(0.0);
+	test_simulation_without_reconciliation(1. / 30.);
 	// TODO test with reconciliation.
+	// TODO test with latency.
 	// TODO test lag compensation.
 	test_latency();
+
+	// TODO Remove this once the test are all implemented.
+	ASSERT_COND(false);
 }
 
 }; //namespace NS_Test

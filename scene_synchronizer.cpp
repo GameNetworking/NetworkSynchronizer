@@ -2187,6 +2187,25 @@ void ServerSynchronizer::generate_snapshot_object_data(
 		r_snapshot_db.add(false); // Has the object name?
 	}
 
+	// Encode the controller's executed FrameInput.
+	{
+		bool frame_input_encoded = false;
+		if (p_object_data->get_controlled_by_peer() > 0) {
+			const PeerNetworkedController *peer_controller = scene_synchronizer->get_controller_for_peer(p_object_data->get_controlled_by_peer());
+			if (peer_controller) {
+				// Has controller FrameInput
+				r_snapshot_db.add(true);
+				r_snapshot_db.add(peer_controller->get_current_frame_index().id);
+				frame_input_encoded = true;
+			}
+		}
+
+		if (!frame_input_encoded) {
+			// Has controller FrameInput
+			r_snapshot_db.add(false);
+		}
+	}
+
 	const bool allow_vars =
 			force_snapshot_variables ||
 			(node_has_changes && !skip_snapshot_variables) ||
@@ -3092,12 +3111,16 @@ bool ClientSynchronizer::parse_sync_data(
 		DataBuffer &p_snapshot,
 		void *p_user_pointer,
 		void (*p_custom_data_parse)(void *p_user_pointer, VarData &&p_custom_data),
-		void (*p_node_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
+		void (*p_object_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
+		void (*p_peers_frame_index_parse)(void *p_user_pointer, std::map<int, FrameIndex> &&p_frames_index),
 		void (*p_input_id_parse)(void *p_user_pointer, FrameIndex p_input_id),
 		void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, VarData &&p_value),
 		void (*p_simulated_objects_parse)(void *p_user_pointer, std::vector<ObjectNetId> &&p_simulated_objects)) {
+	NS_PROFILE
+
 	// The snapshot is a DataBuffer that contains the scene informations.
 	// NOTE: Check generate_snapshot to see the DataBuffer format.
+	std::map<int, FrameIndex> frames_index;
 
 	p_snapshot.begin_read();
 	if (p_snapshot.size() <= 0) {
@@ -3206,7 +3229,7 @@ bool ClientSynchronizer::parse_sync_data(
 
 					if (object_name_ptr == nullptr) {
 						// The name for this `NodeId` doesn't exists yet.
-						SceneSynchronizerDebugger::singleton()->debug_warning(&scene_synchronizer->get_network_interface(), "The object with ID `" + itos(net_id.id) + "` is not know by this peer yet.");
+						SceneSynchronizerDebugger::singleton()->print(WARNING, "The object with ID `" + net_id + "` is not know by this peer yet.");
 						notify_server_full_snapshot_is_needed();
 					} else {
 						object_name = *object_name_ptr;
@@ -3244,7 +3267,25 @@ bool ClientSynchronizer::parse_sync_data(
 			ASSERT_COND(synchronizer_object_data->get_net_id() != ObjectNetId::NONE);
 #endif
 
-			p_node_parse(p_user_pointer, synchronizer_object_data);
+			p_object_parse(p_user_pointer, synchronizer_object_data);
+		}
+
+		// Extract the frame index.
+		{
+			FrameIndex frame_index = FrameIndex::NONE;
+			bool has_frame_index = false;
+			p_snapshot.read(has_frame_index);
+			ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `has_frame_index` was expected at this point.");
+			if (has_frame_index) {
+				p_snapshot.read(frame_index.id);
+				ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `frame_index` was expected at this point.");
+			}
+
+			if (!skip_object) {
+				if (synchronizer_object_data->get_controlled_by_peer() > 0) {
+					MapFunc::assign(frames_index, synchronizer_object_data->get_controlled_by_peer(), frame_index);
+				}
+			}
 		}
 
 		// Now it's time to fetch the variables.
@@ -3282,6 +3323,8 @@ bool ClientSynchronizer::parse_sync_data(
 			}
 		}
 	}
+
+	p_peers_frame_index_parse(p_user_pointer, std::move(frames_index));
 
 	return true;
 }
@@ -3513,7 +3556,7 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 				pd->snapshot.custom_data = std::move(p_custom_data);
 			},
 
-			// Parse node:
+			// Parse object:
 			[](void *p_user_pointer, NS::ObjectData *p_object_data) {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
 
@@ -3526,6 +3569,13 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 				if (uint32_t(pd->snapshot.object_vars.size()) <= p_object_data->get_net_id().id) {
 					pd->snapshot.object_vars.resize(p_object_data->get_net_id().id + 1);
 				}
+			},
+
+			// Parse peer frames index
+			[](void *p_user_pointer, std::map<int, FrameIndex> &&p_peers_frames_index) {
+				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
+
+				pd->snapshot.peers_frames_index = std::move(p_peers_frames_index);
 			},
 
 			// Parse InputID:
@@ -3597,6 +3647,14 @@ void ClientSynchronizer::update_client_snapshot(NS::Snapshot &r_snapshot) {
 
 	// Make sure we have room for all the NodeData.
 	r_snapshot.object_vars.resize(scene_synchronizer->objects_data_storage.get_sorted_objects_data().size());
+
+	// Updates the Peers executed FrameIndex
+	r_snapshot.peers_frames_index.clear();
+	for (const auto &[peer, data] : scene_synchronizer->peer_data) {
+		if (data.controller) {
+			MapFunc::assign(r_snapshot.peers_frames_index, peer, data.controller->get_current_frame_index());
+		}
+	}
 
 	// Create the snapshot, even for the objects controlled by the dolls.
 	for (const NS::ObjectData *od : scene_synchronizer->objects_data_storage.get_sorted_objects_data()) {
