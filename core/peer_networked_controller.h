@@ -399,7 +399,6 @@ public:
 
 	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;
 	void on_rewind_frame_begin(FrameIndex p_input_id, int p_index, int p_count);
-	int count_queued_inputs() const;
 	int fetch_optimal_queued_inputs() const;
 	virtual bool fetch_next_input(double p_delta) override;
 	virtual void process(double p_delta) override;
@@ -415,7 +414,6 @@ public:
 	bool __pcr__fetch_recovery_info(
 			FrameIndex p_checking_frame_index,
 			Snapshot *r_no_rewind_recover,
-			int p_predicted_frames,
 			std::vector<std::string> *r_differences_info
 #ifdef DEBUG_ENABLED
 			,
@@ -423,7 +421,7 @@ public:
 #endif
 	) const;
 
-	void on_snapshot_applied(const Snapshot &p_snapshot);
+	void on_snapshot_applied(const Snapshot &p_snapshot, const int p_frame_count_to_rewind);
 
 	DollSnapshot *find_snapshot_by_snapshot_id(std::vector<DollSnapshot> &p_snapshots, FrameIndex p_index) const;
 	const DollSnapshot *find_snapshot_by_snapshot_id(const std::vector<DollSnapshot> &p_snapshots, FrameIndex p_index) const;

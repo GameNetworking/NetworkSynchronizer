@@ -1295,7 +1295,7 @@ DollController::DollController(PeerNetworkedController *p_peer_controller) :
 			peer_controller->scene_synchronizer->event_state_validated.bind(std::bind(&DollController::on_state_validated, this, std::placeholders::_1, std::placeholders::_2));
 
 	event_handler_snapshot_applied =
-			peer_controller->scene_synchronizer->event_snapshot_applied.bind(std::bind(&DollController::on_snapshot_applied, this, std::placeholders::_1));
+			peer_controller->scene_synchronizer->event_snapshot_applied.bind(std::bind(&DollController::on_snapshot_applied, this, std::placeholders::_1, std::placeholders::_2));
 }
 
 DollController::~DollController() {
@@ -1395,16 +1395,6 @@ void DollController::on_rewind_frame_begin(FrameIndex p_frame_index, int p_index
 	return;
 }
 
-int DollController::count_queued_inputs() const {
-	int queued_inputs_count = 0;
-	for (const FrameInput &frame : frames_input) {
-		if (frame.id > current_input_buffer_id) {
-			queued_inputs_count += 1;
-		}
-	}
-	return queued_inputs_count;
-}
-
 int DollController::fetch_optimal_queued_inputs() const {
 	// The optimal virtual delay is a number that refers to the amount of queued
 	// frames the DollController should try to have on each frame to avoid
@@ -1485,7 +1475,7 @@ void DollController::process(double p_delta) {
 			auto server_snap_it = VecFunc::find(server_snapshots, DollSnapshot(frame_index - 1));
 			if (server_snap_it != server_snapshots.end()) {
 				// The snapshot was found, so apply it.
-				static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(server_snap_it->data, 0, nullptr, true, true, true, true, true);
+				static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(server_snap_it->data, 0, 0, nullptr, true, true, true, true, true);
 			}
 		}
 	}
@@ -1650,8 +1640,6 @@ void DollController::copy_controlled_objects_snapshot(
 bool DollController::__pcr__fetch_recovery_info(
 		FrameIndex p_checking_frame_index,
 		Snapshot *r_no_rewind_recover,
-		// The frames to process afterward.
-		int p_predicted_frames,
 		std::vector<std::string> *r_differences_info
 #ifdef DEBUG_ENABLED
 		,
@@ -1692,17 +1680,65 @@ bool DollController::__pcr__fetch_recovery_info(
 	);
 }
 
-void DollController::on_snapshot_applied(const Snapshot &p_global_server_snapshot) {
-	// This function can't run on the server.
-	ENSURE(peer_controller->scene_synchronizer->is_client());
+void DollController::on_snapshot_applied(
+		const Snapshot &p_global_server_snapshot,
+		const int p_frame_count_to_rewind) {
+	// The `DollController` is never created on the server, and the below
+	// assertion is always satisfied.
+	ASSERT_COND(peer_controller->scene_synchronizer->is_client());
 
-	const FrameIndex doll_frame_index = MapFunc::at(p_global_server_snapshot.peers_frames_index, peer_controller->get_authority_peer(), FrameIndex::NONE);
+	// This function handles the reconciliation mechanism.
+	// The reconciliation is implemented in this function because this is the
+	// best moment to manipulate the processing (to consume or build the input
+	// queue) and avoid to make it noticeable.
+
+	// 1. Fetch the optimal queued inputs (how many inputs should be queued based
+	//    on the current connection).
+	const int optimal_queued_inputs = fetch_optimal_queued_inputs();
+
+	// 2. Get the input count.
+	const int input_count = frames_input.size();
+
+	// 3. Fetch the best input to start processing.
+	// TODO consider to scale this dynamically to slowly catchup with the server, as too drastic change may result in a less stable simulation.
+	const int optimal_input_count = p_frame_count_to_rewind + optimal_queued_inputs;
+
+	// The lag compensation algorithm offsets the available
+	// inputs so that the `input_count` equals to `optimal_queued_inputs`
+	// at the end of the reconcilation (rewinding) operation.
+
+	if (input_count < optimal_input_count) {
+		// It has less inputs than the optimal input count defined.
+		// In  this case the offset, mention above, is going to be positive.
+		// It will offset the reconciliation, by the delta difference
+		// `optimal_input_count - input_count`, with frames where the object are
+		// not procesed.
+		const int missing_inputs = optimal_input_count - input_count;
+	} else {
+		// It has more inputs than the optimal input count defined.
+		// In this case the offset is negative, meaning it throws away all the
+		// extra inputs to recatch the server.
+		const int extra_inputs = input_count - optimal_input_count;
+
+		current_input_buffer_id += extra_inputs;
+
+		I need to find a way to define the `current_input_buffer_id` based on the extra inputs and the available frames_input;
+	}
+
+	const FrameIndex doll_frame_index =
+			MapFunc::at(
+					p_global_server_snapshot.peers_frames_index,
+					peer_controller->get_authority_peer(),
+					FrameIndex::NONE);
 
 	if (doll_frame_index == FrameIndex::NONE) {
 		// On the server, the doll was not executed so just apply the server snapshot.
-		const auto server_snap_it = VecFunc::find(server_snapshots, DollSnapshot(FrameIndex::NONE));
+		const auto server_snap_it =
+				VecFunc::find(
+						server_snapshots,
+						DollSnapshot(FrameIndex::NONE));
 		ENSURE_MSG(server_snap_it != server_snapshots.end(), "The doll was unable to set the NO-CONTROLLER snapshot because it was unable to find it in the server_snapshots array.");
-		static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(server_snap_it->data, 0, nullptr, true, true, true, true, true);
+		static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(server_snap_it->data, 0, 0, nullptr, true, true, true, true, true);
 
 	} else {
 		// At this point it's necessary to mention that due to the fact the doll is
@@ -1714,7 +1750,7 @@ void DollController::on_snapshot_applied(const Snapshot &p_global_server_snapsho
 		const auto client_snap_it = VecFunc::find(client_snapshots, DollSnapshot(doll_frame_index));
 		ENSURE_MSG(client_snap_it != client_snapshots.end(), "The doll was unable to set the snapshot because it was unable to find the client snapshot with ID: " + doll_frame_index);
 
-		static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(client_snap_it->data, 0, nullptr, true, true, true, true, true);
+		static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(client_snap_it->data, 0, 0, nullptr, true, true, true, true, true);
 	}
 }
 
