@@ -45,6 +45,16 @@ public:
 	virtual bool get_variable(ObjectHandle p_app_object_handle, const char *p_var_name, VarData &p_val) const = 0;
 };
 
+struct LagCompensationSettings {
+	/// If true, the dolls (The objects controlled by other player) will guess
+	/// the input if the input is missing.
+	bool doll_allow_guess_input_when_missing = true;
+};
+
+struct Settings {
+	LagCompensationSettings lag_compensation;
+};
+
 /// # SceneSynchronizer
 ///
 /// NOTICE: Do not instantiate this class directly, please use `SceneSynchronizer<>` instead.
@@ -191,6 +201,9 @@ protected:
 	/// Update the latency each 3 seconds.
 	float latency_update_rate = 3.0;
 
+	Settings settings;
+	bool settings_changed = true;
+
 	SynchronizerType synchronizer_type = SYNCHRONIZER_TYPE_NULL;
 
 	class Synchronizer *synchronizer = nullptr;
@@ -217,6 +230,7 @@ protected:
 public: // -------------------------------------------------------------- Events
 	Processor<> event_sync_started;
 	Processor<> event_sync_paused;
+	Processor<const Settings &> event_settings_changed;
 	Processor<int /*p_peer*/, bool /*p_connected*/, bool /*p_enabled*/> event_peer_status_updated;
 	Processor<FrameIndex, bool /*p_desync_detected*/> event_state_validated;
 	Processor<FrameIndex, int /*p_peer*/> event_sent_snapshot;
@@ -228,7 +242,7 @@ public: // -------------------------------------------------------------- Events
 	Processor<const Snapshot & /*p_snapshot*/> event_snapshot_update_finished;
 	Processor<const Snapshot & /*p_snapshot*/, int /*p_frame_count_to_rewind*/> event_snapshot_applied;
 	Processor<const Snapshot & /*p_received_snapshot*/> event_received_server_snapshot;
-	Processor<FrameIndex, int /*p_index*/, int /*p_count*/> event_rewind_frame_begin;
+	Processor<FrameIndex /*p_frame_index*/, int /*p_rewinding_index*/, int /*p_rewinding_frame_count*/> event_rewind_frame_begin;
 	Processor<FrameIndex, ObjectHandle /*p_app_object_handle*/, const std::vector<std::string> & /*p_var_names*/, const std::vector<VarData> & /*p_client_values*/, const std::vector<VarData> & /*p_server_values*/> event_desync_detected_with_info;
 
 private:
@@ -338,6 +352,10 @@ public: // ---------------------------------------------------------------- RPCs
 	void rpc_set_server_controlled(int p_peer, bool p_server_controlled);
 
 public: // ---------------------------------------------------------------- APIs
+	void set_settings(Settings &p_settings);
+	Settings &get_settings_mutable();
+	const Settings &get_settings() const;
+
 	void register_app_object(ObjectHandle p_app_object_handle, ObjectLocalId *out_id = nullptr);
 	void unregister_app_object(ObjectLocalId p_id);
 	void setup_controller(

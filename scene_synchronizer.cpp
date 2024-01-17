@@ -165,6 +165,11 @@ void SceneSynchronizerBase::conclude() {
 void SceneSynchronizerBase::process(double p_delta) {
 	NS_PROFILE
 
+	if (settings_changed) {
+		event_settings_changed.broadcast(settings);
+		settings_changed = false;
+	}
+
 #ifdef DEBUG_ENABLED
 	ASSERT_COND_MSG(synchronizer, "Never execute this function unless this synchronizer is ready.");
 
@@ -305,6 +310,20 @@ bool SceneSynchronizerBase::is_variable_registered(ObjectLocalId p_id, const std
 		return od->find_variable_id(p_variable) != VarId::NONE;
 	}
 	return false;
+}
+
+void SceneSynchronizerBase::set_settings(Settings &p_settings) {
+	settings = p_settings;
+	settings_changed = true;
+}
+
+Settings &SceneSynchronizerBase::get_settings_mutable() {
+	settings_changed = true;
+	return settings;
+}
+
+const Settings &SceneSynchronizerBase::get_settings() const {
+	return settings;
 }
 
 void SceneSynchronizerBase::register_app_object(ObjectHandle p_app_object_handle, ObjectLocalId *out_id) {
