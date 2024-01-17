@@ -1709,7 +1709,6 @@ void DollController::on_snapshot_applied(
 	ENSURE_MSG(input_count > 0, "This function is not supposed to work with 0 inputs. Report this bug.")
 
 	// 3. Fetch the best input to start processing.
-	// TODO consider to scale this dynamically to slowly catchup with the server, as too drastic change may result in a less stable simulation.
 	const int optimal_input_count = p_frame_count_to_rewind + optimal_queued_inputs;
 
 	// The lag compensation algorithm offsets the available
@@ -1721,10 +1720,10 @@ void DollController::on_snapshot_applied(
 		// It has less inputs than the optimal input count defined.
 		// In  this case the offset, mention above, is going to be positive;
 		// making sure the available frames_input are used at the end of the processing
-		// so the `optimal_queued_inputs` is left at the endo of the rewinding.
+		// so the `optimal_queued_inputs` is left at the end of the rewinding.
 		const int missing_inputs = optimal_input_count - input_count;
-
 		queued_instant_offset = missing_inputs;
+
 	} else {
 		// It has more inputs than the optimal input count defined.
 		// In this case the offset is negative, meaning it throws away all the
