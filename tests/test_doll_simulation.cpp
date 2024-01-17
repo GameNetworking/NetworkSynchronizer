@@ -53,11 +53,11 @@ public:
 		vd.data.vec.x = x;
 		vd.data.vec.y = y;
 		vd.type = 0;
-		NS::MapFunc::assign(variables, std::string("xi"), std::move(vd));
+		NS::MapFunc::assign(variables, std::string("xy"), std::move(vd));
 	}
 
 	NS::VarData get_xy() const {
-		const NS::VarData *vd = NS::MapFunc::get_or_null(variables, std::string("xi"));
+		const NS::VarData *vd = NS::MapFunc::get_or_null(variables, std::string("xy"));
 		if (vd) {
 			return NS::VarData::make_copy(*vd);
 		} else {
@@ -87,7 +87,7 @@ public:
 
 		// TODO remove this, is here just for debug.
 		const bool debug_procesing = false;
-		if (!debug_procesing) {
+		if (debug_procesing) {
 			if (authoritative_peer_id != 2) {
 				return;
 			}
@@ -293,6 +293,8 @@ struct TestDollSimulationWithPositionCheck : public TestDollSimulationBase {
 	}
 };
 
+// Test the ability to process a doll without causing any
+// reconciliation or miss any input.
 void test_simulation_without_reconciliation(float p_frame_confirmation_timespan) {
 	TestDollSimulationWithPositionCheck test;
 	test.frame_confirmation_timespan = p_frame_confirmation_timespan;
@@ -303,6 +305,100 @@ void test_simulation_without_reconciliation(float p_frame_confirmation_timespan)
 
 	ASSERT_COND(test.peer1_desync_detected.size() == 0);
 	ASSERT_COND(test.peer2_desync_detected.size() == 0);
+}
+
+struct TestDollSimulationStorePositions : public TestDollSimulationBase {
+	virtual void on_scenes_initialized() override {
+		// Ensure the controllers are at their initial location as defined by the doll simulation class.
+		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_1_serv->get_xy(), NS::VarData(100, 0)));
+		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_1_peer1->get_xy(), NS::VarData(100, 0)));
+		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_1_peer2->get_xy(), NS::VarData(100, 0)));
+
+		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_2_serv->get_xy(), NS::VarData(0, 0)));
+		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_2_peer2->get_xy(), NS::VarData(0, 0)));
+		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_2_peer1->get_xy(), NS::VarData(0, 0)));
+	}
+
+	std::map<NS::FrameIndex, NS::VarData> controlled_1_player_position;
+	std::map<NS::FrameIndex, NS::VarData> controlled_2_player_position;
+	std::map<NS::FrameIndex, NS::VarData> controlled_1_doll_position;
+	std::map<NS::FrameIndex, NS::VarData> controlled_2_doll_position;
+
+	virtual void on_server_process(double p_delta) override {
+	}
+
+	virtual void on_client_1_process(double p_delta) override {
+		const NS::FrameIndex controller_1_player_frame_index = peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index();
+		const NS::FrameIndex controller_2_doll_frame_index = peer_1_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->get_current_frame_index();
+
+		NS::MapFunc::assign(controlled_1_player_position, controller_1_player_frame_index, controlled_1_peer1->get_xy());
+		NS::MapFunc::assign(controlled_2_doll_position, controller_2_doll_frame_index, controlled_2_peer1->get_xy());
+	}
+
+	virtual void on_client_2_process(double p_delta) override {
+		const NS::FrameIndex controller_2_player_frame_index = peer_2_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->get_current_frame_index();
+		const NS::FrameIndex controller_1_doll_frame_index = peer_2_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index();
+
+		NS::MapFunc::assign(controlled_2_player_position, controller_2_player_frame_index, controlled_2_peer2->get_xy());
+		NS::MapFunc::assign(controlled_1_doll_position, controller_1_doll_frame_index, controlled_1_peer2->get_xy());
+	}
+
+	void assert_positions() {
+		assert_positions(controlled_1_player_position, controlled_1_doll_position);
+		assert_positions(controlled_2_player_position, controlled_2_doll_position);
+	}
+
+	void assert_positions(const std::map<NS::FrameIndex, NS::VarData> &p_player_map, const std::map<NS::FrameIndex, NS::VarData> &p_doll_map) {
+		// Find the biggeest FrameInput
+		NS::FrameIndex biggest_frame_index{ 0 };
+		for (const auto &[fi, vd] : p_doll_map) {
+			if (fi != NS::FrameIndex::NONE) {
+				if (fi > biggest_frame_index) {
+					biggest_frame_index = fi;
+				}
+			}
+		}
+
+		// Now, iterate over all the frames and make sure the positions are the same
+		for (NS::FrameIndex i{ 0 }; i < biggest_frame_index; i += 1) {
+			const NS::VarData *player_position = NS::MapFunc::get_or_null(p_player_map, i);
+			const NS::VarData *doll_position = NS::MapFunc::get_or_null(p_doll_map, i);
+			ASSERT_COND(player_position);
+			ASSERT_COND(doll_position);
+			ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(*player_position, *doll_position));
+		}
+	}
+};
+
+// Test the ability to reconcile a desynchronized doll.
+void test_simulation_reconciliation(float p_frame_confirmation_timespan) {
+	TestDollSimulationStorePositions test;
+	test.frame_confirmation_timespan = p_frame_confirmation_timespan;
+	// This test is not triggering any desynchronization.
+	test.init_test();
+
+	test.do_test(30);
+
+	// 1. Make sure no desync were detected so far.
+	ASSERT_COND(test.peer1_desync_detected.size() == 0);
+	ASSERT_COND(test.peer2_desync_detected.size() == 0);
+
+	// Ensure the positions are all the same.
+	test.assert_positions();
+
+	// 2. Introduce a desync manually and test again.
+	test.controlled_1_peer2->set_xy(0, 0); // Modify the doll on peer 1
+	test.controlled_2_peer1->set_xy(0, 0); // Modify the doll on peer 2
+
+	// Run another 30 frames.
+	test.do_test(30);
+
+	// Make sure there was 1 desyc
+	ASSERT_COND(test.peer1_desync_detected.size() == 1);
+	ASSERT_COND(test.peer2_desync_detected.size() == 1);
+
+	// and despite that the simulations are correct.
+	test.assert_positions();
 }
 
 void test_latency() {
@@ -347,16 +443,18 @@ void test_latency() {
 }
 
 void test_doll_simulation() {
-	// TODO enable this
-	// test_simulation_without_reconciliation(0.0);
-	test_simulation_without_reconciliation(1. / 30.);
-	// TODO test with reconciliation.
+	// TODO enable these
+	//test_simulation_without_reconciliation(0.0);
+	//test_simulation_without_reconciliation(1. / 30.);
+	test_simulation_reconciliation(0.0);
+	//test_simulation_reconciliation(1.0 / 5.0); // TODO enable
 	// TODO test with latency.
 	// TODO test lag compensation.
+	// TODO ensure the snapshots are cleared correctly and they do not buildup.
 	test_latency();
 
 	// TODO Remove this once the test are all implemented.
-	//ASSERT_COND(false);
+	ASSERT_COND(false);
 }
 
 }; //namespace NS_Test
