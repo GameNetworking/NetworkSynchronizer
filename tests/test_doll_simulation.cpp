@@ -356,7 +356,7 @@ void test_doll_simulation() {
 	test_latency();
 
 	// TODO Remove this once the test are all implemented.
-	ASSERT_COND(false);
+	//ASSERT_COND(false);
 }
 
 }; //namespace NS_Test

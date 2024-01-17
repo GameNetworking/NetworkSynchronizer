@@ -334,7 +334,7 @@ struct PlayerController final : public Controller {
 	FrameIndex get_stored_frame_index(int p_i) const;
 	virtual FrameIndex get_current_frame_index() const override;
 
-	void on_rewind_frame_begin(FrameIndex p_input_id, int p_index, int p_count);
+	void on_rewind_frame_begin(FrameIndex p_frame_index, int p_rewinding_index, int p_rewinding_frame_count);
 	bool has_another_instant_to_process_after(int p_i) const;
 	virtual void process(double p_delta) override;
 	void on_state_validated(FrameIndex p_frame_index, bool p_detected_desync);
@@ -385,6 +385,7 @@ public:
 
 	FrameIndex last_checked_input = FrameIndex::NONE;
 	FrameIndex last_doll_checked_input = FrameIndex::NONE;
+	int queued_instant_offset = 0;
 	int queued_instant_to_process = -1;
 
 	// Contains the controlled nodes frames snapshot.
@@ -398,7 +399,7 @@ public:
 	~DollController();
 
 	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;
-	void on_rewind_frame_begin(FrameIndex p_input_id, int p_index, int p_count);
+	void on_rewind_frame_begin(FrameIndex p_frame_index, int p_rewinding_index, int p_rewinding_frame_count);
 	int fetch_optimal_queued_inputs() const;
 	virtual bool fetch_next_input(double p_delta) override;
 	virtual void process(double p_delta) override;

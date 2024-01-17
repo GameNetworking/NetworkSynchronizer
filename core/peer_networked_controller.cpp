@@ -1005,16 +1005,17 @@ FrameIndex PlayerController::get_stored_frame_index(int p_i) const {
 	}
 }
 
-void PlayerController::on_rewind_frame_begin(FrameIndex p_frame_index, int p_index, int p_count) {
+void PlayerController::on_rewind_frame_begin(FrameIndex p_frame_index, int p_rewinding_index, int p_rewinding_frame_count) {
+	NS_PROFILE
 	if (!peer_controller->can_simulate()) {
 		return;
 	}
 
-	if (p_index >= 0 && p_index < int(frames_input.size())) {
-		queued_instant_to_process = p_index;
+	if (p_rewinding_index >= 0 && p_rewinding_index < int(frames_input.size())) {
+		queued_instant_to_process = p_rewinding_index;
 #ifdef DEBUG_ENABLED
 		// IMPOSSIBLE to trigger - without bugs.
-		ASSERT_COND(frames_input[p_index].id == p_frame_index);
+		ASSERT_COND(frames_input[p_rewinding_index].id == p_frame_index);
 #endif
 	} else {
 		queued_instant_to_process = -1;
@@ -1374,7 +1375,9 @@ bool is_doll_snap_A_older(const DollController::DollSnapshot &p_snap_a, const Do
 	return p_snap_a.data.input_id < p_snap_b.data.input_id;
 }
 
-void DollController::on_rewind_frame_begin(FrameIndex p_frame_index, int p_index, int p_count) {
+void DollController::on_rewind_frame_begin(FrameIndex p_frame_index, int p_rewinding_index, int p_rewinding_frame_count) {
+	NS_PROFILE
+
 	if (!peer_controller->can_simulate()) {
 		return;
 	}
@@ -1383,16 +1386,9 @@ void DollController::on_rewind_frame_begin(FrameIndex p_frame_index, int p_index
 		return;
 	}
 
-	for (size_t i = 0; i < frames_input.size(); ++i) {
-		if (frames_input[i].id == p_frame_index) {
-			queued_instant_to_process = i;
-			return;
-		}
-	}
-
-	SceneSynchronizerDebugger::singleton()->print(WARNING, "DollController was uable to find the input: " + std::string(p_frame_index) + " maybe it was never received?", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
-	queued_instant_to_process = frames_input.size();
-	return;
+	// Just set the rewinding frame count, the fetch_next_input will
+	// validate it anyway.
+	queued_instant_to_process = p_rewinding_index;
 }
 
 int DollController::fetch_optimal_queued_inputs() const {
@@ -1409,12 +1405,19 @@ int DollController::fetch_optimal_queued_inputs() const {
 
 bool DollController::fetch_next_input(double p_delta) {
 	if (queued_instant_to_process >= 0) {
-		if (queued_instant_to_process < int(frames_input.size())) {
-			// The SceneSync is rewinding the scene, so let's find the
-			set_frame_input(frames_input[queued_instant_to_process], false);
+		// This offset is defined by the lag compensation algorithm inside the
+		// `on_snapshot_applied`, and is used to compensate the lag by
+		// getting rid or introduce inputs, during the recdonciliation (rewinding)
+		// phase.
+		const int instant_to_process = queued_instant_to_process - queued_instant_offset;
+		if (instant_to_process >= 0) {
+			ENSURE_V_MSG(instant_to_process < int(frames_input.size()), false, "The doll lag compensation failed. The offsetted instant_to_process is never supposed to overflow the frames_input. Something didn't work inside the `on_snapshot_applied`.");
+			set_frame_input(frames_input[instant_to_process], false);
 			return true;
+		} else {
+			// The doll character is compensating for missing inputs, so return false for now.
+			return false;
 		}
-		return false;
 	}
 
 	if make_unlikely (current_input_buffer_id == FrameIndex::NONE) {
@@ -1426,7 +1429,7 @@ bool DollController::fetch_next_input(double p_delta) {
 		return false;
 	}
 
-	FrameIndex next_input_id = current_input_buffer_id + 1;
+	const FrameIndex next_input_id = current_input_buffer_id + 1;
 
 	// -------------------------------------------------------- Search the input
 	int closest_frame_index = -1;
@@ -1451,9 +1454,18 @@ bool DollController::fetch_next_input(double p_delta) {
 		}
 	}
 
+	if (!peer_controller->scene_synchronizer->get_settings().lag_compensation.doll_allow_guess_input_when_missing) {
+		// It was not possible to find the input, and the doll is not allowed to guess,
+		// so just return false.
+		return false;
+	}
+
 	if (closest_frame_index > 0) {
-		// It was impossible to find the input, so just pick the closest one.
-		set_frame_input(frames_input[closest_frame_index], false);
+		// It was impossible to find the input, so just pick the closest one and
+		// assume it's the one we are executing.
+		FrameInput guessed_fi = frames_input[closest_frame_index];
+		guessed_fi.id = next_input_id;
+		set_frame_input(guessed_fi, false);
 		return true;
 	} else {
 		// The input is not set and there is no suitable one.
@@ -1462,29 +1474,25 @@ bool DollController::fetch_next_input(double p_delta) {
 }
 
 void DollController::process(double p_delta) {
-	if (queued_instant_to_process >= 0 && queued_instant_to_process < int(frames_input.size())) {
-		// Rewinding in progress.
-		// On the doll the rewind's processing takes care to apply the server
-		// snapshot if it's found.
-		// This operation is done here, because the doll process on a different
-		// timeline than the one processed by the client.
-		const FrameIndex frame_index = frames_input[queued_instant_to_process].id;
-		// 1. Skil the first frame as there is nomthing before it.
-		if (frame_index > FrameIndex{ 0 }) {
-			// 2. Try fetching the previous server snapshot.
-			auto server_snap_it = VecFunc::find(server_snapshots, DollSnapshot(frame_index - 1));
-			if (server_snap_it != server_snapshots.end()) {
-				// The snapshot was found, so apply it.
-				static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(server_snap_it->data, 0, 0, nullptr, true, true, true, true, true);
-			}
-		}
-	}
-
 	notify_frame_checked(peer_controller->scene_synchronizer->client_get_last_checked_frame_index());
 
 	const bool is_new_input = fetch_next_input(p_delta);
 
 	if (is_new_input) {
+		if (queued_instant_to_process >= 0) {
+			// The rewinding is in progress.
+			// On the doll the rewind's processing takes care to apply the server
+			// snapshot if it's found.
+			// This operation is done here, because the doll process on a different
+			// timeline than the one processed by the client.
+			// 1. Try fetching the previous server snapshot.
+			auto server_snap_it = VecFunc::find(server_snapshots, DollSnapshot(current_input_buffer_id - 1));
+			if (server_snap_it != server_snapshots.end()) {
+				// 2. The snapshot was found, so apply it.
+				static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(server_snap_it->data, 0, 0, nullptr, true, true, true, true, true);
+			}
+		}
+
 		SceneSynchronizerDebugger::singleton()->print(INFO, "Doll process index: " + std::string(current_input_buffer_id), "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
 		peer_controller->get_inputs_buffer_mut().begin_read();
@@ -1698,6 +1706,7 @@ void DollController::on_snapshot_applied(
 
 	// 2. Get the input count.
 	const int input_count = frames_input.size();
+	ENSURE_MSG(input_count > 0, "This function is not supposed to work with 0 inputs. Report this bug.")
 
 	// 3. Fetch the best input to start processing.
 	// TODO consider to scale this dynamically to slowly catchup with the server, as too drastic change may result in a less stable simulation.
@@ -1707,24 +1716,27 @@ void DollController::on_snapshot_applied(
 	// inputs so that the `input_count` equals to `optimal_queued_inputs`
 	// at the end of the reconcilation (rewinding) operation.
 
+	// 4. Compensate the lag.
 	if (input_count < optimal_input_count) {
 		// It has less inputs than the optimal input count defined.
-		// In  this case the offset, mention above, is going to be positive.
-		// It will offset the reconciliation, by the delta difference
-		// `optimal_input_count - input_count`, with frames where the object are
-		// not procesed.
+		// In  this case the offset, mention above, is going to be positive;
+		// making sure the available frames_input are used at the end of the processing
+		// so the `optimal_queued_inputs` is left at the endo of the rewinding.
 		const int missing_inputs = optimal_input_count - input_count;
+
+		queued_instant_offset = missing_inputs;
 	} else {
 		// It has more inputs than the optimal input count defined.
 		// In this case the offset is negative, meaning it throws away all the
 		// extra inputs to recatch the server.
-		const int extra_inputs = input_count - optimal_input_count;
 
-		current_input_buffer_id += extra_inputs;
-
-		I need to find a way to define the `current_input_buffer_id` based on the extra inputs and the available frames_input;
+		// The following variable is the index pointing to the frame it want to
+		// start processing.
+		const int index_to_frame_to_keep = input_count - optimal_input_count;
+		queued_instant_offset = -index_to_frame_to_keep;
 	}
 
+	// 5. Get the executed frame index on the server side.
 	const FrameIndex doll_frame_index =
 			MapFunc::at(
 					p_global_server_snapshot.peers_frames_index,
@@ -1741,16 +1753,53 @@ void DollController::on_snapshot_applied(
 		static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(server_snap_it->data, 0, 0, nullptr, true, true, true, true, true);
 
 	} else {
-		// At this point it's necessary to mention that due to the fact the doll is
-		// processing on a different timeline, we may not have the server snapshot
-		// to reconcile the doll with the server right away.
-		// For this reason, this function apply the client snapshot, and leaves to
-		// Rewinding's process function the task to apply the server snapshot.
+		// At this point it's necessary to mention that the doll is procesing
+		// on a different timeline, compared to the one executed on the server;
+		// For this reason, this function applies the client snapshot, and leaves to
+		// Rewinding's process function the task to apply the server snapshot
+		// when it's the time to do it.
 
-		const auto client_snap_it = VecFunc::find(client_snapshots, DollSnapshot(doll_frame_index));
-		ENSURE_MSG(client_snap_it != client_snapshots.end(), "The doll was unable to set the snapshot because it was unable to find the client snapshot with ID: " + doll_frame_index);
+		// 6. Fetch the best FrameInput.
+		FrameIndex index;
+		if (queued_instant_offset > 0) {
+			// Missing inputs, so we need to give room to the rewinding and apply
+			// the available frames_input at the end of the rewinding.
+			if make_likely (frames_input[0].id.id > std::uint32_t(queued_instant_offset)) {
+				// In this case the available ID is big enough and it's enough
+				// subtracting the missing amount to find the best index to apply.
+				index = index - queued_instant_offset;
+			} else {
+				// In this case the available ID is not big enough, so just assume
+				// we start from 0.
+				index = { 0 };
+			}
+		} else {
+			// More inputs than needed.
+			index = frames_input[-queued_instant_offset].id;
+		}
 
-		static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(client_snap_it->data, 0, 0, nullptr, true, true, true, true, true);
+		if (!client_snapshots.empty()) {
+			// 7. Get the closest available snapshot, and apply it, no need to be
+			//    precise here, since the process will apply the server snapshot
+			//    when available.
+			int distance = std::numeric_limits<int>::max();
+			DollSnapshot *best = &client_snapshots.front();
+			for (auto &snap : client_snapshots) {
+				const int delta = std::abs(std::int64_t(best->doll_executed_input.id) - std::int64_t(snap.doll_executed_input.id));
+				if (delta < distance) {
+					best = &snap;
+					distance = delta;
+				} else {
+					// Since the snapshots are sorted, it can interrupt the
+					// processing right after the distance start increasing.
+					break;
+				}
+			}
+
+			if (best) {
+				static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(best->data, 0, 0, nullptr, true, true, true, true, true);
+			}
+		}
 	}
 }
 
