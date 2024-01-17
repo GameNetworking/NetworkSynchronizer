@@ -1577,16 +1577,31 @@ void DollController::on_received_server_snapshot(const Snapshot &p_snapshot) {
 		VecFunc::remove(server_snapshots, DollSnapshot(FrameIndex::NONE));
 	}
 
-	copy_controlled_objects_snapshot(p_snapshot, server_snapshots);
+	copy_controlled_objects_snapshot(p_snapshot, server_snapshots, true);
 }
 
 void DollController::on_snapshot_update_finished(const Snapshot &p_snapshot) {
-	copy_controlled_objects_snapshot(p_snapshot, client_snapshots);
+	copy_controlled_objects_snapshot(p_snapshot, client_snapshots, false);
 }
 
 void DollController::copy_controlled_objects_snapshot(
 		const Snapshot &p_snapshot,
-		std::vector<DollSnapshot> &r_snapshots) {
+		std::vector<DollSnapshot> &r_snapshots,
+		bool p_store_even_when_doll_is_not_processing) {
+	const FrameIndex doll_executed_input = MapFunc::at(p_snapshot.peers_frames_index, peer_controller->get_authority_peer(), FrameIndex::NONE);
+	const std::vector<ObjectData *> *controlled_objects = peer_controller->scene_synchronizer->get_peer_controlled_objects_data(peer_controller->get_authority_peer());
+
+	if (!p_store_even_when_doll_is_not_processing) {
+		if (doll_executed_input == FrameIndex::NONE) {
+			// Nothing to store.
+			return;
+		}
+		if (!controlled_objects || controlled_objects->size() <= 0) {
+			// Nothing to store for this doll.
+			return;
+		}
+	}
+
 	DollSnapshot *snap;
 	{
 		snap = find_snapshot_by_snapshot_id(r_snapshots, p_snapshot.input_id);
@@ -1597,13 +1612,10 @@ void DollController::copy_controlled_objects_snapshot(
 		}
 	}
 
-	const FrameIndex doll_executed_input = MapFunc::at(p_snapshot.peers_frames_index, peer_controller->get_authority_peer(), FrameIndex::NONE);
-
 	snap->doll_executed_input = doll_executed_input;
 	// Extracts the data from the snapshot.
 	MapFunc::assign(snap->data.peers_frames_index, peer_controller->get_authority_peer(), doll_executed_input);
 
-	const std::vector<ObjectData *> *controlled_objects = peer_controller->scene_synchronizer->get_peer_controlled_objects_data(peer_controller->get_authority_peer());
 	if (!controlled_objects || controlled_objects->size() <= 0) {
 		// Nothing to store for this doll.
 		return;
@@ -1655,21 +1667,28 @@ bool DollController::__pcr__fetch_recovery_info(
 #endif
 ) const {
 
-	// 1. Fetch the server snapshot.
-	//    The server snapshot can be fetched, normally, using the snapshot index.
-	const DollSnapshot *server_snapshot = find_snapshot_by_snapshot_id(server_snapshots, p_checking_frame_index);
+	// Since the doll is processing a parallel timeline, we can't simply use
+	// the `p_checking_frame_index` provided.
 
-	// This is not supposed to trigger
-	ENSURE_V_MSG(server_snapshot, true, "This error should never trigger since the function `copy_controlled_objects_snapshots` always stores the received snapshots.");
+	// 1. Find the last processed client snapshot for which a server snapshot is
+	//    available.
+	//
 
-	// 2. Now fetch the client snapshot.
-	//    Since the doll is following a a different timeline, we need to fetch the
-	//    client frame by checking the `doll_executed_index` instead.
-	const auto &client_snapshot_it = VecFunc::find(client_snapshots, DollSnapshot(server_snapshot->doll_executed_input));
-	if (client_snapshot_it == client_snapshots.end()) {
-		// The client snapshot was not found, and this can happen only when the
-		// input was not executed yet.
-		// So, nothing to compare here.
+	const DollSnapshot *client_snapshot = nullptr;
+	const DollSnapshot *server_snapshot = nullptr;
+	for (auto client_snap_it = client_snapshots.rbegin(); client_snap_it != client_snapshots.rend(); client_snap_it++) {
+		if (client_snap_it->doll_executed_input != FrameIndex::NONE) {
+			auto server_snap_it = VecFunc::find(server_snapshots, client_snap_it->doll_executed_input);
+			if (server_snap_it != server_snapshots.end()) {
+				client_snapshot = &*client_snap_it;
+				server_snapshot = &*server_snap_it;
+				break;
+			}
+		}
+	}
+
+	if (client_snapshot == nullptr) {
+		// Nothing to check.
 		return true;
 	}
 
@@ -1677,8 +1696,8 @@ bool DollController::__pcr__fetch_recovery_info(
 	return Snapshot::compare(
 			*peer_controller->scene_synchronizer,
 			server_snapshot->data,
-			client_snapshot_it->data,
-			-1,
+			client_snapshot->data,
+			peer_controller->get_authority_peer(),
 			r_no_rewind_recover,
 			r_differences_info
 #ifdef DEBUG_ENABLED
@@ -1694,6 +1713,23 @@ void DollController::on_snapshot_applied(
 	// The `DollController` is never created on the server, and the below
 	// assertion is always satisfied.
 	ASSERT_COND(peer_controller->scene_synchronizer->is_client());
+
+	queued_instant_offset = 0;
+
+	// 0. Make sure the doll was processed on the server.
+	const FrameIndex doll_frame_index =
+			MapFunc::at(
+					p_global_server_snapshot.peers_frames_index,
+					peer_controller->get_authority_peer(),
+					FrameIndex::NONE);
+
+	if make_unlikely (doll_frame_index == FrameIndex::NONE || p_frame_count_to_rewind <= 0) {
+		// - On the server, the doll was not processed so just apply the server snapshot.
+		// - In case of no rewinding, it applies the most up to date server snapshot right away.
+		ENSURE_MSG(!server_snapshots.empty(), "The doll was unable to set the server snapshot as there is no snapshot available right now.");
+		static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(server_snapshots.back().data, 0, 0, nullptr, true, true, true, true, true);
+		return;
+	}
 
 	// This function handles the reconciliation mechanism.
 	// The reconciliation is implemented in this function because this is the
@@ -1735,69 +1771,57 @@ void DollController::on_snapshot_applied(
 		queued_instant_offset = -index_to_frame_to_keep;
 	}
 
-	// 5. Get the executed frame index on the server side.
-	const FrameIndex doll_frame_index =
-			MapFunc::at(
-					p_global_server_snapshot.peers_frames_index,
-					peer_controller->get_authority_peer(),
-					FrameIndex::NONE);
+	// At this point it's necessary to mention that the doll is procesing
+	// on a different timeline, compared to the one executed on the server;
+	// For this reason, this function applies the client snapshot, and leaves to
+	// Rewinding's process function the task to apply the server snapshot
+	// when it's the time to do it.
 
-	if (doll_frame_index == FrameIndex::NONE) {
-		// On the server, the doll was not executed so just apply the server snapshot.
-		const auto server_snap_it =
-				VecFunc::find(
-						server_snapshots,
-						DollSnapshot(FrameIndex::NONE));
-		ENSURE_MSG(server_snap_it != server_snapshots.end(), "The doll was unable to set the NO-CONTROLLER snapshot because it was unable to find it in the server_snapshots array.");
-		static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(server_snap_it->data, 0, 0, nullptr, true, true, true, true, true);
-
-	} else {
-		// At this point it's necessary to mention that the doll is procesing
-		// on a different timeline, compared to the one executed on the server;
-		// For this reason, this function applies the client snapshot, and leaves to
-		// Rewinding's process function the task to apply the server snapshot
-		// when it's the time to do it.
-
-		// 6. Fetch the best FrameInput.
-		FrameIndex index;
-		if (queued_instant_offset > 0) {
-			// Missing inputs, so we need to give room to the rewinding and apply
-			// the available frames_input at the end of the rewinding.
-			if make_likely (frames_input[0].id.id > std::uint32_t(queued_instant_offset)) {
-				// In this case the available ID is big enough and it's enough
-				// subtracting the missing amount to find the best index to apply.
-				index = index - queued_instant_offset;
-			} else {
-				// In this case the available ID is not big enough, so just assume
-				// we start from 0.
-				index = { 0 };
-			}
+	// 6. Fetch the best FrameInput to reset.
+	FrameIndex index;
+	if (queued_instant_offset > 0) {
+		// Missing inputs, so we need to give room to the rewinding and apply
+		// the available frames_input at the end of the rewinding.
+		if make_likely (frames_input[0].id.id > std::uint32_t(queued_instant_offset)) {
+			// In this case the available ID is big enough and it's enough
+			// subtracting the missing amount to find the best index to apply.
+			index = index - queued_instant_offset;
 		} else {
-			// More inputs than needed.
-			index = frames_input[-queued_instant_offset].id;
+			// In this case the available ID is not big enough, so just assume
+			// we start from 0.
+			index = { 0 };
+		}
+	} else {
+		// More inputs than needed.
+		index = frames_input[-queued_instant_offset].id;
+	}
+
+	if (index > FrameIndex{ 0 }) {
+		// Decrease the index by 1 to find the best snapshot to apply (that has
+		// to be the one before the snapshot to rewind).
+		index -= 1;
+	}
+
+	if (!client_snapshots.empty()) {
+		// 7. Get the closest available snapshot, and apply it, no need to be
+		//    precise here, since the process will apply the server snapshot
+		//    when available.
+		int distance = std::numeric_limits<int>::max();
+		DollSnapshot *best = nullptr;
+		for (auto &snap : client_snapshots) {
+			const int delta = std::abs(std::int64_t(index.id) - std::int64_t(snap.doll_executed_input.id));
+			if (delta < distance) {
+				best = &snap;
+				distance = delta;
+			} else {
+				// Since the snapshots are sorted, it can interrupt the
+				// processing right after the distance start increasing.
+				break;
+			}
 		}
 
-		if (!client_snapshots.empty()) {
-			// 7. Get the closest available snapshot, and apply it, no need to be
-			//    precise here, since the process will apply the server snapshot
-			//    when available.
-			int distance = std::numeric_limits<int>::max();
-			DollSnapshot *best = &client_snapshots.front();
-			for (auto &snap : client_snapshots) {
-				const int delta = std::abs(std::int64_t(best->doll_executed_input.id) - std::int64_t(snap.doll_executed_input.id));
-				if (delta < distance) {
-					best = &snap;
-					distance = delta;
-				} else {
-					// Since the snapshots are sorted, it can interrupt the
-					// processing right after the distance start increasing.
-					break;
-				}
-			}
-
-			if (best) {
-				static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(best->data, 0, 0, nullptr, true, true, true, true, true);
-			}
+		if (best) {
+			static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(best->data, 0, 0, nullptr, true, true, true, true, true);
 		}
 	}
 }

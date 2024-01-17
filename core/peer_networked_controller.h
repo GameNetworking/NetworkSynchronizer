@@ -408,7 +408,10 @@ public:
 
 	void on_received_server_snapshot(const Snapshot &p_snapshot);
 	void on_snapshot_update_finished(const Snapshot &p_snapshot);
-	void copy_controlled_objects_snapshot(const Snapshot &p_snapshot, std::vector<DollSnapshot> &r_snapshots);
+	void copy_controlled_objects_snapshot(
+			const Snapshot &p_snapshot,
+			std::vector<DollSnapshot> &r_snapshots,
+			bool p_store_even_when_doll_is_not_processing);
 
 	// Checks whether this doll requires a reconciliation.
 	// The check done is relative to the doll timeline, and not the scene sync timeline.

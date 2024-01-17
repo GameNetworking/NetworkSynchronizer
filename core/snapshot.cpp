@@ -116,6 +116,7 @@ NS::Snapshot NS::Snapshot::make_copy(const Snapshot &p_other) {
 void NS::Snapshot::copy(const Snapshot &p_other) {
 	input_id = p_other.input_id;
 	simulated_objects = p_other.simulated_objects;
+	peers_frames_index = p_other.peers_frames_index;
 	object_vars.resize(p_other.object_vars.size());
 	for (std::size_t i = 0; i < p_other.object_vars.size(); i++) {
 		object_vars[i].resize(p_other.object_vars[i].size());
@@ -195,6 +196,7 @@ bool NS::Snapshot::compare(
 		r_no_rewind_recover->object_vars.resize(MAX(p_snap_A.object_vars.size(), p_snap_B.object_vars.size()));
 	}
 
+	// TODO instead to iterate over all the object_vars, iterate over the simulated. This will make it save a bunch of time.
 	for (ObjectNetId net_object_id = { 0 }; net_object_id < ObjectNetId{ uint32_t(p_snap_A.object_vars.size()) }; net_object_id += 1) {
 		const NS::ObjectData *rew_object_data = scene_synchronizer.get_object_data(net_object_id);
 		if (rew_object_data == nullptr || rew_object_data->realtime_sync_enabled_on_client == false) {
