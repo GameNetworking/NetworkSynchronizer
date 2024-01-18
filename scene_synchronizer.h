@@ -49,6 +49,17 @@ struct LagCompensationSettings {
 	/// If true, the dolls (The objects controlled by other player) will guess
 	/// the input if the input is missing.
 	bool doll_allow_guess_input_when_missing = true;
+
+	/// Forces the input reconciliation when the doll accumulates an input count
+	/// that surpassed by X (defined below) the amount of frames to reconcile.
+	/// NOTICE: This MUST never be less than 1;
+	/// NOTICE: This should not be too low, or the doll will jump arround too much.
+	/// NOTICE: To disable this featues you can set this to 10 or more.
+	int doll_force_input_reconciliation = 10;
+
+	/// The minimum amount of frames needed to trigger the input reconciliation.
+	/// NOTE: This must be more than 1
+	int doll_force_input_reconciliation_min_frames = 5;
 };
 
 struct Settings {
@@ -831,13 +842,18 @@ private:
 
 	bool __pcr__fetch_recovery_info(
 			const FrameIndex p_input_id,
+			const int p_rewind_frame_count,
 			const struct PlayerController &p_local_player_controller,
 			Snapshot &r_no_rewind_recover);
 
-	void __pcr__sync__rewind(FrameIndex p_last_checked_input_id, const PlayerController &p_local_player_controller);
+	void __pcr__sync__rewind(
+			FrameIndex p_last_checked_input_id,
+			const int p_rewind_frame_count,
+			const PlayerController &p_local_player_controller);
 
 	void __pcr__rewind(
 			const FrameIndex p_checkable_frame_index,
+			const int p_rewind_frame_count,
 			PeerNetworkedController *p_controller,
 			PlayerController *p_player_controller);
 

@@ -383,9 +383,14 @@ public:
 	NS::PHandler event_handler_client_snapshot_updated = NS::NullPHandler;
 	NS::PHandler event_handler_snapshot_applied = NS::NullPHandler;
 
-	FrameIndex last_checked_input = FrameIndex::NONE;
-	FrameIndex last_doll_checked_input = FrameIndex::NONE;
-	int queued_instant_offset = 0;
+	// The lastest `FrameIndex` validated.
+	FrameIndex last_doll_validated_input = FrameIndex::NONE;
+	// This parameter is useful to specify when the `last_doll_compared_snapshot`
+	// is set. Since the function `__pcr__fetch_recovery_info` is not always called.
+	bool is_last_doll_compared_input_valid = false;
+	// The lastest `FrameIndex` on which the server / doll snapshots were compared.
+	FrameIndex last_doll_compared_input = FrameIndex::NONE;
+	FrameIndex queued_frame_index_to_process = FrameIndex{ 0 };
 	int queued_instant_to_process = -1;
 
 	// Contains the controlled nodes frames snapshot.
@@ -413,17 +418,20 @@ public:
 			std::vector<DollSnapshot> &r_snapshots,
 			bool p_store_even_when_doll_is_not_processing);
 
+	FrameIndex fetch_best_recoverable_snapshot(DollSnapshot *&r_client_snapshot, DollSnapshot *&r_server_snapshot);
+
 	// Checks whether this doll requires a reconciliation.
 	// The check done is relative to the doll timeline, and not the scene sync timeline.
 	bool __pcr__fetch_recovery_info(
-			FrameIndex p_checking_frame_index,
+			const FrameIndex p_checking_frame_index,
+			const int p_frame_count_to_rewind,
 			Snapshot *r_no_rewind_recover,
 			std::vector<std::string> *r_differences_info
 #ifdef DEBUG_ENABLED
 			,
 			std::vector<ObjectNetId> *r_different_node_data
 #endif
-	) const;
+	);
 
 	void on_snapshot_applied(const Snapshot &p_snapshot, const int p_frame_count_to_rewind);
 
