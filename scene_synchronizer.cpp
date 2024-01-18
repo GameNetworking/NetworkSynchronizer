@@ -2710,6 +2710,8 @@ void ClientSynchronizer::process_received_server_state() {
 	}
 #endif
 
+	const int frame_count_after_input_id = inner_player_controller->count_frames_after(last_checked_input);
+
 	bool need_rewind;
 	NS::Snapshot no_rewind_recover;
 	if make_likely (!client_snapshots.empty() && client_snapshots.front().input_id == last_checked_input) {
@@ -2718,6 +2720,7 @@ void ClientSynchronizer::process_received_server_state() {
 
 		need_rewind = __pcr__fetch_recovery_info(
 				last_checked_input,
+				frame_count_after_input_id,
 				*inner_player_controller,
 				no_rewind_recover);
 
@@ -2733,8 +2736,6 @@ void ClientSynchronizer::process_received_server_state() {
 		need_rewind = true;
 	}
 
-	scene_synchronizer->event_state_validated.broadcast(last_checked_input, need_rewind);
-
 	// --- Phase three: recover and rewind. ---
 
 	if (need_rewind) {
@@ -2747,11 +2748,16 @@ void ClientSynchronizer::process_received_server_state() {
 		// Sync.
 		__pcr__sync__rewind(
 				last_checked_input,
+				frame_count_after_input_id,
 				*inner_player_controller);
+
+		// Emit this signal here, which is when we are 100% sure the snapshot is applied and can be cleared.
+		scene_synchronizer->event_state_validated.broadcast(last_checked_input, need_rewind);
 
 		// Rewind.
 		__pcr__rewind(
 				last_checked_input,
+				frame_count_after_input_id,
 				player_controller,
 				inner_player_controller);
 	} else {
@@ -2761,6 +2767,9 @@ void ClientSynchronizer::process_received_server_state() {
 			// Sync.
 			__pcr__sync__no_rewind(no_rewind_recover);
 		}
+
+		// Emit this signal here, which is when we are 100% sure the snapshot is applied and can be cleared.
+		scene_synchronizer->event_state_validated.broadcast(last_checked_input, need_rewind);
 
 		// No rewind.
 		__pcr__no_rewind(last_checked_input, inner_player_controller);
@@ -2772,6 +2781,7 @@ void ClientSynchronizer::process_received_server_state() {
 
 bool ClientSynchronizer::__pcr__fetch_recovery_info(
 		const FrameIndex p_input_id,
+		const int p_rewind_frame_count,
 		const PlayerController &p_local_player_controller,
 		NS::Snapshot &r_no_rewind_recover) {
 	NS_PROFILE
@@ -2796,10 +2806,11 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 
 	if (is_equal) {
 		// The snapshots are equals, make sure the dolls doesn't need to be reconciled.
-		for (const auto &[peer, data] : scene_synchronizer->peer_data) {
+		for (auto &[peer, data] : scene_synchronizer->peer_data) {
 			if (data.get_controller() && data.get_controller()->is_doll_controller()) {
 				const bool is_doll_state_valid = data.get_controller()->get_doll_controller()->__pcr__fetch_recovery_info(
 						p_input_id,
+						p_rewind_frame_count,
 						&r_no_rewind_recover,
 						scene_synchronizer->debug_rewindings_enabled ? &differences_info : nullptr
 #ifdef DEBUG_ENABLED
@@ -2874,12 +2885,11 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 
 void ClientSynchronizer::__pcr__sync__rewind(
 		FrameIndex p_last_checked_input_id,
+		const int p_rewind_frame_count,
 		const PlayerController &p_local_player_controller) {
 	NS_PROFILE
 	// Apply the server snapshot so to go back in time till that moment,
 	// so to be able to correctly reply the movements.
-
-	const int frame_count_after_input_id = p_local_player_controller.count_frames_after(p_last_checked_input_id);
 
 	std::vector<std::string> applied_data_info;
 
@@ -2887,7 +2897,7 @@ void ClientSynchronizer::__pcr__sync__rewind(
 	apply_snapshot(
 			server_snapshot,
 			NetEventFlag::SYNC_RECOVER | NetEventFlag::SYNC_RESET,
-			frame_count_after_input_id,
+			p_rewind_frame_count,
 			scene_synchronizer->debug_rewindings_enabled ? &applied_data_info : nullptr);
 
 	if (applied_data_info.size() > 0) {
@@ -2900,10 +2910,16 @@ void ClientSynchronizer::__pcr__sync__rewind(
 
 void ClientSynchronizer::__pcr__rewind(
 		const FrameIndex p_checkable_frame_index,
+		const int p_rewind_frame_count,
 		PeerNetworkedController *p_local_controller,
 		PlayerController *p_local_player_controller) {
 	NS_PROFILE
+	// At this point the old inputs are cleared out and the remaining one are
+	// the predicted inputs it need to rewind.
 	const int frames_to_rewind = p_local_player_controller->get_frames_count();
+	// The `p_rewind_frame_count` is the same as `frames_to_rewind`, though
+	// calculated in a different way. This is just a sanity check.
+	ASSERT_COND(frames_to_rewind == p_rewind_frame_count);
 
 #ifdef DEBUG_ENABLED
 	// Unreachable because the SceneSynchronizer and the PlayerController
