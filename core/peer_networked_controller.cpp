@@ -1466,7 +1466,7 @@ bool DollController::fetch_next_input(double p_delta) {
 		return false;
 	}
 
-	if (closest_frame_index > 0) {
+	if (closest_frame_index >= 0) {
 		// It was impossible to find the input, so just pick the closest one and
 		// assume it's the one we are executing.
 		FrameInput guessed_fi = frames_input[closest_frame_index];
@@ -1518,33 +1518,33 @@ void DollController::on_state_validated(FrameIndex p_frame_index, bool p_detecte
 }
 
 void DollController::notify_frame_checked(FrameIndex p_doll_frame_index) {
-	if (p_doll_frame_index == FrameIndex::NONE) {
-		// Nothing to do.
-		return;
-	}
-
 	if (last_doll_validated_input != FrameIndex::NONE && last_doll_validated_input >= p_doll_frame_index) {
 		// Already checked.
 		return;
 	}
 
-	// Removes all the inputs older than the known one (included).
-	while (!frames_input.empty() && frames_input.front().id <= p_doll_frame_index) {
-		if (frames_input.front().id == p_doll_frame_index) {
-			// Pause the streaming if the last frame is empty.
-			streaming_paused = (frames_input.front().buffer_size_bit - METADATA_SIZE) <= 0;
+	if (p_doll_frame_index != FrameIndex::NONE) {
+		// Removes all the inputs older than the known one (included).
+		while (!frames_input.empty() && frames_input.front().id <= p_doll_frame_index) {
+			if (frames_input.front().id == p_doll_frame_index) {
+				// Pause the streaming if the last frame is empty.
+				streaming_paused = (frames_input.front().buffer_size_bit - METADATA_SIZE) <= 0;
+			}
+			frames_input.pop_front();
 		}
-		frames_input.pop_front();
-	}
 
-	// Remove all the server snapshots which doll frame was already executed.
-	while (!server_snapshots.empty() && server_snapshots.front().doll_executed_input <= p_doll_frame_index) {
-		VecFunc::remove_at(server_snapshots, 0);
-	}
+		// Remove all the server snapshots which doll frame was already executed.
+		while (!server_snapshots.empty() && server_snapshots.front().doll_executed_input <= p_doll_frame_index) {
+			VecFunc::remove_at(server_snapshots, 0);
+		}
 
-	// Removed all the checked doll frame snapshots.
-	while (!client_snapshots.empty() && client_snapshots.front().doll_executed_input <= p_doll_frame_index) {
-		VecFunc::remove_at(client_snapshots, 0);
+		// Removed all the checked doll frame snapshots.
+		while (!client_snapshots.empty() && client_snapshots.front().doll_executed_input <= p_doll_frame_index) {
+			VecFunc::remove_at(client_snapshots, 0);
+		}
+	} else {
+		VecFunc::remove(server_snapshots, FrameIndex::NONE);
+		VecFunc::remove(client_snapshots, FrameIndex::NONE);
 	}
 
 	last_doll_validated_input = p_doll_frame_index;
@@ -1650,7 +1650,7 @@ void DollController::copy_controlled_objects_snapshot(
 			is_doll_snap_A_older);
 }
 
-FrameIndex DollController::fetch_best_recoverable_snapshot(DollSnapshot *&r_client_snapshot, DollSnapshot *&r_server_snapshot) {
+FrameIndex DollController::fetch_last_processed_recoverable_snapshot(DollSnapshot *&r_client_snapshot, DollSnapshot *&r_server_snapshot) {
 	for (auto client_snap_it = client_snapshots.rbegin(); client_snap_it != client_snapshots.rend(); client_snap_it++) {
 		if (client_snap_it->doll_executed_input != FrameIndex::NONE) {
 			auto server_snap_it = VecFunc::find(server_snapshots, client_snap_it->doll_executed_input);
@@ -1696,7 +1696,7 @@ bool DollController::__pcr__fetch_recovery_info(
 
 	// This is valid until we reset it again.
 	is_last_doll_compared_input_valid = true;
-	last_doll_compared_input = fetch_best_recoverable_snapshot(client_snapshot, server_snapshot);
+	last_doll_compared_input = fetch_last_processed_recoverable_snapshot(client_snapshot, server_snapshot);
 
 	if (last_doll_compared_input == FrameIndex::NONE) {
 		// Nothing to check.
@@ -1729,18 +1729,15 @@ void DollController::on_snapshot_applied(
 
 	queued_frame_index_to_process = FrameIndex{ 0 };
 
-	if (!is_last_doll_compared_input_valid) {
-		DollSnapshot *client_snapshot;
-		DollSnapshot *server_snapshot;
-		last_doll_compared_input = fetch_best_recoverable_snapshot(client_snapshot, server_snapshot);
-	}
+	const int input_count = frames_input.size();
 
-	if make_unlikely (last_doll_compared_input == FrameIndex::NONE || p_frame_count_to_rewind <= 0) {
+	// 1. Ensure the input reconciliation algorithm can process, otherwise:
+	if make_unlikely (input_count <= 0 || p_frame_count_to_rewind <= 0) {
 		// - On the server, the doll was not processed so just apply the server snapshot.
 		// - In case of no rewinding, it applies the most up to date server snapshot right away.
-		auto server_snapshot_it = VecFunc::find(server_snapshots, last_doll_compared_input);
-		ENSURE_MSG(server_snapshot_it != server_snapshots.end(), "This should be impossible. The doll was unable to set the server snapshot since the snapshot was not found: " + last_doll_compared_input);
-		static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(server_snapshot_it->data, 0, 0, nullptr, true, true, true, true, true);
+		ENSURE_MSG(!server_snapshots.empty(), "This should be impossible. The doll was unable to set the server snapshot since there are no server snapshots.");
+		static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(server_snapshots.back().data, 0, 0, nullptr, true, true, true, true, true);
+		last_doll_compared_input = server_snapshots.back().doll_executed_input;
 		// Reset the current_input_buffer_id, to make sure the next Frame processed starts from here.
 		current_input_buffer_id = last_doll_compared_input;
 		return;
@@ -1751,13 +1748,9 @@ void DollController::on_snapshot_applied(
 	// best moment to manipulate the processing (to consume or build the input
 	// queue) and avoid to make it noticeable.
 
-	// 1. Fetch the optimal queued inputs (how many inputs should be queued based
+	// 2. Fetch the optimal queued inputs (how many inputs should be queued based
 	//    on the current connection).
 	const int optimal_queued_inputs = fetch_optimal_queued_inputs();
-
-	// 2. Get the input count.
-	const int input_count = frames_input.size();
-	ENSURE_MSG(input_count > 0, "This function is not supposed to work with 0 inputs. Report this bug.")
 
 	// 3. Fetch the best input to start processing.
 	const int optimal_input_count = p_frame_count_to_rewind + optimal_queued_inputs;

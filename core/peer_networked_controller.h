@@ -418,7 +418,7 @@ public:
 			std::vector<DollSnapshot> &r_snapshots,
 			bool p_store_even_when_doll_is_not_processing);
 
-	FrameIndex fetch_best_recoverable_snapshot(DollSnapshot *&r_client_snapshot, DollSnapshot *&r_server_snapshot);
+	FrameIndex fetch_last_processed_recoverable_snapshot(DollSnapshot *&r_client_snapshot, DollSnapshot *&r_server_snapshot);
 
 	// Checks whether this doll requires a reconciliation.
 	// The check done is relative to the doll timeline, and not the scene sync timeline.
