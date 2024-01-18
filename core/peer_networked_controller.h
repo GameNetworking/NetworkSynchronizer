@@ -385,9 +385,6 @@ public:
 
 	// The lastest `FrameIndex` validated.
 	FrameIndex last_doll_validated_input = FrameIndex::NONE;
-	// This parameter is useful to specify when the `last_doll_compared_snapshot`
-	// is set. Since the function `__pcr__fetch_recovery_info` is not always called.
-	bool is_last_doll_compared_input_valid = false;
 	// The lastest `FrameIndex` on which the server / doll snapshots were compared.
 	FrameIndex last_doll_compared_input = FrameIndex::NONE;
 	FrameIndex queued_frame_index_to_process = FrameIndex{ 0 };
@@ -418,7 +415,7 @@ public:
 			std::vector<DollSnapshot> &r_snapshots,
 			bool p_store_even_when_doll_is_not_processing);
 
-	FrameIndex fetch_last_processed_recoverable_snapshot(DollSnapshot *&r_client_snapshot, DollSnapshot *&r_server_snapshot);
+	FrameIndex fetch_checkable_snapshot(DollSnapshot *&r_client_snapshot, DollSnapshot *&r_server_snapshot);
 
 	// Checks whether this doll requires a reconciliation.
 	// The check done is relative to the doll timeline, and not the scene sync timeline.
