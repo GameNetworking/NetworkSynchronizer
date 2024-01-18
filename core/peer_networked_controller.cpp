@@ -1513,8 +1513,6 @@ void DollController::process(double p_delta) {
 
 void DollController::on_state_validated(FrameIndex p_frame_index, bool p_detected_desync) {
 	notify_frame_checked(last_doll_compared_input);
-	is_last_doll_compared_input_valid = false;
-	last_doll_compared_input = FrameIndex::NONE;
 }
 
 void DollController::notify_frame_checked(FrameIndex p_doll_frame_index) {
@@ -1650,7 +1648,7 @@ void DollController::copy_controlled_objects_snapshot(
 			is_doll_snap_A_older);
 }
 
-FrameIndex DollController::fetch_last_processed_recoverable_snapshot(DollSnapshot *&r_client_snapshot, DollSnapshot *&r_server_snapshot) {
+FrameIndex DollController::fetch_checkable_snapshot(DollSnapshot *&r_client_snapshot, DollSnapshot *&r_server_snapshot) {
 	for (auto client_snap_it = client_snapshots.rbegin(); client_snap_it != client_snapshots.rend(); client_snap_it++) {
 		if (client_snap_it->doll_executed_input != FrameIndex::NONE) {
 			auto server_snap_it = VecFunc::find(server_snapshots, client_snap_it->doll_executed_input);
@@ -1695,15 +1693,13 @@ bool DollController::__pcr__fetch_recovery_info(
 	DollSnapshot *server_snapshot;
 
 	// This is valid until we reset it again.
-	is_last_doll_compared_input_valid = true;
-	last_doll_compared_input = fetch_last_processed_recoverable_snapshot(client_snapshot, server_snapshot);
-
-	if (last_doll_compared_input == FrameIndex::NONE) {
+	const FrameIndex checkable_input = fetch_checkable_snapshot(client_snapshot, server_snapshot);
+	if (checkable_input == FrameIndex::NONE) {
 		// Nothing to check.
 		return true;
 	}
 
-	last_doll_compared_input = client_snapshot->doll_executed_input;
+	last_doll_compared_input = checkable_input;
 
 	// Now just compare the two snapshots.
 	return Snapshot::compare(
