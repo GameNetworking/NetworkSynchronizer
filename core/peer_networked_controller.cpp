@@ -1,5 +1,3 @@
-#pragma optimize("", off) // TODO remove this, which is here just to get good debugging info.
-
 #include "peer_networked_controller.h"
 
 #include "core/config/project_settings.h"
@@ -1752,12 +1750,6 @@ bool DollController::__pcr__fetch_recovery_info(
 #endif
 	);
 
-	// TODO remove this.
-	if (r_differences_info) {
-		for (auto d : *r_differences_info) {
-			SceneSynchronizerBase::__print_line(d);
-		}
-	}
 	return compare;
 }
 
