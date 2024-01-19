@@ -430,10 +430,10 @@ public:
 #endif
 	);
 
-	void on_snapshot_applied(const Snapshot &p_snapshot, const int p_frame_count_to_rewind);
-
-	DollSnapshot *find_snapshot_by_snapshot_id(std::vector<DollSnapshot> &p_snapshots, FrameIndex p_index) const;
-	const DollSnapshot *find_snapshot_by_snapshot_id(const std::vector<DollSnapshot> &p_snapshots, FrameIndex p_index) const;
+	void on_snapshot_applied(const Snapshot &p_global_server_snapshot, const int p_frame_count_to_rewind);
+	void apply_snapshot_no_input_reconciliation(const Snapshot &p_global_server_snapshot);
+	void apply_snapshot_instant_input_reconciliation(const Snapshot &p_global_server_snapshot, const int p_frame_count_to_rewind);
+	void apply_snapshot_rewinding_input_reconciliation(const Snapshot &p_global_server_snapshot, const int p_frame_count_to_rewind);
 };
 
 /// This controller is used when the game instance is not a peer of any kind.
