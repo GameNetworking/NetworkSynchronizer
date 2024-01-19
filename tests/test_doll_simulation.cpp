@@ -527,6 +527,8 @@ void test_simulation_with_latency() {
 				controller_2_last_player_frame_index - latency_factor);
 	}
 
+	// TODO test this again.
+	// TODO consider to remove this or leave it.
 	// Partially process.
 	{
 		test.network_properties.rtt_seconds = 0.0;
@@ -548,6 +550,9 @@ void test_simulation_with_latency() {
 				// Ensure the doll keep going forward.
 				ASSERT_COND(controller_1_doll_frame_index <= controller_1_doll_new_frame_index);
 				ASSERT_COND(controller_2_doll_frame_index <= controller_2_doll_new_frame_index);
+
+				controller_1_doll_frame_index = controller_1_doll_new_frame_index;
+				controller_2_doll_frame_index = controller_2_doll_new_frame_index;
 			}
 		}
 
@@ -568,6 +573,58 @@ void test_simulation_with_latency() {
 				controller_1_last_player_frame_index - latency_factor,
 				controller_2_last_player_frame_index - latency_factor);
 	}
+
+	int a = 0;
+}
+
+void test_simulation_with_hiccups() {
+	TestDollSimulationStorePositions test;
+	test.frame_confirmation_timespan = 1.0 / 10.0;
+	test.init_test();
+
+	// Partially process.
+	test.network_properties.rtt_seconds = 0.0;
+
+	{
+		NS::FrameIndex controller_1_doll_frame_index = test.peer_2_scene.scene_sync->get_controller_for_peer(test.peer_1_scene.get_peer())->get_current_frame_index();
+		NS::FrameIndex controller_2_doll_frame_index = test.peer_1_scene.scene_sync->get_controller_for_peer(test.peer_2_scene.get_peer())->get_current_frame_index();
+
+		for (int i = 0; i < 10; i++) {
+			if (i % 2 == 0) {
+				test.do_test(10, false, true, false, true);
+			} else {
+				test.do_test(10, false, true, true, false);
+			}
+
+			const NS::FrameIndex controller_1_doll_new_frame_index = test.peer_2_scene.scene_sync->get_controller_for_peer(test.peer_1_scene.get_peer())->get_current_frame_index();
+			const NS::FrameIndex controller_2_doll_new_frame_index = test.peer_1_scene.scene_sync->get_controller_for_peer(test.peer_2_scene.get_peer())->get_current_frame_index();
+
+			// Ensure the doll keep going forward.
+			ASSERT_COND(controller_1_doll_frame_index == NS::FrameIndex::NONE || controller_1_doll_frame_index <= controller_1_doll_new_frame_index);
+			ASSERT_COND(controller_2_doll_frame_index == NS::FrameIndex::NONE || controller_2_doll_frame_index <= controller_2_doll_new_frame_index);
+
+			controller_1_doll_frame_index = controller_1_doll_new_frame_index;
+			controller_2_doll_frame_index = controller_2_doll_new_frame_index;
+		}
+	}
+
+	test.do_test(30);
+
+	const NS::FrameIndex controller_1_last_player_frame_index = test.peer_1_scene.scene_sync->get_controller_for_peer(test.peer_1_scene.get_peer())->get_current_frame_index();
+	const NS::FrameIndex controller_2_last_player_frame_index = test.peer_2_scene.scene_sync->get_controller_for_peer(test.peer_2_scene.get_peer())->get_current_frame_index();
+
+	const NS::FrameIndex controller_1_last_doll_frame_index = test.peer_2_scene.scene_sync->get_controller_for_peer(test.peer_1_scene.get_peer())->get_current_frame_index();
+	const NS::FrameIndex controller_2_last_doll_frame_index = test.peer_1_scene.scene_sync->get_controller_for_peer(test.peer_2_scene.get_peer())->get_current_frame_index();
+
+	const int latency_factor = 15;
+
+	ASSERT_COND(controller_1_last_player_frame_index - latency_factor <= controller_1_last_doll_frame_index);
+	ASSERT_COND(controller_2_last_player_frame_index - latency_factor <= controller_2_last_doll_frame_index);
+
+	// Make sure the last frames are identical.
+	test.assert_positions(
+			test.peer1_desync_detected.back(),
+			test.peer2_desync_detected.back());
 
 	int a = 0;
 }
@@ -618,10 +675,13 @@ void test_doll_simulation() {
 	//test_simulation_without_reconciliation(0.0);
 	//test_simulation_without_reconciliation(1. / 30.);
 	//test_simulation_reconciliation(0.0);
-	//test_simulation_reconciliation(1.0 / 10.0);
-	test_simulation_with_latency();
+	test_simulation_reconciliation(1.0 / 10.0);
+	//test_simulation_with_latency();
+	//test_simulation_with_hiccups();
 	// TODO test with great latency and lag compensation.
 	//test_latency();
+
+	ASSERT_COND(false);
 }
 
 }; //namespace NS_Test
