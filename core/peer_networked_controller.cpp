@@ -1520,6 +1520,7 @@ void DollController::process(double p_delta) {
 
 void DollController::on_state_validated(FrameIndex p_frame_index, bool p_detected_desync) {
 	notify_frame_checked(last_doll_compared_input);
+	notify_frame_processing(current_input_buffer_id);
 }
 
 void DollController::notify_frame_checked(FrameIndex p_doll_frame_index) {
@@ -1528,7 +1529,7 @@ void DollController::notify_frame_checked(FrameIndex p_doll_frame_index) {
 		return;
 	}
 
-	if (p_doll_frame_index != FrameIndex::NONE) {
+	if make_likely (p_doll_frame_index != FrameIndex::NONE) {
 		// Removes all the inputs older than the known one (included).
 		while (!frames_input.empty() && frames_input.front().id <= p_doll_frame_index) {
 			if (frames_input.front().id == p_doll_frame_index) {
@@ -1553,6 +1554,21 @@ void DollController::notify_frame_checked(FrameIndex p_doll_frame_index) {
 	}
 
 	last_doll_validated_input = p_doll_frame_index;
+}
+
+void DollController::notify_frame_processing(FrameIndex p_input_id) {
+	if make_likely (p_input_id != FrameIndex::NONE) {
+		// Removed all the client snapshots which input is more than the specified one
+		// to ensure the function `__pcr__fetch_recovery_info` works properly.
+		for (int i = int(client_snapshots.size()) - 1; i >= 0; i--) {
+			if (client_snapshots[i].doll_executed_input > p_input_id) {
+				VecFunc::remove_at(client_snapshots, i);
+				i--;
+			} else {
+				break;
+			}
+		}
+	}
 }
 
 void DollController::on_received_server_snapshot(const Snapshot &p_snapshot) {
@@ -1634,6 +1650,8 @@ void DollController::copy_controlled_objects_snapshot(
 		snap->data.object_vars.resize(biggest_id.id + 1);
 	}
 
+	snap->data.simulated_objects.clear();
+
 	// Now store the vars info.
 	for (ObjectData *object_data : *controlled_objects) {
 		if (!VecFunc::has(p_snapshot.simulated_objects, object_data->get_net_id())) {
@@ -1662,6 +1680,7 @@ void DollController::copy_controlled_objects_snapshot(
 FrameIndex DollController::fetch_checkable_snapshot(DollSnapshot *&r_client_snapshot, DollSnapshot *&r_server_snapshot) {
 	for (auto client_snap_it = client_snapshots.rbegin(); client_snap_it != client_snapshots.rend(); client_snap_it++) {
 		if (client_snap_it->doll_executed_input != FrameIndex::NONE) {
+			ASSERT_COND_MSG(client_snap_it->doll_executed_input <= current_input_buffer_id, "All the client snapshots are properly cleared when the `current_input_id` is manipulated. So this function is impossible to trigger. If it does, there is a bug on the `notify_frame_processing`.");
 			auto server_snap_it = VecFunc::find(server_snapshots, client_snap_it->doll_executed_input);
 			if (server_snap_it != server_snapshots.end()) {
 				r_client_snapshot = &(*client_snap_it);
@@ -1887,6 +1906,7 @@ void DollController::apply_snapshot_rewinding_input_reconciliation(const Snapsho
 
 	// 5. Fetch frame index to start processing.
 	queued_frame_index_to_process = last_doll_compared_input + 1;
+	current_input_buffer_id = last_doll_compared_input;
 
 	if make_unlikely (server_snapshot) {
 		// 6. Apply the server snapshot.
