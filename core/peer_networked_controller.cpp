@@ -1479,6 +1479,7 @@ bool DollController::fetch_next_input(double p_delta) {
 		FrameInput guessed_fi = frames_input[closest_frame_index];
 		guessed_fi.id = next_input_id;
 		set_frame_input(guessed_fi, false);
+		SceneSynchronizerDebugger::singleton()->print(INFO, "The input " + next_input_id + " is missing. Copying it from " + std::string(frames_input[closest_frame_index].id));
 		return true;
 	} else {
 		// The input is not set and there is no suitable one.
@@ -1520,7 +1521,7 @@ void DollController::process(double p_delta) {
 
 void DollController::on_state_validated(FrameIndex p_frame_index, bool p_detected_desync) {
 	notify_frame_checked(last_doll_compared_input);
-	notify_frame_processing(current_input_buffer_id);
+	clear_previously_generated_client_snapshots();
 }
 
 void DollController::notify_frame_checked(FrameIndex p_doll_frame_index) {
@@ -1540,12 +1541,12 @@ void DollController::notify_frame_checked(FrameIndex p_doll_frame_index) {
 		}
 
 		// Remove all the server snapshots which doll frame was already executed.
-		while (!server_snapshots.empty() && server_snapshots.front().doll_executed_input <= p_doll_frame_index) {
+		while (!server_snapshots.empty() && server_snapshots.front().doll_executed_input < p_doll_frame_index) {
 			VecFunc::remove_at(server_snapshots, 0);
 		}
 
 		// Removed all the checked doll frame snapshots.
-		while (!client_snapshots.empty() && client_snapshots.front().doll_executed_input <= p_doll_frame_index) {
+		while (!client_snapshots.empty() && client_snapshots.front().doll_executed_input < p_doll_frame_index) {
 			VecFunc::remove_at(client_snapshots, 0);
 		}
 	} else {
@@ -1556,14 +1557,13 @@ void DollController::notify_frame_checked(FrameIndex p_doll_frame_index) {
 	last_doll_validated_input = p_doll_frame_index;
 }
 
-void DollController::notify_frame_processing(FrameIndex p_input_id) {
-	if make_likely (p_input_id != FrameIndex::NONE) {
+void DollController::clear_previously_generated_client_snapshots() {
+	if make_likely (current_input_buffer_id != FrameIndex::NONE) {
 		// Removed all the client snapshots which input is more than the specified one
 		// to ensure the function `__pcr__fetch_recovery_info` works properly.
 		for (int i = int(client_snapshots.size()) - 1; i >= 0; i--) {
-			if (client_snapshots[i].doll_executed_input > p_input_id) {
+			if (client_snapshots[i].doll_executed_input > current_input_buffer_id) {
 				VecFunc::remove_at(client_snapshots, i);
-				i--;
 			} else {
 				break;
 			}
@@ -1594,6 +1594,11 @@ void DollController::on_received_server_snapshot(const Snapshot &p_snapshot) {
 }
 
 void DollController::on_snapshot_update_finished(const Snapshot &p_snapshot) {
+#ifdef DEBUG_ENABLED
+	// The SceneSync set the correct input, and here it checks it.
+	const FrameIndex doll_executed_input = MapFunc::at(p_snapshot.peers_frames_index, peer_controller->get_authority_peer(), FrameIndex::NONE);
+	ASSERT_COND(doll_executed_input == current_input_buffer_id);
+#endif
 	copy_controlled_objects_snapshot(p_snapshot, client_snapshots, false);
 }
 
@@ -1680,7 +1685,9 @@ void DollController::copy_controlled_objects_snapshot(
 FrameIndex DollController::fetch_checkable_snapshot(DollSnapshot *&r_client_snapshot, DollSnapshot *&r_server_snapshot) {
 	for (auto client_snap_it = client_snapshots.rbegin(); client_snap_it != client_snapshots.rend(); client_snap_it++) {
 		if (client_snap_it->doll_executed_input != FrameIndex::NONE) {
-			ASSERT_COND_MSG(client_snap_it->doll_executed_input <= current_input_buffer_id, "All the client snapshots are properly cleared when the `current_input_id` is manipulated. So this function is impossible to trigger. If it does, there is a bug on the `notify_frame_processing`.");
+#ifdef DEBUG_ENABLED
+			ASSERT_COND_MSG(client_snap_it->doll_executed_input <= current_input_buffer_id, "All the client snapshots are properly cleared when the `current_input_id` is manipulated. So this function is impossible to trigger. If it does, there is a bug on the `clear_previously_generated_client_snapshots`.");
+#endif
 			auto server_snap_it = VecFunc::find(server_snapshots, client_snap_it->doll_executed_input);
 			if (server_snap_it != server_snapshots.end()) {
 				r_client_snapshot = &(*client_snap_it);
@@ -1732,7 +1739,7 @@ bool DollController::__pcr__fetch_recovery_info(
 	last_doll_compared_input = checkable_input;
 
 	// Now just compare the two snapshots.
-	return Snapshot::compare(
+	const bool compare = Snapshot::compare(
 			*peer_controller->scene_synchronizer,
 			server_snapshot->data,
 			client_snapshot->data,
@@ -1744,6 +1751,14 @@ bool DollController::__pcr__fetch_recovery_info(
 			r_different_node_data
 #endif
 	);
+
+	// TODO remove this.
+	if (r_differences_info) {
+		for (auto d : *r_differences_info) {
+			SceneSynchronizerBase::__print_line(d);
+		}
+	}
+	return compare;
 }
 
 void DollController::on_snapshot_applied(
@@ -1813,6 +1828,8 @@ void DollController::apply_snapshot_instant_input_reconciliation(const Snapshot 
 	for (const DollSnapshot &snapshot : server_snapshots) {
 		if (snapshot.doll_executed_input <= last_doll_compared_input) {
 			snapshot_to_apply = &snapshot;
+		} else {
+			break;
 		}
 	}
 
