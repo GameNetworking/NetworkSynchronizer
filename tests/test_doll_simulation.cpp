@@ -426,6 +426,10 @@ void test_simulation_reconciliation(float p_frame_confirmation_timespan) {
 	// Run another 30 frames.
 	test.do_test(30);
 
+	// Ensure it was able to reconcily in exactly 1 frame.
+	ASSERT_COND(test.peer1_desync_detected.size() == 1);
+	ASSERT_COND(test.peer2_desync_detected.size() == 1);
+
 	// Make sure the reconciliation was successful.
 	// NOTE: 45 is a margin established basing on the `p_frame_confirmation_timespan`.
 	const NS::FrameIndex ensure_no_desync_after{ 45 };
@@ -462,7 +466,7 @@ void test_simulation_with_hiccups(TestDollSimulationStorePositions &test) {
 		}
 	}
 
-	test.do_test(30);
+	test.do_test(100);
 
 	const NS::FrameIndex controller_1_last_player_frame_index = test.peer_1_scene.scene_sync->get_controller_for_peer(test.peer_1_scene.get_peer())->get_current_frame_index();
 	const NS::FrameIndex controller_2_last_player_frame_index = test.peer_2_scene.scene_sync->get_controller_for_peer(test.peer_2_scene.get_peer())->get_current_frame_index();
@@ -477,8 +481,8 @@ void test_simulation_with_hiccups(TestDollSimulationStorePositions &test) {
 
 	// Make sure the last frames are identical.
 	test.assert_positions(
-			test.peer1_desync_detected.back(),
-			test.peer2_desync_detected.back());
+			test.peer1_desync_detected.back() + 10,
+			test.peer2_desync_detected.back() + 10);
 }
 
 void test_simulation_with_latency() {
@@ -628,17 +632,14 @@ void test_latency() {
 }
 
 void test_doll_simulation() {
-	// TODO enable these tests.
-	//test_simulation_without_reconciliation(0.0);
-	//test_simulation_without_reconciliation(1. / 30.);
-	//test_simulation_reconciliation(0.0);
-	//test_simulation_reconciliation(1.0 / 10.0);
-	//test_simulation_with_latency();
+	test_simulation_without_reconciliation(0.0);
+	test_simulation_without_reconciliation(1. / 30.);
+	test_simulation_reconciliation(0.0);
+	test_simulation_reconciliation(1.0 / 10.0);
+	test_simulation_with_latency();
 	test_simulation_with_hiccups();
 	// TODO test with great latency and lag compensation.
-	//test_latency();
-
-	ASSERT_COND(false);
+	test_latency();
 }
 
 }; //namespace NS_Test

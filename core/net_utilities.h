@@ -198,7 +198,7 @@ void remove_unordered(std::vector<V> &r_vec, const T &p_val) {
 	}
 }
 
-// Swap the element at position with the last one, then removes it.
+// Removes the element without changing order.
 template <class V>
 void remove_at(std::vector<V> &r_vec, std::size_t p_index) {
 	if (r_vec.size() <= p_index) {

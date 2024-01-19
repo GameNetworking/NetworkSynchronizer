@@ -405,9 +405,10 @@ public:
 	int fetch_optimal_queued_inputs() const;
 	virtual bool fetch_next_input(double p_delta) override;
 	virtual void process(double p_delta) override;
+
 	void on_state_validated(FrameIndex p_frame_index, bool p_detected_desync);
 	void notify_frame_checked(FrameIndex p_input_id);
-	void notify_frame_processing(FrameIndex p_input_id);
+	void clear_previously_generated_client_snapshots();
 
 	void on_received_server_snapshot(const Snapshot &p_snapshot);
 	void on_snapshot_update_finished(const Snapshot &p_snapshot);
