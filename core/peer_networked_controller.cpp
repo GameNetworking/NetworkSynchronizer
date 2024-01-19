@@ -1539,11 +1539,21 @@ void DollController::notify_frame_checked(FrameIndex p_doll_frame_index) {
 		}
 
 		// Remove all the server snapshots which doll frame was already executed.
+		// NOTE: This logic is removing all the snapshots older than the specified
+		//       frame index while is not removing the specified frame index.
+		//       It's quite important to keep that snapshot to ensure the function
+		//       `apply_snapshot_instant_input_reconciliation` can work properly.
+		//       It needs the snapshot the doll is at, to safely apply the reconciliation.
 		while (!server_snapshots.empty() && server_snapshots.front().doll_executed_input < p_doll_frame_index) {
 			VecFunc::remove_at(server_snapshots, 0);
 		}
 
 		// Removed all the checked doll frame snapshots.
+		// NOTE: This logic is removing all the snapshots older than the specified
+		//       frame index while is not removing the specified frame index.
+		//       It's quite important to keep that snapshot to ensure the function
+		//       `apply_snapshot_instant_input_reconciliation` can work properly.
+		//       It needs the snapshot the doll is at, to safely apply the reconciliation.
 		while (!client_snapshots.empty() && client_snapshots.front().doll_executed_input < p_doll_frame_index) {
 			VecFunc::remove_at(client_snapshots, 0);
 		}
@@ -1727,7 +1737,6 @@ bool DollController::__pcr__fetch_recovery_info(
 	DollSnapshot *client_snapshot;
 	DollSnapshot *server_snapshot;
 
-	// This is valid until we reset it again.
 	const FrameIndex checkable_input = fetch_checkable_snapshot(client_snapshot, server_snapshot);
 	if (checkable_input == FrameIndex::NONE) {
 		// Nothing to check.
@@ -1763,7 +1772,17 @@ void DollController::on_snapshot_applied(
 	ASSERT_COND(p_frame_count_to_rewind >= 0);
 #endif
 
+	// This function is executed when the SceneSynchronizer apply the server
+	// snapshot to reconcile the PlayerController.
+	// The doll, which timeline is detached from the main SceneSync (which follows the PlayerController) timeline,
+	// is still processed together with the SceneSync so it uses this event to
+	// Apply the doll server snapshots and compensate the doll input.
+	// NOTE: The input compensation is the act of:
+	//       - Delaying the input processing when the input buffer is small (with the goal of growing the buffer)
+	//       - Discarding part of the input buffer, if the buffer grown too much, to remain up-to-dated with the server.
+
 	if make_unlikely (!server_snapshots.empty() && server_snapshots.back().doll_executed_input == FrameIndex::NONE) {
+		// This controller is not simulating on the server. This function handles this case.
 		apply_snapshot_no_input_reconciliation(p_global_server_snapshot);
 	}
 
@@ -1809,13 +1828,21 @@ void DollController::apply_snapshot_instant_input_reconciliation(const Snapshot 
 	//    on the current connection).
 	const int optimal_queued_inputs = fetch_optimal_queued_inputs();
 
+	// 2. Then, find the ideal input to restore. Notice that this logic is used
+	//    mainly to alter the input buffering size:
+	//    If the input buffer `frames_input` is too big it discards the superflous inputs.
+	//    If the input buffer is too small adds some fake inputs to delay the execution.
 	if make_likely (frames_input.back().id.id >= std::uint32_t(optimal_queued_inputs)) {
 		last_doll_compared_input = frames_input.back().id - optimal_queued_inputs;
 	} else {
 		last_doll_compared_input = FrameIndex{ 0 };
 	}
 
-	// Search the snapshot to apply.
+	// 3. Once the ideal input to restore is found, it's necessary to find the
+	//    nearest server snapshot to apply.
+	//    Notice that this logic is build so to prefer building a bigger input buffer
+	//    than needed, while keeping the scene consistent, rather than breaking
+	//    the synchronization.
 	const DollSnapshot *snapshot_to_apply = nullptr;
 	for (const DollSnapshot &snapshot : server_snapshots) {
 		if (snapshot.doll_executed_input <= last_doll_compared_input) {
@@ -1825,6 +1852,7 @@ void DollController::apply_snapshot_instant_input_reconciliation(const Snapshot 
 		}
 	}
 
+	// 4. Just apply the snapshot.
 	if (snapshot_to_apply) {
 		static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(snapshot_to_apply->data, 0, 0, nullptr, true, true, true, true, true);
 		// Bring everything back to this point.
@@ -1834,10 +1862,10 @@ void DollController::apply_snapshot_instant_input_reconciliation(const Snapshot 
 }
 
 void DollController::apply_snapshot_rewinding_input_reconciliation(const Snapshot &p_global_server_snapshot, const int p_frame_count_to_rewind) {
-	// This function apply the snapshot and handles the reconciliation mechanism.
-	// over the rewinding.
+	// This function applies the snapshot and handles the reconciliation mechanism
+	// during the rewinding process.
 	// The input reconciliation performed during the rewinding is the best because
-	// allows to manipulate the timeline without causing too many rubberbanding.
+	// the timeline manipulations are much less visible.
 
 	// This function assume the "frame count to rewind" is never 0.
 	ASSERT_COND(p_frame_count_to_rewind > 0);
@@ -1848,7 +1876,7 @@ void DollController::apply_snapshot_rewinding_input_reconciliation(const Snapsho
 
 	const int input_count = frames_input.size();
 	const DollSnapshot *server_snapshot = nullptr;
-	FrameIndex new_last_doll_compared_input;
+	FrameIndex new_last_doll_compared_input = FrameIndex::NONE;
 	if make_likely (input_count > 0) {
 		// 2. Fetch the best input to start processing.
 		const int optimal_input_count = p_frame_count_to_rewind + optimal_queued_inputs;
@@ -1857,9 +1885,7 @@ void DollController::apply_snapshot_rewinding_input_reconciliation(const Snapsho
 		// inputs so that the `input_count` equals to `optimal_queued_inputs`
 		// at the end of the reconcilation (rewinding) operation.
 
-		// 3. Fetch the best FrameInput to reset.
-		//    Doesn't matter if we have or not the frame input. If not, the doll will
-		//    just wait idle.
+		// 3. Fetch the ideal frame to reset.
 		if make_likely (frames_input.back().id.id >= std::uint32_t(optimal_input_count)) {
 			new_last_doll_compared_input = frames_input.back().id - optimal_input_count;
 		} else {
@@ -1900,9 +1926,13 @@ void DollController::apply_snapshot_rewinding_input_reconciliation(const Snapsho
 	}
 
 	if make_unlikely (input_count == 0 || new_last_doll_compared_input == FrameIndex::NONE) {
-		// There are no inputs and in this case this function has to avoidhawk:
-		// - Advance on the timeline while rewinding (so it needs to set the timeline back).
-		// - Try to compensate so to give the inputs enough time to arrive.
+		// There are no inputs or there were no server snapshots to apply during
+		// the rewinding phase, so it's preferable to wait more inputs and snapshots
+		// so to safely apply the reconciliation without introducing any desynchronizations.
+		//
+		// The follow logic make sure that the rewinding is about to happen
+		// doesn't alter this doll timeline: At the end of the rewinding this
+		// doll will be exactly as is right now.
 		const FrameIndex frames_to_travel = { std::uint32_t(p_frame_count_to_rewind + optimal_queued_inputs) };
 		if make_likely (current_input_buffer_id > frames_to_travel) {
 			last_doll_compared_input = current_input_buffer_id - frames_to_travel;
@@ -1913,12 +1943,18 @@ void DollController::apply_snapshot_rewinding_input_reconciliation(const Snapsho
 		last_doll_compared_input = new_last_doll_compared_input;
 	}
 
-	// 5. Fetch frame index to start processing.
-	queued_frame_index_to_process = last_doll_compared_input + 1;
+	// 5. Now it's time to prepare the doll for the next rewinding that is about to:
+	//    - Reconcile the client
+	//    - Resize the input buffer.
 	current_input_buffer_id = last_doll_compared_input;
+	queued_frame_index_to_process = last_doll_compared_input + 1;
 
 	if make_unlikely (server_snapshot) {
-		// 6. Apply the server snapshot.
+		// 6. Apply the server snapshot found during the point `4`.
+		//    That logic detected that this controller has the server snapshot
+		//    for the input we have to reset.
+		//    In this case, it's mandatory to apply that, to ensure the scene
+		//    reconciliation.
 		static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(server_snapshots.back().data, 0, 0, nullptr, true, true, true, true, true);
 	} else if make_likely (!client_snapshots.empty()) {
 		// 7. Get the closest available snapshot, and apply it, no need to be
