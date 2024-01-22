@@ -25,8 +25,6 @@ public:
 	typedef NS::SceneSynchronizer<Node, GdNetworkInterface> SyncClass;
 	SyncClass scene_synchronizer;
 
-	real_t comparison_float_tolerance = 0.001;
-
 	// Just used to detect when the low level peer change.
 	void *low_level_peer = nullptr;
 
@@ -55,9 +53,6 @@ public: // ---------------------------------------------------------- Properties
 
 	void set_frame_confirmation_timespan(real_t p_interval);
 	real_t get_frame_confirmation_timespan() const;
-
-	void set_comparison_float_tolerance(real_t p_tolerance);
-	real_t get_comparison_float_tolerance() const;
 
 	void set_nodes_relevancy_update_time(real_t p_time);
 	real_t get_nodes_relevancy_update_time() const;

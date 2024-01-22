@@ -3,6 +3,106 @@
 	<brief_description>
 	</brief_description>
 	<description>
+		The GdSceneSynchronizer synchronizes the scene.
+		This plugin uses a synchronization model that works best with realtime games and allows to network complex scenes without introducing any input lag. This class supports two networking methods, where each is the complementary to the other, offering the best networking method for each situation.
+		- [b]METHOD 1. The simulation:[/b] This is the best networking method to synchronize a character (or any node which affects the gameplay directly) without introducing any input lag. This method is the most expensive in terms of bandwidth and CPU usage.
+		- [b]METHOD 2. The trickling:[/b] This is the best networking method to synchronize background objects or elements that doesn't immediatelly (or directly) affects the player's gameplay. This method is cheap on the bandwidth and CPU usage, at the cost of latency and input lag.
+		
+		[b]Prerequisites[/b]
+		The prerequisite to use this plugin is to have the game peers connection, map loading, and the charcter spawning. Follow this to know how to implement it: [https://docs.godotengine.org/en/stable/tutorials/networking/high_level_multiplayer.html]
+		Then, you need to override the GdSceneSynchronizer and make that class a singelton. From now on we will refer to it as [i]GameSceneSync[/i] In this way, you will be able to add functionalities on top of the GdSceneSynchronizer (like the object spawning), tied to your game. Now you are ready to use it!
+		At this point, you should be able to start a [b]server[/b] and [b]2 clients[/b] connected to that server. Each client should have its own character, despite the characters doesn't react to the player's input yet.
+
+		[b]Setup the synchronization[/b]
+		The really first thing to do is to implement the character. Assuming your character is a scene which first node is a [RigidBody] in kinematic mode. Open the script and search the [code]_ready()[/code] function. Then add the following code:
+		[codeblock]
+		func _ready() -> void:
+		    # Register the node as synchronized. This will create a NetId and call `_setup_synchronizer`.
+			GameSceneSync.register_node(self)
+		
+		func _setup_synchronizer(local_id) -> void:
+		    # This function is called by the NetworkSynchronizer to setup the node synchronization model.
+		    # The function `setup_controller` is used to specify the functions that will controll the character.
+		    GameSceneSync.setup_controller(self, get_multiplayer_authority(), _collect_inputs, _count_input_size, _are_inputs_different, _controller_process)
+		    # Register all the variables to keep in sync that the function `_controller_process` modifies.
+		    GameSceneSync.register_variable(self, "velocity")
+		    GameSceneSync.register_variable(self, "transform")
+
+		# ------------------------------------------------------------------- Networking
+		func _collect_inputs(delta: float, buffer: DataBuffer) -> void:
+		    # This function is called by the NetworkSynchronizer each frame, only on the client side, to collect the player's input into the buffer.
+		    var input_direction := Vector3()
+		    var wants_to_jump: bool = false
+
+		    if Input.is_action_pressed("forward"):
+		        input_direction.x = 1
+		    if Input.is_action_pressed("backward"):
+		        input_direction.x = -1
+		    if Input.is_action_pressed("left"):
+		        input_direction.z = 1
+		    if Input.is_action_pressed("right"):
+		        input_direction.z = -1
+		    if Input.is_action_pressed("jump"):
+		        wants_to_jump = true
+
+		    buffer.add_vector3(input_direction)
+		    buffer.add_bool(wants_to_jump)
+
+
+		func _count_input_size(inputs: DataBuffer) -> int:
+		    # This function is called by the NetworkSynchronizer to read the buffer size.
+		    # To keep the buffer as small as possible, to save bandwidth, the buffer size is never stored.
+		    var size = 0
+		    size += inputs.get_vector3_size()
+		    size += inputs.get_bool_size()
+		    return size
+
+
+		func _are_inputs_different(inputs_A: DataBuffer, inputs_B: DataBuffer) -> bool:
+		    # The NetworkSynchronizer will call this function to compare two input buffers.
+		    if inputs_A.size != inputs_B.size:
+		        return true
+
+		    var input_direction_A = inputs_A.read_vector3()
+		    var input_direction_B = inputs_B.read_vector3()
+		    if input_direction_A != input_direction_B:
+		        return true
+
+		    var jump_A: bool = inputs_A.read_bool()
+		    var jump_B: bool = inputs_B.read_bool()
+		    if jump_A!= jump_B:
+		        return true
+
+		    return false
+
+
+		func _controller_process(delta: float, buffer: DataBuffer) -> void:
+		    # This function is executed by the NetworkSynchronizer each frame, on the clients and the server, to advance the simulation.
+		    # The buffer contains the player's input that you can read as follow.
+		    var input_direction: Vector3 = buffer.read_vector3()
+		    var wants_to_jump: bool = buffer.read_bool()
+
+		    move_the_character(delta, input_direction, wants_to_jump)
+		[/codeblock]
+
+		The above code is an example of how to implement a controllable character and now the project is ready to play.
+
+		As you can notice from the above code, the synchronization code is abstracted, and all you have to do is specify what to synchronize and few functions to collect and process the player's input.
+		The NetworkSynchronizer will take care of the networking side of it. The default synchronization method is the [b]simulated[/b] one. To know more about what the NetworkSynchronizer does, read the next section.
+
+		**Networking under the hood**
+		In this section, we will focus on what the NetworkSynchronizer does to network the simulated nodes.
+
+		The networking model used by this plugin is based on the idea of "prediction and reconciliation". You can read more about it here:
+		- Client side prediction server reconciliation: https://www.gabrielgambetta.com/client-side-prediction-server-reconciliation.html 
+		- Rocket League networking: https://www.youtube.com/watch?v=ueEmiDM94IE
+		In short; The client send all the player's input to the server, but instead of waiting for the server to process it, the client processes it on its own. This phase is called prediction. Once the server's response is received, the client will validate its predicted state, and if it's wrong (it desync) it will rewind the scene to the server state and then reprocess all the frames that are still pending. This phase is called reconciliation.
+
+		TODO variable sync
+
+		TODO sync process
+
+		TODO trickled
 	</description>
 	<tutorials>
 	</tutorials>
@@ -235,8 +335,6 @@
 		</method>
 	</methods>
 	<members>
-		<member name="comparison_float_tolerance" type="float" setter="set_comparison_float_tolerance" getter="get_comparison_float_tolerance" default="0.001">
-		</member>
 		<member name="nodes_relevancy_update_time" type="float" setter="set_nodes_relevancy_update_time" getter="get_nodes_relevancy_update_time" default="0.5">
 		</member>
 		<member name="frame_confirmation_timespan" type="float" setter="set_frame_confirmation_timespan" getter="get_frame_confirmation_timespan" default="1.0">

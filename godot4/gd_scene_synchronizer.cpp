@@ -55,9 +55,6 @@ void GdSceneSynchronizer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_frame_confirmation_timespan", "interval"), &GdSceneSynchronizer::set_frame_confirmation_timespan);
 	ClassDB::bind_method(D_METHOD("get_frame_confirmation_timespan"), &GdSceneSynchronizer::get_frame_confirmation_timespan);
 
-	ClassDB::bind_method(D_METHOD("set_comparison_float_tolerance", "tolerance"), &GdSceneSynchronizer::set_comparison_float_tolerance);
-	ClassDB::bind_method(D_METHOD("get_comparison_float_tolerance"), &GdSceneSynchronizer::get_comparison_float_tolerance);
-
 	ClassDB::bind_method(D_METHOD("set_nodes_relevancy_update_time", "time"), &GdSceneSynchronizer::set_nodes_relevancy_update_time);
 	ClassDB::bind_method(D_METHOD("get_nodes_relevancy_update_time"), &GdSceneSynchronizer::get_nodes_relevancy_update_time);
 
@@ -120,7 +117,6 @@ void GdSceneSynchronizer::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "tick_acceleration", PROPERTY_HINT_RANGE, "0.1,20.0,0.01"), "set_tick_acceleration", "get_tick_acceleration");
 
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "frame_confirmation_timespan", PROPERTY_HINT_RANGE, "0.001,10.0,0.0001"), "set_frame_confirmation_timespan", "get_frame_confirmation_timespan");
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "comparison_float_tolerance", PROPERTY_HINT_RANGE, "0.000001,0.01,0.000001"), "set_comparison_float_tolerance", "get_comparison_float_tolerance");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "nodes_relevancy_update_time", PROPERTY_HINT_RANGE, "0.0,2.0,0.01"), "set_nodes_relevancy_update_time", "get_nodes_relevancy_update_time");
 
 	ADD_SIGNAL(MethodInfo("sync_started"));
@@ -407,14 +403,6 @@ void GdSceneSynchronizer::set_frame_confirmation_timespan(real_t p_interval) {
 
 real_t GdSceneSynchronizer::get_frame_confirmation_timespan() const {
 	return scene_synchronizer.get_frame_confirmation_timespan();
-}
-
-void GdSceneSynchronizer::set_comparison_float_tolerance(real_t p_tolerance) {
-	comparison_float_tolerance = p_tolerance;
-}
-
-real_t GdSceneSynchronizer::get_comparison_float_tolerance() const {
-	return comparison_float_tolerance;
 }
 
 void GdSceneSynchronizer::set_nodes_relevancy_update_time(real_t p_time) {
