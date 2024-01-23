@@ -1,4 +1,3 @@
-
 #include "scene_synchronizer.h"
 
 #include "core/config/project_settings.h"

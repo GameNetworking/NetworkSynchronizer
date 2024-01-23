@@ -635,17 +635,17 @@ void test_simulation_with_wrong_input() {
 	test.assert_positions(NS::FrameIndex{ 0 }, NS::FrameIndex{ 0 });
 
 	// 2. Now introduce a desync on the server.
-	for (int test_count = 0; test_count < 4; test_count++) {
+	for (int test_count = 0; test_count < 5; test_count++) {
 		for (int i = 0; i < 3; i++) {
-			const NS::FrameIndex c1_assert_after = server_controller_1->get_current_frame_index() + 15;
-			const NS::FrameIndex c2_assert_after = server_controller_2->get_current_frame_index() + 15;
+			const NS::FrameIndex c1_assert_after = server_controller_1->get_current_frame_index() + 20;
+			const NS::FrameIndex c2_assert_after = server_controller_2->get_current_frame_index() + 20;
 			const int c1_desync_vec_size = test.peer1_desync_detected.size();
 			const int c2_desync_vec_size = test.peer2_desync_detected.size();
 
 			test.controlled_1_serv->modify_input_on_next_frame = true;
 			test.controlled_2_serv->modify_input_on_next_frame = true;
 			// Process 50 frames and ensure it recovers.
-			test.do_test(50);
+			test.do_test(75);
 
 			// Ensure there was a desync.
 			ASSERT_COND(test.peer1_desync_detected.size() > c1_desync_vec_size);

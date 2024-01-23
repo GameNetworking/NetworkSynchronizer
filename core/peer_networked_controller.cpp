@@ -1673,7 +1673,7 @@ void DollController::copy_controlled_objects_snapshot(
 		}
 
 		const std::vector<NameAndVar> *vars = p_snapshot.get_object_vars(object_data->get_net_id());
-		ENSURE_CONTINUE_MSG(vars, "The snapshot didn't contain the object: " + object_data->get_net_id() + ". If this error spams for a long period (5/10 seconds), it's a bug.");
+		ENSURE_CONTINUE_MSG(vars, "[FATAL] The snapshot didn't contain the object: " + object_data->get_net_id() + ". If this error spams for a long period (1/2 seconds) or never recover, it's a bug since.");
 
 		snap->data.simulated_objects.push_back(object_data->get_net_id());
 
@@ -1691,11 +1691,12 @@ void DollController::copy_controlled_objects_snapshot(
 }
 
 FrameIndex DollController::fetch_checkable_snapshot(DollSnapshot *&r_client_snapshot, DollSnapshot *&r_server_snapshot) {
+	clear_previously_generated_client_snapshots();
+
 	for (auto client_snap_it = client_snapshots.rbegin(); client_snap_it != client_snapshots.rend(); client_snap_it++) {
 		if (client_snap_it->doll_executed_input != FrameIndex::NONE) {
-#ifdef DEBUG_ENABLED
 			ASSERT_COND_MSG(client_snap_it->doll_executed_input <= current_input_buffer_id, "All the client snapshots are properly cleared when the `current_input_id` is manipulated. So this function is impossible to trigger. If it does, there is a bug on the `clear_previously_generated_client_snapshots`.");
-#endif
+
 			auto server_snap_it = VecFunc::find(server_snapshots, client_snap_it->doll_executed_input);
 			if (server_snap_it != server_snapshots.end()) {
 				r_client_snapshot = &(*client_snap_it);
