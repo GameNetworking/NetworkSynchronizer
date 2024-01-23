@@ -23,6 +23,7 @@ const double delta = 1.0 / 60.0;
 class TDSControlledObject : public NS::LocalSceneObject {
 public:
 	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
+	bool modify_input_on_next_frame = false;
 
 	TDSControlledObject() = default;
 
@@ -76,6 +77,12 @@ public:
 	void controller_process(double p_delta, DataBuffer &p_buffer) {
 		bool advance_or_turn;
 		p_buffer.read(advance_or_turn);
+
+		if (modify_input_on_next_frame) {
+			modify_input_on_next_frame = false;
+			advance_or_turn = !advance_or_turn;
+		}
+
 		NS::VarData current = get_xy();
 		if (advance_or_turn) {
 			// Advance
@@ -303,6 +310,7 @@ struct TestDollSimulationStorePositions : public TestDollSimulationBase {
 		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_2_peer1->get_xy(), NS::VarData(0, 0)));
 	}
 
+	// Used to introduce a desync by changing the input on the server.
 	std::map<NS::FrameIndex, NS::VarData> controlled_1_player_position;
 	std::map<NS::FrameIndex, NS::VarData> controlled_2_player_position;
 	std::map<NS::FrameIndex, NS::VarData> controlled_1_doll_position;
@@ -609,6 +617,57 @@ void test_latency() {
 	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency(peer2) >= 60 && test.server_scene.scene_sync->get_peer_latency(peer2) <= 105);
 }
 
+void test_simulation_with_wrong_input() {
+	TestDollSimulationStorePositions test;
+	test.frame_confirmation_timespan = 1.0 / 10.0;
+	test.init_test();
+
+	const NS::PeerNetworkedController *server_controller_1 = test.server_scene.scene_sync->get_controller_for_peer(test.peer_1_scene.get_peer());
+	const NS::PeerNetworkedController *server_controller_2 = test.server_scene.scene_sync->get_controller_for_peer(test.peer_2_scene.get_peer());
+
+	test.do_test(30);
+
+	// 1. Make sure no desync were detected so far.
+	ASSERT_COND(test.peer1_desync_detected.size() == 0);
+	ASSERT_COND(test.peer2_desync_detected.size() == 0);
+
+	// Ensure the positions are all the same.
+	test.assert_positions(NS::FrameIndex{ 0 }, NS::FrameIndex{ 0 });
+
+	// 2. Now introduce a desync on the server.
+	for (int test_count = 0; test_count < 4; test_count++) {
+		for (int i = 0; i < 3; i++) {
+			const NS::FrameIndex c1_assert_after = server_controller_1->get_current_frame_index() + 15;
+			const NS::FrameIndex c2_assert_after = server_controller_2->get_current_frame_index() + 15;
+			const int c1_desync_vec_size = test.peer1_desync_detected.size();
+			const int c2_desync_vec_size = test.peer2_desync_detected.size();
+
+			test.controlled_1_serv->modify_input_on_next_frame = true;
+			test.controlled_2_serv->modify_input_on_next_frame = true;
+			// Process 50 frames and ensure it recovers.
+			test.do_test(50);
+
+			// Ensure there was a desync.
+			ASSERT_COND(test.peer1_desync_detected.size() > c1_desync_vec_size);
+			ASSERT_COND(test.peer2_desync_detected.size() > c2_desync_vec_size);
+
+			// But the position should be the same after frame 60 at least
+			test.assert_no_desync(c1_assert_after, c2_assert_after);
+			test.assert_positions(c1_assert_after, c2_assert_after);
+		}
+
+		if (test_count == 1) {
+			test.network_properties.rtt_seconds = 0.1;
+		} else if (test_count == 2) {
+			test.network_properties.rtt_seconds = 0.0;
+		} else if (test_count == 3) {
+			test.network_properties.rtt_seconds = 0.1;
+		} else {
+			test.network_properties.rtt_seconds = 0.0;
+		}
+	}
+}
+
 void test_doll_simulation() {
 	test_simulation_without_reconciliation(0.0);
 	test_simulation_without_reconciliation(1. / 30.);
@@ -616,6 +675,7 @@ void test_doll_simulation() {
 	test_simulation_reconciliation(1.0 / 10.0);
 	test_simulation_with_latency();
 	test_simulation_with_hiccups();
+	test_simulation_with_wrong_input();
 	// TODO test with great latency and lag compensation.
 	test_latency();
 }
