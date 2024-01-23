@@ -4,29 +4,31 @@
 	</brief_description>
 	<description>
 		The GdSceneSynchronizer synchronizes the scene.
-		This plugin uses a synchronization model that works best with realtime games and allows to network complex scenes without introducing any input lag. This class supports two networking methods, where each is the complementary to the other, offering the best networking method for each situation.
+		This plugin uses a synchronization model that works best with realtime games and allows to network complex scenes without introducing any input lag. This class supports two networking methods, where each is complementary to the other, offering the best networking method for each situation.
 		- [b]METHOD 1. The simulation:[/b] This is the best networking method to synchronize a character (or any node which affects the gameplay directly) without introducing any input lag. This method is the most expensive in terms of bandwidth and CPU usage.
-		- [b]METHOD 2. The trickling:[/b] This is the best networking method to synchronize background objects or elements that doesn't immediatelly (or directly) affects the player's gameplay. This method is cheap on the bandwidth and CPU usage, at the cost of latency and input lag.
+		- [b]METHOD 2. The trickling:[/b] This is the best networking method to synchronize background objects or elements that doesn't immediately (or directly) affect the player's gameplay. This method is cheap on the bandwidth and CPU usage, at the cost of latency and input lag.
 		
 		[b]Prerequisites[/b]
-		The prerequisite to use this plugin is to have the game peers connection, map loading, and the charcter spawning. Follow this to know how to implement it: [https://docs.godotengine.org/en/stable/tutorials/networking/high_level_multiplayer.html]
-		Then, you need to override the GdSceneSynchronizer and make that class a singelton. From now on we will refer to it as [i]GameSceneSync[/i] In this way, you will be able to add functionalities on top of the GdSceneSynchronizer (like the object spawning), tied to your game. Now you are ready to use it!
-		At this point, you should be able to start a [b]server[/b] and [b]2 clients[/b] connected to that server. Each client should have its own character, despite the characters doesn't react to the player's input yet.
+		The prerequisite to use this plugin is to have the game peers connection, map loading, and the character spawning. Follow this to know how to implement it: [https://docs.godotengine.org/en/stable/tutorials/networking/high_level_multiplayer.html]
+		Then, you need to override the GdSceneSynchronizer and make that class a singleton. From now on we will refer to it as [i]GameSceneSync[/i] In this way, you will be able to add functionalities, specific to your game, on top of the GdSceneSynchronizer (like the object spawning).
+		At this point, you should be able to start a [b]server[/b] and [b]2 clients[/b] connected to that server. Each client should have its own character, despite the character not reacting to the player's input yet.
 
 		[b]Setup the synchronization[/b]
-		The really first thing to do is to implement the character. Assuming your character is a scene which first node is a [RigidBody] in kinematic mode. Open the script and search the [code]_ready()[/code] function. Then add the following code:
+		The really first thing to do is to implement the character. Assuming your character is a scene whose first node is a [RigidBody] in kinematic mode. Open the script and search the [code]_ready()[/code] function or add it. Then add the following code:
 		[codeblock]
 		func _ready() -> void:
 		    # Register the node as synchronized. This will create a NetId and call `_setup_synchronizer`.
-			GameSceneSync.register_node(self)
-		
+		    GameSceneSync.register_node(self)
+
+
 		func _setup_synchronizer(local_id) -> void:
 		    # This function is called by the NetworkSynchronizer to setup the node synchronization model.
-		    # The function `setup_controller` is used to specify the functions that will controll the character.
+		    # The function `setup_controller` is used to specify the functions that will control the character.
 		    GameSceneSync.setup_controller(self, get_multiplayer_authority(), _collect_inputs, _count_input_size, _are_inputs_different, _controller_process)
 		    # Register all the variables to keep in sync that the function `_controller_process` modifies.
 		    GameSceneSync.register_variable(self, "velocity")
 		    GameSceneSync.register_variable(self, "transform")
+
 
 		# ------------------------------------------------------------------- Networking
 		func _collect_inputs(delta: float, buffer: DataBuffer) -> void:
@@ -78,7 +80,7 @@
 
 		func _controller_process(delta: float, buffer: DataBuffer) -> void:
 		    # This function is executed by the NetworkSynchronizer each frame, on the clients and the server, to advance the simulation.
-		    # The buffer contains the player's input that you can read as follow.
+		    # The buffer contains the player's input that you can read as follows.
 		    var input_direction: Vector3 = buffer.read_vector3()
 		    var wants_to_jump: bool = buffer.read_bool()
 
@@ -87,7 +89,7 @@
 
 		The above code is an example of how to implement a controllable character and now the project is ready to play.
 
-		As you can notice from the above code, the synchronization code is abstracted, and all you have to do is specify what to synchronize and few functions to collect and process the player's input.
+		As you can notice from the above code, the synchronization code is abstracted, and all you have to do is specify what to synchronize and a few functions to collect and process the player's input.
 		The NetworkSynchronizer will take care of the networking side of it. The default synchronization method is the [b]simulated[/b] one. To know more about what the NetworkSynchronizer does, read the next section.
 
 		**Networking under the hood**
@@ -96,13 +98,38 @@
 		The networking model used by this plugin is based on the idea of "prediction and reconciliation". You can read more about it here:
 		- Client side prediction server reconciliation: https://www.gabrielgambetta.com/client-side-prediction-server-reconciliation.html 
 		- Rocket League networking: https://www.youtube.com/watch?v=ueEmiDM94IE
-		In short; The client send all the player's input to the server, but instead of waiting for the server to process it, the client processes it on its own. This phase is called prediction. Once the server's response is received, the client will validate its predicted state, and if it's wrong (it desync) it will rewind the scene to the server state and then reprocess all the frames that are still pending. This phase is called reconciliation.
+		- Overwatch networking architecture: https://www.youtube.com/watch?v=W3aieHjyNvw
+		In short; The client sends all the player's input to the server, but instead of waiting for the server to process it, the client processes the input right away. This phase is called prediction, because the client is trying to predict the server replay. In this way the client will see its character moving immediately and without any input lag. Once the server's response is received, the client will validate its predicted state, and if it's wrong (a desync occurred) it will rewind the scene to the server's state and then reprocess all the frames that are still pending. This phase is called reconciliation.
+		Thanks to the prediction, the player's input is processed right away and that's how we can get rid of the input lag. Furthermore, thanks to the reconciliation, the client can re-sync with the server while still keeping predicting the newer frames.
+		This loop (prediction-validation-reconciliation) works WELL only under the strict condition that the executed code is deterministic.
 
-		TODO variable sync
+		**Deterministic**
+		With the term "deterministic code" I intend a piece of software which output guaranteed to be always the same, execution after execution, assuming that the provided input is consistent. In other words, when the character state (which may be composed by the transform, velocity, ...) is the same on both the client and the server the output frame IS guaranteed to be exactly the same on both sides.
+		This aspect is quite important to ensure playable gameplay. Indeed, a non deterministic code would introduce way too much desync and that would result in a game in which characters would randomly teleport back and forth, in the best case.
+		NOTE that the full recipe to get a deterministic game, is made of three ingredients.
+		1. Deterministic code.
+		2. Known initial state.
+		3. All the player's input.
 
-		TODO sync process
+		The NetworkSynchronizer's code is deterministic, but that's not enough, and your code must be deterministic as well. Do not panic though, because this plugin is built in a way to encourage writing deterministic code - and however it provides some tools to debug it.
+		To give an example, the character controller (check the above example code) provides two distinct functions; one to read the player's input (_collect_inputs) and the other to process them (_controller_process). This setup makes it more difficult to make mistakes like fetching the inputs from the singleton [code]Input.[/code] directly from the processing function.
 
-		TODO trickled
+		The second element to have a deterministic game is to ensure the initial state is known and you can do that by using the function [code]GameSceneSync.register_variable(self, "transform")[/code] to mark the variables as synchronized. The NetworkSynchronizer will track the changes to these variables and will make sure to synchronize them. All the variables modified by the process function (_controller_process) MUST be synchronized (the local variables don't need to be sync). Generally the process function modifies things like the [code]velocity[/code], the [code]transform[/code], the [code]is_on_ground[/code], the [code]ability_timer[/code], the [code]mana[/code], ecc... ANY variable modified by the process function MUST be synchronized.
+
+		The third and final element, to get a deterministic gameplay, is to send ALL the player's input to the server. To do that, it's enough to write (and also read) the player's input in to the buffer; the NetworkSynchronizer will take care to send the inputs to the server in an optimized but reliable manner.
+
+		The NetworkSynchronizer abstracts the networking so that the user can fully focus on implementing the gameplay (even the most complex one where the physics is fully synchronized).
+
+		**Trickled**
+		The prediction-and-reconciliation method is quite good at providing no-input-lag-synchronized gameplay, however it's heavy to process on the CPU (due to the validation and reconciliation logic) and uses quite a lot of bandwidth (due to the fact that it needs ALL the players' inputs at full precision) so network a big number of complex characters with this technology is not going to be easy - but most importantly not even required!
+
+		The NetworkSynchronizer provides an alternative way of synchronizing the objects, which is based on the concept of sending the objects' state to the users and letting the users interpolate those.
+		This mechanism is much slower compared to the simulation approach, it will add some delay between the time the player presses the forward button and the character moves on the other players screen, however it's much cheaper to process and it can be drastically smaller bandwidth wise (especially considering that precision and sync rate can be dynamically lowered).
+
+		This sync mechanism is easy and works in this way: The server sends to all the peers, with a fixed rate (can be changed from the settings), a packet containing the trickled objects update. The client will interpolate over the received state updates.
+		It's important to notice that since it's possible to change the sync rate for each object (as a way to scale the precision at cost of responsiveness) the packet may not contain the updates for all the trickled objects.
+
+		This mechanism is the best to network faraway characters, or background objects, which doesn't need great precision or real time update. You are free to choose which method to use for each object.
 	</description>
 	<tutorials>
 	</tutorials>
