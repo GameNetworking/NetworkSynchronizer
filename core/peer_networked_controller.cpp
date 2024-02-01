@@ -1488,21 +1488,19 @@ bool DollController::fetch_next_input(double p_delta) {
 void DollController::process(double p_delta) {
 	const bool is_new_input = fetch_next_input(p_delta);
 
-	if (is_new_input) {
-		if (queued_instant_to_process >= 0) {
-			// The rewinding is in progress.
-			// On the doll the rewind's processing takes care to apply the server
-			// snapshot if it's found.
-			// This operation is done here, because the doll process on a different
-			// timeline than the one processed by the client.
-			// 1. Try fetching the previous server snapshot.
-			auto server_snap_it = VecFunc::find(server_snapshots, DollSnapshot(current_input_buffer_id - 1));
-			if (server_snap_it != server_snapshots.end()) {
-				// 2. The snapshot was found, so apply it.
-				static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(server_snap_it->data, 0, 0, nullptr, true, true, true, true, true);
-			}
+	if make_likely (current_input_buffer_id > FrameIndex{ 0 }) {
+		// This operation is done here, because the doll process on a different
+		// timeline than the one processed by the client.
+		// Whenever it found a server snapshot, it's applied.
+		// 1. Try fetching the previous server snapshot.
+		auto server_snap_it = VecFunc::find(server_snapshots, DollSnapshot(current_input_buffer_id - 1));
+		if (server_snap_it != server_snapshots.end()) {
+			// 2. The snapshot was found, so apply it.
+			static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(server_snap_it->data, 0, 0, nullptr, true, true, true, true, true);
 		}
+	}
 
+	if (is_new_input) {
 		SceneSynchronizerDebugger::singleton()->print(INFO, "Doll process index: " + std::string(current_input_buffer_id), "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
 		peer_controller->get_inputs_buffer_mut().begin_read();

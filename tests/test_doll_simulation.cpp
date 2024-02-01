@@ -412,17 +412,27 @@ void test_simulation_reconciliation(float p_frame_confirmation_timespan) {
 	// Run another 30 frames.
 	test.do_test(30);
 
-	// Ensure it was able to reconcily in exactly 1 frame.
-	ASSERT_COND(test.peer1_desync_detected.size() == 1);
-	ASSERT_COND(test.peer2_desync_detected.size() == 1);
+	if (p_frame_confirmation_timespan <= 0.0) {
+		// Ensure it was able to reconcile right away.
+		// With `p_frame_confirmation_timespan == 0` the server snapshot is
+		// received before the doll process it, and since the doll is able to
+		// apply the server's snapshot during the normal processing, the desync
+		// is not even triggered.
+		ASSERT_COND(test.peer1_desync_detected.size() == 0);
+		ASSERT_COND(test.peer2_desync_detected.size() == 0);
+	} else {
+		// Ensure it was able to reconcile in exactly 1 frame.
+		ASSERT_COND(test.peer1_desync_detected.size() == 1);
+		ASSERT_COND(test.peer2_desync_detected.size() == 1);
 
-	// Make sure the reconciliation was successful.
-	// NOTE: 45 is a margin established basing on the `p_frame_confirmation_timespan`.
-	const NS::FrameIndex ensure_no_desync_after{ 45 };
-	test.assert_no_desync(ensure_no_desync_after, ensure_no_desync_after);
+		// Make sure the reconciliation was successful.
+		// NOTE: 45 is a margin established basing on the `p_frame_confirmation_timespan`.
+		const NS::FrameIndex ensure_no_desync_after{ 45 };
+		test.assert_no_desync(ensure_no_desync_after, ensure_no_desync_after);
 
-	// and despite that the simulations are correct.
-	test.assert_positions(ensure_no_desync_after, ensure_no_desync_after);
+		// and despite that the simulations are correct.
+		test.assert_positions(ensure_no_desync_after, ensure_no_desync_after);
+	}
 }
 
 void test_simulation_with_hiccups(TestDollSimulationStorePositions &test) {
@@ -433,7 +443,7 @@ void test_simulation_with_hiccups(TestDollSimulationStorePositions &test) {
 		NS::FrameIndex controller_1_doll_frame_index = test.peer_2_scene.scene_sync->get_controller_for_peer(test.peer_1_scene.get_peer())->get_current_frame_index();
 		NS::FrameIndex controller_2_doll_frame_index = test.peer_1_scene.scene_sync->get_controller_for_peer(test.peer_2_scene.get_peer())->get_current_frame_index();
 
-		for (int i = 0; i < 10; i++) {
+		for (int i = 0; i < 20; i++) {
 			if (i % 2 == 0) {
 				test.do_test(10, false, true, false, true);
 			} else {
@@ -635,10 +645,10 @@ void test_simulation_with_wrong_input() {
 	test.assert_positions(NS::FrameIndex{ 0 }, NS::FrameIndex{ 0 });
 
 	// 2. Now introduce a desync on the server.
-	for (int test_count = 0; test_count < 5; test_count++) {
+	for (int test_count = 0; test_count < 20; test_count++) {
 		for (int i = 0; i < 3; i++) {
-			const NS::FrameIndex c1_assert_after = server_controller_1->get_current_frame_index() + 20;
-			const NS::FrameIndex c2_assert_after = server_controller_2->get_current_frame_index() + 20;
+			const NS::FrameIndex c1_assert_after = server_controller_1->get_current_frame_index() + 40;
+			const NS::FrameIndex c2_assert_after = server_controller_2->get_current_frame_index() + 40;
 			const int c1_desync_vec_size = test.peer1_desync_detected.size();
 			const int c2_desync_vec_size = test.peer2_desync_detected.size();
 
@@ -656,11 +666,7 @@ void test_simulation_with_wrong_input() {
 			test.assert_positions(c1_assert_after, c2_assert_after);
 		}
 
-		if (test_count == 1) {
-			test.network_properties.rtt_seconds = 0.1;
-		} else if (test_count == 2) {
-			test.network_properties.rtt_seconds = 0.0;
-		} else if (test_count == 3) {
+		if (test_count % 2 == 0) {
 			test.network_properties.rtt_seconds = 0.1;
 		} else {
 			test.network_properties.rtt_seconds = 0.0;
