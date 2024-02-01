@@ -499,6 +499,7 @@ public: // ---------------------------------------------------------------- APIs
 	void change_events_flush();
 
 	const std::vector<ObjectNetId> *client_get_simulated_objects() const;
+	bool client_is_simulated_object(ObjectLocalId p_id) const;
 
 public: // ------------------------------------------------------------ INTERNAL
 	void update_objects_relevancy();

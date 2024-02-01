@@ -614,6 +614,20 @@ int GdSceneSynchronizer::get_peer_latency(int p_peer) const {
 	return scene_synchronizer.get_peer_latency(p_peer);
 }
 
+bool GdSceneSynchronizer::client_is_object_simulating(Node *p_node) const {
+	return client_is_object_simulating(scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node)));
+}
+
+bool GdSceneSynchronizer::client_is_object_simulating(NS::ObjectLocalId p_id) const {
+	return scene_synchronizer.client_is_simulated_object(p_id);
+}
+
+bool GdSceneSynchronizer::client_is_object_simulating(NS::ObjectNetId p_id) const {
+	const NS::ObjectData *od = scene_synchronizer.get_object_data(p_id);
+	ENSURE_V(od, false);
+	return client_is_object_simulating(od->get_net_id());
+}
+
 Array GdSceneSynchronizer::local_controller_get_controlled_nodes() const {
 	Array a;
 

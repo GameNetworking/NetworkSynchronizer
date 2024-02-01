@@ -142,6 +142,10 @@ public: // ---------------------------------------------------------------- APIs
 
 	int get_peer_latency(int p_peer) const;
 
+	bool client_is_object_simulating(Node *p_node) const;
+	bool client_is_object_simulating(NS::ObjectLocalId p_id) const;
+	bool client_is_object_simulating(NS::ObjectNetId p_id) const;
+
 	/// Creates a realtime sync group containing a list of nodes.
 	/// The Peers listening to this group will receive the updates only
 	/// from the nodes within this group.

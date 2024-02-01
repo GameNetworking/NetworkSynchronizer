@@ -1329,6 +1329,13 @@ const std::vector<ObjectNetId> *SceneSynchronizerBase::client_get_simulated_obje
 	return &(static_cast<ClientSynchronizer *>(synchronizer)->simulated_objects);
 }
 
+bool SceneSynchronizerBase::client_is_simulated_object(ObjectLocalId p_id) const {
+	ENSURE_V_MSG(is_client(), false, "This function CAN be used only on the client.");
+	const ObjectData *od = get_object_data(p_id, true);
+	ENSURE_V(od, false);
+	return od->realtime_sync_enabled_on_client;
+}
+
 void SceneSynchronizerBase::drop_object_data(NS::ObjectData &p_object_data) {
 	synchronizer_manager->on_drop_object_data(p_object_data);
 
