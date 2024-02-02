@@ -488,7 +488,7 @@ void SceneSynchronizerDebugger::print(NS::PrintMessageType p_level, const std::s
 #else
 	if ((log_level <= p_level) || p_force_print_to_log) {
 		const std::string log_level_str = NS::get_log_level_txt(p_level);
-		NS::SceneSynchronizerBase::print_line(log_level_str + "[" + p_object_name + "] " + p_message);
+		NS::SceneSynchronizerBase::__print_line(log_level_str + "[" + p_object_name + "] " + p_message);
 	}
 #endif
 }

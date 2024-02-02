@@ -652,7 +652,10 @@ void RemotelyControlledController::set_frame_input(const FrameInput &p_frame_sna
 }
 
 void RemotelyControlledController::process(double p_delta) {
-	const bool is_new_input = fetch_next_input(p_delta);
+#ifdef DEBUG_ENABLED
+	const bool is_new_input =
+#endif
+			fetch_next_input(p_delta);
 
 	if (unlikely(current_input_buffer_id == FrameIndex::NONE)) {
 		// Skip this until the first input arrive.
