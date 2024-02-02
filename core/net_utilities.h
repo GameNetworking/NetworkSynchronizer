@@ -392,7 +392,7 @@ T StatisticalRingBuffer<T>::average_rounded() const {
 	// initialized. However, this is wrong just for the first run.
 	// I'm leaving it as is because solve it mean do more operations. All this
 	// just to get the right value for the first few frames.
-	return Math::round(double(avg_sum) / double(data.size()));
+	return round(double(avg_sum) / double(data.size()));
 #endif
 }
 
