@@ -11,8 +11,6 @@
 #include "../data_buffer.h"
 #include "../scene_synchronizer.h"
 #include "net_utilities.h"
-#include "network_interface.h"
-#include <string>
 
 #endif
 
