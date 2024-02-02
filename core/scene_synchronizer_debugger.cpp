@@ -9,10 +9,11 @@
 #include "core/os/os.h"
 
 #include "../data_buffer.h"
-#include "../scene_synchronizer.h"
 #include "net_utilities.h"
 
 #endif
+
+#include "../scene_synchronizer.h"
 
 SceneSynchronizerDebugger *SceneSynchronizerDebugger::the_singleton = nullptr;
 
