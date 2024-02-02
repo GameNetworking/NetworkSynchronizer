@@ -5,10 +5,11 @@
 #include "core/string/ustring.h"
 
 #include "core.h"
-#include "json.hpp"
 #include <string>
 
 #endif
+
+#include "json.hpp"
 
 namespace NS {
 class SceneSynchronizerBase;
