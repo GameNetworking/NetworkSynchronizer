@@ -1643,7 +1643,7 @@ void NoNetSynchronizer::process(double p_delta) {
 
 	const int sub_process_count = fetch_sub_processes_count(p_delta);
 	for (int i = 0; i < sub_process_count; i++) {
-		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "NoNetSynchronizer::process", true);
+		SceneSynchronizerDebugger::singleton()->print(VERBOSE, "NoNetSynchronizer::process", scene_synchronizer->get_network_interface().get_owner_name());
 
 		const uint32_t frame_index = frame_count;
 		frame_count += 1;
@@ -1709,7 +1709,7 @@ void ServerSynchronizer::clear() {
 }
 
 void ServerSynchronizer::process(double p_delta) {
-	SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "ServerSynchronizer::process", true);
+	SceneSynchronizerDebugger::singleton()->print(VERBOSE, "ServerSynchronizer::process", scene_synchronizer->get_network_interface().get_owner_name());
 
 	if (objects_relevancy_update_timer >= scene_synchronizer->objects_relevancy_update_time) {
 		scene_synchronizer->update_objects_relevancy();
@@ -1972,37 +1972,38 @@ uint64_t ServerSynchronizer::sync_group_get_user_data(SyncGroupId p_group_id) co
 }
 
 void ServerSynchronizer::sync_group_debug_print() {
-	SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "");
-	SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|-----------------------");
-	SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "| Sync groups");
-	SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|-----------------------");
+	SceneSynchronizerDebugger::singleton()->print(INFO, "ServerSynchronizer::process", scene_synchronizer->get_network_interface().get_owner_name());
+	SceneSynchronizerDebugger::singleton()->print(INFO, "", scene_synchronizer->get_network_interface().get_owner_name());
+	SceneSynchronizerDebugger::singleton()->print(INFO, "|-----------------------", scene_synchronizer->get_network_interface().get_owner_name());
+	SceneSynchronizerDebugger::singleton()->print(INFO, "| Sync groups", scene_synchronizer->get_network_interface().get_owner_name());
+	SceneSynchronizerDebugger::singleton()->print(INFO, "|-----------------------", scene_synchronizer->get_network_interface().get_owner_name());
 
 	for (int g = 0; g < int(sync_groups.size()); ++g) {
 		NS::SyncGroup &group = sync_groups[g];
 
-		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "| [Group " + itos(g) + "#]");
-		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|    Listening peers");
+		SceneSynchronizerDebugger::singleton()->print(INFO, "| [Group " + std::to_string(g) + "#]", scene_synchronizer->get_network_interface().get_owner_name());
+		SceneSynchronizerDebugger::singleton()->print(INFO, "|    Listening peers", scene_synchronizer->get_network_interface().get_owner_name());
 		for (int peer : group.get_listening_peers()) {
-			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|      |- " + itos(peer));
+			SceneSynchronizerDebugger::singleton()->print(INFO, "|      |- " + std::to_string(peer), scene_synchronizer->get_network_interface().get_owner_name());
 		}
 
 		const LocalVector<NS::SyncGroup::SimulatedObjectInfo> &realtime_node_info = group.get_simulated_sync_objects();
-		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|");
-		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|    [Realtime nodes]");
+		SceneSynchronizerDebugger::singleton()->print(INFO, "|", scene_synchronizer->get_network_interface().get_owner_name());
+		SceneSynchronizerDebugger::singleton()->print(INFO, "|    [Realtime nodes]", scene_synchronizer->get_network_interface().get_owner_name());
 		for (auto info : realtime_node_info) {
-			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|      |- " + String(info.od->object_name.c_str()));
+			SceneSynchronizerDebugger::singleton()->print(INFO, "|      |- " + info.od->object_name, scene_synchronizer->get_network_interface().get_owner_name());
 		}
 
-		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|");
+		SceneSynchronizerDebugger::singleton()->print(INFO, "|", scene_synchronizer->get_network_interface().get_owner_name());
 
 		const LocalVector<NS::SyncGroup::TrickledObjectInfo> &trickled_node_info = group.get_trickled_sync_objects();
-		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|    [Trickled nodes (UR: Update Rate)]");
+		SceneSynchronizerDebugger::singleton()->print(INFO, "|    [Trickled nodes (UR: Update Rate)]", scene_synchronizer->get_network_interface().get_owner_name());
 		for (auto info : trickled_node_info) {
-			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|      |- [UR: " + rtos(info.update_rate) + "] " + info.od->object_name.c_str());
+			SceneSynchronizerDebugger::singleton()->print(INFO, "|      |- [UR: " + std::to_string(info.update_rate) + "] " + info.od->object_name.c_str(), scene_synchronizer->get_network_interface().get_owner_name());
 		}
 	}
-	SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "|-----------------------");
-	SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "");
+	SceneSynchronizerDebugger::singleton()->print(INFO, "|-----------------------", scene_synchronizer->get_network_interface().get_owner_name());
+	SceneSynchronizerDebugger::singleton()->print(INFO, "", scene_synchronizer->get_network_interface().get_owner_name());
 }
 
 // This function MUST be processed with a fixed delta time.
@@ -2487,12 +2488,11 @@ void ClientSynchronizer::clear() {
 void ClientSynchronizer::process(double p_delta) {
 	NS_PROFILE
 
-	SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "ClientSynchronizer::process", true);
+	SceneSynchronizerDebugger::singleton()->print(VERBOSE, "ClientSynchronizer::process", scene_synchronizer->get_network_interface().get_owner_name());
 
 #ifdef DEBUG_ENABLED
 	if make_unlikely (p_delta > (scene_synchronizer->get_fixed_frame_delta() + (scene_synchronizer->get_fixed_frame_delta() * 0.2))) {
-		const bool silent = !ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/debugger/log_debug_fps_warnings");
-		SceneSynchronizerDebugger::singleton()->debug_warning(&scene_synchronizer->get_network_interface(), "Current FPS is " + itos(Engine::get_singleton()->get_frames_per_second()) + ", but the minimum required FPS is " + itos(scene_synchronizer->get_frames_per_seconds()) + ", the client is unable to generate enough inputs for the server.", silent);
+		SceneSynchronizerDebugger::singleton()->print(WARNING, "Current FPS is " + std::to_string(p_delta > 0.0001 ? 1.0 / p_delta : 0.0) + ", but the minimum required FPS is " + std::to_string(scene_synchronizer->get_frames_per_seconds()) + ", the client is unable to generate enough inputs for the server.", scene_synchronizer->get_network_interface().get_owner_name());
 	}
 #endif
 
@@ -2518,7 +2518,7 @@ void ClientSynchronizer::receive_snapshot(DataBuffer &p_snapshot) {
 	// incremental update so the last received data is always needed to fully
 	// reconstruct it.
 
-	SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The Client received the server snapshot.", true);
+	SceneSynchronizerDebugger::singleton()->print(VERBOSE, "The Client received the server snapshot.", scene_synchronizer->get_network_interface().get_owner_name());
 
 	// Parse server snapshot.
 	const bool success = parse_snapshot(p_snapshot);
@@ -2630,13 +2630,13 @@ void ClientSynchronizer::store_controllers_snapshot(
 	// Put the parsed snapshot into the queue.
 
 	if (p_snapshot.input_id == FrameIndex::NONE) {
-		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The Client received the server snapshot WITHOUT `input_id`.", true);
+		SceneSynchronizerDebugger::singleton()->print(VERBOSE, "The Client received the server snapshot WITHOUT `input_id`.", scene_synchronizer->get_network_interface().get_owner_name());
 		// The controller node is not registered so just assume this snapshot is the most up-to-date.
 		last_received_server_snapshot.emplace(Snapshot::make_copy(p_snapshot));
 		last_received_server_snapshot_index = p_snapshot.input_id;
 
 	} else {
-		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The Client received the server snapshot: " + uitos(p_snapshot.input_id.id), true);
+		SceneSynchronizerDebugger::singleton()->print(VERBOSE, "The Client received the server snapshot: " + p_snapshot.input_id, scene_synchronizer->get_network_interface().get_owner_name());
 		ENSURE_MSG(
 				last_received_server_snapshot_index == FrameIndex::NONE ||
 						last_received_server_snapshot_index <= p_snapshot.input_id,
@@ -2667,7 +2667,7 @@ void ClientSynchronizer::process_received_server_state() {
 
 	if (last_received_server_snapshot->input_id == FrameIndex::NONE) {
 		// The server last received snapshot is a no input snapshot. Just assume it's the most up-to-date.
-		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The client received a \"no input\" snapshot, so the client is setting it right away assuming is the most updated one.", true);
+		SceneSynchronizerDebugger::singleton()->print(VERBOSE, "The client received a \"no input\" snapshot, so the client is setting it right away assuming is the most updated one.", scene_synchronizer->get_network_interface().get_owner_name());
 
 		apply_snapshot(*last_received_server_snapshot, NetEventFlag::SYNC_RECOVER, 0, nullptr);
 		last_received_server_snapshot.reset();
@@ -3119,7 +3119,7 @@ void ClientSynchronizer::process_simulation(double p_delta) {
 #endif
 
 	if (sub_ticks == 0) {
-		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "No sub ticks: this is not bu a bug; it's the lag compensation algorithm.", true);
+		SceneSynchronizerDebugger::singleton()->print(VERBOSE, "No sub ticks: this is not bu a bug; it's the lag compensation algorithm.", scene_synchronizer->get_network_interface().get_owner_name());
 	}
 
 	while (sub_ticks > 0) {
@@ -3127,7 +3127,7 @@ void ClientSynchronizer::process_simulation(double p_delta) {
 		std::string sub_perf_info = "Fixed delta: " + std::to_string(scene_synchronizer->get_fixed_frame_delta()) + " remaining ticks: " + std::to_string(sub_ticks);
 		NS_PROFILE_NAMED_WITH_INFO("PROCESS", sub_perf_info)
 #endif
-		SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "ClientSynchronizer::process::sub_process " + itos(sub_ticks), true);
+		SceneSynchronizerDebugger::singleton()->print(VERBOSE, "ClientSynchronizer::process::sub_process " + std::to_string(sub_ticks), scene_synchronizer->get_network_interface().get_owner_name());
 		SceneSynchronizerDebugger::singleton()->scene_sync_process_start(scene_synchronizer);
 
 		// Process the scene.
@@ -3417,7 +3417,7 @@ void ClientSynchronizer::receive_trickled_sync_data(const Vector<uint8_t> &p_dat
 		}
 
 		// Fetch the `node_id`.
-		ObjectNetId node_id = ObjectNetId::NONE;
+		ObjectNetId object_id = ObjectNetId::NONE;
 		if (future_epoch_buffer.read_bool()) {
 			remaining_size = future_epoch_buffer.size() - future_epoch_buffer.get_bit_offset();
 			if (remaining_size < future_epoch_buffer.get_uint_size(DataBuffer::COMPRESSION_LEVEL_2)) {
@@ -3425,13 +3425,13 @@ void ClientSynchronizer::receive_trickled_sync_data(const Vector<uint8_t> &p_dat
 				break;
 			}
 
-			node_id.id = future_epoch_buffer.read_uint(DataBuffer::COMPRESSION_LEVEL_2);
+			object_id.id = future_epoch_buffer.read_uint(DataBuffer::COMPRESSION_LEVEL_2);
 		} else {
 			if (remaining_size < future_epoch_buffer.get_uint_size(DataBuffer::COMPRESSION_LEVEL_3)) {
 				// buffer entirely consumed, nothing else to do.
 				break;
 			}
-			node_id.id = future_epoch_buffer.read_uint(DataBuffer::COMPRESSION_LEVEL_3);
+			object_id.id = future_epoch_buffer.read_uint(DataBuffer::COMPRESSION_LEVEL_3);
 		}
 
 		remaining_size = future_epoch_buffer.size() - future_epoch_buffer.get_bit_offset();
@@ -3443,16 +3443,16 @@ void ClientSynchronizer::receive_trickled_sync_data(const Vector<uint8_t> &p_dat
 
 		remaining_size = future_epoch_buffer.size() - future_epoch_buffer.get_bit_offset();
 		if (remaining_size < buffer_bit_count) {
-			SceneSynchronizerDebugger::singleton()->print(ERROR, "The function `receive_trickled_sync_data` failed applying the epoch because the received buffer is malformed. The node with ID `" + node_id + "` reported that the sub buffer size is `" + std::to_string(buffer_bit_count) + "` but the main-buffer doesn't have so many bits.", scene_synchronizer->get_network_interface().get_owner_name());
+			SceneSynchronizerDebugger::singleton()->print(ERROR, "The function `receive_trickled_sync_data` failed applying the epoch because the received buffer is malformed. The node with ID `" + object_id + "` reported that the sub buffer size is `" + std::to_string(buffer_bit_count) + "` but the main-buffer doesn't have so many bits.", scene_synchronizer->get_network_interface().get_owner_name());
 			break;
 		}
 
 		const int current_offset = future_epoch_buffer.get_bit_offset();
 		const int expected_bit_offset_after_apply = current_offset + buffer_bit_count;
 
-		NS::ObjectData *od = scene_synchronizer->get_object_data(node_id, false);
+		NS::ObjectData *od = scene_synchronizer->get_object_data(object_id, false);
 		if (od == nullptr) {
-			SceneSynchronizerDebugger::singleton()->debug_print(&scene_synchronizer->get_network_interface(), "The function `receive_trickled_sync_data` is skiplatency the node with ID `" + itos(node_id.id) + "` as it was not found locally.");
+			SceneSynchronizerDebugger::singleton()->print(INFO, "The function `receive_trickled_sync_data` is skiplatency the node with ID `" + object_id + "` as it was not found locally.", scene_synchronizer->get_network_interface().get_owner_name());
 			future_epoch_buffer.seek(expected_bit_offset_after_apply);
 			continue;
 		}

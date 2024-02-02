@@ -114,9 +114,6 @@ public:
 	void notify_input_sent_to_server(int p_peer, uint32_t p_frame_index, uint32_t p_input_index);
 	void notify_are_inputs_different_result(int p_peer, uint32_t p_other_frame_index, bool p_is_similar);
 
-	void debug_print(NS::NetworkInterface *p_network_interface, const String &p_message, bool p_silent = false);
-	void debug_warning(NS::NetworkInterface *p_network_interface, const String &p_message, bool p_silent = false);
-
 	void print(
 			NS::PrintMessageType p_level,
 			const std::string &p_message,

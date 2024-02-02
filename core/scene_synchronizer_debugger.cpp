@@ -469,24 +469,6 @@ void SceneSynchronizerDebugger::notify_are_inputs_different_result(
 #endif
 }
 
-void SceneSynchronizerDebugger::debug_print(NS::NetworkInterface *p_network_interface, const String &p_message, bool p_silent) {
-#ifdef DEBUG_ENABLED
-	print(
-			NS::PrintMessageType::INFO,
-			std::string(p_message.utf8()),
-			p_network_interface ? p_network_interface->get_owner_name() : "GLOBAL");
-#endif
-}
-
-void SceneSynchronizerDebugger::debug_warning(NS::NetworkInterface *p_network_interface, const String &p_message, bool p_silent) {
-#ifdef DEBUG_ENABLED
-	print(
-			NS::PrintMessageType::WARNING,
-			std::string(p_message.utf8()),
-			p_network_interface ? p_network_interface->get_owner_name() : "GLOBAL");
-#endif
-}
-
 void SceneSynchronizerDebugger::print(NS::PrintMessageType p_level, const std::string &p_message, const std::string &p_object_name, bool p_force_print_to_log) {
 #ifdef DEBUG_ENABLED
 

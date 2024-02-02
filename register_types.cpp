@@ -83,7 +83,6 @@ void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
 		GLOBAL_DEF("NetworkSynchronizer/log_debug_nodes_relevancy_update", false);
 		GLOBAL_DEF("NetworkSynchronizer/debugger/dump_enabled", false);
 		GLOBAL_DEF("NetworkSynchronizer/debugger/dump_classes", Array());
-		GLOBAL_DEF("NetworkSynchronizer/debugger/log_debug_fps_warnings", true);
 	} else if (p_level == MODULE_INITIALIZATION_LEVEL_EDITOR) {
 #ifdef DEBUG_ENABLED
 		List<String> args = OS::get_singleton()->get_cmdline_args();
