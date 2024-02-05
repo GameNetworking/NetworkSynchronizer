@@ -2010,15 +2010,13 @@ void ServerSynchronizer::process_snapshot_notificator() {
 			group.state_notifier_timer = 0.0;
 		}
 
-		const int MD_SIZE = DataBuffer::get_bit_taken(DataBuffer::DATA_TYPE_UINT, DataBuffer::COMPRESSION_LEVEL_1);
-
 		bool full_snapshot_need_init = true;
 		DataBuffer full_snapshot;
-		full_snapshot.begin_write(MD_SIZE);
+		full_snapshot.begin_write(0);
 
 		bool delta_snapshot_need_init = true;
 		DataBuffer delta_snapshot;
-		delta_snapshot.begin_write(MD_SIZE);
+		delta_snapshot.begin_write(0);
 
 		for (int peer_id : group.get_listening_peers()) {
 			if (peer_id == scene_synchronizer->get_network_interface().fetch_local_peer_id()) {
@@ -2053,7 +2051,6 @@ void ServerSynchronizer::process_snapshot_notificator() {
 				pd_it->second.need_full_snapshot = false;
 				if (full_snapshot_need_init) {
 					full_snapshot_need_init = false;
-					full_snapshot.seek(MD_SIZE);
 					generate_snapshot(true, group, full_snapshot);
 				}
 
@@ -2062,15 +2059,11 @@ void ServerSynchronizer::process_snapshot_notificator() {
 			} else {
 				if (delta_snapshot_need_init) {
 					delta_snapshot_need_init = false;
-					delta_snapshot.seek(MD_SIZE);
 					generate_snapshot(false, group, delta_snapshot);
 				}
 
 				snap = &delta_snapshot;
 			}
-
-			snap->seek(0);
-			snap->add(input_id.id);
 
 			scene_synchronizer->rpc_handler_state.rpc(
 					scene_synchronizer->get_network_interface(),
@@ -3123,8 +3116,7 @@ bool ClientSynchronizer::parse_sync_data(
 		void *p_user_pointer,
 		void (*p_custom_data_parse)(void *p_user_pointer, VarData &&p_custom_data),
 		void (*p_object_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
-		void (*p_peers_frame_index_parse)(void *p_user_pointer, std::map<int, FrameIndex> &&p_frames_index),
-		void (*p_input_id_parse)(void *p_user_pointer, FrameIndex p_input_id),
+		bool (*p_peers_frame_index_parse)(void *p_user_pointer, std::map<int, FrameIndex> &&p_frames_index),
 		void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, VarData &&p_value),
 		void (*p_simulated_objects_parse)(void *p_user_pointer, std::vector<ObjectNetId> &&p_simulated_objects)) {
 	NS_PROFILE
@@ -3140,12 +3132,6 @@ bool ClientSynchronizer::parse_sync_data(
 	}
 
 	{
-		// Fetch the `InputID`.
-		FrameIndex input_id;
-		p_snapshot.read(input_id.id);
-		ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as the `InputID` expected is not set.");
-		p_input_id_parse(p_user_pointer, input_id);
-
 		// Fetch `active_node_list_byte_array`.
 		bool has_active_list_array;
 		p_snapshot.read(has_active_list_array);
@@ -3335,7 +3321,7 @@ bool ClientSynchronizer::parse_sync_data(
 		}
 	}
 
-	p_peers_frame_index_parse(p_user_pointer, std::move(frames_index));
+	ENSURE_V_MSG(p_peers_frame_index_parse(p_user_pointer, std::move(frames_index)), false, "This snapshot is corrupted as the frame index parsing failed.");
 
 	return true;
 }
@@ -3583,19 +3569,19 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 			},
 
 			// Parse peer frames index
-			[](void *p_user_pointer, std::map<int, FrameIndex> &&p_peers_frames_index) {
+			[](void *p_user_pointer, std::map<int, FrameIndex> &&p_peers_frames_index) -> bool {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
 
+				// Extract the InputID for the controller processed as Authority by this client.
+				const FrameIndex authority_frame_index = MapFunc::at(p_peers_frames_index, pd->player_controller->get_authority_peer(), FrameIndex::NONE);
+
+				// Store it.
+				pd->snapshot.input_id = authority_frame_index;
+
+				// Store the frames index.
 				pd->snapshot.peers_frames_index = std::move(p_peers_frames_index);
-			},
 
-			// Parse InputID:
-			[](void *p_user_pointer, FrameIndex p_input_id) {
-				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
-				if (pd->player_controller != nullptr && pd->player_controller->can_simulate()) {
-					// This is the main controller, store the `InputID`.
-					pd->snapshot.input_id = p_input_id;
-				}
+				return true;
 			},
 
 			// Parse variable:
