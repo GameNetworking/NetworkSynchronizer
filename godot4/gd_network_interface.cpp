@@ -297,3 +297,42 @@ void GdNetworkInterface::gd_rpc_receive(const Vector<uint8_t> &p_buffer) {
 			owner->get_multiplayer()->get_remote_sender_id(),
 			db);
 }
+
+// Copied from `enet_packet_peer.h` to avoid including it, which is complex due to its dependency with enet.
+enum PeerStatistic {
+	PEER_PACKET_LOSS,
+	PEER_PACKET_LOSS_VARIANCE,
+	PEER_PACKET_LOSS_EPOCH,
+	PEER_ROUND_TRIP_TIME,
+	PEER_ROUND_TRIP_TIME_VARIANCE,
+	PEER_LAST_ROUND_TRIP_TIME,
+	PEER_LAST_ROUND_TRIP_TIME_VARIANCE,
+	PEER_PACKET_THROTTLE,
+	PEER_PACKET_THROTTLE_LIMIT,
+	PEER_PACKET_THROTTLE_COUNTER,
+	PEER_PACKET_THROTTLE_EPOCH,
+	PEER_PACKET_THROTTLE_ACCELERATION,
+	PEER_PACKET_THROTTLE_DECELERATION,
+	PEER_PACKET_THROTTLE_INTERVAL,
+};
+
+// Copied from enet.h to avoid including it.
+uint64_t ENET_PEER_PACKET_LOSS_SCALE = (1 << 16);
+
+void GdNetworkInterface::server_update_net_stats(int p_peer, NS::PeerData &r_peer_data) const {
+	// This function is always called on the server.
+	ASSERT_COND(is_local_peer_server());
+
+	ERR_FAIL_COND(!owner);
+	ERR_FAIL_COND(!owner->get_multiplayer().is_valid());
+	ERR_FAIL_COND(!owner->get_multiplayer()->get_multiplayer_peer().is_valid());
+
+	Ref<MultiplayerPeer> packet_peer = owner->get_multiplayer()->get_multiplayer_peer();
+	Ref<PacketPeer> enet_peer = packet_peer->call("get_peer", p_peer);
+	ERR_FAIL_COND(!enet_peer.is_valid());
+
+	// Using the GDScript bindings to read these so to avoid including `enet_packet_peer.h`, which is complex due to its dependency with enet.
+	r_peer_data.set_latency(enet_peer->call("get_statistic", PEER_ROUND_TRIP_TIME));
+	r_peer_data.set_out_packet_loss_percentage(double(enet_peer->call("get_statistic", PEER_PACKET_LOSS)) / double(ENET_PEER_PACKET_LOSS_SCALE));
+	r_peer_data.set_average_jitter_in_ms(enet_peer->call("get_statistic", PEER_ROUND_TRIP_TIME_VARIANCE));
+}

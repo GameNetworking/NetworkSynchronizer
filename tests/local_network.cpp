@@ -195,6 +195,19 @@ void LocalNetworkInterface::rpc_send(int p_peer_recipient, bool p_reliable, Data
 	network->rpc_send(get_owner_name(), p_peer_recipient, p_reliable, std::move(p_data_buffer));
 }
 
+void LocalNetworkInterface::server_update_net_stats(int p_peer, PeerData &r_peer_data) const {
+	if (!network || !network->network_properties) {
+		r_peer_data.set_latency(0);
+		r_peer_data.set_out_packet_loss_percentage(0);
+		r_peer_data.set_average_jitter_in_ms(0);
+	} else {
+		r_peer_data.set_latency(network->network_properties->rtt_seconds * 1000.0);
+		r_peer_data.set_out_packet_loss_percentage(network->network_properties->packet_loss);
+		// There are no statistic about this, assuming 10% of rtt.
+		r_peer_data.set_average_jitter_in_ms(r_peer_data.get_latency() * 0.1);
+	}
+}
+
 NS_NAMESPACE_END
 
 /// Test that the LocalNetwork is able to sync stuff.

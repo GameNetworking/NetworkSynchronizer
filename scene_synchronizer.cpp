@@ -12,7 +12,6 @@
 #include "core/snapshot.h"
 #include "core/var_data.h"
 #include "data_buffer.h"
-#include <chrono>
 #include <limits>
 #include <string>
 #include <vector>
@@ -66,12 +65,6 @@ void SceneSynchronizerBase::setup(SynchronizerManager &p_synchronizer_interface)
 	network_interface->start_listening_peer_connection(
 			[this](int p_peer) { on_peer_connected(p_peer); },
 			[this](int p_peer) { on_peer_disconnected(p_peer); });
-
-	rpc_handler_latency =
-			network_interface->rpc_config(
-					std::function<void()>(std::bind(&SceneSynchronizerBase::rpc_latency, this)),
-					true,
-					false);
 
 	rpc_handler_state =
 			network_interface->rpc_config(
@@ -1092,18 +1085,6 @@ void SceneSynchronizerBase::notify_controller_control_mode_changed(PeerNetworked
 	}
 }
 
-void SceneSynchronizerBase::rpc_latency() {
-	if (is_client()) {
-		// This is a client, latency the server back.
-		rpc_handler_latency.rpc(get_network_interface(), get_network_interface().get_server_peer());
-	} else if (is_server()) {
-		const int sender_peer = get_network_interface().rpc_get_sender();
-		static_cast<ServerSynchronizer *>(synchronizer)->notify_latency_received(sender_peer);
-	} else {
-		ENSURE_MSG(false, "[FATAL] The rpc latency function was executed on a peer that is not a client nor a server. This is a bug.");
-	}
-}
-
 void SceneSynchronizerBase::rpc_receive_state(DataBuffer &p_snapshot) {
 	ENSURE_MSG(is_client(), "Only clients are suposed to receive the server snapshot.");
 	static_cast<ClientSynchronizer *>(synchronizer)->receive_snapshot(p_snapshot);
@@ -1732,7 +1713,7 @@ void ServerSynchronizer::process(double p_delta) {
 	}
 
 	process_trickled_sync(p_delta);
-	process_latency_update();
+	update_peers_net_statistics(p_delta);
 	process_adjust_clients_controller_tick_rate(p_delta);
 
 	SceneSynchronizerDebugger::singleton()->scene_sync_process_end(scene_synchronizer);
@@ -2368,9 +2349,7 @@ void ServerSynchronizer::process_trickled_sync(double p_delta) {
 	memdelete(tmp_buffer);
 }
 
-void ServerSynchronizer::process_latency_update() {
-	const std::chrono::high_resolution_clock::time_point now = std::chrono::high_resolution_clock::now();
-
+void ServerSynchronizer::update_peers_net_statistics(double p_delta) {
 	for (auto &[peer, peer_data] : scene_synchronizer->get_peers()) {
 		if (peer == scene_synchronizer->get_network_interface().fetch_local_peer_id()) {
 			// No need to update the ping for `self` (the server).
@@ -2378,36 +2357,21 @@ void ServerSynchronizer::process_latency_update() {
 		}
 
 		std::map<int, PeerServerData>::iterator peer_server_data_it = NS::MapFunc::insert_if_new(peers_data, peer, PeerServerData());
-		if (peer_server_data_it->second.latency_calculation_in_progress) {
+		peer_server_data_it->second.netstats_update_sec += p_delta;
+
+		if make_likely (peer_server_data_it->second.netstats_update_sec < scene_synchronizer->latency_update_rate) {
 			continue;
 		}
-		const auto interval = std::chrono::duration_cast<std::chrono::milliseconds>(now - peer_server_data_it->second.latency_ping_timestamp);
-		if (interval.count() >= (scene_synchronizer->latency_update_rate * 1000.0)) {
-			scene_synchronizer->rpc_handler_latency.rpc(
-					scene_synchronizer->get_network_interface(),
-					peer);
-			peer_server_data_it->second.latency_ping_timestamp = now;
-			peer_server_data_it->second.latency_calculation_in_progress = true;
+
+		// Time to update the network stats for this peer.
+		scene_synchronizer->get_network_interface().server_update_net_stats(peer, peer_data);
+		// Notify all sync groups about this peer having newly calculated latency.
+		for (auto &group : sync_groups) {
+			group.notify_peer_has_newly_calculated_latency(peer);
 		}
-	}
-}
 
-void ServerSynchronizer::notify_latency_received(int p_peer) {
-	const std::chrono::high_resolution_clock::time_point now = std::chrono::high_resolution_clock::now();
-
-	std::map<int, PeerData>::iterator pd_it = NS::MapFunc::insert_if_new(scene_synchronizer->peer_data, p_peer, PeerData());
-	std::map<int, PeerServerData>::iterator psd_it = NS::MapFunc::insert_if_new(peers_data, p_peer, PeerServerData());
-
-	const auto rtt_interval = std::chrono::duration_cast<std::chrono::milliseconds>(now - psd_it->second.latency_ping_timestamp);
-	// Clamlatency to 1k as 1k ms latency is way too high to matter anyway.
-	const std::uint64_t rtt = rtt_interval.count();
-	pd_it->second.set_latency(rtt);
-	psd_it->second.latency_calculation_in_progress = false;
-	psd_it->second.latency_ping_timestamp = now;
-
-	// Notify all sync groups about this peer having newly calculated latency.
-	for (auto &group : sync_groups) {
-		group.notify_peer_has_newly_calculated_latency(p_peer);
+		// Reset the timer.
+		peer_server_data_it->second.netstats_update_sec = 0.0;
 	}
 }
 

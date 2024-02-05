@@ -162,7 +162,6 @@ protected:
 	class NetworkInterface *network_interface = nullptr;
 	SynchronizerManager *synchronizer_manager = nullptr;
 
-	RpcHandle<> rpc_handler_latency;
 	RpcHandle<DataBuffer &> rpc_handler_state;
 	RpcHandle<> rpc_handler_notify_need_full_snapshot;
 	RpcHandle<bool> rpc_handler_set_network_enabled;
@@ -348,7 +347,6 @@ public:
 	bool is_variable_registered(ObjectLocalId p_id, const std::string &p_variable) const;
 
 public: // ---------------------------------------------------------------- RPCs
-	void rpc_latency();
 	void rpc_receive_state(DataBuffer &p_snapshot);
 	void rpc__notify_need_full_snapshot();
 	void rpc_set_network_enabled(bool p_enabled);
@@ -672,8 +670,7 @@ public:
 			DataBuffer &r_snapshot_db) const;
 
 	void process_trickled_sync(double p_delta);
-	void process_latency_update();
-	void notify_latency_received(int p_peer);
+	void update_peers_net_statistics(double p_delta);
 
 	/// This function updates the `tick_additional_fps` so that the `frames_inputs`
 	/// size is enough to reduce the missing packets to 0.

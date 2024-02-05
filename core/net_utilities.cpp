@@ -8,12 +8,12 @@
 #include <limits>
 #include <memory>
 
-void NS::PeerData::set_latency(int p_latency) {
-	compressed_latency = std::round(float(std::clamp(p_latency, 0, 1000)) / 4.0);
+void NS::PeerData::set_latency(float p_latency) {
+	compressed_latency = std::round(std::clamp(p_latency, 0.f, 1000.0f) / 4.0);
 }
 
-int NS::PeerData::get_latency() const {
-	return int(compressed_latency) * 4;
+float NS::PeerData::get_latency() const {
+	return compressed_latency * 4.0;
 }
 
 void NS::PeerData::make_controller() {

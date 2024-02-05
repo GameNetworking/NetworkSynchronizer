@@ -2,6 +2,7 @@
 
 #include "core.h"
 #include "ensure.h"
+#include "net_utilities.h"
 #include "network_codec.h"
 #include <functional>
 #include <string>
@@ -46,7 +47,7 @@ protected:
 public:
 	virtual ~NetworkInterface() = default;
 
-public: // ---------------------------------------------------------------- APIs
+public: // ----------------------------------------------------------- Interface
 	virtual void clear() {
 		rpcs_info.clear();
 		rpc_last_sender = 0;
@@ -78,6 +79,12 @@ public: // ---------------------------------------------------------------- APIs
 	/// Can be used to verify if the local peer is the server.
 	virtual bool is_local_peer_server() const = 0;
 
+	/// This function is called by the `SceneSynchronizer` to update
+	/// the network `stats` for the given peer.
+	/// NOTE: This function is called only on the server.
+	virtual void server_update_net_stats(int p_peer, PeerData &r_peer_data) const = 0;
+
+public: // ---------------------------------------------------------------- APIs
 	/// Can be used to verify if the local peer is the authority of this unit.
 	virtual bool is_local_peer_authority_of_this_unit() const {
 		return get_unit_authority() == fetch_local_peer_id();

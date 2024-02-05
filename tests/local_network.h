@@ -109,6 +109,8 @@ public:
 	virtual bool is_local_peer_server() const override;
 
 	virtual void rpc_send(int p_peer_recipient, bool p_reliable, DataBuffer &&p_data_buffer) override;
+
+	virtual void server_update_net_stats(int p_peer, PeerData &r_peer_data) const override;
 };
 
 NS_NAMESPACE_END

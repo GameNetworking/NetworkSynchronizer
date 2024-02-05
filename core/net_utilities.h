@@ -438,17 +438,36 @@ public:
 	PeerAuthorityData authority_data;
 
 private:
+	/// Get latency (ping): The round trip time a packet takes to go and return back.
 	std::uint8_t compressed_latency = 0;
+
+	/// Get OUT packetloss in %
+	float out_packet_loss_percentage = 0.0;
+
+	/// Current jitter for this connection in milliseconds.
+	/// Jitter represents the average time divergence of all sent packets.
+	/// Ex:
+	/// - If the time between the sending and the reception of packets is always
+	///   100ms; the jitter will be 0.
+	/// - If the time difference is either 150ms or 100ms, the jitter will tend
+	///   towards 50ms.
+	float average_jitter_in_ms = 0.0;
 
 public:
 	// In ms
-	void set_latency(int p_ping);
+	void set_latency(float p_ping);
 
 	// In ms
-	int get_latency() const;
+	float get_latency() const;
 
 	void set_compressed_latency(std::uint8_t p_compressed_latency) { compressed_latency = p_compressed_latency; }
 	std::uint8_t get_compressed_latency() const { return compressed_latency; }
+
+	void set_out_packet_loss_percentage(float p_packet_loss) { out_packet_loss_percentage = p_packet_loss; }
+	float get_out_packet_loss_percentage() const { return out_packet_loss_percentage; }
+
+	void set_average_jitter_in_ms(float p_jitter_ms) { average_jitter_in_ms = p_jitter_ms; }
+	float get_average_jitter_in_ms() const { return average_jitter_in_ms; }
 
 	void make_controller();
 	PeerNetworkedController *get_controller() {
@@ -466,9 +485,8 @@ struct PeerServerData {
 	// For new peers a full snapshot is needed.
 	bool need_full_snapshot = true;
 
-	// The latency, in ms, between this peer and the server.
-	std::chrono::high_resolution_clock::time_point latency_ping_timestamp;
-	bool latency_calculation_in_progress = false;
+	// How much time (seconds) from the latest net_stats update.
+	float netstats_update_sec = 0.0;
 };
 
 struct SyncGroup {

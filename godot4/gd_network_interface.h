@@ -56,6 +56,8 @@ public: // ---------------------------------------------------------------- APIs
 
 	virtual void rpc_send(int p_peer_recipient, bool p_reliable, DataBuffer &&p_buffer) override;
 	void gd_rpc_receive(const Vector<uint8_t> &p_args);
+
+	virtual void server_update_net_stats(int p_peer, NS::PeerData &r_peer_data) const override;
 };
 
 namespace NS_GD_Test {
