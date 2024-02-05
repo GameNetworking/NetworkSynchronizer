@@ -2128,6 +2128,8 @@ void ServerSynchronizer::generate_snapshot(
 		r_snapshot_db.add(false);
 	}
 
+	std::vector<int> frame_index_added_for_peer;
+
 	if (p_group.is_trickled_node_list_changed() || p_force_full_snapshot) {
 		for (int i = 0; i < int(p_group.get_trickled_sync_objects().size()); ++i) {
 			if (p_group.get_trickled_sync_objects()[i]._unknown || p_force_full_snapshot) {
@@ -2135,6 +2137,7 @@ void ServerSynchronizer::generate_snapshot(
 						p_group.get_trickled_sync_objects()[i].od,
 						SNAPSHOT_GENERATION_MODE_FORCE_NODE_PATH_ONLY,
 						NS::SyncGroup::Change(),
+						frame_index_added_for_peer,
 						r_snapshot_db);
 			}
 		}
@@ -2151,6 +2154,7 @@ void ServerSynchronizer::generate_snapshot(
 					node_data,
 					mode,
 					relevant_node_data[i].change,
+					frame_index_added_for_peer,
 					r_snapshot_db);
 		}
 	}
@@ -2163,6 +2167,7 @@ void ServerSynchronizer::generate_snapshot_object_data(
 		const NS::ObjectData *p_object_data,
 		SnapshotGenerationMode p_mode,
 		const NS::SyncGroup::Change &p_change,
+		std::vector<int> &r_frame_index_added_for_peer,
 		DataBuffer &r_snapshot_db) const {
 	if (p_object_data->app_object_handle == ObjectHandle::NONE) {
 		return;
@@ -2191,12 +2196,16 @@ void ServerSynchronizer::generate_snapshot_object_data(
 	{
 		bool frame_input_encoded = false;
 		if (p_object_data->get_controlled_by_peer() > 0) {
-			const PeerNetworkedController *peer_controller = scene_synchronizer->get_controller_for_peer(p_object_data->get_controlled_by_peer());
-			if (peer_controller) {
-				// Has controller FrameInput
-				r_snapshot_db.add(true);
-				r_snapshot_db.add(peer_controller->get_current_frame_index().id);
-				frame_input_encoded = true;
+			if (!VecFunc::has(r_frame_index_added_for_peer, p_object_data->get_controlled_by_peer())) {
+				// The FrameIndex was not added yet to this snapshot, so add it now.
+				const PeerNetworkedController *peer_controller = scene_synchronizer->get_controller_for_peer(p_object_data->get_controlled_by_peer());
+				if (peer_controller) {
+					// Has controller FrameInput
+					r_snapshot_db.add(true);
+					r_snapshot_db.add(peer_controller->get_current_frame_index().id);
+					r_frame_index_added_for_peer.push_back(p_object_data->get_controlled_by_peer());
+					frame_input_encoded = true;
+				}
 			}
 		}
 
@@ -3158,7 +3167,7 @@ bool ClientSynchronizer::parse_sync_data(
 	}
 
 	{
-		// Fetch latencys
+		// Fetch latency
 		while (true) {
 			bool has_next_latency = false;
 			p_snapshot.read(has_next_latency);

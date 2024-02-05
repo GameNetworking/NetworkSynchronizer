@@ -667,6 +667,7 @@ public:
 			const NS::ObjectData *p_object_data,
 			SnapshotGenerationMode p_mode,
 			const NS::SyncGroup::Change &p_change,
+			std::vector<int> &r_frame_index_added_for_peer,
 			DataBuffer &r_snapshot_db) const;
 
 	void process_trickled_sync(double p_delta);
