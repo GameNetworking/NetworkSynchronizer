@@ -334,5 +334,5 @@ void GdNetworkInterface::server_update_net_stats(int p_peer, NS::PeerData &r_pee
 	// Using the GDScript bindings to read these so to avoid including `enet_packet_peer.h`, which is complex due to its dependency with enet.
 	r_peer_data.set_latency(enet_peer->call("get_statistic", PEER_ROUND_TRIP_TIME));
 	r_peer_data.set_out_packet_loss_percentage(double(enet_peer->call("get_statistic", PEER_PACKET_LOSS)) / double(ENET_PEER_PACKET_LOSS_SCALE));
-	r_peer_data.set_average_jitter_in_ms(enet_peer->call("get_statistic", PEER_ROUND_TRIP_TIME_VARIANCE));
+	r_peer_data.set_latency_jitter_ms(enet_peer->call("get_statistic", PEER_ROUND_TRIP_TIME_VARIANCE));
 }

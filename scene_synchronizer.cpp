@@ -96,9 +96,9 @@ void SceneSynchronizerBase::setup(SynchronizerManager &p_synchronizer_interface)
 					false,
 					false);
 
-	rpc_handle_notify_fps_acceleration =
+	rpc_handle_notify_netstats =
 			network_interface->rpc_config(
-					std::function<void(const Vector<uint8_t> &)>(std::bind(&SceneSynchronizerBase::rpc_notify_fps_acceleration, this, std::placeholders::_1)),
+					std::function<void(DataBuffer &)>(std::bind(&SceneSynchronizerBase::rpc_notify_netstats, this, std::placeholders::_1)),
 					false,
 					false);
 
@@ -149,7 +149,7 @@ void SceneSynchronizerBase::conclude() {
 	rpc_handler_set_network_enabled.reset();
 	rpc_handler_notify_peer_status.reset();
 	rpc_handler_trickled_sync_data.reset();
-	rpc_handle_notify_fps_acceleration.reset();
+	rpc_handle_notify_netstats.reset();
 	rpc_handle_receive_input.reset();
 	rpc_handle_set_server_controlled.reset();
 }
@@ -232,20 +232,52 @@ std::uint8_t SceneSynchronizerBase::get_max_sub_process_per_frame() const {
 	return max_sub_process_per_frame;
 }
 
-void SceneSynchronizerBase::set_tick_acceleration(double p_acceleration) {
-	tick_acceleration = std::max(p_acceleration, 0.01);
+void SceneSynchronizerBase::set_min_server_input_buffer_size(int p_val) {
+	min_server_input_buffer_size = p_val;
 }
 
-double SceneSynchronizerBase::get_tick_acceleration() const {
-	return tick_acceleration;
+int SceneSynchronizerBase::get_min_server_input_buffer_size() const {
+	return min_server_input_buffer_size;
 }
 
-void SceneSynchronizerBase::set_tick_speedup_notification_delay(float p_delay_seconds) {
-	tick_speedup_notification_delay = p_delay_seconds;
+void SceneSynchronizerBase::set_max_server_input_buffer_size(int p_val) {
+	max_server_input_buffer_size = p_val;
 }
 
-float SceneSynchronizerBase::get_tick_speedup_notification_delay() const {
-	return tick_speedup_notification_delay;
+int SceneSynchronizerBase::get_max_server_input_buffer_size() const {
+	return max_server_input_buffer_size;
+}
+
+void SceneSynchronizerBase::set_negligible_packet_loss(float p_val) {
+	negligible_packet_loss = p_val;
+}
+
+float SceneSynchronizerBase::get_negligible_packet_loss() const {
+	return negligible_packet_loss;
+}
+
+void SceneSynchronizerBase::set_worst_packet_loss(float p_val) {
+	worst_packet_loss = std::clamp(p_val, 0.0001f, 1.0f);
+}
+
+float SceneSynchronizerBase::get_worst_packet_loss() const {
+	return worst_packet_loss;
+}
+
+void SceneSynchronizerBase::set_max_fps_acceleration_percentage(float p_percentage) {
+	max_fps_acceleration_percentage = std::max(p_percentage, 0.0f);
+}
+
+float SceneSynchronizerBase::get_max_fps_acceleration_percentage() const {
+	return max_fps_acceleration_percentage;
+}
+
+void SceneSynchronizerBase::set_netstats_update_interval_sec(float p_delay_seconds) {
+	netstats_update_interval_sec = p_delay_seconds;
+}
+
+float SceneSynchronizerBase::get_netstats_update_interval_sec() const {
+	return netstats_update_interval_sec;
 }
 
 void SceneSynchronizerBase::set_max_trickled_objects_per_update(int p_rate) {
@@ -673,12 +705,30 @@ void SceneSynchronizerBase::setup_trickled_sync(
 	SceneSynchronizerDebugger::singleton()->print(INFO, "Setup trickled sync functions for: `" + od->object_name + "`.", network_interface->get_owner_name());
 }
 
-int SceneSynchronizerBase::get_peer_latency(int p_peer) const {
+int SceneSynchronizerBase::get_peer_latency_ms(int p_peer) const {
 	const PeerData *pd = MapFunc::get_or_null(peer_data, p_peer);
 	if (pd) {
 		return pd->get_latency();
 	} else {
 		return -1;
+	}
+}
+
+int SceneSynchronizerBase::get_peer_latency_jitter_ms(int p_peer) const {
+	const PeerData *pd = MapFunc::get_or_null(peer_data, p_peer);
+	if (pd) {
+		return pd->get_latency_jitter_ms();
+	} else {
+		return 0;
+	}
+}
+
+float SceneSynchronizerBase::get_peer_packet_loss_percentage(int p_peer) const {
+	const PeerData *pd = MapFunc::get_or_null(peer_data, p_peer);
+	if (pd) {
+		return pd->get_out_packet_loss_percentage();
+	} else {
+		return 0.0;
 	}
 }
 
@@ -1116,24 +1166,71 @@ void SceneSynchronizerBase::rpc_trickled_sync_data(const Vector<uint8_t> &p_data
 	static_cast<ClientSynchronizer *>(synchronizer)->receive_trickled_sync_data(p_data);
 }
 
-void SceneSynchronizerBase::rpc_notify_fps_acceleration(const Vector<uint8_t> &p_data) {
+void SceneSynchronizerBase::rpc_notify_netstats(DataBuffer &p_data) {
 	ENSURE(is_client());
-	ENSURE(p_data.size() == 1);
+	p_data.begin_read();
 
-	int8_t additional_frames_to_produce;
-	memcpy(
-			&additional_frames_to_produce,
-			&p_data[0],
-			sizeof(int8_t));
+	std::uint8_t compressed_latency;
+	p_data.read(compressed_latency);
+	ENSURE_MSG(!p_data.is_buffer_failed(), "Failed to read the compressed latency.");
 
+	const float packet_loss = p_data.read_positive_unit_real(DataBuffer::COMPRESSION_LEVEL_0);
+	ENSURE_MSG(!p_data.is_buffer_failed(), "Failed to read the packet loss.");
+
+	std::uint8_t compressed_jitter;
+	p_data.read(compressed_jitter);
+	ENSURE_MSG(!p_data.is_buffer_failed(), "Failed to read compressed jitter.");
+
+	std::uint8_t compressed_input_count;
+	p_data.read(compressed_input_count);
+	ENSURE_MSG(!p_data.is_buffer_failed(), "Failed to read compressed input count.");
+
+	// 1. Updates the peer network statistics
+	const int local_peer = network_interface->fetch_local_peer_id();
+	PeerData *local_peer_data = NS::MapFunc::get_or_null(peer_data, local_peer);
+	ENSURE_MSG(local_peer_data, "The local peer was not found. This is a bug. PeerID: " + std::to_string(local_peer))
+	local_peer_data->set_compressed_latency(compressed_latency);
+	local_peer_data->set_out_packet_loss_percentage(packet_loss);
+	local_peer_data->set_latency_jitter_ms(compressed_jitter);
+
+	// 2. Updates the acceleration_fps_speed based on the server input_count and
+	//    the network health.
 	ClientSynchronizer *client_sync = static_cast<ClientSynchronizer *>(synchronizer);
 
-	// Slowdown the acceleration when near the target.
-	client_sync->acceleration_fps_speed = std::clamp(double(additional_frames_to_produce) / get_tick_acceleration(), -1.0, 1.0) * get_tick_acceleration();
-	const double acceleration_fps_speed_ABS = std::abs(client_sync->acceleration_fps_speed);
+	// The optimal frame count the server should have according to the network
+	// conditions.
+	float optimal_frame_distance = 0.0f;
 
-	if (acceleration_fps_speed_ABS >= CMP_EPSILON2) {
-		const double acceleration_time = double(std::abs(additional_frames_to_produce)) / acceleration_fps_speed_ABS;
+	// The connection averate jittering in frames per seconds.
+	const float average_jittering_in_FPS = local_peer_data->get_latency_jitter_ms() / (fixed_frame_delta * 1000.0);
+
+	// This is useful to offset the `optimal_frame_distance` by the time needed
+	// for the frames to arrive IN TIME in case the connection is bad.
+	optimal_frame_distance += average_jittering_in_FPS;
+
+	// Increase the optima frame distance depending on the packet loss.
+	if (local_peer_data->get_out_packet_loss_percentage() > get_negligible_packet_loss()) {
+		const float relative_packet_loss = std::min(local_peer_data->get_out_packet_loss_percentage() / get_worst_packet_loss(), 1.0f);
+		optimal_frame_distance += MathFunc::lerp(0.0f, float(get_max_server_input_buffer_size()), relative_packet_loss);
+	}
+
+	// Round the frame distance.
+	optimal_frame_distance = std::ceil(optimal_frame_distance - 0.05);
+
+	// Clamp it.
+	optimal_frame_distance = std::clamp(optimal_frame_distance, float(get_min_server_input_buffer_size()), float(get_max_server_input_buffer_size()));
+
+	// Can be negative. This function contains the amount of frames to offset
+	// the client to make sure it catches the server.
+	float additional_frames_to_produce = optimal_frame_distance - float(compressed_input_count);
+
+	// Slowdown the acceleration when near the target.
+	const float max_frames_to_produce_per_frame = get_max_fps_acceleration_percentage() * float(get_frames_per_seconds());
+	client_sync->acceleration_fps_speed = std::clamp(additional_frames_to_produce / max_frames_to_produce_per_frame, -1.0f, 1.0f) * max_frames_to_produce_per_frame;
+	const float acceleration_fps_speed_ABS = std::abs(client_sync->acceleration_fps_speed);
+
+	if (acceleration_fps_speed_ABS >= std::numeric_limits<float>::epsilon()) {
+		const float acceleration_time = std::abs(additional_frames_to_produce) / acceleration_fps_speed_ABS;
 		client_sync->acceleration_fps_timer = acceleration_time;
 	} else {
 		client_sync->acceleration_fps_timer = 0.0;
@@ -1145,10 +1242,14 @@ void SceneSynchronizerBase::rpc_notify_fps_acceleration(const Vector<uint8_t> &p
 		SceneSynchronizerDebugger::singleton()->print(
 				INFO,
 				std::string() +
-						"Client received speedup." +
-						" Frames to produce: `" + std::to_string(additional_frames_to_produce) + "`" +
-						" Acceleration fps: `" + std::to_string(client_sync->acceleration_fps_speed) + "`" +
-						" Acceleration time: `" + std::to_string(client_sync->acceleration_fps_timer) + "`",
+						"Client network statistics" +
+						"\n  Latency (ms): `" + std::to_string(local_peer_data->get_latency()) + "`" +
+						"\n  Packet Loss (%): `" + std::to_string(local_peer_data->get_out_packet_loss_percentage()) + "`" +
+						"\n  Average jitter (ms): `" + std::to_string(local_peer_data->get_latency_jitter_ms()) + "`" +
+						"\n  Optimal frame count on server: `" + std::to_string(optimal_frame_distance) + "`" +
+						"\n  Frame count on server: `" + std::to_string(compressed_input_count) + "`" +
+						"\n  Acceleration fps: `" + std::to_string(client_sync->acceleration_fps_speed) + "`" +
+						"\n  Acceleration time: `" + std::to_string(client_sync->acceleration_fps_timer) + "`",
 				get_network_interface().get_owner_name(),
 				true);
 	}
@@ -1558,7 +1659,7 @@ void SceneSynchronizerBase::reset_controller(PeerNetworkedController &p_controll
 			p_controller.controller = memnew(AutonomousServerController(&p_controller));
 		} else {
 			p_controller.controller_type = PeerNetworkedController::CONTROLLER_TYPE_SERVER;
-			p_controller.controller = memnew(ServerController(&p_controller, p_controller.get_network_traced_frames()));
+			p_controller.controller = memnew(ServerController(&p_controller));
 		}
 	} else if (get_network_interface().fetch_local_peer_id() == p_controller.get_authority_peer() && p_controller.get_server_controlled() == false) {
 		p_controller.controller_type = PeerNetworkedController::CONTROLLER_TYPE_PLAYER;
@@ -1714,7 +1815,6 @@ void ServerSynchronizer::process(double p_delta) {
 
 	process_trickled_sync(p_delta);
 	update_peers_net_statistics(p_delta);
-	process_adjust_clients_controller_tick_rate(p_delta);
 
 	SceneSynchronizerDebugger::singleton()->scene_sync_process_end(scene_synchronizer);
 
@@ -2357,69 +2457,77 @@ void ServerSynchronizer::update_peers_net_statistics(double p_delta) {
 			// No need to update the ping for `self` (the server).
 			continue;
 		}
+		if (!peer_data.get_controller()) {
+			// There is no controller, nothing to do.
+			continue;
+		}
+#ifdef DEBUG_ENABLED
+		ASSERT_COND(peer_data.get_controller()->is_server_controller());
+#endif
 
 		std::map<int, PeerServerData>::iterator peer_server_data_it = NS::MapFunc::insert_if_new(peers_data, peer, PeerServerData());
-		peer_server_data_it->second.netstats_update_sec += p_delta;
+		peer_server_data_it->second.latency_update_via_snapshot_sec += p_delta;
+		peer_server_data_it->second.netstats_peer_update_sec += p_delta;
 
-		if make_likely (peer_server_data_it->second.netstats_update_sec < scene_synchronizer->latency_update_rate) {
+		const bool requires_latency_update = peer_server_data_it->second.latency_update_via_snapshot_sec >= scene_synchronizer->latency_update_rate;
+		const bool requires_netstats_update = peer_server_data_it->second.netstats_peer_update_sec >= scene_synchronizer->get_netstats_update_interval_sec();
+
+		if make_likely (!requires_latency_update && !requires_netstats_update) {
+			// No need to update the peer network statistics for now.
 			continue;
 		}
 
 		// Time to update the network stats for this peer.
 		scene_synchronizer->get_network_interface().server_update_net_stats(peer, peer_data);
+
 		// Notify all sync groups about this peer having newly calculated latency.
-		for (auto &group : sync_groups) {
-			group.notify_peer_has_newly_calculated_latency(peer);
+		if (requires_latency_update) {
+			for (auto &group : sync_groups) {
+				group.notify_peer_has_newly_calculated_latency(peer);
+			}
+
+			// Reset the timer.
+			peer_server_data_it->second.latency_update_via_snapshot_sec = 0.0;
 		}
 
-		// Reset the timer.
-		peer_server_data_it->second.netstats_update_sec = 0.0;
-	}
-}
-
-void ServerSynchronizer::process_adjust_clients_controller_tick_rate(double p_delta) {
-	for (auto &it : scene_synchronizer->peer_data) {
-		const int peer = it.first;
-		PeerNetworkedController *controller = it.second.get_controller();
-		if (controller) {
-			process_adjust_client_controller_tick_rate(
-					p_delta,
-					peer,
-					*controller);
+		if (requires_netstats_update) {
+			send_net_stat_to_peer(peer, peer_data);
+			peer_server_data_it->second.netstats_peer_update_sec = 0.0;
 		}
 	}
 }
 
-void ServerSynchronizer::process_adjust_client_controller_tick_rate(double p_delta, int p_controller_peer, PeerNetworkedController &p_controller) {
-	ASSERT_COND(p_controller.is_server_controller());
-
-	if (!p_controller.get_server_controller_unchecked()->streaming_paused) {
+void ServerSynchronizer::send_net_stat_to_peer(int p_peer, PeerData &p_peer_data) {
+	PeerNetworkedController &controller = *p_peer_data.get_controller();
+	if (controller.get_server_controller_unchecked()->streaming_paused) {
 		return;
 	}
 
-	p_controller.get_server_controller_unchecked()->additional_fps_notif_timer += p_delta;
-	if (p_controller.get_server_controller_unchecked()->additional_fps_notif_timer < scene_synchronizer->get_tick_speedup_notification_delay()) {
-		return;
-	}
+	// TODO This doesn't need to be a pointer. Remove it once it doesn't inherit anymore a godot Object.
+	DataBuffer *db = memnew(DataBuffer);
+	db->begin_write(0);
 
-	// Time to tell the client a new speedup.
-	p_controller.get_server_controller_unchecked()->additional_fps_notif_timer = 0;
+	// Latency
+	db->add(p_peer_data.get_compressed_latency());
 
-	const std::int8_t distance_to_optimal = p_controller.get_server_controller_unchecked()->compute_client_tick_rate_distance_to_optimal();
+	// Packet loss from 0.0 to 1.0
+	db->add_positive_unit_real(p_peer_data.get_out_packet_loss_percentage(), DataBuffer::COMPRESSION_LEVEL_0);
 
-	std::uint8_t compressed_distance;
-	memcpy(
-			&compressed_distance,
-			&distance_to_optimal,
-			sizeof(uint8_t));
+	// Average jitter - from 0ms to 255ms.
+	const std::uint8_t compressed_jitter = std::clamp(int(p_peer_data.get_latency_jitter_ms()), int(0), int(std::numeric_limits<std::uint8_t>::max()));
+	db->add(compressed_jitter);
 
-	Vector<uint8_t> packet_data;
-	packet_data.push_back(compressed_distance);
+	// Compressed input count - from 0 to 255
+	const std::uint8_t compressed_input_count =
+			std::clamp(int(controller.get_server_controller_unchecked()->get_inputs_count()), int(0), int(std::numeric_limits<std::uint8_t>::max()));
+	db->add(compressed_input_count);
 
-	scene_synchronizer->rpc_handle_notify_fps_acceleration.rpc(
+	scene_synchronizer->rpc_handle_notify_netstats.rpc(
 			scene_synchronizer->get_network_interface(),
-			p_controller_peer,
-			packet_data);
+			p_peer,
+			*db);
+
+	memdelete(db);
 }
 
 int ServerSynchronizer::fetch_sub_processes_count(double p_delta) {

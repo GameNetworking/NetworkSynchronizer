@@ -75,26 +75,6 @@ private:
 	/// they are sent in an unreliable way.
 	int max_redundant_inputs = 6;
 
-	/// The connection quality is established by watching the time passed
-	/// between each input is received.
-	/// The more this time is the same the more the connection health is good.
-	///
-	/// The `network_traced_frames` defines how many frames have
-	/// to be used to establish the connection quality.
-	/// - Big values make the mechanism too slow.
-	/// - Small values make the mechanism too sensible.
-	int network_traced_frames = 120;
-
-	/// The `ServerController` will try to keep a margin of error, so that
-	/// network oscillations doesn't leave the `ServerController` without
-	/// inputs.
-	///
-	/// This margin of error is called `optimal_frame_delay` and it changes
-	/// depending on the connection health:
-	/// it can go from `min_frames_delay` to `max_frames_delay`.
-	int min_frames_delay = 2;
-	int max_frames_delay = 7;
-
 	// The peer associated to this NetController.
 	int authority_peer = -1;
 
@@ -118,7 +98,6 @@ private:
 public: // -------------------------------------------------------------- Events
 	Processor<> event_controller_reset;
 	Processor<FrameIndex> event_input_missed;
-	Processor<uint32_t /*p_input_worst_receival_time_ms*/, int /*p_optimal_frame_delay*/, int /*p_current_frame_delay*/, int /*p_distance_to_optimal*/> event_client_speedup_adjusted;
 
 public:
 	PeerNetworkedController();
@@ -134,15 +113,6 @@ public: // ---------------------------------------------------------------- APIs
 
 	void set_max_redundant_inputs(int p_max);
 	int get_max_redundant_inputs() const;
-
-	void set_network_traced_frames(int p_size);
-	int get_network_traced_frames() const;
-
-	void set_min_frames_delay(int p_val);
-	int get_min_frames_delay() const;
-
-	void set_max_frames_delay(int p_val);
-	int get_max_frames_delay() const;
 
 	FrameIndex get_current_frame_index() const;
 
@@ -278,17 +248,10 @@ public:
 };
 
 struct ServerController : public RemotelyControlledController {
-	float additional_fps_notif_timer = 0;
-
 	std::vector<int> peers_simulating_this_controller;
 
-	uint32_t previous_frame_received_timestamp = UINT32_MAX;
-	NS::StatisticalRingBuffer<uint32_t> network_watcher;
-	NS::StatisticalRingBuffer<int> consecutive_input_watcher;
-
 	ServerController(
-			PeerNetworkedController *p_node,
-			int p_traced_frames);
+			PeerNetworkedController *p_node);
 
 	virtual void process(double p_delta) override;
 
@@ -299,8 +262,6 @@ struct ServerController : public RemotelyControlledController {
 	void notify_send_state();
 
 	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;
-
-	std::int8_t compute_client_tick_rate_distance_to_optimal();
 };
 
 struct AutonomousServerController final : public ServerController {

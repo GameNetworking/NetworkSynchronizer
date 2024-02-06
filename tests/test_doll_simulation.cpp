@@ -602,14 +602,14 @@ void test_latency() {
 	test.do_test(10, true);
 
 	// Make sure the latency is the same between client and the server.
-	ASSERT_COND_MSG(test.server_scene.scene_sync->get_peer_latency(peer1) == test.peer_1_scene.scene_sync->get_peer_latency(peer1), "Server latency: " + std::to_string(test.server_scene.scene_sync->get_peer_latency(peer1)) + " Client latency: " + std::to_string(test.peer_1_scene.scene_sync->get_peer_latency(peer1)));
-	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency(peer2) == test.peer_1_scene.scene_sync->get_peer_latency(peer2));
-	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency(peer1) == test.peer_2_scene.scene_sync->get_peer_latency(peer1));
-	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency(peer2) == test.peer_2_scene.scene_sync->get_peer_latency(peer2));
+	ASSERT_COND_MSG(test.server_scene.scene_sync->get_peer_latency_ms(peer1) == test.peer_1_scene.scene_sync->get_peer_latency_ms(peer1), "Server latency: " + std::to_string(test.server_scene.scene_sync->get_peer_latency_ms(peer1)) + " Client latency: " + std::to_string(test.peer_1_scene.scene_sync->get_peer_latency_ms(peer1)));
+	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency_ms(peer2) == test.peer_1_scene.scene_sync->get_peer_latency_ms(peer2));
+	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency_ms(peer1) == test.peer_2_scene.scene_sync->get_peer_latency_ms(peer1));
+	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency_ms(peer2) == test.peer_2_scene.scene_sync->get_peer_latency_ms(peer2));
 
 	// Now make sure the latency is below 5 for both, as there is no latency at this point.
-	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency(peer1) <= 5);
-	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency(peer2) <= 5);
+	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency_ms(peer1) <= 5);
+	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency_ms(peer2) <= 5);
 
 	// TEST 2 with 100 latency
 	test.network_properties.rtt_seconds = 0.1;
@@ -617,14 +617,14 @@ void test_latency() {
 	test.do_test(20, true);
 
 	// Make sure the latency is the same between client and the server.
-	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency(peer1) == test.peer_1_scene.scene_sync->get_peer_latency(peer1));
-	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency(peer2) == test.peer_1_scene.scene_sync->get_peer_latency(peer2));
-	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency(peer1) == test.peer_2_scene.scene_sync->get_peer_latency(peer1));
-	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency(peer2) == test.peer_2_scene.scene_sync->get_peer_latency(peer2));
+	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency_ms(peer1) == test.peer_1_scene.scene_sync->get_peer_latency_ms(peer1));
+	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency_ms(peer2) == test.peer_1_scene.scene_sync->get_peer_latency_ms(peer2));
+	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency_ms(peer1) == test.peer_2_scene.scene_sync->get_peer_latency_ms(peer1));
+	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency_ms(peer2) == test.peer_2_scene.scene_sync->get_peer_latency_ms(peer2));
 
 	// Now make sure the latency is around 100
-	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency(peer1) >= 60 && test.server_scene.scene_sync->get_peer_latency(peer1) <= 105);
-	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency(peer2) >= 60 && test.server_scene.scene_sync->get_peer_latency(peer2) <= 105);
+	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency_ms(peer1) >= 60 && test.server_scene.scene_sync->get_peer_latency_ms(peer1) <= 105);
+	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency_ms(peer2) >= 60 && test.server_scene.scene_sync->get_peer_latency_ms(peer2) <= 105);
 }
 
 void test_simulation_with_wrong_input() {
@@ -647,15 +647,15 @@ void test_simulation_with_wrong_input() {
 	// 2. Now introduce a desync on the server.
 	for (int test_count = 0; test_count < 20; test_count++) {
 		for (int i = 0; i < 3; i++) {
-			const NS::FrameIndex c1_assert_after = server_controller_1->get_current_frame_index() + 40;
-			const NS::FrameIndex c2_assert_after = server_controller_2->get_current_frame_index() + 40;
+			const NS::FrameIndex c1_assert_after = server_controller_1->get_current_frame_index() + 70;
+			const NS::FrameIndex c2_assert_after = server_controller_2->get_current_frame_index() + 70;
 			const int c1_desync_vec_size = test.peer1_desync_detected.size();
 			const int c2_desync_vec_size = test.peer2_desync_detected.size();
 
 			test.controlled_1_serv->modify_input_on_next_frame = true;
 			test.controlled_2_serv->modify_input_on_next_frame = true;
 			// Process 50 frames and ensure it recovers.
-			test.do_test(75);
+			test.do_test(80);
 
 			// Ensure there was a desync.
 			ASSERT_COND(test.peer1_desync_detected.size() > c1_desync_vec_size);

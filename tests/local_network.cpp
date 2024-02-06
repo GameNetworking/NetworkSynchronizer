@@ -199,12 +199,12 @@ void LocalNetworkInterface::server_update_net_stats(int p_peer, PeerData &r_peer
 	if (!network || !network->network_properties) {
 		r_peer_data.set_latency(0);
 		r_peer_data.set_out_packet_loss_percentage(0);
-		r_peer_data.set_average_jitter_in_ms(0);
+		r_peer_data.set_latency_jitter_ms(0);
 	} else {
 		r_peer_data.set_latency(network->network_properties->rtt_seconds * 1000.0);
 		r_peer_data.set_out_packet_loss_percentage(network->network_properties->packet_loss);
 		// There are no statistic about this, assuming 10% of rtt.
-		r_peer_data.set_average_jitter_in_ms(r_peer_data.get_latency() * 0.1);
+		r_peer_data.set_latency_jitter_ms(r_peer_data.get_latency() * 0.1);
 	}
 }
 

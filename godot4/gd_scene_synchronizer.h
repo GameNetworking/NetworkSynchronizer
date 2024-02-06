@@ -42,11 +42,11 @@ public:
 	void _notification(int p_what);
 
 public: // ---------------------------------------------------------- Properties
-	void set_tick_speedup_notification_delay(float p_delay_in_ms);
-	float get_tick_speedup_notification_delay() const;
+	void set_netstats_update_interval_sec(float p_delay_in_ms);
+	float get_netstats_update_interval_sec() const;
 
-	void set_tick_acceleration(double p_acceleration);
-	double get_tick_acceleration() const;
+	void set_max_fps_acceleration_percentage(double p_acceleration);
+	double get_max_fps_acceleration_percentage() const;
 
 	void set_max_trickled_nodes_per_update(int p_rate);
 	int get_max_trickled_nodes_per_update() const;
@@ -142,7 +142,9 @@ public: // ---------------------------------------------------------------- APIs
 
 	Array local_controller_get_controlled_nodes() const;
 
-	int get_peer_latency(int p_peer) const;
+	int get_peer_latency_ms(int p_peer) const;
+	int get_peer_latency_jitter_ms(int p_peer) const;
+	float get_peer_packet_loss_percentage(int p_peer) const;
 
 	bool client_is_object_simulating(Node *p_node) const;
 	bool client_is_object_simulating(NS::ObjectLocalId p_id) const;

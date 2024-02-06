@@ -167,7 +167,7 @@ protected:
 	RpcHandle<bool> rpc_handler_set_network_enabled;
 	RpcHandle<bool> rpc_handler_notify_peer_status;
 	RpcHandle<const Vector<uint8_t> &> rpc_handler_trickled_sync_data;
-	RpcHandle<const Vector<uint8_t> &> rpc_handle_notify_fps_acceleration;
+	RpcHandle<DataBuffer &> rpc_handle_notify_netstats;
 
 	// Controller RPCs.
 	RpcHandle<int, const Vector<uint8_t> &> rpc_handle_receive_input;
@@ -184,12 +184,34 @@ protected:
 	///       - The server asks for a speedup.
 	///       - The client FPS are under the networking tick rate.
 	std::uint8_t max_sub_process_per_frame = 4;
-	/// Amount of additional frames produced per second.
-	double tick_acceleration = 5.0;
 
-	/// Time in seconds between each `tick_speedup` that the server sends to the
-	/// client. In seconds
-	float tick_speedup_notification_delay = 0.6;
+	/// The `ServerController` will try to keep a margin of error, so that
+	/// network oscillations doesn't leave the `ServerController` without
+	/// inputs.
+	///
+	/// This margin of error is called `optimal_frame_delay` and it changes
+	/// depending on the connection health:
+	/// it can go from `min_server_input_buffer_size` to `max_server_input_buffer_size`.
+	int min_server_input_buffer_size = 2;
+	int max_server_input_buffer_size = 7;
+
+	/// Negligible packet loss we can just ignore.
+	float negligible_packet_loss = 0.001;
+
+	/// The worst packet loss.
+	/// NOTE: The smallest the more conservative the system is: increasing the
+	///       server input buffer size to give enough time to inputs arrive the
+	///       server before being processed.
+	///       Too small number would make the server collects way too few inputs.
+	/// Default 2.5%
+	float worst_packet_loss = 0.025;
+
+	/// Amount of additional frames produced per second in % relative to
+	/// `frames_per_seconds` defined above.
+	float max_fps_acceleration_percentage = 0.2;
+
+	/// Interval (seconds) between each network statistic update sent to the clients
+	float netstats_update_interval_sec = 0.6;
 
 	int max_trickled_objects_per_update = 30;
 	float max_trickled_interpolation_alpha = 1.2;
@@ -320,11 +342,23 @@ public:
 	void set_max_sub_process_per_frame(std::uint8_t p_max_sub_process_per_frame);
 	std::uint8_t get_max_sub_process_per_frame() const;
 
-	void set_tick_acceleration(double p_acceleration);
-	double get_tick_acceleration() const;
+	void set_min_server_input_buffer_size(int p_val);
+	int get_min_server_input_buffer_size() const;
 
-	void set_tick_speedup_notification_delay(float p_delay_in_ms);
-	float get_tick_speedup_notification_delay() const;
+	void set_max_server_input_buffer_size(int p_val);
+	int get_max_server_input_buffer_size() const;
+
+	void set_negligible_packet_loss(float p_val);
+	float get_negligible_packet_loss() const;
+
+	void set_worst_packet_loss(float p_val);
+	float get_worst_packet_loss() const;
+
+	void set_max_fps_acceleration_percentage(float p_percentage);
+	float get_max_fps_acceleration_percentage() const;
+
+	void set_netstats_update_interval_sec(float p_delay_in_ms);
+	float get_netstats_update_interval_sec() const;
 
 	void set_max_trickled_objects_per_update(int p_rate);
 	int get_max_trickled_objects_per_update() const;
@@ -352,7 +386,7 @@ public: // ---------------------------------------------------------------- RPCs
 	void rpc_set_network_enabled(bool p_enabled);
 	void rpc_notify_peer_status(bool p_enabled);
 	void rpc_trickled_sync_data(const Vector<uint8_t> &p_data);
-	void rpc_notify_fps_acceleration(const Vector<uint8_t> &p_data);
+	void rpc_notify_netstats(DataBuffer &p_data);
 
 	void call_rpc_receive_inputs(int p_recipient, int p_peer, const Vector<uint8_t> &p_data);
 	void call_rpc_set_server_controlled(int p_recipient, int p_peer, bool p_server_controlled);
@@ -422,7 +456,13 @@ public: // ---------------------------------------------------------------- APIs
 			std::function<void(double /*delta*/, float /*interpolation_alpha*/, DataBuffer & /*past_buffer*/, DataBuffer & /*future_buffer*/)> p_func_trickled_apply);
 
 	/// Returns the latency (RTT in ms) for this peer or -1 if the latency is not available.
-	int get_peer_latency(int p_peer) const;
+	int get_peer_latency_ms(int p_peer) const;
+	/// Returns the latency jittering (how much the latency oscillates).
+	/// On client: This function returns 0 for non local peers.
+	int get_peer_latency_jitter_ms(int p_peer) const;
+	/// Returns the packet loss percentage.
+	/// On client: This function returns 0 for non local peers.
+	float get_peer_packet_loss_percentage(int p_peer) const;
 
 	/// Creates a sync group containing the list of sync objects.
 	/// The Peers listening to this group will receive the updates only
@@ -672,20 +712,7 @@ public:
 
 	void process_trickled_sync(double p_delta);
 	void update_peers_net_statistics(double p_delta);
-
-	/// This function updates the `tick_additional_fps` so that the `frames_inputs`
-	/// size is enough to reduce the missing packets to 0.
-	///
-	/// When the internet connection is bad, the packets need more time to arrive.
-	/// To heal this problem, the server tells the client to speed up a little bit
-	/// so it send the inputs a bit earlier than the usual.
-	///
-	/// If the `frames_inputs` size is too big the input lag between the client and
-	/// the server is artificial and no more dependent on the internet. For this
-	/// reason the server tells the client to slowdown so to keep the `frames_inputs`
-	/// size moderate to the needs.
-	void process_adjust_clients_controller_tick_rate(double p_delta);
-	void process_adjust_client_controller_tick_rate(double p_delta, int p_controller_peer, PeerNetworkedController &p_controller);
+	void send_net_stat_to_peer(int p_peer, PeerData &p_peer_data);
 
 	int fetch_sub_processes_count(double p_delta);
 };

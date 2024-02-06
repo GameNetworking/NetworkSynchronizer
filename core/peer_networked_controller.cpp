@@ -123,30 +123,6 @@ int PeerNetworkedController::get_max_redundant_inputs() const {
 	return max_redundant_inputs;
 }
 
-void PeerNetworkedController::set_network_traced_frames(int p_size) {
-	network_traced_frames = p_size;
-}
-
-int PeerNetworkedController::get_network_traced_frames() const {
-	return network_traced_frames;
-}
-
-void PeerNetworkedController::set_min_frames_delay(int p_val) {
-	min_frames_delay = p_val;
-}
-
-int PeerNetworkedController::get_min_frames_delay() const {
-	return min_frames_delay;
-}
-
-void PeerNetworkedController::set_max_frames_delay(int p_val) {
-	max_frames_delay = p_val;
-}
-
-int PeerNetworkedController::get_max_frames_delay() const {
-	return max_frames_delay;
-}
-
 FrameIndex PeerNetworkedController::get_current_frame_index() const {
 	ENSURE_V(controller, FrameIndex::NONE);
 	return controller->get_current_frame_index();
@@ -747,11 +723,8 @@ bool RemotelyControlledController::receive_inputs(const Vector<uint8_t> &p_data)
 }
 
 ServerController::ServerController(
-		PeerNetworkedController *p_peer_controller,
-		int p_traced_frames) :
-		RemotelyControlledController(p_peer_controller),
-		network_watcher(p_traced_frames, 0),
-		consecutive_input_watcher(p_traced_frames, 0) {
+		PeerNetworkedController *p_peer_controller) :
+		RemotelyControlledController(p_peer_controller) {
 }
 
 void ServerController::process(double p_delta) {
@@ -765,7 +738,6 @@ void ServerController::process(double p_delta) {
 				consecutive_inputs += 1;
 			}
 		}
-		consecutive_input_watcher.push(consecutive_inputs);
 	}
 }
 
@@ -777,35 +749,10 @@ void ServerController::on_peer_update(bool p_peer_enabled) {
 
 	// ~~ Reset everything to avoid accumulate old data. ~~
 	RemotelyControlledController::on_peer_update(p_peer_enabled);
-
-	additional_fps_notif_timer = 0.0;
-	previous_frame_received_timestamp = UINT32_MAX;
-	network_watcher.reset(0.0);
-	consecutive_input_watcher.reset(0.0);
 }
 
 void ServerController::set_frame_input(const FrameInput &p_frame_snapshot, bool p_first_input) {
-	// If `previous_frame_received_timestamp` is bigger: the controller was
-	// disabled, so nothing to do.
-	if (previous_frame_received_timestamp < p_frame_snapshot.received_timestamp) {
-		const uint32_t frame_delta_ms = peer_controller->scene_synchronizer->get_fixed_frame_delta() * 1000.0;
-
-		const uint32_t receival_time = p_frame_snapshot.received_timestamp - previous_frame_received_timestamp;
-		const uint32_t network_time = receival_time > frame_delta_ms ? receival_time - frame_delta_ms : 0;
-
-		network_watcher.push(network_time);
-	}
-
 	RemotelyControlledController::set_frame_input(p_frame_snapshot, p_first_input);
-
-	if (p_first_input) {
-		// Reset the watcher, as this is the first input.
-		network_watcher.reset(0);
-		consecutive_input_watcher.reset(0.0);
-		previous_frame_received_timestamp = UINT32_MAX;
-	} else {
-		previous_frame_received_timestamp = p_frame_snapshot.received_timestamp;
-	}
 }
 
 void ServerController::notify_send_state() {
@@ -840,50 +787,9 @@ int ceil_with_tolerance(double p_value, double p_tolerance) {
 	return std::ceil(p_value - p_tolerance);
 }
 
-std::int8_t ServerController::compute_client_tick_rate_distance_to_optimal() {
-	const float min_frames_delay = peer_controller->get_min_frames_delay();
-	const float max_frames_delay = peer_controller->get_max_frames_delay();
-	const double fixed_frame_delta = peer_controller->scene_synchronizer->get_fixed_frame_delta();
-
-	// `worst_receival_time` is in ms and indicates the maximum time passed to receive a consecutive
-	// input in the last `network_traced_frames` frames.
-	const std::uint32_t worst_receival_time_ms = network_watcher.max();
-
-	const double worst_receival_time = double(worst_receival_time_ms) / 1000.0;
-
-	const int optimal_frame_delay_unclamped = ceil_with_tolerance(
-			worst_receival_time / fixed_frame_delta,
-			fixed_frame_delta * 0.05); // Tolerance of 5% of frame time.
-
-	const int optimal_frame_delay = CLAMP(optimal_frame_delay_unclamped, min_frames_delay, max_frames_delay);
-
-	const int consecutive_inputs = consecutive_input_watcher.average_rounded();
-
-	const std::int8_t distance_to_optimal = CLAMP(optimal_frame_delay - consecutive_inputs, INT8_MIN, INT8_MAX);
-
-#ifdef DEBUG_ENABLED
-	const bool debug = ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/debug_server_speedup");
-	const int current_frame_delay = consecutive_inputs;
-	if (debug) {
-		SceneSynchronizerDebugger::singleton()->print(
-				INFO,
-				"Worst receival time (ms): `" + std::to_string(worst_receival_time_ms) +
-						"` Optimal frame delay: `" + std::to_string(optimal_frame_delay) +
-						"` Current frame delay: `" + std::to_string(current_frame_delay) +
-						"` Distance to optimal: `" + std::to_string(distance_to_optimal) +
-						"`",
-				"NetController",
-				true);
-	}
-	peer_controller->event_client_speedup_adjusted.broadcast(worst_receival_time_ms, optimal_frame_delay, current_frame_delay, distance_to_optimal);
-#endif
-
-	return distance_to_optimal;
-}
-
 AutonomousServerController::AutonomousServerController(
 		PeerNetworkedController *p_peer_controller) :
-		ServerController(p_peer_controller, 1) {
+		ServerController(p_peer_controller) {
 }
 
 bool AutonomousServerController::receive_inputs(const Vector<uint8_t> &p_data) {
@@ -1403,7 +1309,7 @@ int DollController::fetch_optimal_queued_inputs() const {
 	//
 	// TODO: At the moment this value is fixed to the min_frame_delay, but at some
 	// point we will want to change this value dynamically depending on packet loss.
-	return peer_controller->get_min_frames_delay();
+	return peer_controller->scene_synchronizer->get_min_server_input_buffer_size();
 }
 
 bool DollController::fetch_next_input(double p_delta) {

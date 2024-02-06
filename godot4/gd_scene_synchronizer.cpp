@@ -43,11 +43,11 @@ void GdSceneSynchronizer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("reset_synchronizer_mode"), &GdSceneSynchronizer::reset_synchronizer_mode);
 	ClassDB::bind_method(D_METHOD("clear"), &GdSceneSynchronizer::clear);
 
-	ClassDB::bind_method(D_METHOD("set_tick_speedup_notification_delay", "delay_in_ms"), &GdSceneSynchronizer::set_tick_speedup_notification_delay);
-	ClassDB::bind_method(D_METHOD("get_tick_speedup_notification_delay"), &GdSceneSynchronizer::get_tick_speedup_notification_delay);
+	ClassDB::bind_method(D_METHOD("set_netstats_update_interval_sec", "delay_in_ms"), &GdSceneSynchronizer::set_netstats_update_interval_sec);
+	ClassDB::bind_method(D_METHOD("get_netstats_update_interval_sec"), &GdSceneSynchronizer::get_netstats_update_interval_sec);
 
-	ClassDB::bind_method(D_METHOD("set_tick_acceleration", "acceleration"), &GdSceneSynchronizer::set_tick_acceleration);
-	ClassDB::bind_method(D_METHOD("get_tick_acceleration"), &GdSceneSynchronizer::get_tick_acceleration);
+	ClassDB::bind_method(D_METHOD("set_max_fps_acceleration_percentage", "acceleration"), &GdSceneSynchronizer::set_max_fps_acceleration_percentage);
+	ClassDB::bind_method(D_METHOD("get_max_fps_acceleration_percentage"), &GdSceneSynchronizer::get_max_fps_acceleration_percentage);
 
 	ClassDB::bind_method(D_METHOD("set_max_trickled_nodes_per_update", "rate"), &GdSceneSynchronizer::set_max_trickled_nodes_per_update);
 	ClassDB::bind_method(D_METHOD("get_max_trickled_nodes_per_update"), &GdSceneSynchronizer::get_max_trickled_nodes_per_update);
@@ -83,7 +83,10 @@ void GdSceneSynchronizer::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("setup_trickled_sync", "node", "collect_epoch_func", "apply_epoch_func"), &GdSceneSynchronizer::setup_trickled_sync);
 
-	ClassDB::bind_method(D_METHOD("get_peer_latency", "peer"), &GdSceneSynchronizer::get_peer_latency);
+	ClassDB::bind_method(D_METHOD("get_peer_latency", "peer"), &GdSceneSynchronizer::get_peer_latency_ms); // TODO deprecated, remove.
+	ClassDB::bind_method(D_METHOD("get_peer_latency_ms", "peer"), &GdSceneSynchronizer::get_peer_latency_ms);
+	ClassDB::bind_method(D_METHOD("get_peer_latency_jitter_ms", "peer"), &GdSceneSynchronizer::get_peer_latency_jitter_ms);
+	ClassDB::bind_method(D_METHOD("get_peer_packet_loss_percentage", "peer"), &GdSceneSynchronizer::get_peer_packet_loss_percentage);
 
 	ClassDB::bind_method(D_METHOD("sync_group_create"), &GdSceneSynchronizer::sync_group_create);
 	ClassDB::bind_method(D_METHOD("sync_group_add_node", "node_id", "group_id", "realtime"), &GdSceneSynchronizer::sync_group_add_node_by_id);
@@ -113,8 +116,8 @@ void GdSceneSynchronizer::_bind_methods() {
 
 	GDVIRTUAL_BIND(_update_nodes_relevancy);
 
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "tick_speedup_notification_delay", PROPERTY_HINT_RANGE, "0,10,0.001"), "set_tick_speedup_notification_delay", "get_tick_speedup_notification_delay");
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "tick_acceleration", PROPERTY_HINT_RANGE, "0.1,20.0,0.01"), "set_tick_acceleration", "get_tick_acceleration");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "netstats_update_interval_sec", PROPERTY_HINT_RANGE, "0,10,0.001"), "set_netstats_update_interval_sec", "get_netstats_update_interval_sec");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "max_fps_acceleration_percentage", PROPERTY_HINT_RANGE, "0.1,20.0,0.01"), "set_max_fps_acceleration_percentage", "get_max_fps_acceleration_percentage");
 
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "frame_confirmation_timespan", PROPERTY_HINT_RANGE, "0.001,10.0,0.0001"), "set_frame_confirmation_timespan", "get_frame_confirmation_timespan");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "nodes_relevancy_update_time", PROPERTY_HINT_RANGE, "0.0,2.0,0.01"), "set_nodes_relevancy_update_time", "get_nodes_relevancy_update_time");
@@ -373,20 +376,20 @@ bool GdSceneSynchronizer::get_variable(NS::ObjectHandle p_app_object_handle, con
 	return valid;
 }
 
-void GdSceneSynchronizer::set_tick_speedup_notification_delay(float p_delay) {
-	scene_synchronizer.set_tick_speedup_notification_delay(p_delay);
+void GdSceneSynchronizer::set_netstats_update_interval_sec(float p_delay) {
+	scene_synchronizer.set_netstats_update_interval_sec(p_delay);
 }
 
-float GdSceneSynchronizer::get_tick_speedup_notification_delay() const {
-	return scene_synchronizer.get_tick_speedup_notification_delay();
+float GdSceneSynchronizer::get_netstats_update_interval_sec() const {
+	return scene_synchronizer.get_netstats_update_interval_sec();
 }
 
-void GdSceneSynchronizer::set_tick_acceleration(double p_acceleration) {
-	scene_synchronizer.set_tick_acceleration(p_acceleration);
+void GdSceneSynchronizer::set_max_fps_acceleration_percentage(double p_acceleration) {
+	scene_synchronizer.set_max_fps_acceleration_percentage(p_acceleration);
 }
 
-double GdSceneSynchronizer::get_tick_acceleration() const {
-	return scene_synchronizer.get_tick_acceleration();
+double GdSceneSynchronizer::get_max_fps_acceleration_percentage() const {
+	return scene_synchronizer.get_max_fps_acceleration_percentage();
 }
 
 void GdSceneSynchronizer::set_max_trickled_nodes_per_update(int p_rate) {
@@ -610,8 +613,16 @@ void GdSceneSynchronizer::setup_trickled_sync(Node *p_node, const Callable &p_co
 			});
 }
 
-int GdSceneSynchronizer::get_peer_latency(int p_peer) const {
-	return scene_synchronizer.get_peer_latency(p_peer);
+int GdSceneSynchronizer::get_peer_latency_ms(int p_peer) const {
+	return scene_synchronizer.get_peer_latency_ms(p_peer);
+}
+
+int GdSceneSynchronizer::get_peer_latency_jitter_ms(int p_peer) const {
+	return scene_synchronizer.get_peer_latency_jitter_ms(p_peer);
+}
+
+float GdSceneSynchronizer::get_peer_packet_loss_percentage(int p_peer) const {
+	return scene_synchronizer.get_peer_packet_loss_percentage(p_peer);
 }
 
 bool GdSceneSynchronizer::client_is_object_simulating(Node *p_node) const {

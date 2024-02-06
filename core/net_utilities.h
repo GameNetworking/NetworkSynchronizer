@@ -46,6 +46,13 @@
 
 NS_NAMESPACE_BEGIN
 
+namespace MathFunc {
+template <typename F>
+F lerp(F a, F b, F alpha) {
+	return a + alpha * (b - a);
+}
+} //namespace MathFunc
+
 namespace MapFunc {
 
 template <class K, class V>
@@ -254,174 +261,6 @@ struct ListenerHandle {
 };
 inline static const ListenerHandle nulllistenerhandle = { 0 };
 
-template <class T>
-class StatisticalRingBuffer {
-	LocalVector<T> data;
-	uint32_t index = 0;
-
-	T avg_sum = 0;
-
-public:
-	StatisticalRingBuffer(uint32_t p_size, T p_default);
-	void resize(uint32_t p_size, T p_default);
-	void reset(T p_default);
-
-	void push(T p_value);
-
-	/// Maximum value.
-	T max() const;
-
-	/// Minumum value.
-	T min(uint32_t p_consider_last = UINT32_MAX) const;
-
-	/// Median value.
-	T average() const;
-	T average_rounded() const;
-
-	T get_deviation(T p_mean) const;
-
-private:
-	// Used to avoid accumulate precision loss.
-	void force_recompute_avg_sum();
-};
-
-template <class T>
-StatisticalRingBuffer<T>::StatisticalRingBuffer(uint32_t p_size, T p_default) {
-	resize(p_size, p_default);
-}
-
-template <class T>
-void StatisticalRingBuffer<T>::resize(uint32_t p_size, T p_default) {
-	data.resize(p_size);
-
-	reset(p_default);
-}
-
-template <class T>
-void StatisticalRingBuffer<T>::reset(T p_default) {
-	for (uint32_t i = 0; i < data.size(); i += 1) {
-		data[i] = p_default;
-	}
-
-	index = 0;
-	force_recompute_avg_sum();
-}
-
-template <class T>
-void StatisticalRingBuffer<T>::push(T p_value) {
-	avg_sum -= data[index];
-	avg_sum += p_value;
-	data[index] = p_value;
-
-	index = (index + 1) % data.size();
-	if (index == 0) {
-		// Each cycle recompute the sum.
-		force_recompute_avg_sum();
-	}
-}
-
-template <class T>
-T StatisticalRingBuffer<T>::max() const {
-	CRASH_COND(data.size() == 0);
-
-	T a = data[0];
-	for (uint32_t i = 1; i < data.size(); i += 1) {
-		a = MAX(a, data[i]);
-	}
-	return a;
-}
-
-template <class T>
-T StatisticalRingBuffer<T>::min(uint32_t p_consider_last) const {
-	CRASH_COND(data.size() == 0);
-	p_consider_last = MIN(p_consider_last, data.size());
-
-	const uint32_t youngest = (index == 0 ? data.size() : index) - 1;
-	const uint32_t oldest = (index + (data.size() - p_consider_last)) % data.size();
-
-	T a = data[oldest];
-
-	uint32_t i = oldest;
-	do {
-		i = (i + 1) % data.size();
-		a = MIN(a, data[i]);
-	} while (i != youngest);
-
-	return a;
-}
-
-template <class T>
-T StatisticalRingBuffer<T>::average() const {
-	CRASH_COND(data.size() == 0);
-
-#ifdef DEBUG_ENABLED
-	T a = data[0];
-	for (uint32_t i = 1; i < data.size(); i += 1) {
-		a += data[i];
-	}
-	a = a / T(data.size());
-	T b = avg_sum / T(data.size());
-	const T difference = a > b ? a - b : b - a;
-	ERR_FAIL_COND_V_MSG(difference > (std::numeric_limits<T>::epsilon() * 4.0), b, "The `avg_sum` accumulated a sensible precision loss: " + rtos(difference));
-	return b;
-#else
-	// Divide it by the buffer size is wrong when the buffer is not yet fully
-	// initialized. However, this is wrong just for the first run.
-	// I'm leaving it as is because solve it mean do more operations. All this
-	// just to get the right value for the first few frames.
-	return avg_sum / T(data.size());
-#endif
-}
-
-template <class T>
-T StatisticalRingBuffer<T>::average_rounded() const {
-	CRASH_COND(data.size() == 0);
-
-#ifdef DEBUG_ENABLED
-	T a = data[0];
-	for (uint32_t i = 1; i < data.size(); i += 1) {
-		a += data[i];
-	}
-	a = round(double(a) / double(data.size()));
-	T b = round(double(avg_sum) / double(data.size()));
-	const T difference = a > b ? a - b : b - a;
-	ERR_FAIL_COND_V_MSG(difference > (std::numeric_limits<T>::epsilon() * 4.0), b, "The `avg_sum` accumulated a sensible precision loss: " + rtos(difference));
-	return b;
-#else
-	// Divide it by the buffer size is wrong when the buffer is not yet fully
-	// initialized. However, this is wrong just for the first run.
-	// I'm leaving it as is because solve it mean do more operations. All this
-	// just to get the right value for the first few frames.
-	return round(double(avg_sum) / double(data.size()));
-#endif
-}
-
-template <class T>
-T StatisticalRingBuffer<T>::get_deviation(T p_mean) const {
-	if (data.size() <= 0) {
-		return T();
-	}
-
-	double r = 0;
-	for (uint32_t i = 0; i < data.size(); i += 1) {
-		r += pow(double(data[i]) - double(p_mean), 2.0);
-	}
-
-	return sqrt(r / double(data.size()));
-}
-
-template <class T>
-void StatisticalRingBuffer<T>::force_recompute_avg_sum() {
-#ifdef DEBUG_ENABLED
-	// This class is not supposed to be used with 0 size.
-	CRASH_COND(data.size() <= 0);
-#endif
-	avg_sum = data[0];
-	for (uint32_t i = 1; i < data.size(); i += 1) {
-		avg_sum += data[i];
-	}
-}
-
 // These data are used by the server and are never synchronized.
 struct PeerAuthorityData {
 	// Used to know if the peer is enabled.
@@ -451,7 +290,7 @@ private:
 	///   100ms; the jitter will be 0.
 	/// - If the time difference is either 150ms or 100ms, the jitter will tend
 	///   towards 50ms.
-	float average_jitter_in_ms = 0.0;
+	float latency_jitter_ms = 0.0;
 
 public:
 	// In ms
@@ -463,11 +302,11 @@ public:
 	void set_compressed_latency(std::uint8_t p_compressed_latency) { compressed_latency = p_compressed_latency; }
 	std::uint8_t get_compressed_latency() const { return compressed_latency; }
 
-	void set_out_packet_loss_percentage(float p_packet_loss) { out_packet_loss_percentage = p_packet_loss; }
+	void set_out_packet_loss_percentage(float p_packet_loss) { out_packet_loss_percentage = std::clamp(p_packet_loss, 0.0f, 1.0f); }
 	float get_out_packet_loss_percentage() const { return out_packet_loss_percentage; }
 
-	void set_average_jitter_in_ms(float p_jitter_ms) { average_jitter_in_ms = p_jitter_ms; }
-	float get_average_jitter_in_ms() const { return average_jitter_in_ms; }
+	void set_latency_jitter_ms(float p_jitter_ms) { latency_jitter_ms = p_jitter_ms; }
+	float get_latency_jitter_ms() const { return latency_jitter_ms; }
 
 	void make_controller();
 	PeerNetworkedController *get_controller() {
@@ -485,8 +324,11 @@ struct PeerServerData {
 	// For new peers a full snapshot is needed.
 	bool need_full_snapshot = true;
 
-	// How much time (seconds) from the latest net_stats update.
-	float netstats_update_sec = 0.0;
+	// How much time (seconds) from the latest latency update sent via snapshot.
+	float latency_update_via_snapshot_sec = 0.0;
+
+	// How much time (seconds) from the latest update sent to the client.
+	float netstats_peer_update_sec = 0.0;
 };
 
 struct SyncGroup {
