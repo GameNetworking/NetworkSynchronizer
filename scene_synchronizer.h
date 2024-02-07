@@ -171,7 +171,6 @@ protected:
 
 	// Controller RPCs.
 	RpcHandle<int, const Vector<uint8_t> &> rpc_handle_receive_input;
-	RpcHandle<int, bool> rpc_handle_set_server_controlled;
 
 	/// Fixed rate at which the NetSync has to produce frames.
 	int frames_per_seconds = 60;
@@ -389,10 +388,8 @@ public: // ---------------------------------------------------------------- RPCs
 	void rpc_notify_netstats(DataBuffer &p_data);
 
 	void call_rpc_receive_inputs(int p_recipient, int p_peer, const Vector<uint8_t> &p_data);
-	void call_rpc_set_server_controlled(int p_recipient, int p_peer, bool p_server_controlled);
 
 	void rpc_receive_inputs(int p_peer, const Vector<uint8_t> &p_data);
-	void rpc_set_server_controlled(int p_peer, bool p_server_controlled);
 
 public: // ---------------------------------------------------------------- APIs
 	void set_settings(Settings &p_settings);
@@ -525,8 +522,6 @@ public: // ---------------------------------------------------------------- APIs
 	void uninit_synchronizer();
 	void reset_synchronizer_mode();
 	void clear();
-
-	void notify_controller_control_mode_changed(PeerNetworkedController *controller);
 
 	void clear_peers();
 

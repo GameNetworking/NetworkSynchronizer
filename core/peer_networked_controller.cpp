@@ -61,60 +61,6 @@ const std::vector<ObjectData *> &PeerNetworkedController::get_sorted_controllabl
 	return _sorted_controllable_objects;
 }
 
-void PeerNetworkedController::set_server_controlled(bool p_server_controlled) {
-	if (server_controlled == p_server_controlled) {
-		// It's the same, nothing to do.
-		return;
-	}
-
-	if (is_networking_initialized()) {
-		if (is_server_controller()) {
-			// This is the server, let's start the procedure to switch controll mode.
-
-#ifdef DEBUG_ENABLED
-			ASSERT_COND_MSG(scene_synchronizer, "When the `NetworkedController` is a server, the `scene_synchronizer` is always set.");
-#endif
-
-			// First update the variable.
-			server_controlled = p_server_controlled;
-
-			// Notify the `SceneSynchronizer` about it.
-			scene_synchronizer->notify_controller_control_mode_changed(this);
-
-			// Tell the client to do the switch too.
-			if (authority_peer != 1) {
-				scene_synchronizer->call_rpc_set_server_controlled(
-						authority_peer,
-						authority_peer,
-						server_controlled);
-			} else {
-				SceneSynchronizerDebugger::singleton()->print(WARNING, "The peer_controller is owned by the server, there is no client that can control it; please assign the proper authority.", "CONTROLLER-" + std::to_string(authority_peer));
-			}
-
-		} else if (is_player_controller() || is_doll_controller()) {
-			SceneSynchronizerDebugger::singleton()->print(WARNING, "You should never call the function `set_server_controlled` on the client, this has an effect only if called on the server.", "CONTROLLER-" + std::to_string(authority_peer));
-
-		} else if (is_nonet_controller()) {
-			// There is no networking, the same instance is both the client and the
-			// server already, nothing to do.
-			server_controlled = p_server_controlled;
-
-		} else {
-#ifdef DEBUG_ENABLED
-			ASSERT_NO_ENTRY_MSG("Unreachable, all the cases are handled.");
-#endif
-		}
-	} else {
-		// This called during initialization or on the editor, nothing special just
-		// set it.
-		server_controlled = p_server_controlled;
-	}
-}
-
-bool PeerNetworkedController::get_server_controlled() const {
-	return server_controlled;
-}
-
 void PeerNetworkedController::set_max_redundant_inputs(int p_max) {
 	max_redundant_inputs = p_max;
 }
@@ -303,14 +249,6 @@ void PeerNetworkedController::notify_receive_inputs(const Vector<uint8_t> &p_dat
 	if (controller) {
 		controller->receive_inputs(p_data);
 	}
-}
-
-void PeerNetworkedController::notify_set_server_controlled(bool p_server_controlled) {
-	ENSURE_MSG(is_player_controller(), "This function is supposed to be called on the server.");
-	server_controlled = p_server_controlled;
-
-	ENSURE_MSG(scene_synchronizer, "The server controller is supposed to be set on the client at this point.");
-	scene_synchronizer->notify_controller_control_mode_changed(this);
 }
 
 void PeerNetworkedController::player_set_has_new_input(bool p_has) {
@@ -793,7 +731,7 @@ AutonomousServerController::AutonomousServerController(
 }
 
 bool AutonomousServerController::receive_inputs(const Vector<uint8_t> &p_data) {
-	SceneSynchronizerDebugger::singleton()->print(WARNING, "`receive_input` called on the `AutonomousServerController` - If this is called just after `set_server_controlled(true)` is called, you can ignore this warning, as the client is not aware about the switch for a really small window after this function call.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+	SceneSynchronizerDebugger::singleton()->print(ERROR, "`receive_input` called on the `AutonomousServerController` it should not happen by design. This is a bug.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 	return false;
 }
 

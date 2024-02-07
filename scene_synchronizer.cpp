@@ -108,12 +108,6 @@ void SceneSynchronizerBase::setup(SynchronizerManager &p_synchronizer_interface)
 					false,
 					false);
 
-	rpc_handle_set_server_controlled =
-			network_interface->rpc_config(
-					std::function<void(int, bool)>(std::bind(&SceneSynchronizerBase::rpc_set_server_controlled, this, std::placeholders::_1, std::placeholders::_2)),
-					true,
-					false);
-
 	clear();
 	reset_synchronizer_mode();
 
@@ -151,7 +145,6 @@ void SceneSynchronizerBase::conclude() {
 	rpc_handler_trickled_sync_data.reset();
 	rpc_handle_notify_netstats.reset();
 	rpc_handle_receive_input.reset();
-	rpc_handle_set_server_controlled.reset();
 }
 
 void SceneSynchronizerBase::process(double p_delta) {
@@ -1129,12 +1122,6 @@ void SceneSynchronizerBase::clear() {
 	process_functions__clear();
 }
 
-void SceneSynchronizerBase::notify_controller_control_mode_changed(PeerNetworkedController *controller) {
-	if (controller) {
-		reset_controller(*controller);
-	}
-}
-
 void SceneSynchronizerBase::rpc_receive_state(DataBuffer &p_snapshot) {
 	ENSURE_MSG(is_client(), "Only clients are suposed to receive the server snapshot.");
 	static_cast<ClientSynchronizer *>(synchronizer)->receive_snapshot(p_snapshot);
@@ -1264,25 +1251,10 @@ void SceneSynchronizerBase::call_rpc_receive_inputs(int p_recipient, int p_peer,
 			p_data);
 }
 
-void SceneSynchronizerBase::call_rpc_set_server_controlled(int p_recipient, int p_peer, bool p_server_controlled) {
-	rpc_handle_set_server_controlled.rpc(
-			get_network_interface(),
-			p_recipient,
-			p_peer,
-			p_server_controlled);
-}
-
 void SceneSynchronizerBase::rpc_receive_inputs(int p_peer, const Vector<uint8_t> &p_data) {
 	PeerData *pd = MapFunc::get_or_null(peer_data, p_peer);
 	if (pd && pd->get_controller()) {
 		pd->get_controller()->notify_receive_inputs(p_data);
-	}
-}
-
-void SceneSynchronizerBase::rpc_set_server_controlled(int p_peer, bool p_server_controlled) {
-	PeerData *pd = MapFunc::get_or_null(peer_data, p_peer);
-	if (pd && pd->get_controller()) {
-		pd->get_controller()->notify_set_server_controlled(p_server_controlled);
 	}
 }
 
@@ -1653,17 +1625,22 @@ void SceneSynchronizerBase::reset_controller(PeerNetworkedController &p_controll
 	if (!network_interface->is_local_peer_networked()) {
 		p_controller.controller_type = PeerNetworkedController::CONTROLLER_TYPE_NONETWORK;
 		p_controller.controller = memnew(NoNetController(&p_controller));
+
 	} else if (network_interface->is_local_peer_server()) {
-		if (p_controller.get_server_controlled()) {
+		if (p_controller.get_authority_peer() == get_network_interface().get_server_peer()) {
+			// This is the server controller that is used to control the BOTs / NPCs.
 			p_controller.controller_type = PeerNetworkedController::CONTROLLER_TYPE_AUTONOMOUS_SERVER;
 			p_controller.controller = memnew(AutonomousServerController(&p_controller));
+
 		} else {
 			p_controller.controller_type = PeerNetworkedController::CONTROLLER_TYPE_SERVER;
 			p_controller.controller = memnew(ServerController(&p_controller));
 		}
-	} else if (get_network_interface().fetch_local_peer_id() == p_controller.get_authority_peer() && p_controller.get_server_controlled() == false) {
+
+	} else if (get_network_interface().fetch_local_peer_id() == p_controller.get_authority_peer()) {
 		p_controller.controller_type = PeerNetworkedController::CONTROLLER_TYPE_PLAYER;
 		p_controller.controller = memnew(PlayerController(&p_controller));
+
 	} else {
 		p_controller.controller_type = PeerNetworkedController::CONTROLLER_TYPE_DOLL;
 		p_controller.controller = memnew(DollController(&p_controller));

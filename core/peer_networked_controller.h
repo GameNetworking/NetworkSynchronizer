@@ -58,18 +58,6 @@ public:
 	};
 
 private:
-	/// When `true`, this controller is controlled by the server: All the clients
-	/// see it as a `Doll`.
-	/// This property is really useful to implement bots (Character controlled by
-	/// the AI).
-	///
-	/// NOTICE: Generally you specify this property on the editor, in addition
-	/// it's possible to change this at runtime: this will cause the server to
-	/// notify all the clients; so the switch is not immediate. This feature can be
-	/// used to switch the Character possession between the AI (Server) and
-	/// PlayerController (Client) without the need to re-instantiate the Character.
-	bool server_controlled = false;
-
 	/// Amount of time an inputs is re-sent to each peer.
 	/// Resenging inputs is necessary because the packets may be lost since as
 	/// they are sent in an unreliable way.
@@ -107,9 +95,6 @@ public: // ---------------------------------------------------------------- APIs
 	void notify_controllable_objects_changed();
 
 	const std::vector<ObjectData *> &get_sorted_controllable_objects();
-
-	void set_server_controlled(bool p_server_controlled);
-	bool get_server_controlled() const;
 
 	void set_max_redundant_inputs(int p_max);
 	int get_max_redundant_inputs() const;
@@ -171,7 +156,6 @@ public:
 	void controllable_process(double p_delta, DataBuffer &p_data_buffer);
 
 	void notify_receive_inputs(const Vector<uint8_t> &p_data);
-	void notify_set_server_controlled(bool p_server_controlled);
 
 private:
 	void player_set_has_new_input(bool p_has);
