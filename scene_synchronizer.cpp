@@ -3667,7 +3667,7 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
 
 				// Extract the InputID for the controller processed as Authority by this client.
-				const FrameIndex authority_frame_index = MapFunc::at(p_peers_frames_index, pd->player_controller->get_authority_peer(), FrameIndex::NONE);
+				const FrameIndex authority_frame_index = pd->player_controller ? MapFunc::at(p_peers_frames_index, pd->player_controller->get_authority_peer(), FrameIndex::NONE) : FrameIndex::NONE;
 
 				// Store it.
 				pd->snapshot.input_id = authority_frame_index;
