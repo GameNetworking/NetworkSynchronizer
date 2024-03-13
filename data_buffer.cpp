@@ -40,8 +40,8 @@
 #define DEB_ENABLE debug_enabled = was_debug_enabled;
 
 #else
-#define DEB_WRITE(dt, compression, input)
-#define DEB_READ(dt, compression, input)
+#define DEB_WRITE(dt, compression, input) (void)(input);
+#define DEB_READ(dt, compression, input) (void)(input);
 #define DEB_DISABLE
 #define DEB_ENABLE
 #endif
