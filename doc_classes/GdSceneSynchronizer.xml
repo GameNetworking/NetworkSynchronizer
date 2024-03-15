@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<class name="GdSceneSynchronizer" inherits="Node" version="4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+<class name="GdSceneSynchronizer" inherits="Node" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
 	<brief_description>
 	</brief_description>
 	<description>
@@ -7,7 +7,6 @@
 		This plugin uses a synchronization model that works best with realtime games and allows to network complex scenes without introducing any input lag. This class supports two networking methods, where each is complementary to the other, offering the best networking method for each situation.
 		- [b]METHOD 1. The simulation:[/b] This is the best networking method to synchronize a character (or any node which affects the gameplay directly) without introducing any input lag. This method is the most expensive in terms of bandwidth and CPU usage.
 		- [b]METHOD 2. The trickling:[/b] This is the best networking method to synchronize background objects or elements that doesn't immediately (or directly) affect the player's gameplay. This method is cheap on the bandwidth and CPU usage, at the cost of latency and input lag.
-		
 		[b]Prerequisites[/b]
 		The prerequisite to use this plugin is to have the game peers connection, map loading, and the character spawning. Follow this to know how to implement it: [https://docs.godotengine.org/en/stable/tutorials/networking/high_level_multiplayer.html]
 		Then, you need to override the GdSceneSynchronizer and make that class a singleton. From now on we will refer to it as [i]GameSceneSync[/i] In this way, you will be able to add functionalities, specific to your game, on top of the GdSceneSynchronizer (like the object spawning).
@@ -16,12 +15,12 @@
 		[b]Setup the synchronization[/b]
 		The really first thing to do is to implement the character. Assuming your character is a scene whose first node is a [RigidBody] in kinematic mode. Open the script and search the [code]_ready()[/code] function or add it. Then add the following code:
 		[codeblock]
-		func _ready() -> void:
+		func _ready() -&gt; void:
 		    # Register the node as synchronized. This will create a NetId and call `_setup_synchronizer`.
 		    GameSceneSync.register_node(self)
 
 
-		func _setup_synchronizer(local_id) -> void:
+		func _setup_synchronizer(local_id) -&gt; void:
 		    # This function is called by the NetworkSynchronizer to setup the node synchronization model.
 		    # The function `setup_controller` is used to specify the functions that will control the character.
 		    GameSceneSync.setup_controller(self, get_multiplayer_authority(), _collect_inputs, _count_input_size, _are_inputs_different, _controller_process)
@@ -31,7 +30,7 @@
 
 
 		# ------------------------------------------------------------------- Networking
-		func _collect_inputs(delta: float, buffer: DataBuffer) -> void:
+		func _collect_inputs(delta: float, buffer: DataBuffer) -&gt; void:
 		    # This function is called by the NetworkSynchronizer each frame, only on the client side, to collect the player's input into the buffer.
 		    var input_direction := Vector3()
 		    var wants_to_jump: bool = false
@@ -51,7 +50,7 @@
 		    buffer.add_bool(wants_to_jump)
 
 
-		func _count_input_size(inputs: DataBuffer) -> int:
+		func _count_input_size(inputs: DataBuffer) -&gt; int:
 		    # This function is called by the NetworkSynchronizer to read the buffer size.
 		    # To keep the buffer as small as possible, to save bandwidth, the buffer size is never stored.
 		    var size = 0
@@ -60,7 +59,7 @@
 		    return size
 
 
-		func _are_inputs_different(inputs_A: DataBuffer, inputs_B: DataBuffer) -> bool:
+		func _are_inputs_different(inputs_A: DataBuffer, inputs_B: DataBuffer) -&gt; bool:
 		    # The NetworkSynchronizer will call this function to compare two input buffers.
 		    if inputs_A.size != inputs_B.size:
 		        return true
@@ -78,7 +77,7 @@
 		    return false
 
 
-		func _controller_process(delta: float, buffer: DataBuffer) -> void:
+		func _controller_process(delta: float, buffer: DataBuffer) -&gt; void:
 		    # This function is executed by the NetworkSynchronizer each frame, on the clients and the server, to advance the simulation.
 		    # The buffer contains the player's input that you can read as follows.
 		    var input_direction: Vector3 = buffer.read_vector3()
@@ -155,6 +154,11 @@
 			<description>
 			</description>
 		</method>
+		<method name="get_frames_per_seconds" qualifiers="const">
+			<return type="int" />
+			<description>
+			</description>
+		</method>
 		<method name="get_max_trickled_nodes_per_update" qualifiers="const">
 			<return type="int" />
 			<description>
@@ -173,8 +177,32 @@
 			<description>
 			</description>
 		</method>
-		<method name="get_peer_networking_enable" qualifiers="const">
+		<method name="get_peer_latency" qualifiers="const">
+			<return type="int" />
+			<param index="0" name="peer" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="get_peer_latency_jitter_ms" qualifiers="const">
+			<return type="int" />
+			<param index="0" name="peer" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="get_peer_latency_ms" qualifiers="const">
+			<return type="int" />
+			<param index="0" name="peer" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="get_peer_networking_enabled" qualifiers="const">
 			<return type="bool" />
+			<param index="0" name="peer" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="get_peer_packet_loss_percentage" qualifiers="const">
+			<return type="float" />
 			<param index="0" name="peer" type="int" />
 			<description>
 			</description>
@@ -221,6 +249,11 @@
 			<description>
 			</description>
 		</method>
+		<method name="local_controller_get_controlled_nodes" qualifiers="const">
+			<return type="Array" />
+			<description>
+			</description>
+		</method>
 		<method name="register_node">
 			<return type="int" />
 			<param index="0" name="node" type="Node" />
@@ -253,6 +286,12 @@
 			<description>
 			</description>
 		</method>
+		<method name="set_frames_per_seconds">
+			<return type="void" />
+			<param index="0" name="fps" type="int" />
+			<description>
+			</description>
+		</method>
 		<method name="set_max_trickled_nodes_per_update">
 			<return type="void" />
 			<param index="0" name="rate" type="int" />
@@ -271,6 +310,17 @@
 			<param index="0" name="node" type="Node" />
 			<param index="1" name="variable" type="StringName" />
 			<param index="2" name="skip_rewinding" type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="setup_controller">
+			<return type="void" />
+			<param index="0" name="node" type="Node" />
+			<param index="1" name="peer" type="int" />
+			<param index="2" name="collect_input_func" type="Callable" />
+			<param index="3" name="count_input_size_func" type="Callable" />
+			<param index="4" name="are_inputs_different_func" type="Callable" />
+			<param index="5" name="proces_func" type="Callable" />
 			<description>
 			</description>
 		</method>
@@ -362,9 +412,13 @@
 		</method>
 	</methods>
 	<members>
-		<member name="nodes_relevancy_update_time" type="float" setter="set_nodes_relevancy_update_time" getter="get_nodes_relevancy_update_time" default="0.5">
-		</member>
 		<member name="frame_confirmation_timespan" type="float" setter="set_frame_confirmation_timespan" getter="get_frame_confirmation_timespan" default="1.0">
+		</member>
+		<member name="max_fps_acceleration_percentage" type="float" setter="set_max_fps_acceleration_percentage" getter="get_max_fps_acceleration_percentage" default="0.2">
+		</member>
+		<member name="netstats_update_interval_sec" type="float" setter="set_netstats_update_interval_sec" getter="get_netstats_update_interval_sec" default="0.6">
+		</member>
+		<member name="nodes_relevancy_update_time" type="float" setter="set_nodes_relevancy_update_time" getter="get_nodes_relevancy_update_time" default="0.5">
 		</member>
 	</members>
 	<signals>
@@ -378,11 +432,9 @@
 			</description>
 		</signal>
 		<signal name="peer_status_updated">
-			<param index="0" name="controlled_node" type="Object" />
-			<param index="1" name="node_data_id" type="int" />
-			<param index="2" name="peer" type="int" />
-			<param index="3" name="connected" type="bool" />
-			<param index="4" name="enabled" type="bool" />
+			<param index="0" name="peer" type="int" />
+			<param index="1" name="connected" type="bool" />
+			<param index="2" name="enabled" type="bool" />
 			<description>
 			</description>
 		</signal>
@@ -395,6 +447,7 @@
 		</signal>
 		<signal name="state_validated">
 			<param index="0" name="input_id" type="int" />
+			<param index="1" name="desync_detected" type="bool" />
 			<description>
 			</description>
 		</signal>
