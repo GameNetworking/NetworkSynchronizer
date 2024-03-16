@@ -183,13 +183,13 @@ ObjectNetId ObjectDataStorage::generate_net_id() const {
 	for (auto od : objects_data_organized_by_netid) {
 		if (!od) {
 			// This position is empty, can be used as NetId.
-			return { i };
+			return ObjectNetId{{ i }};
 		}
 		i++;
 	}
 
 	// Create a new NetId.
-	return { uint32_t(objects_data_organized_by_netid.size()) };
+	return ObjectNetId{{ uint32_t(objects_data_organized_by_netid.size()) }};
 }
 
 bool ObjectDataStorage::is_empty() const {

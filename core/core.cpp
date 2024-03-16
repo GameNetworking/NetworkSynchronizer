@@ -10,13 +10,13 @@ std::string operator+(const char *p_chr, const std::string &p_str) {
 
 NS_NAMESPACE_BEGIN
 
-const FrameIndex FrameIndex::NONE = { std::numeric_limits<std::uint32_t>::max() };
-const SyncGroupId SyncGroupId::NONE = { std::numeric_limits<std::uint32_t>::max() };
-const SyncGroupId SyncGroupId::GLOBAL = { 0 };
-const VarId VarId::NONE = { std::numeric_limits<uint32_t>::max() };
-const ObjectLocalId ObjectLocalId::NONE = { std::numeric_limits<uint32_t>::max() };
-const ObjectNetId ObjectNetId::NONE = { std::numeric_limits<uint32_t>::max() };
-const ObjectHandle ObjectHandle::NONE = { 0 };
+const FrameIndex FrameIndex::NONE = FrameIndex{{ std::numeric_limits<std::uint32_t>::max() }};
+const SyncGroupId SyncGroupId::NONE = SyncGroupId{{ std::numeric_limits<std::uint32_t>::max() }};
+const SyncGroupId SyncGroupId::GLOBAL = SyncGroupId{{ 0 }};
+const VarId VarId::NONE = VarId{{ std::numeric_limits<uint32_t>::max() }};
+const ObjectLocalId ObjectLocalId::NONE = ObjectLocalId{{ std::numeric_limits<uint32_t>::max() }};
+const ObjectNetId ObjectNetId::NONE = ObjectNetId{{ std::numeric_limits<uint32_t>::max() }};
+const ObjectHandle ObjectHandle::NONE = ObjectHandle{{ 0 }};
 
 static const char *ProcessPhaseName[PROCESS_PHASE_COUNT] = {
 	"EARLY PROCESS",

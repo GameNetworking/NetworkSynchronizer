@@ -930,7 +930,7 @@ public:
 	}
 
 	static ObjectHandle to_handle(const BaseType *p_app_object) {
-		return { reinterpret_cast<std::intptr_t>(p_app_object) };
+		return ObjectHandle{{ reinterpret_cast<std::intptr_t>(p_app_object) }};
 	}
 
 	static BaseType *from_handle(ObjectHandle p_app_object_handle) {

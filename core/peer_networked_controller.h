@@ -332,7 +332,7 @@ public:
 	FrameIndex last_doll_validated_input = FrameIndex::NONE;
 	// The lastest `FrameIndex` on which the server / doll snapshots were compared.
 	FrameIndex last_doll_compared_input = FrameIndex::NONE;
-	FrameIndex queued_frame_index_to_process = FrameIndex{ 0 };
+	FrameIndex queued_frame_index_to_process = FrameIndex{{ 0 }};
 	int queued_instant_to_process = -1;
 
 	// Contains the controlled nodes frames snapshot.
