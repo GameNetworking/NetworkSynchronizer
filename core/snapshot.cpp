@@ -63,7 +63,7 @@ bool compare_vars(
 					r_no_rewind_recover->object_vars.data()[p_object_data.get_net_id().id].data()[var_index].copy(s_vars[var_index]);
 					// Sets `input_id` to 0 to signal that this snapshot contains
 					// no-rewind data.
-					r_no_rewind_recover->input_id = NS::FrameIndex{ 0 };
+					r_no_rewind_recover->input_id = NS::FrameIndex{{ 0 }};
 				}
 
 				if (r_differences_info) {
@@ -197,7 +197,7 @@ bool NS::Snapshot::compare(
 	}
 
 	// TODO instead to iterate over all the object_vars, iterate over the simulated. This will make it save a bunch of time.
-	for (ObjectNetId net_object_id = { 0 }; net_object_id < ObjectNetId{ uint32_t(p_snap_A.object_vars.size()) }; net_object_id += 1) {
+	for (ObjectNetId net_object_id = ObjectNetId{{ 0 }}; net_object_id < ObjectNetId{{ uint32_t(p_snap_A.object_vars.size()) }}; net_object_id += 1) {
 		const NS::ObjectData *rew_object_data = scene_synchronizer.get_object_data(net_object_id);
 		if (rew_object_data == nullptr || rew_object_data->realtime_sync_enabled_on_client == false) {
 			continue;
@@ -212,7 +212,7 @@ bool NS::Snapshot::compare(
 		}
 
 		bool are_nodes_different = false;
-		if (net_object_id >= ObjectNetId{ uint32_t(p_snap_B.object_vars.size()) }) {
+		if (net_object_id >= ObjectNetId{{ uint32_t(p_snap_B.object_vars.size()) }}) {
 			if (r_differences_info) {
 				r_differences_info->push_back("Difference detected: The B snapshot doesn't contain this node: " + rew_object_data->object_name);
 			}

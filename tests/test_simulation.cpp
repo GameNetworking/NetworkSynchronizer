@@ -235,7 +235,7 @@ struct TestSimulationBase {
 	TSLocalNetworkedController *controlled_obj_p1 = nullptr;
 	NS::PeerNetworkedController *controller_p1 = nullptr;
 
-	NS::FrameIndex process_until_frame = { 300 };
+	NS::FrameIndex process_until_frame = NS::FrameIndex{{ 300 }};
 	int process_until_frame_timeout = 20;
 
 private:
@@ -372,13 +372,13 @@ public:
 /// It manually de-sync the server by teleporting the controller, and then
 /// make sure the client was immediately re-sync with a single rewinding action.
 struct TestSimulationWithRewind : public TestSimulationBase {
-	NS::FrameIndex reset_position_on_frame = { 100 };
+	NS::FrameIndex reset_position_on_frame = NS::FrameIndex{{ 100 }};
 	float notify_state_interval = 0.0;
 
 public:
 	std::vector<NS::FrameIndex> client_rewinded_frames;
 	// The ID of snapshot sent by the server.
-	NS::FrameIndex correction_snapshot_sent = { 0 };
+	NS::FrameIndex correction_snapshot_sent = NS::FrameIndex{{ 0 }};
 
 	TestSimulationWithRewind(float p_notify_state_interval) :
 			notify_state_interval(p_notify_state_interval) {}

@@ -227,14 +227,14 @@ void InputNetworkEncoder::reset_inputs_to_defaults(LocalVector<Variant> &r_input
 }
 
 bool compare(const Vector2 &p_first, const Vector2 &p_second, float p_tolerance) {
-	return Math::is_equal_approx(p_first.x, p_second.x, p_tolerance) &&
-			Math::is_equal_approx(p_first.y, p_second.y, p_tolerance);
+	return Math::is_equal_approx((float)p_first.x, (float)p_second.x, p_tolerance) &&
+			Math::is_equal_approx((float)p_first.y, (float)p_second.y, p_tolerance);
 }
 
 bool compare(const Vector3 &p_first, const Vector3 &p_second, float p_tolerance) {
-	return Math::is_equal_approx(p_first.x, p_second.x, p_tolerance) &&
-			Math::is_equal_approx(p_first.y, p_second.y, p_tolerance) &&
-			Math::is_equal_approx(p_first.z, p_second.z, p_tolerance);
+	return Math::is_equal_approx((float)p_first.x, (float)p_second.x, p_tolerance) &&
+			Math::is_equal_approx((float)p_first.y, (float)p_second.y, p_tolerance) &&
+			Math::is_equal_approx((float)p_first.z, (float)p_second.z, p_tolerance);
 }
 
 bool compare(const Variant &p_first, const Variant &p_second, float p_tolerance) {
@@ -245,7 +245,7 @@ bool compare(const Variant &p_first, const Variant &p_second, float p_tolerance)
 	// Custom evaluation methods
 	switch (p_first.get_type()) {
 		case Variant::FLOAT: {
-			return Math::is_equal_approx(p_first, p_second, p_tolerance);
+			return Math::is_equal_approx((float)p_first, (float)p_second, p_tolerance);
 		}
 		case Variant::VECTOR2: {
 			return compare(Vector2(p_first), Vector2(p_second), p_tolerance);
@@ -284,7 +284,7 @@ bool compare(const Variant &p_first, const Variant &p_second, float p_tolerance)
 		case Variant::PLANE: {
 			const Plane a(p_first);
 			const Plane b(p_second);
-			if (Math::is_equal_approx(a.d, b.d, p_tolerance)) {
+			if (Math::is_equal_approx((float)a.d, (float)b.d, p_tolerance)) {
 				if (compare(a.normal, b.normal, p_tolerance)) {
 					return true;
 				}
@@ -403,7 +403,7 @@ bool InputNetworkEncoder::are_different(DataBuffer &p_buffer_A, DataBuffer &p_bu
 					are_equals = Math::is_equal_approx(p_buffer_A.read_int(info.compression_level), p_buffer_B.read_int(info.compression_level), info.comparison_floating_point_precision);
 					break;
 				case DataBuffer::DATA_TYPE_REAL:
-					are_equals = Math::is_equal_approx(static_cast<real_t>(p_buffer_A.read_real(info.compression_level)), static_cast<real_t>(p_buffer_B.read_real(info.compression_level)), info.comparison_floating_point_precision);
+					are_equals = Math::is_equal_approx(static_cast<real_t>(p_buffer_A.read_real(info.compression_level)), static_cast<real_t>(p_buffer_B.read_real(info.compression_level)), (real_t)info.comparison_floating_point_precision);
 					break;
 				case DataBuffer::DATA_TYPE_POSITIVE_UNIT_REAL:
 					are_equals = Math::is_equal_approx(p_buffer_A.read_positive_unit_real(info.compression_level), p_buffer_B.read_positive_unit_real(info.compression_level), info.comparison_floating_point_precision);

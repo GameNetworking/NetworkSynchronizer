@@ -31,7 +31,7 @@
 #ifndef TEST_NETSYNC_BIT_ARRAY_H
 #define TEST_NETSYNC_BIT_ARRAY_H
 
-#include "../bit_array.h"
+#include "../core/bit_array.h"
 
 #include "tests/test_macros.h"
 #include <limits>

@@ -445,7 +445,7 @@ void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const std::str
 		if (valid == false) {
 			SceneSynchronizerDebugger::singleton()->print(ERROR, "The variable `" + p_variable + "` on the node `" + object_data->object_name + "` was not found, make sure the variable exist.", network_interface->get_owner_name());
 		}
-		var_id = VarId{ uint32_t(object_data->vars.size()) };
+		var_id = VarId{{ uint32_t(object_data->vars.size()) }};
 		object_data->vars.push_back(
 				NS::VarDescriptor(
 						var_id,
@@ -459,7 +459,7 @@ void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const std::str
 	}
 
 #ifdef DEBUG_ENABLED
-	for (VarId v = { 0 }; v < VarId{ uint32_t(object_data->vars.size()) }; v += 1) {
+	for (VarId v = VarId{{ 0 }}; v < VarId{{ uint32_t(object_data->vars.size()) }}; v += 1) {
 		// This can't happen, because the IDs are always consecutive, or NONE.
 		ASSERT_COND(object_data->vars[v.id].id == v);
 	}
@@ -1034,7 +1034,7 @@ void SceneSynchronizerBase::init_synchronizer(bool p_was_generating_ids) {
 
 			// Handle the node ID.
 			if (generate_id) {
-				od->set_net_id({ i });
+				od->set_net_id(ObjectNetId{{ i }});
 			} else {
 				od->set_net_id(ObjectNetId::NONE);
 			}
@@ -1042,7 +1042,7 @@ void SceneSynchronizerBase::init_synchronizer(bool p_was_generating_ids) {
 			// Handle the variables ID.
 			for (uint32_t v = 0; v < od->vars.size(); v += 1) {
 				if (generate_id) {
-					od->vars[v].id = { v };
+					od->vars[v].id = VarId{{ v }};
 				} else {
 					od->vars[v].id = VarId::NONE;
 				}
@@ -1467,8 +1467,8 @@ void SceneSynchronizerBase::process_functions__clear() {
 }
 
 void SceneSynchronizerBase::process_functions__execute() {
-	const std::string info = "delta: " + std::to_string(get_fixed_frame_delta());
-	NS_PROFILE_WITH_INFO(info);
+	const std::string delta_info = "delta: " + std::to_string(get_fixed_frame_delta());
+	NS_PROFILE_WITH_INFO(delta_info);
 
 	if (cached_process_functions_valid == false) {
 		// Clear all the process_functions.
@@ -1515,8 +1515,8 @@ void SceneSynchronizerBase::process_functions__execute() {
 
 	// Pre process phase
 	for (int process_phase = PROCESS_PHASE_EARLY; process_phase < PROCESS_PHASE_COUNT; ++process_phase) {
-		const std::string info = "process phase: " + std::to_string(process_phase);
-		NS_PROFILE_WITH_INFO(info);
+		const std::string phase_info = "process phase: " + std::to_string(process_phase);
+		NS_PROFILE_WITH_INFO(phase_info);
 		cached_process_functions[process_phase].broadcast(get_fixed_frame_delta());
 	}
 }
@@ -1594,7 +1594,7 @@ const NS::PeerData *SceneSynchronizerBase::get_peer_data_for_controller(const Pe
 }
 
 ObjectNetId SceneSynchronizerBase::get_biggest_object_id() const {
-	return objects_data_storage.get_sorted_objects_data().size() == 0 ? ObjectNetId::NONE : ObjectNetId{ uint32_t(objects_data_storage.get_sorted_objects_data().size() - 1) };
+	return objects_data_storage.get_sorted_objects_data().size() == 0 ? ObjectNetId::NONE : ObjectNetId{{ uint32_t(objects_data_storage.get_sorted_objects_data().size() - 1) }};
 }
 
 void SceneSynchronizerBase::reset_controllers() {
@@ -1926,7 +1926,7 @@ void ServerSynchronizer::sync_group_fetch_object_grups(const ObjectData *p_objec
 	r_simulated_groups.clear();
 	r_trickled_groups.clear();
 
-	SyncGroupId id = { 0 };
+	SyncGroupId id = SyncGroupId{{ 0 }};
 	for (const SyncGroup &group : sync_groups) {
 		if (group.get_simulated_sync_objects().find(SyncGroup::SimulatedObjectInfo(const_cast<ObjectData *>(p_object_data))) != -1) {
 			r_simulated_groups.push_back(id);
@@ -2818,7 +2818,7 @@ void ClientSynchronizer::process_received_server_state() {
 				player_controller,
 				inner_player_controller);
 	} else {
-		if (no_rewind_recover.input_id == FrameIndex{ 0 }) {
+		if (no_rewind_recover.input_id == FrameIndex{{ 0 }}) {
 			SceneSynchronizerDebugger::singleton()->notify_event(SceneSynchronizerDebugger::FrameEvent::CLIENT_DESYNC_DETECTED_SOFT);
 
 			// Sync.
@@ -2899,8 +2899,8 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 			const ObjectNetId net_node_id = different_node_data[i];
 			NS::ObjectData *rew_node_data = scene_synchronizer->get_object_data(net_node_id);
 
-			const std::vector<NS::NameAndVar> *server_node_vars = ObjectNetId{ uint32_t(last_received_server_snapshot->object_vars.size()) } <= net_node_id ? nullptr : &(last_received_server_snapshot->object_vars[net_node_id.id]);
-			const std::vector<NS::NameAndVar> *client_node_vars = ObjectNetId{ uint32_t(client_snapshots.front().object_vars.size()) } <= net_node_id ? nullptr : &(client_snapshots.front().object_vars[net_node_id.id]);
+			const std::vector<NS::NameAndVar> *server_node_vars = ObjectNetId{{ uint32_t(last_received_server_snapshot->object_vars.size()) }} <= net_node_id ? nullptr : &(last_received_server_snapshot->object_vars[net_node_id.id]);
+			const std::vector<NS::NameAndVar> *client_node_vars = ObjectNetId{{ uint32_t(client_snapshots.front().object_vars.size()) }} <= net_node_id ? nullptr : &(client_snapshots.front().object_vars[net_node_id.id]);
 
 			const std::size_t count = MAX(server_node_vars ? server_node_vars->size() : 0, client_node_vars ? client_node_vars->size() : 0);
 
@@ -3038,7 +3038,7 @@ void ClientSynchronizer::__pcr__rewind(
 
 void ClientSynchronizer::__pcr__sync__no_rewind(const NS::Snapshot &p_no_rewind_recover) {
 	NS_PROFILE
-	ASSERT_COND_MSG(p_no_rewind_recover.input_id == FrameIndex{ 0 }, "This function is never called unless there is something to recover without rewinding.");
+	ASSERT_COND_MSG(p_no_rewind_recover.input_id == FrameIndex{{ 0 }}, "This function is never called unless there is something to recover without rewinding.");
 
 	// Apply found differences without rewind.
 	std::vector<std::string> applied_data_info;
@@ -3885,7 +3885,7 @@ void ClientSynchronizer::apply_snapshot(
 
 		// NOTE: The vars may not contain ALL the variables: it depends on how
 		//       the snapshot was captured.
-		for (VarId v = { 0 }; v < VarId{ uint32_t(snap_object_vars.size()) }; v += 1) {
+		for (VarId v = VarId{{ 0 }}; v < VarId{{ uint32_t(snap_object_vars.size()) }}; v += 1) {
 			if (snap_object_vars[v.id].name.empty()) {
 				// This variable was not set, skip it.
 				continue;

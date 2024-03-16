@@ -15,9 +15,9 @@
 namespace NS_Test {
 
 void test_ids() {
-	NS::VarId var_id_0 = { 0 };
-	NS::VarId var_id_0_2 = { 0 };
-	NS::VarId var_id_1 = { 1 };
+	NS::VarId var_id_0 = NS::VarId{{ 0 }};
+	NS::VarId var_id_0_2 = NS::VarId{{ 0 }};
+	NS::VarId var_id_1 = NS::VarId{{ 1 }};
 
 	CRASH_COND(var_id_0 != var_id_0_2);
 	CRASH_COND(var_id_0 == var_id_1);
@@ -656,14 +656,14 @@ void test_state_notify() {
 				peer_2_scene.process(delta);
 			}
 
-			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ 0 });
-			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ 1 });
+			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{{ 0 }});
+			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{{ 1 }});
 			// NOTE: No need to check the peer_2, because it's not an authoritative controller anyway.
 		} else {
 			// Make sure the controllers have been processed at this point.
-			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex{ 0 });
+			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex{{ 0 }});
 			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex::NONE);
-			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex{ 0 });
+			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex{{ 0 }});
 			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex::NONE);
 
 			// NOTE: No need to check the peer_2, because it's not an authoritative controller anyway.
@@ -711,8 +711,8 @@ void test_processing_with_late_controller_registration() {
 
 	// Make sure the client can process right away as the NetId is networked
 	// already.
-	ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ 0 });
-	ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ 1 });
+	ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{{ 0 }});
+	ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{{ 1 }});
 }
 
 void test_snapshot_generation() {
@@ -987,14 +987,14 @@ void test_variable_change_event() {
 				peer_2_scene.process(delta);
 			}
 
-			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ 0 });
-			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ 1 });
+			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{{ 0 }});
+			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{{ 1 }});
 			// NOTE: No need to check the peer_2, because it's not an authoritative controller anyway.
 		} else {
 			// Make sure the controllers have been processed at this point.
-			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex{ 0 });
+			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex{{ 0 }});
 			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex::NONE);
-			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex{ 0 });
+			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex{{ 0 }});
 			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex::NONE);
 
 			// NOTE: No need to check the peer_2, because it's not an authoritative controller anyway.

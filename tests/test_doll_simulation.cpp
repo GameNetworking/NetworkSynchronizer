@@ -361,7 +361,7 @@ struct TestDollSimulationStorePositions : public TestDollSimulationBase {
 
 	void assert_positions(const std::map<NS::FrameIndex, NS::VarData> &p_player_map, const std::map<NS::FrameIndex, NS::VarData> &p_doll_map, NS::FrameIndex assert_after) {
 		// Find the biggeest FrameInput
-		NS::FrameIndex biggest_frame_index{ 0 };
+		NS::FrameIndex biggest_frame_index = NS::FrameIndex{{ 0 }};
 		for (const auto &[fi, vd] : p_doll_map) {
 			if (fi != NS::FrameIndex::NONE) {
 				if (fi > biggest_frame_index) {
@@ -373,7 +373,7 @@ struct TestDollSimulationStorePositions : public TestDollSimulationBase {
 		ASSERT_COND(assert_after <= biggest_frame_index)
 
 		// Now, iterate over all the frames and make sure the positions are the same
-		for (NS::FrameIndex i{ 0 }; i <= biggest_frame_index; i += 1) {
+		for (NS::FrameIndex i = NS::FrameIndex{{ 0 }}; i <= biggest_frame_index; i += 1) {
 			const NS::VarData *player_position = NS::MapFunc::get_or_null(p_player_map, i);
 			const NS::VarData *doll_position = NS::MapFunc::get_or_null(p_doll_map, i);
 			if (i > assert_after) {
@@ -403,7 +403,7 @@ void test_simulation_reconciliation(float p_frame_confirmation_timespan) {
 	ASSERT_COND(test.peer2_desync_detected.size() == 0);
 
 	// Ensure the positions are all the same.
-	test.assert_positions(NS::FrameIndex{ 0 }, NS::FrameIndex{ 0 });
+	test.assert_positions(NS::FrameIndex{{ 0 }}, NS::FrameIndex{{ 0 }});
 
 	// 2. Introduce a desync manually and test again.
 	test.controlled_1_peer2->set_xy(0, 0); // Modify the doll on peer 1
@@ -427,7 +427,7 @@ void test_simulation_reconciliation(float p_frame_confirmation_timespan) {
 
 		// Make sure the reconciliation was successful.
 		// NOTE: 45 is a margin established basing on the `p_frame_confirmation_timespan`.
-		const NS::FrameIndex ensure_no_desync_after{ 45 };
+		const NS::FrameIndex ensure_no_desync_after = NS::FrameIndex{{ 45 }};
 		test.assert_no_desync(ensure_no_desync_after, ensure_no_desync_after);
 
 		// and despite that the simulations are correct.
@@ -496,14 +496,14 @@ void test_simulation_with_latency() {
 	ASSERT_COND(test.peer2_desync_detected.size() == 0);
 
 	// Ensure the positions are all the same.
-	test.assert_positions(NS::FrameIndex{ 0 }, NS::FrameIndex{ 0 });
+	test.assert_positions(NS::FrameIndex{{ 0 }}, NS::FrameIndex{{ 0 }});
 
 	// 2. Introduce some latency
 	test.network_properties.rtt_seconds = 0.2;
 
 	test.do_test(600);
 
-	NS::FrameIndex assert_after{ 50 };
+	NS::FrameIndex assert_after = NS::FrameIndex{{ 50 }};
 	// Make sure no desync were detected after:
 	test.assert_no_desync(assert_after, assert_after);
 	// Ensure the positions are all the same after:
@@ -513,8 +513,8 @@ void test_simulation_with_latency() {
 	// 3. Remove the latency
 	test.network_properties.rtt_seconds = 0.0;
 
-	const int desync_count_peer_1 = test.peer1_desync_detected.size();
-	const int desync_count_peer_2 = test.peer2_desync_detected.size();
+	const size_t desync_count_peer_1 = test.peer1_desync_detected.size();
+	const size_t desync_count_peer_2 = test.peer2_desync_detected.size();
 
 	test.do_test(200);
 
@@ -642,15 +642,15 @@ void test_simulation_with_wrong_input() {
 	ASSERT_COND(test.peer2_desync_detected.size() == 0);
 
 	// Ensure the positions are all the same.
-	test.assert_positions(NS::FrameIndex{ 0 }, NS::FrameIndex{ 0 });
+	test.assert_positions(NS::FrameIndex{{ 0 }}, NS::FrameIndex{{ 0 }});
 
 	// 2. Now introduce a desync on the server.
 	for (int test_count = 0; test_count < 20; test_count++) {
 		for (int i = 0; i < 3; i++) {
 			const NS::FrameIndex c1_assert_after = server_controller_1->get_current_frame_index() + 70;
 			const NS::FrameIndex c2_assert_after = server_controller_2->get_current_frame_index() + 70;
-			const int c1_desync_vec_size = test.peer1_desync_detected.size();
-			const int c2_desync_vec_size = test.peer2_desync_detected.size();
+			const size_t c1_desync_vec_size = test.peer1_desync_detected.size();
+			const size_t c2_desync_vec_size = test.peer2_desync_detected.size();
 
 			test.controlled_1_serv->modify_input_on_next_frame = true;
 			test.controlled_2_serv->modify_input_on_next_frame = true;

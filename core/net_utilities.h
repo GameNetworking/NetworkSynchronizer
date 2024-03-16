@@ -256,7 +256,7 @@ struct ListenerHandle {
 	}
 
 	static ListenerHandle to_handle(const ChangesListener *p_listener) {
-		return { reinterpret_cast<std::intptr_t>(p_listener) };
+		return ListenerHandle{ reinterpret_cast<std::intptr_t>(p_listener) };
 	}
 };
 inline static const ListenerHandle nulllistenerhandle = { 0 };
