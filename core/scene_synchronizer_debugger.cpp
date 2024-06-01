@@ -307,6 +307,8 @@ std::string type_to_string(Variant::Type p_type) {
 			return "PACKED_VECTOR3_ARRAY";
 		case Variant::PACKED_COLOR_ARRAY:
 			return "PACKED_COLOR_ARRAY";
+		case Variant::PACKED_VECTOR4_ARRAY:
+			return "PACKED_VECTOR4_ARRAY";
 		case Variant::VARIANT_MAX:
 			return "VARIANT_MAX";
 	}
