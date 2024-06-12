@@ -4,7 +4,7 @@
 
 #include "__generated__debugger_ui.h"
 
-#include "../data_buffer.h"
+#include "data_buffer.h"
 #include "net_utilities.h"
 
 #endif
@@ -289,27 +289,27 @@ std::string type_to_string(Variant::Type p_type) {
 
 std::string data_type_to_string(uint32_t p_type) {
 	switch (p_type) {
-		case DataBuffer::DATA_TYPE_BOOL:
+		case NS::DataBuffer::DATA_TYPE_BOOL:
 			return "Bool";
-		case DataBuffer::DATA_TYPE_INT:
+		case NS::DataBuffer::DATA_TYPE_INT:
 			return "Int";
-		case DataBuffer::DATA_TYPE_UINT:
+		case NS::DataBuffer::DATA_TYPE_UINT:
 			return "Uint";
-		case DataBuffer::DATA_TYPE_REAL:
+		case NS::DataBuffer::DATA_TYPE_REAL:
 			return "Real";
-		case DataBuffer::DATA_TYPE_POSITIVE_UNIT_REAL:
+		case NS::DataBuffer::DATA_TYPE_POSITIVE_UNIT_REAL:
 			return "Positive Unit Real";
-		case DataBuffer::DATA_TYPE_UNIT_REAL:
+		case NS::DataBuffer::DATA_TYPE_UNIT_REAL:
 			return "Unit Real";
-		case DataBuffer::DATA_TYPE_VECTOR2:
+		case NS::DataBuffer::DATA_TYPE_VECTOR2:
 			return "Vector2";
-		case DataBuffer::DATA_TYPE_NORMALIZED_VECTOR2:
+		case NS::DataBuffer::DATA_TYPE_NORMALIZED_VECTOR2:
 			return "Normalized Vector2";
-		case DataBuffer::DATA_TYPE_VECTOR3:
+		case NS::DataBuffer::DATA_TYPE_VECTOR3:
 			return "Vector3";
-		case DataBuffer::DATA_TYPE_NORMALIZED_VECTOR3:
+		case NS::DataBuffer::DATA_TYPE_NORMALIZED_VECTOR3:
 			return "Normalized Vector3";
-		case DataBuffer::DATA_TYPE_VARIANT:
+		case NS::DataBuffer::DATA_TYPE_VARIANT:
 			return "Variant";
 	}
 
@@ -318,13 +318,13 @@ std::string data_type_to_string(uint32_t p_type) {
 
 std::string compression_level_to_string(uint32_t p_type) {
 	switch (p_type) {
-		case DataBuffer::COMPRESSION_LEVEL_0:
+		case NS::DataBuffer::COMPRESSION_LEVEL_0:
 			return "Compression Level 0";
-		case DataBuffer::COMPRESSION_LEVEL_1:
+		case NS::DataBuffer::COMPRESSION_LEVEL_1:
 			return "Compression Level 1";
-		case DataBuffer::COMPRESSION_LEVEL_2:
+		case NS::DataBuffer::COMPRESSION_LEVEL_2:
 			return "Compression Level 2";
-		case DataBuffer::COMPRESSION_LEVEL_3:
+		case NS::DataBuffer::COMPRESSION_LEVEL_3:
 			return "Compression Level 3";
 	}
 

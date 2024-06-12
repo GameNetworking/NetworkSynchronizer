@@ -1,10 +1,10 @@
 #include "test_scene_synchronizer.h"
 
 #include "../core/core.h"
+#include "../core/data_buffer.h"
 #include "../core/ensure.h"
 #include "../core/net_utilities.h"
 #include "../core/var_data.h"
-#include "../data_buffer.h"
 #include "../tests/local_network.h"
 #include "local_scene.h"
 #include <functional>
@@ -66,22 +66,22 @@ public:
 		p_scene_sync.register_variable(p_id, "position");
 	}
 
-	void collect_inputs(double p_delta, DataBuffer &r_buffer) {
+	void collect_inputs(double p_delta, NS::DataBuffer &r_buffer) {
 		r_buffer.add_bool(true);
 	}
 
-	void controller_process(double p_delta, DataBuffer &p_buffer) {
+	void controller_process(double p_delta, NS::DataBuffer &p_buffer) {
 		if (p_buffer.read_bool()) {
 			const float one_meter = 1.0;
 			variables["position"].data.f32 += p_delta * one_meter;
 		}
 	}
 
-	bool are_inputs_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B) {
+	bool are_inputs_different(NS::DataBuffer &p_buffer_A, NS::DataBuffer &p_buffer_B) {
 		return p_buffer_A.read_bool() != p_buffer_B.read_bool();
 	}
 
-	uint32_t count_input_size(DataBuffer &p_buffer) {
+	uint32_t count_input_size(NS::DataBuffer &p_buffer) {
 		return p_buffer.get_bool_size();
 	}
 };

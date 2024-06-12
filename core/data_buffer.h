@@ -1,13 +1,14 @@
 #pragma once
 
-#include "core/object/class_db.h"
+#include "core/object/class_db.h" // TODO remove
 
-#include "core/bit_array.h"
+#include "bit_array.h"
+#include "core.h"
 #include <string>
 
-class DataBuffer : public Object {
-	GDCLASS(DataBuffer, Object);
+NS_NAMESPACE_BEGIN
 
+class DataBuffer {
 public:
 	enum DataType {
 		DATA_TYPE_BOOL,
@@ -128,8 +129,6 @@ private:
 #endif
 
 public:
-	static void _bind_methods();
-
 	DataBuffer() = default;
 	DataBuffer(const DataBuffer &p_other);
 	DataBuffer(const BitArray &p_buffer);
@@ -387,5 +386,4 @@ private:
 	bool pad_to_next_byte(int *p_bits_to_next_byte = nullptr);
 };
 
-VARIANT_ENUM_CAST(DataBuffer::DataType)
-VARIANT_ENUM_CAST(DataBuffer::CompressionLevel)
+NS_NAMESPACE_END
