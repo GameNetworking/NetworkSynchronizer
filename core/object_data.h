@@ -2,8 +2,6 @@
 
 #include "../data_buffer.h"
 #include "core.h"
-#include "core/templates/local_vector.h"
-#include "core/variant/callable.h"
 #include "processor.h"
 #include "var_data.h"
 #include <functional>
