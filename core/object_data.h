@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../data_buffer.h"
 #include "core.h"
+#include "data_buffer.h"
 #include "processor.h"
 #include "var_data.h"
 #include <functional>

@@ -1,11 +1,11 @@
 #include "test_simulation.h"
 
 #include "../core/core.h"
+#include "../core/data_buffer.h"
 #include "../core/ensure.h"
 #include "../core/net_utilities.h"
 #include "../core/processor.h"
 #include "../core/var_data.h"
-#include "../data_buffer.h"
 #include "local_network.h"
 #include "local_scene.h"
 #include "test_math_lib.h"
@@ -91,10 +91,10 @@ public:
 		p_scene_sync.setup_controller(
 				p_id,
 				authoritative_peer_id,
-				[this](double p_delta, DataBuffer &r_buffer) -> void { collect_inputs(p_delta, r_buffer); },
-				[this](DataBuffer &p_buffer) -> int { return count_input_size(p_buffer); },
-				[this](DataBuffer &p_buffer_A, DataBuffer &p_buffer_b) -> bool { return are_inputs_different(p_buffer_A, p_buffer_b); },
-				[this](double p_delta, DataBuffer &p_buffer) -> void { controller_process(p_delta, p_buffer); });
+				[this](double p_delta, NS::DataBuffer &r_buffer) -> void { collect_inputs(p_delta, r_buffer); },
+				[this](NS::DataBuffer &p_buffer) -> int { return count_input_size(p_buffer); },
+				[this](NS::DataBuffer &p_buffer_A, NS::DataBuffer &p_buffer_b) -> bool { return are_inputs_different(p_buffer_A, p_buffer_b); },
+				[this](double p_delta, NS::DataBuffer &p_buffer) -> void { controller_process(p_delta, p_buffer); });
 
 		p_scene_sync.register_variable(p_id, "weight");
 		p_scene_sync.register_variable(p_id, "position");
@@ -155,28 +155,28 @@ public:
 		Vec3(0.0, 1.0, 0.0)
 	};
 
-	void collect_inputs(double p_delta, DataBuffer &r_buffer) {
+	void collect_inputs(double p_delta, NS::DataBuffer &r_buffer) {
 		const NS::FrameIndex current_frame_index = scene_owner->scene_sync->get_controller_for_peer(authoritative_peer_id)->get_current_frame_index();
 		const int index = current_frame_index.id % 20;
-		std::ignore = r_buffer.add_normalized_vector3(Vector3(inputs[index].x, inputs[index].y, inputs[index].z), DataBuffer::COMPRESSION_LEVEL_3);
+		std::ignore = r_buffer.add_normalized_vector3(Vector3(inputs[index].x, inputs[index].y, inputs[index].z), NS::DataBuffer::COMPRESSION_LEVEL_3);
 	}
 
-	void controller_process(double p_delta, DataBuffer &p_buffer) {
+	void controller_process(double p_delta, NS::DataBuffer &p_buffer) {
 		ASSERT_COND(p_delta == delta);
 		const float speed = 1.0;
-		const Vector3 v = p_buffer.read_normalized_vector3(DataBuffer::COMPRESSION_LEVEL_3);
+		const Vector3 v = p_buffer.read_normalized_vector3(NS::DataBuffer::COMPRESSION_LEVEL_3);
 		const Vec3 input(v.x, v.y, v.z);
 		set_position(get_position() + (input * speed * p_delta));
 	}
 
-	bool are_inputs_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B) {
-		const Vector3 v1 = p_buffer_A.read_normalized_vector3(DataBuffer::COMPRESSION_LEVEL_3);
-		const Vector3 v2 = p_buffer_B.read_normalized_vector3(DataBuffer::COMPRESSION_LEVEL_3);
+	bool are_inputs_different(NS::DataBuffer &p_buffer_A, NS::DataBuffer &p_buffer_B) {
+		const Vector3 v1 = p_buffer_A.read_normalized_vector3(NS::DataBuffer::COMPRESSION_LEVEL_3);
+		const Vector3 v2 = p_buffer_B.read_normalized_vector3(NS::DataBuffer::COMPRESSION_LEVEL_3);
 		return v1 != v2;
 	}
 
-	uint32_t count_input_size(DataBuffer &p_buffer) {
-		return p_buffer.get_normalized_vector2_size(DataBuffer::COMPRESSION_LEVEL_3);
+	uint32_t count_input_size(NS::DataBuffer &p_buffer) {
+		return p_buffer.get_normalized_vector2_size(NS::DataBuffer::COMPRESSION_LEVEL_3);
 	}
 };
 

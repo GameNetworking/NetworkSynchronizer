@@ -6,12 +6,13 @@
 #include "core/object/object.h"
 #include "core/string/string_name.h"
 #include "core/string/ustring.h"
+#include "gd_data_buffer.h"
 #include "modules/network_synchronizer/core/core.h"
+#include "modules/network_synchronizer/core/data_buffer.h"
 #include "modules/network_synchronizer/core/net_utilities.h"
 #include "modules/network_synchronizer/core/object_data.h"
 #include "modules/network_synchronizer/core/processor.h"
 #include "modules/network_synchronizer/core/scene_synchronizer_debugger.h"
-#include "modules/network_synchronizer/data_buffer.h"
 #include "modules/network_synchronizer/godot4/gd_network_interface.h"
 #include "modules/network_synchronizer/godot4/gd_scene_synchronizer.h"
 #include "modules/network_synchronizer/scene_synchronizer.h"
@@ -522,28 +523,58 @@ void GdSceneSynchronizer::setup_controller(
 	scene_synchronizer.setup_controller(
 			scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node)),
 			p_peer,
-			[p_collect_input_func](double p_delta, DataBuffer &r_collect_input) -> void {
+			[p_collect_input_func](double p_delta, NS::DataBuffer &r_collect_input) -> void {
 				Array arguments;
 				arguments.push_back(p_delta);
-				arguments.push_back(&r_collect_input);
+
+				GdDataBuffer *gd_db = memnew(GdDataBuffer);
+				gd_db->data_buffer = &r_collect_input;
+				arguments.push_back(gd_db);
+
 				p_collect_input_func.callv(arguments);
+
+				memdelete(gd_db);
 			},
-			[p_count_input_size_func](DataBuffer &p_collect_input) -> int {
+			[p_count_input_size_func](NS::DataBuffer &p_collect_input) -> int {
 				Array arguments;
-				arguments.push_back(&p_collect_input);
-				return p_count_input_size_func.callv(arguments);
+
+				GdDataBuffer *gd_db = memnew(GdDataBuffer);
+				gd_db->data_buffer = &p_collect_input;
+				arguments.push_back(gd_db);
+
+				auto r = p_count_input_size_func.callv(arguments);
+
+				memdelete(gd_db);
+				return r;
 			},
-			[p_are_inputs_different_func](DataBuffer &p_collect_input_A, DataBuffer &p_collect_input_B) -> bool {
+			[p_are_inputs_different_func](NS::DataBuffer &p_collect_input_A, NS::DataBuffer &p_collect_input_B) -> bool {
 				Array arguments;
-				arguments.push_back(&p_collect_input_A);
-				arguments.push_back(&p_collect_input_B);
-				return p_are_inputs_different_func.callv(arguments);
+
+				GdDataBuffer *gd_db_A = memnew(GdDataBuffer);
+				GdDataBuffer *gd_db_B = memnew(GdDataBuffer);
+				gd_db_A->data_buffer = &p_collect_input_A;
+				gd_db_B->data_buffer = &p_collect_input_B;
+
+				arguments.push_back(gd_db_A);
+				arguments.push_back(gd_db_B);
+
+				auto r = p_are_inputs_different_func.callv(arguments);
+
+				memdelete(gd_db_A);
+				memdelete(gd_db_B);
+				return r;
 			},
-			[p_process_func](double p_delta, DataBuffer &p_collect_input) -> void {
+			[p_process_func](double p_delta, NS::DataBuffer &p_collect_input) -> void {
 				Array arguments;
 				arguments.push_back(p_delta);
-				arguments.push_back(&p_collect_input);
+
+				GdDataBuffer *gd_db = memnew(GdDataBuffer);
+				gd_db->data_buffer = &p_collect_input;
+				arguments.push_back(gd_db);
+
 				p_process_func.callv(arguments);
+
+				memdelete(gd_db);
 			});
 }
 
@@ -658,19 +689,35 @@ void GdSceneSynchronizer::setup_simulated_sync(
 void GdSceneSynchronizer::setup_trickled_sync(Node *p_node, const Callable &p_collect_epoch_func, const Callable &p_apply_epoch_func) {
 	scene_synchronizer.setup_trickled_sync(
 			scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node)),
-			[p_collect_epoch_func](DataBuffer &db, float p_update_rate) -> void {
+			[p_collect_epoch_func](NS::DataBuffer &db, float p_update_rate) -> void {
 				Array a;
-				a.push_back(&db);
+
+				GdDataBuffer *gd_db = memnew(GdDataBuffer);
+				gd_db->data_buffer = &db;
+				a.push_back(gd_db);
+
 				a.push_back(p_update_rate);
 				p_collect_epoch_func.callv(a);
+
+				memdelete(gd_db);
 			},
-			[p_apply_epoch_func](double delta, float alpha, DataBuffer &db_from, DataBuffer &db_to) -> void {
+			[p_apply_epoch_func](double delta, float alpha, NS::DataBuffer &db_from, NS::DataBuffer &db_to) -> void {
 				Array a;
 				a.push_back(delta);
 				a.push_back(alpha);
-				a.push_back(&db_from);
-				a.push_back(&db_to);
+
+				GdDataBuffer *gd_db_from = memnew(GdDataBuffer);
+				gd_db_from->data_buffer = &db_from;
+				a.push_back(gd_db_from);
+
+				GdDataBuffer *gd_db_to = memnew(GdDataBuffer);
+				gd_db_to->data_buffer = &db_to;
+				a.push_back(gd_db_to);
+
 				p_apply_epoch_func.callv(a);
+
+				memdelete(gd_db_from);
+				memdelete(gd_db_to);
 			});
 }
 
@@ -834,13 +881,13 @@ bool GdSceneSynchronizer::is_networked() const {
 	return scene_synchronizer.is_networked();
 }
 
-void GdSceneSynchronizer::encode(DataBuffer &r_buffer, const NS::VarData &p_val) {
+void GdSceneSynchronizer::encode(NS::DataBuffer &r_buffer, const NS::VarData &p_val) {
 	Variant vA;
 	convert(vA, p_val);
 	r_buffer.add_variant(vA);
 }
 
-void GdSceneSynchronizer::decode(NS::VarData &r_val, DataBuffer &p_buffer) {
+void GdSceneSynchronizer::decode(NS::VarData &r_val, NS::DataBuffer &p_buffer) {
 	Variant vA = p_buffer.read_variant();
 	convert(r_val, vA);
 }

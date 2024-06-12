@@ -1,10 +1,10 @@
 #include "test_doll_simulation.h"
 
 #include "../core/core.h"
+#include "../core/data_buffer.h"
 #include "../core/net_utilities.h"
 #include "../core/processor.h"
 #include "../core/var_data.h"
-#include "../data_buffer.h"
 #include "../tests/local_network.h"
 #include "../tests/local_scene.h"
 #include "../tests/test_math_lib.h"
@@ -66,13 +66,13 @@ public:
 
 	// ------------------------------------------------- NetController interface
 	bool previous_input = true;
-	void collect_inputs(double p_delta, DataBuffer &r_buffer) {
+	void collect_inputs(double p_delta, NS::DataBuffer &r_buffer) {
 		// Write true or false alternating each other.
 		r_buffer.add(!previous_input);
 		previous_input = !previous_input;
 	}
 
-	void controller_process(double p_delta, DataBuffer &p_buffer) {
+	void controller_process(double p_delta, NS::DataBuffer &p_buffer) {
 		bool advance_or_turn;
 		p_buffer.read(advance_or_turn);
 
@@ -91,13 +91,13 @@ public:
 		}
 	}
 
-	bool are_inputs_different(DataBuffer &p_buffer_A, DataBuffer &p_buffer_B) {
+	bool are_inputs_different(NS::DataBuffer &p_buffer_A, NS::DataBuffer &p_buffer_B) {
 		const bool v1 = p_buffer_A.read_bool();
 		const bool v2 = p_buffer_B.read_bool();
 		return v1 != v2;
 	}
 
-	uint32_t count_input_size(DataBuffer &p_buffer) {
+	uint32_t count_input_size(NS::DataBuffer &p_buffer) {
 		return p_buffer.get_bool_size();
 	}
 };
@@ -359,7 +359,7 @@ struct TestDollSimulationStorePositions : public TestDollSimulationBase {
 
 	void assert_positions(const std::map<NS::FrameIndex, NS::VarData> &p_player_map, const std::map<NS::FrameIndex, NS::VarData> &p_doll_map, NS::FrameIndex assert_after) {
 		// Find the biggeest FrameInput
-		NS::FrameIndex biggest_frame_index = NS::FrameIndex{{ 0 }};
+		NS::FrameIndex biggest_frame_index = NS::FrameIndex{ { 0 } };
 		for (const auto &[fi, vd] : p_doll_map) {
 			if (fi != NS::FrameIndex::NONE) {
 				if (fi > biggest_frame_index) {
@@ -371,7 +371,7 @@ struct TestDollSimulationStorePositions : public TestDollSimulationBase {
 		ASSERT_COND(assert_after <= biggest_frame_index)
 
 		// Now, iterate over all the frames and make sure the positions are the same
-		for (NS::FrameIndex i = NS::FrameIndex{{ 0 }}; i <= biggest_frame_index; i += 1) {
+		for (NS::FrameIndex i = NS::FrameIndex{ { 0 } }; i <= biggest_frame_index; i += 1) {
 			const NS::VarData *player_position = NS::MapFunc::get_or_null(p_player_map, i);
 			const NS::VarData *doll_position = NS::MapFunc::get_or_null(p_doll_map, i);
 			if (i > assert_after) {
@@ -401,7 +401,7 @@ void test_simulation_reconciliation(float p_frame_confirmation_timespan) {
 	ASSERT_COND(test.peer2_desync_detected.size() == 0);
 
 	// Ensure the positions are all the same.
-	test.assert_positions(NS::FrameIndex{{ 0 }}, NS::FrameIndex{{ 0 }});
+	test.assert_positions(NS::FrameIndex{ { 0 } }, NS::FrameIndex{ { 0 } });
 
 	// 2. Introduce a desync manually and test again.
 	test.controlled_1_peer2->set_xy(0, 0); // Modify the doll on peer 1
@@ -425,7 +425,7 @@ void test_simulation_reconciliation(float p_frame_confirmation_timespan) {
 
 		// Make sure the reconciliation was successful.
 		// NOTE: 45 is a margin established basing on the `p_frame_confirmation_timespan`.
-		const NS::FrameIndex ensure_no_desync_after = NS::FrameIndex{{ 45 }};
+		const NS::FrameIndex ensure_no_desync_after = NS::FrameIndex{ { 45 } };
 		test.assert_no_desync(ensure_no_desync_after, ensure_no_desync_after);
 
 		// and despite that the simulations are correct.
@@ -494,14 +494,14 @@ void test_simulation_with_latency() {
 	ASSERT_COND(test.peer2_desync_detected.size() == 0);
 
 	// Ensure the positions are all the same.
-	test.assert_positions(NS::FrameIndex{{ 0 }}, NS::FrameIndex{{ 0 }});
+	test.assert_positions(NS::FrameIndex{ { 0 } }, NS::FrameIndex{ { 0 } });
 
 	// 2. Introduce some latency
 	test.network_properties.rtt_seconds = 0.2;
 
 	test.do_test(600);
 
-	NS::FrameIndex assert_after = NS::FrameIndex{{ 50 }};
+	NS::FrameIndex assert_after = NS::FrameIndex{ { 50 } };
 	// Make sure no desync were detected after:
 	test.assert_no_desync(assert_after, assert_after);
 	// Ensure the positions are all the same after:
@@ -640,7 +640,7 @@ void test_simulation_with_wrong_input() {
 	ASSERT_COND(test.peer2_desync_detected.size() == 0);
 
 	// Ensure the positions are all the same.
-	test.assert_positions(NS::FrameIndex{{ 0 }}, NS::FrameIndex{{ 0 }});
+	test.assert_positions(NS::FrameIndex{ { 0 } }, NS::FrameIndex{ { 0 } });
 
 	// 2. Now introduce a desync on the server.
 	for (int test_count = 0; test_count < 20; test_count++) {

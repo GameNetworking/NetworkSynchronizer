@@ -39,10 +39,9 @@
 #include "core/core.h"
 #include "core/error/error_macros.h"
 #include "core/scene_synchronizer_debugger.h"
-#include "data_buffer.h"
+#include "godot4/gd_data_buffer.h"
 #include "godot4/gd_network_interface.h"
 #include "godot4/gd_scene_synchronizer.h"
-#include "godot4/input_network_encoder.h"
 
 #ifdef DEBUG_ENABLED
 #include "tests/tests.h"
@@ -71,9 +70,8 @@ void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
 					_err_flush_stdout();
 				});
 
-		GDREGISTER_CLASS(DataBuffer);
+		GDREGISTER_CLASS(GdDataBuffer);
 		GDREGISTER_CLASS(GdSceneSynchronizer);
-		GDREGISTER_CLASS(InputNetworkEncoder);
 
 		memnew(SceneSynchronizerDebugger);
 		SceneSynchronizerDebugger::singleton()->set_file_system(memnew(GdFileSystem));

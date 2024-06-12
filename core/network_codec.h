@@ -1,6 +1,6 @@
 #pragma once
 
-#include "modules/network_synchronizer/data_buffer.h"
+#include "data_buffer.h"
 #include "var_data.h"
 
 NS_NAMESPACE_BEGIN

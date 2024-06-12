@@ -1,9 +1,9 @@
 #pragma once
 
 #include "core/object/object.h"
+#include "modules/network_synchronizer/core/data_buffer.h"
 #include "modules/network_synchronizer/core/processor.h"
 #include "modules/network_synchronizer/core/var_data.h"
-#include "modules/network_synchronizer/data_buffer.h"
 #include "modules/network_synchronizer/godot4/gd_network_interface.h"
 #include "modules/network_synchronizer/scene_synchronizer.h"
 #include "scene/main/node.h"
@@ -19,7 +19,7 @@ class GdFileSystem : public NS::FileSystem {
 	virtual bool make_dir_recursive(const std::string &p_dir_path, bool p_erase_content) const override;
 	virtual bool store_file_string(const std::string &p_path, const std::string &p_string_file) const override;
 	virtual bool store_file_buffer(const std::string &p_path, const std::uint8_t *p_src, uint64_t p_length) const override;
-	virtual bool file_exists(const std::string &p_path) const;
+	virtual bool file_exists(const std::string &p_path) const override;
 };
 
 class GdSceneSynchronizer : public Node, public NS::SynchronizerManager {
@@ -210,8 +210,8 @@ public: // ---------------------------------------------------------------- APIs
 	/// Returns true if network is enabled.
 	bool is_networked() const;
 
-	static void encode(DataBuffer &r_buffer, const NS::VarData &p_val);
-	static void decode(NS::VarData &r_val, DataBuffer &p_buffer);
+	static void encode(NS::DataBuffer &r_buffer, const NS::VarData &p_val);
+	static void decode(NS::VarData &r_val, NS::DataBuffer &p_buffer);
 
 	static void convert(Variant &r_variant, const NS::VarData &p_vd);
 	static void convert(NS::VarData &r_vd, const Variant &p_variant);

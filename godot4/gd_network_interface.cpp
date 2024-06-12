@@ -280,7 +280,7 @@ void NS_GD_Test::test_var_data_conversin() {
 	}
 }
 
-void GdNetworkInterface::rpc_send(int p_peer_recipient, bool p_reliable, DataBuffer &&p_buffer) {
+void GdNetworkInterface::rpc_send(int p_peer_recipient, bool p_reliable, NS::DataBuffer &&p_buffer) {
 	const std::vector<std::uint8_t> &buffer = p_buffer.get_buffer().get_bytes();
 
 	// TODO use RPC directly from MultiPlayerPeer that allows to sent raw buffers. This would avoid this conversion to Vector.
@@ -297,7 +297,7 @@ void GdNetworkInterface::rpc_send(int p_peer_recipient, bool p_reliable, DataBuf
 }
 
 void GdNetworkInterface::gd_rpc_receive(const Vector<uint8_t> &p_gd_buffer) {
-	DataBuffer db;
+	NS::DataBuffer db;
 	db.get_buffer_mut().get_bytes_mut().reserve(p_gd_buffer.size());
 	for (auto b : p_gd_buffer) {
 		db.get_buffer_mut().get_bytes_mut().push_back(b);

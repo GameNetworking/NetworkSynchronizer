@@ -1,6 +1,7 @@
 #include "scene_synchronizer.h"
 
 #include "core/core.h"
+#include "core/data_buffer.h"
 #include "core/ensure.h"
 #include "core/net_utilities.h"
 #include "core/object_data.h"
@@ -8,7 +9,6 @@
 #include "core/scene_synchronizer_debugger.h"
 #include "core/snapshot.h"
 #include "core/var_data.h"
-#include "data_buffer.h"
 #include <limits>
 #include <string>
 #include <vector>
@@ -1021,16 +1021,16 @@ void SceneSynchronizerBase::on_peer_disconnected(int p_peer) {
 void SceneSynchronizerBase::init_synchronizer(bool p_was_generating_ids) {
 	if (!network_interface->is_local_peer_networked()) {
 		synchronizer_type = SYNCHRONIZER_TYPE_NONETWORK;
-		synchronizer = memnew(NoNetSynchronizer(this));
+		synchronizer = new NoNetSynchronizer(this);
 		generate_id = true;
 
 	} else if (network_interface->is_local_peer_server()) {
 		synchronizer_type = SYNCHRONIZER_TYPE_SERVER;
-		synchronizer = memnew(ServerSynchronizer(this));
+		synchronizer = new ServerSynchronizer(this);
 		generate_id = true;
 	} else {
 		synchronizer_type = SYNCHRONIZER_TYPE_CLIENT;
-		synchronizer = memnew(ClientSynchronizer(this));
+		synchronizer = new ClientSynchronizer(this);
 	}
 
 	if (p_was_generating_ids != generate_id) {
@@ -1091,7 +1091,7 @@ void SceneSynchronizerBase::uninit_synchronizer() {
 	generate_id = false;
 
 	if (synchronizer) {
-		memdelete(synchronizer);
+		delete synchronizer;
 		synchronizer = nullptr;
 		synchronizer_type = SYNCHRONIZER_TYPE_NULL;
 	}
@@ -1614,7 +1614,7 @@ void SceneSynchronizerBase::reset_controllers() {
 void SceneSynchronizerBase::reset_controller(PeerNetworkedController &p_controller) {
 	// Reset the controller type.
 	if (p_controller.controller != nullptr) {
-		memdelete(p_controller.controller);
+		delete p_controller.controller;
 		p_controller.controller = nullptr;
 		p_controller.controller_type = PeerNetworkedController::CONTROLLER_TYPE_NULL;
 	}
@@ -1630,26 +1630,26 @@ void SceneSynchronizerBase::reset_controller(PeerNetworkedController &p_controll
 
 	if (!network_interface->is_local_peer_networked()) {
 		p_controller.controller_type = PeerNetworkedController::CONTROLLER_TYPE_NONETWORK;
-		p_controller.controller = memnew(NoNetController(&p_controller));
+		p_controller.controller = new NoNetController(&p_controller);
 
 	} else if (network_interface->is_local_peer_server()) {
 		if (p_controller.get_authority_peer() == get_network_interface().get_server_peer()) {
 			// This is the server controller that is used to control the BOTs / NPCs.
 			p_controller.controller_type = PeerNetworkedController::CONTROLLER_TYPE_AUTONOMOUS_SERVER;
-			p_controller.controller = memnew(AutonomousServerController(&p_controller));
+			p_controller.controller = new AutonomousServerController(&p_controller);
 
 		} else {
 			p_controller.controller_type = PeerNetworkedController::CONTROLLER_TYPE_SERVER;
-			p_controller.controller = memnew(ServerController(&p_controller));
+			p_controller.controller = new ServerController(&p_controller);
 		}
 
 	} else if (get_network_interface().fetch_local_peer_id() == p_controller.get_authority_peer()) {
 		p_controller.controller_type = PeerNetworkedController::CONTROLLER_TYPE_PLAYER;
-		p_controller.controller = memnew(PlayerController(&p_controller));
+		p_controller.controller = new PlayerController(&p_controller);
 
 	} else {
 		p_controller.controller_type = PeerNetworkedController::CONTROLLER_TYPE_DOLL;
-		p_controller.controller = memnew(DollController(&p_controller));
+		p_controller.controller = new DollController(&p_controller);
 	}
 
 	p_controller.controller->ready();
@@ -2343,7 +2343,7 @@ void ServerSynchronizer::generate_snapshot_object_data(
 }
 
 void ServerSynchronizer::process_trickled_sync(double p_delta) {
-	DataBuffer *tmp_buffer = memnew(DataBuffer);
+	DataBuffer tmp_buffer;
 
 	// Since the `update_rate` is a rate relative to the fixed_frame_delta,
 	// we need to compute this factor to correctly scale the `update_rate`.
@@ -2391,10 +2391,10 @@ void ServerSynchronizer::process_trickled_sync(double p_delta) {
 				object_info._update_priority = 0.0;
 
 				// Read the state and write into the tmp_buffer:
-				tmp_buffer->begin_write(0);
+				tmp_buffer.begin_write(0);
 
-				object_info.od->func_trickled_collect(*tmp_buffer, object_info.update_rate);
-				if (tmp_buffer->total_size() > UINT16_MAX) {
+				object_info.od->func_trickled_collect(tmp_buffer, object_info.update_rate);
+				if (tmp_buffer.total_size() > UINT16_MAX) {
 					SceneSynchronizerDebugger::singleton()->print(ERROR, "The `process_trickled_sync` failed because the method `trickled_collect` for the node `" + object_info.od->get_net_id() + "::" + object_info.od->object_name + "` collected more than " + std::to_string(UINT16_MAX) + " bits. Please optimize your netcode to send less data.", scene_synchronizer->get_network_interface().get_owner_name());
 					continue;
 				}
@@ -2410,8 +2410,8 @@ void ServerSynchronizer::process_trickled_sync(double p_delta) {
 				}
 
 				// Collapse the two DataBuffer.
-				global_buffer.add_uint(std::uint32_t(tmp_buffer->total_size()), DataBuffer::COMPRESSION_LEVEL_2);
-				global_buffer.add_bits(tmp_buffer->get_buffer().get_bytes().data(), tmp_buffer->total_size());
+				global_buffer.add_uint(std::uint32_t(tmp_buffer.total_size()), DataBuffer::COMPRESSION_LEVEL_2);
+				global_buffer.add_bits(tmp_buffer.get_buffer().get_bytes().data(), tmp_buffer.total_size());
 
 			} else {
 				object_info._update_priority += object_info.update_rate * current_frame_factor;
@@ -2428,8 +2428,6 @@ void ServerSynchronizer::process_trickled_sync(double p_delta) {
 			}
 		}
 	}
-
-	memdelete(tmp_buffer);
 }
 
 void ServerSynchronizer::update_peers_net_statistics(double p_delta) {
@@ -2485,30 +2483,28 @@ void ServerSynchronizer::send_net_stat_to_peer(int p_peer, PeerData &p_peer_data
 	}
 
 	// TODO This doesn't need to be a pointer. Remove it once it doesn't inherit anymore a godot Object.
-	DataBuffer *db = memnew(DataBuffer);
-	db->begin_write(0);
+	DataBuffer db;
+	db.begin_write(0);
 
 	// Latency
-	db->add(p_peer_data.get_compressed_latency());
+	db.add(p_peer_data.get_compressed_latency());
 
 	// Packet loss from 0.0 to 1.0
-	db->add_positive_unit_real(p_peer_data.get_out_packet_loss_percentage(), DataBuffer::COMPRESSION_LEVEL_0);
+	db.add_positive_unit_real(p_peer_data.get_out_packet_loss_percentage(), DataBuffer::COMPRESSION_LEVEL_0);
 
 	// Average jitter - from 0ms to 255ms.
 	const std::uint8_t compressed_jitter = std::clamp(int(p_peer_data.get_latency_jitter_ms()), int(0), int(std::numeric_limits<std::uint8_t>::max()));
-	db->add(compressed_jitter);
+	db.add(compressed_jitter);
 
 	// Compressed input count - from 0 to 255
 	const std::uint8_t compressed_input_count =
 			std::clamp(int(controller.get_server_controller_unchecked()->get_inputs_count()), int(0), int(std::numeric_limits<std::uint8_t>::max()));
-	db->add(compressed_input_count);
+	db.add(compressed_input_count);
 
 	scene_synchronizer->rpc_handle_notify_netstats.rpc(
 			scene_synchronizer->get_network_interface(),
 			p_peer,
-			*db);
-
-	memdelete(db);
+			db);
 }
 
 int ServerSynchronizer::fetch_sub_processes_count(double p_delta) {
@@ -3454,7 +3450,7 @@ void ClientSynchronizer::receive_trickled_sync_data(const std::vector<std::uint8
 
 	const uint32_t epoch = future_epoch_buffer.read_uint(DataBuffer::COMPRESSION_LEVEL_1);
 
-	DataBuffer *db = memnew(DataBuffer);
+	DataBuffer db;
 
 	while (true) {
 		// 1. Decode the received data.
@@ -3524,7 +3520,7 @@ void ClientSynchronizer::receive_trickled_sync_data(const std::vector<std::uint8
 		stream.past_epoch_buffer.begin_write(0);
 
 		// 2. Now collect the past epoch buffer by reading the current values.
-		db->begin_write(0);
+		db.begin_write(0);
 
 		if (!stream.od->func_trickled_collect) {
 			SceneSynchronizerDebugger::singleton()->print(INFO, "The function `receive_trickled_sync_data` is skiplatency the node `" + stream.od->object_name + "` as the function `trickled_collect` failed executing.", scene_synchronizer->get_network_interface().get_owner_name());
@@ -3533,8 +3529,8 @@ void ClientSynchronizer::receive_trickled_sync_data(const std::vector<std::uint8
 		}
 
 		if (stream.past_epoch != UINT32_MAX) {
-			stream.od->func_trickled_collect(*db, 1.0);
-			stream.past_epoch_buffer.copy(*db);
+			stream.od->func_trickled_collect(db, 1.0);
+			stream.past_epoch_buffer.copy(db);
 		} else {
 			// Streaming not started.
 			stream.past_epoch_buffer.copy(stream.future_epoch_buffer);
@@ -3553,15 +3549,13 @@ void ClientSynchronizer::receive_trickled_sync_data(const std::vector<std::uint8
 			stream.epochs_timespan = 0.0;
 		}
 	}
-
-	memdelete(db);
 }
 
 void ClientSynchronizer::process_trickled_sync(double p_delta) {
 	NS_PROFILE
 
-	DataBuffer *db1 = memnew(DataBuffer);
-	DataBuffer *db2 = memnew(DataBuffer);
+	DataBuffer db1;
+	DataBuffer db2;
 
 	for (TrickledSyncInterpolationData &stream : trickled_sync_array) {
 		if (stream.epochs_timespan <= 0.001) {
@@ -3589,16 +3583,13 @@ void ClientSynchronizer::process_trickled_sync(double p_delta) {
 		stream.past_epoch_buffer.begin_read();
 		stream.future_epoch_buffer.begin_read();
 
-		db1->copy(stream.past_epoch_buffer);
-		db2->copy(stream.future_epoch_buffer);
-		db1->begin_read();
-		db2->begin_read();
+		db1.copy(stream.past_epoch_buffer);
+		db2.copy(stream.future_epoch_buffer);
+		db1.begin_read();
+		db2.begin_read();
 
-		od->func_trickled_apply(p_delta, stream.alpha, *db1, *db2);
+		od->func_trickled_apply(p_delta, stream.alpha, db1, db2);
 	}
-
-	memdelete(db1);
-	memdelete(db2);
 }
 
 void ClientSynchronizer::remove_object_from_trickled_sync(NS::ObjectData *p_object_data) {

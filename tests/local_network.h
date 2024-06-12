@@ -1,9 +1,9 @@
 #pragma once
 
 #include "../core/core.h"
+#include "../core/data_buffer.h"
 #include "../core/network_interface.h"
 #include "../core/processor.h"
-#include "../data_buffer.h"
 #include <functional>
 #include <map>
 #include <memory>
@@ -30,7 +30,7 @@ struct PendingPacket {
 	float delay = 0.0;
 	int peer_recipient = -1;
 	std::string object_name;
-	DataBuffer data_buffer;
+	NS::DataBuffer data_buffer;
 };
 
 class LocalNetwork {
@@ -60,7 +60,7 @@ public:
 
 	void register_object(LocalNetworkInterface &p_interface);
 
-	void rpc_send(std::string p_object_name, int p_peer_recipient, bool p_reliable, DataBuffer &&p_data_buffer);
+	void rpc_send(std::string p_object_name, int p_peer_recipient, bool p_reliable, NS::DataBuffer &&p_data_buffer);
 
 	void process(float p_delta);
 
@@ -108,7 +108,7 @@ public:
 	/// Can be used to verify if the local peer is the server.
 	virtual bool is_local_peer_server() const override;
 
-	virtual void rpc_send(int p_peer_recipient, bool p_reliable, DataBuffer &&p_data_buffer) override;
+	virtual void rpc_send(int p_peer_recipient, bool p_reliable, NS::DataBuffer &&p_data_buffer) override;
 
 	virtual void server_update_net_stats(int p_peer, PeerData &r_peer_data) const override;
 };

@@ -1,9 +1,9 @@
 #include "test_data_buffer.h"
 
-#include "../data_buffer.h"
+#include "../core/data_buffer.h"
 
 void test_data_buffer_string() {
-	DataBuffer db;
+	NS::DataBuffer db;
 	db.begin_write(0);
 
 	std::string abc_1("abc_1");
@@ -18,7 +18,7 @@ void test_data_buffer_string() {
 
 void test_data_buffer_u16string() {
 	{
-		DataBuffer db;
+		NS::DataBuffer db;
 		db.begin_write(0);
 
 		std::u16string abc_1(u"abc_1");

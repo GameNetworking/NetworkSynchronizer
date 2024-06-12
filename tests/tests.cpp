@@ -10,7 +10,7 @@
 void NS_Test::test_all() {
 	NS::LocalSceneSynchronizer::install_local_scene_sync();
 
-	// TODO test DataBuffer.
+	// TODO test NS::DataBuffer.
 	test_data_buffer();
 	test_processor();
 	test_local_network();
