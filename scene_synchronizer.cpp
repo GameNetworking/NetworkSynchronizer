@@ -1,7 +1,5 @@
 #include "scene_synchronizer.h"
 
-#include "core/config/project_settings.h"
-
 #include "core/core.h"
 #include "core/ensure.h"
 #include "core/net_utilities.h"
@@ -326,6 +324,18 @@ bool SceneSynchronizerBase::is_variable_registered(ObjectLocalId p_id, const std
 		return od->find_variable_id(p_variable) != VarId::NONE;
 	}
 	return false;
+}
+
+void SceneSynchronizerBase::set_debug_rewindings_enabled(bool p_enabled) {
+	debug_rewindings_enabled = p_enabled;
+}
+
+void SceneSynchronizerBase::set_debug_server_speedup(bool p_enabled) {
+	debug_server_speedup = p_enabled;
+}
+
+void SceneSynchronizerBase::set_debug_log_nodes_relevancy_update(bool p_enabled) {
+	debug_log_nodes_relevancy_update = p_enabled;
 }
 
 void SceneSynchronizerBase::set_settings(Settings &p_settings) {
@@ -1088,7 +1098,6 @@ void SceneSynchronizerBase::uninit_synchronizer() {
 }
 
 void SceneSynchronizerBase::reset_synchronizer_mode() {
-	debug_rewindings_enabled = ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/log_debug_rewindings");
 	const bool was_generating_ids = generate_id;
 	uninit_synchronizer();
 	init_synchronizer(was_generating_ids);
@@ -1223,8 +1232,7 @@ void SceneSynchronizerBase::rpc_notify_netstats(DataBuffer &p_data) {
 	}
 
 #ifdef DEBUG_ENABLED
-	const bool debug = ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/debug_server_speedup");
-	if (debug) {
+	if (debug_server_speedup) {
 		SceneSynchronizerDebugger::singleton()->print(
 				INFO,
 				std::string() +
@@ -1455,8 +1463,7 @@ bool SceneSynchronizerBase::is_networked() const {
 void SceneSynchronizerBase::update_objects_relevancy() {
 	synchronizer_manager->update_objects_relevancy();
 
-	const bool log_debug_nodes_relevancy_update = ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/log_debug_nodes_relevancy_update");
-	if (log_debug_nodes_relevancy_update) {
+	if (debug_log_nodes_relevancy_update) {
 		static_cast<ServerSynchronizer *>(synchronizer)->sync_group_debug_print();
 	}
 }

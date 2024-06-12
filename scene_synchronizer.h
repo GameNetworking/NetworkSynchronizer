@@ -253,8 +253,9 @@ protected:
 	bool cached_process_functions_valid = false;
 	Processor<double> cached_process_functions[PROCESS_PHASE_COUNT];
 
-	// Set at runtime by the constructor by reading the project settings.
 	bool debug_rewindings_enabled = false;
+	bool debug_server_speedup = false;
+	bool debug_log_nodes_relevancy_update = false;
 
 public: // -------------------------------------------------------------- Events
 	Processor<> event_sync_started;
@@ -376,6 +377,15 @@ public:
 	float get_latency_update_rate() const;
 
 	bool is_variable_registered(ObjectLocalId p_id, const std::string &p_variable) const;
+
+	void set_debug_rewindings_enabled(bool p_enabled);
+	bool get_debug_rewindings_enabled() const { return debug_rewindings_enabled; }
+
+	void set_debug_server_speedup(bool p_enabled);
+	bool get_debug_server_speedup() const { return debug_server_speedup; }
+
+	void set_debug_log_nodes_relevancy_update(bool p_enabled);
+	bool get_debug_log_nodes_relevancy_update() const { return debug_log_nodes_relevancy_update; }
 
 public: // ---------------------------------------------------------------- RPCs
 	void rpc_receive_state(DataBuffer &p_snapshot);
