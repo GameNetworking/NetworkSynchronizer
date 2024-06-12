@@ -74,7 +74,7 @@ bool GdFileSystem::store_file_buffer(const std::string &p_path, const std::uint8
 	return true;
 }
 
-bool GdFileSystem::is_file_exists(const std::string &p_path) const {
+bool GdFileSystem::file_exists(const std::string &p_path) const {
 	return FileAccess::exists(p_path.c_str());
 }
 
