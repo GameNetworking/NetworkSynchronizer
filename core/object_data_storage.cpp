@@ -1,9 +1,8 @@
 #include "object_data_storage.h"
 
-#include "core/error/error_macros.h"
-#include "core/os/memory.h"
-
 #include "../scene_synchronizer.h"
+#include "ensure.h"
+#include "scene_synchronizer_debugger.h"
 #include "var_data.h"
 
 NS_NAMESPACE_BEGIN
@@ -34,12 +33,12 @@ ObjectData *ObjectDataStorage::allocate_object_data() {
 	} else {
 		od->local_id.id = free_local_indices.back().id;
 		free_local_indices.pop_back();
-		CRASH_COND(objects_data.size() <= od->local_id.id);
-		CRASH_COND(objects_data[od->local_id.id] != nullptr);
+		ASSERT_COND(objects_data.size() > od->local_id.id);
+		ASSERT_COND(objects_data[od->local_id.id] == nullptr);
 		objects_data[od->local_id.id] = od;
 	}
 
-	CRASH_COND(objects_data[od->local_id.id] != od);
+	ASSERT_COND(objects_data[od->local_id.id] == od);
 
 	return od;
 }
@@ -49,11 +48,11 @@ void ObjectDataStorage::deallocate_object_data(ObjectData &p_object_data) {
 	const ObjectNetId net_id = p_object_data.net_id;
 
 	// The allocate function guarantee the validity of this check.
-	CRASH_COND(objects_data[local_id.id] != (&p_object_data));
+	ASSERT_COND(objects_data[local_id.id] == (&p_object_data));
 	objects_data[local_id.id] = nullptr;
 
 	if (objects_data_organized_by_netid.size() > net_id.id) {
-		CRASH_COND(objects_data_organized_by_netid[net_id.id] != (&p_object_data));
+		ASSERT_COND(objects_data_organized_by_netid[net_id.id] == (&p_object_data));
 		objects_data_organized_by_netid[net_id.id] = nullptr;
 	}
 
@@ -85,7 +84,7 @@ void ObjectDataStorage::object_set_net_id(ObjectData &p_object_data, ObjectNetId
 
 	if (objects_data_organized_by_netid.size() > p_new_id.id) {
 		if (objects_data_organized_by_netid[p_new_id.id] && objects_data_organized_by_netid[p_new_id.id] != (&p_object_data)) {
-			ERR_PRINT("[NET] The object `" + String(p_object_data.object_name.c_str()) + "` was associated with to a new NetId that was used by `" + String(objects_data_organized_by_netid[p_new_id.id]->object_name.c_str()) + "`. THIS IS NOT SUPPOSED TO HAPPEN.");
+			SceneSynchronizerDebugger::singleton()->print(ERROR, "[NET] The object `" + p_object_data.object_name + "` was associated with to a new NetId that was used by `" + objects_data_organized_by_netid[p_new_id.id]->object_name + "`. THIS IS NOT SUPPOSED TO HAPPEN.");
 		}
 	} else {
 		// Expand the array
@@ -112,7 +111,7 @@ ObjectLocalId ObjectDataStorage::find_object_local_id(ObjectHandle p_handle) con
 
 NS::ObjectData *ObjectDataStorage::get_object_data(ObjectNetId p_net_id, bool p_expected) {
 	if (p_expected) {
-		ERR_FAIL_UNSIGNED_INDEX_V(p_net_id.id, objects_data_organized_by_netid.size(), nullptr);
+		ENSURE_V(p_net_id.id < objects_data_organized_by_netid.size(), nullptr);
 	} else {
 		if (objects_data_organized_by_netid.size() <= p_net_id.id) {
 			return nullptr;
@@ -124,7 +123,7 @@ NS::ObjectData *ObjectDataStorage::get_object_data(ObjectNetId p_net_id, bool p_
 
 const NS::ObjectData *ObjectDataStorage::get_object_data(ObjectNetId p_net_id, bool p_expected) const {
 	if (p_expected) {
-		ERR_FAIL_UNSIGNED_INDEX_V(p_net_id.id, objects_data_organized_by_netid.size(), nullptr);
+		ENSURE_V(p_net_id.id < objects_data_organized_by_netid.size(), nullptr);
 	} else {
 		if (objects_data_organized_by_netid.size() <= p_net_id.id) {
 			return nullptr;
@@ -136,7 +135,7 @@ const NS::ObjectData *ObjectDataStorage::get_object_data(ObjectNetId p_net_id, b
 
 NS::ObjectData *ObjectDataStorage::get_object_data(ObjectLocalId p_handle, bool p_expected) {
 	if (p_expected) {
-		ERR_FAIL_UNSIGNED_INDEX_V(p_handle.id, objects_data.size(), nullptr);
+		ENSURE_V(p_handle.id < objects_data.size(), nullptr);
 	} else {
 		if (p_handle.id < 0 || objects_data.size() <= p_handle.id) {
 			return nullptr;
@@ -148,7 +147,7 @@ NS::ObjectData *ObjectDataStorage::get_object_data(ObjectLocalId p_handle, bool 
 
 const NS::ObjectData *ObjectDataStorage::get_object_data(ObjectLocalId p_handle, bool p_expected) const {
 	if (p_expected) {
-		ERR_FAIL_UNSIGNED_INDEX_V(p_handle.id, objects_data.size(), nullptr);
+		ENSURE_V(p_handle.id < objects_data.size(), nullptr);
 	} else {
 		if (p_handle.id < 0 || objects_data.size() <= p_handle.id) {
 			return nullptr;
@@ -183,13 +182,13 @@ ObjectNetId ObjectDataStorage::generate_net_id() const {
 	for (auto od : objects_data_organized_by_netid) {
 		if (!od) {
 			// This position is empty, can be used as NetId.
-			return ObjectNetId{{ i }};
+			return ObjectNetId{ { i } };
 		}
 		i++;
 	}
 
 	// Create a new NetId.
-	return ObjectNetId{{ uint32_t(objects_data_organized_by_netid.size()) }};
+	return ObjectNetId{ { uint32_t(objects_data_organized_by_netid.size()) } };
 }
 
 bool ObjectDataStorage::is_empty() const {
