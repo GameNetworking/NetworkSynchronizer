@@ -1,7 +1,5 @@
 #pragma once
 
-#include "core/templates/local_vector.h"
-
 #include "core/network_interface.h"
 #include "core/object_data_storage.h"
 #include "core/processor.h"
@@ -819,7 +817,7 @@ public:
 				future_epoch_buffer(p_future_epoch_buffer) {}
 		bool operator==(const TrickledSyncInterpolationData &o) const { return od == o.od; }
 	};
-	LocalVector<TrickledSyncInterpolationData> trickled_sync_array;
+	std::vector<TrickledSyncInterpolationData> trickled_sync_array;
 
 public:
 	ClientSynchronizer(SceneSynchronizerBase *p_node);
