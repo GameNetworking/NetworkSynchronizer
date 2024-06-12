@@ -3504,8 +3504,8 @@ void ClientSynchronizer::receive_trickled_sync_data(const Vector<uint8_t> &p_dat
 		future_epoch_buffer.read_bits(future_buffer_data.ptrw(), buffer_bit_count);
 		ASSERT_COND_MSG(future_epoch_buffer.get_bit_offset() == expected_bit_offset_after_apply, "At this point the buffer is expected to be exactly at this bit.");
 
-		int64_t index = trickled_sync_array.find(od);
-		if (index == -1) {
+		std::size_t index = VecFunc::find_index(trickled_sync_array, od);
+		if (index == VecFunc::index_none()) {
 			index = trickled_sync_array.size();
 			trickled_sync_array.push_back(TrickledSyncInterpolationData(od));
 		}
@@ -3557,8 +3557,7 @@ void ClientSynchronizer::process_trickled_sync(double p_delta) {
 	DataBuffer *db1 = memnew(DataBuffer);
 	DataBuffer *db2 = memnew(DataBuffer);
 
-	for (int i = 0; i < int(trickled_sync_array.size()); ++i) {
-		TrickledSyncInterpolationData &stream = trickled_sync_array[i];
+	for (TrickledSyncInterpolationData &stream : trickled_sync_array) {
 		if (stream.epochs_timespan <= 0.001) {
 			// The stream is not yet started.
 			// OR
@@ -3597,10 +3596,7 @@ void ClientSynchronizer::process_trickled_sync(double p_delta) {
 }
 
 void ClientSynchronizer::remove_object_from_trickled_sync(NS::ObjectData *p_object_data) {
-	const int64_t index = trickled_sync_array.find(p_object_data);
-	if (index >= 0) {
-		trickled_sync_array.remove_at_unordered(index);
-	}
+	VecFunc::remove_unordered(trickled_sync_array, p_object_data);
 }
 
 bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {

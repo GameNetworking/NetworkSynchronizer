@@ -116,10 +116,14 @@ typename std::map<K, V>::iterator insert_if_new(std::map<K, V> &p_map, const K &
 
 namespace VecFunc {
 
+inline std::size_t index_none() {
+	return std::numeric_limits<std::size_t>::max();
+}
+
 template <class V, typename T>
 std::size_t find_index(const std::vector<V> &p_vec, const T &p_val) {
 	const auto it = std::find(p_vec.begin(), p_vec.end(), p_val);
-	return it == p_vec.end() ? std::numeric_limits<std::size_t>::max() : std::distance(p_vec.begin(), it);
+	return it == p_vec.end() ? index_none() : std::distance(p_vec.begin(), it);
 }
 
 template <class V, typename T>
