@@ -1,7 +1,6 @@
 #include "scene_synchronizer.h"
 
 #include "core/config/project_settings.h"
-#include "core/os/os.h"
 
 #include "core/core.h"
 #include "core/ensure.h"
