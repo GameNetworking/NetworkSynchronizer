@@ -1,7 +1,5 @@
 #pragma once
 
-#include "core.h"
-#include "core/variant/variant.h"
 #include "modules/network_synchronizer/data_buffer.h"
 #include "var_data.h"
 
@@ -18,9 +16,6 @@ void decode_variable(float &val, DataBuffer &r_buffer);
 
 void encode_variable(double val, DataBuffer &r_buffer);
 void decode_variable(double &val, DataBuffer &p_buffer);
-
-void encode_variable(const Variant &val, DataBuffer &r_buffer);
-void decode_variable(Variant &val, DataBuffer &p_buffer);
 
 void encode_variable(const std::vector<std::uint8_t> &val, DataBuffer &r_buffer);
 void decode_variable(std::vector<std::uint8_t> &val, DataBuffer &p_buffer);
