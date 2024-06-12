@@ -1,4 +1,5 @@
 #include "local_scene.h"
+
 #include <memory>
 #include <string>
 

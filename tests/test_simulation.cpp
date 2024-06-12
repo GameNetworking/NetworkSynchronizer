@@ -1,7 +1,5 @@
 #include "test_simulation.h"
 
-#include "core/error/error_macros.h"
-
 #include "../core/core.h"
 #include "../core/ensure.h"
 #include "../core/net_utilities.h"
@@ -235,7 +233,7 @@ struct TestSimulationBase {
 	TSLocalNetworkedController *controlled_obj_p1 = nullptr;
 	NS::PeerNetworkedController *controller_p1 = nullptr;
 
-	NS::FrameIndex process_until_frame = NS::FrameIndex{{ 300 }};
+	NS::FrameIndex process_until_frame = NS::FrameIndex{ { 300 } };
 	int process_until_frame_timeout = 20;
 
 private:
@@ -347,21 +345,21 @@ public:
 				break;
 			}
 
-			CRASH_COND(controller_server->get_current_frame_index() >= (process_until_frame + process_until_frame_timeout) && controller_server->get_current_frame_index() != NS::FrameIndex::NONE);
-			CRASH_COND(controller_p1->get_current_frame_index() >= (process_until_frame + process_until_frame_timeout) && controller_p1->get_current_frame_index() != NS::FrameIndex::NONE);
+			ASSERT_COND(controller_server->get_current_frame_index() >= (process_until_frame + process_until_frame_timeout) && controller_server->get_current_frame_index() == NS::FrameIndex::NONE);
+			ASSERT_COND(controller_p1->get_current_frame_index() >= (process_until_frame + process_until_frame_timeout) && controller_p1->get_current_frame_index() == NS::FrameIndex::NONE);
 		}
 
 		//                  ---- Validation phase ----
 		// First make sure all positions have changed at all.
-		CRASH_COND(controlled_obj_server->get_position().distance_to(Vec3(1, 1, 1)) <= 0.0001);
-		CRASH_COND(light_magnet_server->get_position().distance_to(Vec3(2, 1, 1)) <= 0.0001);
-		CRASH_COND(heavy_magnet_server->get_position().distance_to(Vec3(1, 1, 2)) <= 0.0001);
+		ASSERT_COND(controlled_obj_server->get_position().distance_to(Vec3(1, 1, 1)) > 0.0001);
+		ASSERT_COND(light_magnet_server->get_position().distance_to(Vec3(2, 1, 1)) > 0.0001);
+		ASSERT_COND(heavy_magnet_server->get_position().distance_to(Vec3(1, 1, 2)) > 0.0001);
 
 		// Now, make sure the client and server positions are the same: ensuring the
 		// sync worked.
-		CRASH_COND(controller_server_position_at_target_frame.distance_to(controller_p1_position_at_target_frame) >= 0.0001);
-		CRASH_COND(light_mag_server_position_at_target_frame.distance_to(light_mag_p1_position_at_target_frame) >= 0.0001);
-		CRASH_COND(heavy_mag_server_position_at_target_frame.distance_to(heavy_mag_p1_position_at_target_frame) >= 0.0001);
+		ASSERT_COND(controller_server_position_at_target_frame.distance_to(controller_p1_position_at_target_frame) < 0.0001);
+		ASSERT_COND(light_mag_server_position_at_target_frame.distance_to(light_mag_p1_position_at_target_frame) < 0.0001);
+		ASSERT_COND(heavy_mag_server_position_at_target_frame.distance_to(heavy_mag_p1_position_at_target_frame) < 0.0001);
 
 		on_scenes_done();
 	}
@@ -372,13 +370,13 @@ public:
 /// It manually de-sync the server by teleporting the controller, and then
 /// make sure the client was immediately re-sync with a single rewinding action.
 struct TestSimulationWithRewind : public TestSimulationBase {
-	NS::FrameIndex reset_position_on_frame = NS::FrameIndex{{ 100 }};
+	NS::FrameIndex reset_position_on_frame = NS::FrameIndex{ { 100 } };
 	float notify_state_interval = 0.0;
 
 public:
 	std::vector<NS::FrameIndex> client_rewinded_frames;
 	// The ID of snapshot sent by the server.
-	NS::FrameIndex correction_snapshot_sent = NS::FrameIndex{{ 0 }};
+	NS::FrameIndex correction_snapshot_sent = NS::FrameIndex{ { 0 } };
 
 	TestSimulationWithRewind(float p_notify_state_interval) :
 			notify_state_interval(p_notify_state_interval) {}
@@ -418,9 +416,9 @@ public:
 	}
 
 	virtual void on_scenes_done() override {
-		CRASH_COND(client_rewinded_frames.size() != 1);
-		CRASH_COND(client_rewinded_frames[0] < reset_position_on_frame);
-		CRASH_COND(client_rewinded_frames[0] != correction_snapshot_sent);
+		ASSERT_COND(client_rewinded_frames.size() == 1);
+		ASSERT_COND(client_rewinded_frames[0] >= reset_position_on_frame);
+		ASSERT_COND(client_rewinded_frames[0] == correction_snapshot_sent);
 	}
 };
 

@@ -1,7 +1,5 @@
 #include "test_doll_simulation.h"
 
-#include "core/error/error_macros.h"
-
 #include "../core/core.h"
 #include "../core/net_utilities.h"
 #include "../core/processor.h"

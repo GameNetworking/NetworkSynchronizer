@@ -1,7 +1,5 @@
 #include "test_scene_synchronizer.h"
 
-#include "core/error/error_macros.h"
-
 #include "../core/core.h"
 #include "../core/ensure.h"
 #include "../core/net_utilities.h"
@@ -15,25 +13,25 @@
 namespace NS_Test {
 
 void test_ids() {
-	NS::VarId var_id_0 = NS::VarId{{ 0 }};
-	NS::VarId var_id_0_2 = NS::VarId{{ 0 }};
-	NS::VarId var_id_1 = NS::VarId{{ 1 }};
+	NS::VarId var_id_0 = NS::VarId{ { 0 } };
+	NS::VarId var_id_0_2 = NS::VarId{ { 0 } };
+	NS::VarId var_id_1 = NS::VarId{ { 1 } };
 
-	CRASH_COND(var_id_0 != var_id_0_2);
-	CRASH_COND(var_id_0 == var_id_1);
-	CRASH_COND(var_id_0 > var_id_1);
-	CRASH_COND(var_id_0 >= var_id_1);
-	CRASH_COND(var_id_1 < var_id_0);
-	CRASH_COND(var_id_1 <= var_id_0);
+	ASSERT_COND(var_id_0 == var_id_0_2);
+	ASSERT_COND(var_id_0 != var_id_1);
+	ASSERT_COND(var_id_0 <= var_id_1);
+	ASSERT_COND(var_id_0 < var_id_1);
+	ASSERT_COND(var_id_1 >= var_id_0);
+	ASSERT_COND(var_id_1 > var_id_0);
 
 	NS::VarId var_id_2 = var_id_1 + 1;
-	CRASH_COND(var_id_2.id != 2);
+	ASSERT_COND(var_id_2.id == 2);
 
 	NS::VarId var_id_3 = var_id_0;
 	var_id_3 += var_id_1;
 	var_id_3 += int(1);
 	var_id_3 += uint32_t(1);
-	CRASH_COND(var_id_3.id != 3);
+	ASSERT_COND(var_id_3.id != 3);
 }
 
 const double delta = 1.0 / 60.0;
@@ -101,15 +99,15 @@ void test_client_and_server_initialization() {
 	// Add the scene sync
 	server_scene.scene_sync =
 			server_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
-	CRASH_COND_MSG(!server_scene.scene_sync->is_server(), "This must be a server scene sync.");
+	ASSERT_COND_MSG(server_scene.scene_sync->is_server(), "This must be a server scene sync.");
 
 	peer_1_scene.scene_sync =
 			peer_1_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
-	CRASH_COND_MSG(!peer_1_scene.scene_sync->is_client(), "This must be a client scene sync.");
+	ASSERT_COND_MSG(peer_1_scene.scene_sync->is_client(), "This must be a client scene sync.");
 
 	peer_2_scene.scene_sync =
 			peer_2_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
-	CRASH_COND_MSG(!peer_2_scene.scene_sync->is_client(), "This must be a cliet scene sync.");
+	ASSERT_COND_MSG(peer_2_scene.scene_sync->is_client(), "This must be a cliet scene sync.");
 
 	// Make sure the controller exists right away the peer are connected.
 	ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(server_scene.get_peer(), false), "This must be NON null at this point.");
@@ -524,9 +522,9 @@ void test_state_notify() {
 			server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 0;
 			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 1;
 			peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 = 2;
-			CRASH_COND(server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 0);
-			CRASH_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 1);
-			CRASH_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 2);
+			ASSERT_COND(server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 == 0);
+			ASSERT_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 == 1);
+			ASSERT_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 == 2);
 
 			// Process exactly 1 time.
 			// NOTE: Processing the controller so the server receives the input right after.
@@ -538,9 +536,9 @@ void test_state_notify() {
 			// the snapshot right away: since the server snapshot is always
 			// at least one frame behind the client, we can assume that the
 			// client has applied the server correction.
-			CRASH_COND(server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 0);
-			CRASH_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 0);
-			CRASH_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 0);
+			ASSERT_COND(server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 == 0);
+			ASSERT_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 == 0);
+			ASSERT_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 == 0);
 		}
 
 		// Test with notify interval set to 0.5 seconds.
@@ -572,10 +570,10 @@ void test_state_notify() {
 			// the snapshot after some 0.5s: since the server snapshot is always
 			// at least one frame behind the client, we can assume that the
 			// client has applied the server correction.
-			CRASH_COND(server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 3);
-			CRASH_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 3);
-			CRASH_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 3);
-			CRASH_COND(time >= 0.5);
+			ASSERT_COND(server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 == 3);
+			ASSERT_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 == 3);
+			ASSERT_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 == 3);
+			ASSERT_COND(time < 0.5);
 		}
 
 		// Test by making sure the Scene Sync is able to sync when the variable
@@ -597,9 +595,9 @@ void test_state_notify() {
 				peer_2_scene.process(delta);
 
 				// Still the value expected is `3`.
-				CRASH_COND(server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 3);
-				CRASH_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 3);
-				CRASH_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 3);
+				ASSERT_COND(server_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 == 3);
+				ASSERT_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 == 3);
+				ASSERT_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 == 3);
 			} else {
 				// Note: the +1 is needed because the change is recored on the snapshot
 				// the scene sync is going to created on the next "process".
@@ -626,7 +624,7 @@ void test_state_notify() {
 
 					// However, since the `peer_2` doesn't have the local controller
 					// the server snapshot is expected to be applied right away.
-					CRASH_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 3);
+					ASSERT_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 == 3);
 
 					if (change_made_on_frame == server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index()) {
 						// Break as soon as the server reaches the same snapshot.
@@ -636,10 +634,10 @@ void test_state_notify() {
 
 				// Make sure the server is indeed at the same frame on which the
 				// client made the change.
-				CRASH_COND(change_made_on_frame != server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index());
+				ASSERT_COND(change_made_on_frame == server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index());
 
 				// and now is time to check for the `peer_1`.
-				CRASH_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 != 3);
+				ASSERT_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->variables["var_1"].data.i32 == 3);
 			}
 		}
 
@@ -656,14 +654,14 @@ void test_state_notify() {
 				peer_2_scene.process(delta);
 			}
 
-			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{{ 0 }});
-			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{{ 1 }});
+			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ { 0 } });
+			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ { 1 } });
 			// NOTE: No need to check the peer_2, because it's not an authoritative controller anyway.
 		} else {
 			// Make sure the controllers have been processed at this point.
-			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex{{ 0 }});
+			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex{ { 0 } });
 			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex::NONE);
-			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex{{ 0 }});
+			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex{ { 0 } });
 			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex::NONE);
 
 			// NOTE: No need to check the peer_2, because it's not an authoritative controller anyway.
@@ -711,8 +709,8 @@ void test_processing_with_late_controller_registration() {
 
 	// Make sure the client can process right away as the NetId is networked
 	// already.
-	ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{{ 0 }});
-	ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{{ 1 }});
+	ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ { 0 } });
+	ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ { 1 } });
 }
 
 void test_snapshot_generation() {
@@ -879,10 +877,10 @@ void test_variable_change_event() {
 			}
 
 			// Make sure the event on the server was not triggered
-			CRASH_COND(is_server_change_event_triggered);
+			ASSERT_COND(!is_server_change_event_triggered);
 			// But it was on the peers.
-			CRASH_COND(!is_p1_change_event_triggered);
-			CRASH_COND(!is_p2_change_event_triggered);
+			ASSERT_COND(is_p1_change_event_triggered);
+			ASSERT_COND(is_p2_change_event_triggered);
 
 			// Now unregister the listeners.
 			server_scene.scene_sync->untrack_variable_changes(server_lh);
@@ -912,21 +910,21 @@ void test_variable_change_event() {
 			NS::ListenerHandle server_lh = server_scene.scene_sync->track_variable_changes(
 					server_obj_1_oh, "var_1", [&is_server_change_event_triggered, &server_scene](const std::vector<NS::VarData> &p_old_values) {
 						is_server_change_event_triggered = true;
-						CRASH_COND(!server_scene.scene_sync->is_resetted());
+						ASSERT_COND(server_scene.scene_sync->is_resetted());
 					},
 					NetEventFlag::SYNC_RESET);
 
 			NS::ListenerHandle p1_lh = peer_1_scene.scene_sync->track_variable_changes(
 					p1_obj_1_oh, "var_1", [&is_p1_change_event_triggered, &peer_1_scene](const std::vector<NS::VarData> &p_old_values) {
 						is_p1_change_event_triggered = true;
-						CRASH_COND(!peer_1_scene.scene_sync->is_resetted());
+						ASSERT_COND(peer_1_scene.scene_sync->is_resetted());
 					},
 					NetEventFlag::SYNC_RESET);
 
 			NS::ListenerHandle p2_lh = peer_2_scene.scene_sync->track_variable_changes(
 					p2_obj_1_oh, "var_1", [&is_p2_change_event_triggered, &peer_2_scene](const std::vector<NS::VarData> &p_old_values) {
 						is_p2_change_event_triggered = true;
-						CRASH_COND(!peer_2_scene.scene_sync->is_resetted());
+						ASSERT_COND(peer_2_scene.scene_sync->is_resetted());
 					},
 					NetEventFlag::SYNC_RESET);
 
@@ -946,9 +944,9 @@ void test_variable_change_event() {
 
 			// Make sure the event was not triggered on anyone since we are
 			// skipping the rewinding.
-			CRASH_COND(is_server_change_event_triggered);
-			CRASH_COND(is_p1_change_event_triggered);
-			CRASH_COND(is_p2_change_event_triggered);
+			ASSERT_COND(!is_server_change_event_triggered);
+			ASSERT_COND(!is_p1_change_event_triggered);
+			ASSERT_COND(!is_p2_change_event_triggered);
 
 			// Now set the var as rewinding.
 			server_scene.scene_sync->set_skip_rewinding(server_obj_1_oh, "var_1", false);
@@ -965,8 +963,8 @@ void test_variable_change_event() {
 			}
 
 			// Make sure the event was triggered now.
-			CRASH_COND(!is_p1_change_event_triggered);
-			CRASH_COND(!is_p2_change_event_triggered);
+			ASSERT_COND(is_p1_change_event_triggered);
+			ASSERT_COND(is_p2_change_event_triggered);
 
 			// Now unregister the listeners.
 			server_scene.scene_sync->untrack_variable_changes(server_lh);
@@ -987,14 +985,14 @@ void test_variable_change_event() {
 				peer_2_scene.process(delta);
 			}
 
-			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{{ 0 }});
-			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{{ 1 }});
+			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ { 0 } });
+			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ { 1 } });
 			// NOTE: No need to check the peer_2, because it's not an authoritative controller anyway.
 		} else {
 			// Make sure the controllers have been processed at this point.
-			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex{{ 0 }});
+			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex{ { 0 } });
 			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex::NONE);
-			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex{{ 0 }});
+			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex{ { 0 } });
 			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex::NONE);
 
 			// NOTE: No need to check the peer_2, because it's not an authoritative controller anyway.
