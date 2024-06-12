@@ -897,10 +897,10 @@ void SceneSynchronizerBase::force_state_notify_all() {
 	ENSURE(is_server());
 	ServerSynchronizer *r = static_cast<ServerSynchronizer *>(synchronizer);
 
-	for (uint32_t i = 0; i < r->sync_groups.size(); ++i) {
+	for (NS::SyncGroup &group : r->sync_groups) {
 		// + 1.0 is just a ridiculous high number to be sure to avoid float
 		// precision error.
-		r->sync_groups[i].state_notifier_timer = get_frame_confirmation_timespan() + 1.0;
+		group.state_notifier_timer = get_frame_confirmation_timespan() + 1.0;
 	}
 }
 
@@ -1816,8 +1816,8 @@ void ServerSynchronizer::on_peer_connected(int p_peer_id) {
 
 void ServerSynchronizer::on_peer_disconnected(int p_peer_id) {
 	peers_data.erase(p_peer_id);
-	for (uint32_t i = 0; i < sync_groups.size(); ++i) {
-		sync_groups[i].remove_listening_peer(p_peer_id);
+	for (NS::SyncGroup &group : sync_groups) {
+		group.remove_listening_peer(p_peer_id);
 	}
 }
 
@@ -1837,9 +1837,9 @@ void ServerSynchronizer::on_object_data_added(NS::ObjectData &p_object_data) {
 void ServerSynchronizer::on_object_data_removed(NS::ObjectData &p_object_data) {
 	NS::VecFunc::remove_unordered(active_objects, &p_object_data);
 
-	// Make sure to remove this `NodeData` from any sync group.
-	for (uint32_t i = 0; i < sync_groups.size(); ++i) {
-		sync_groups[i].remove_sync_object(p_object_data);
+	// Make sure to remove this `ObjectData` from any sync group.
+	for (NS::SyncGroup &group : sync_groups) {
+		group.remove_sync_object(p_object_data);
 	}
 }
 
@@ -1865,8 +1865,8 @@ void ServerSynchronizer::on_variable_added(NS::ObjectData *p_object_data, const 
 	ASSERT_COND(p_object_data->get_net_id() != ObjectNetId::NONE);
 #endif
 
-	for (uint32_t g = 0; g < sync_groups.size(); ++g) {
-		sync_groups[g].notify_new_variable(p_object_data, p_var_name);
+	for (NS::SyncGroup &group : sync_groups) {
+		group.notify_new_variable(p_object_data, p_var_name);
 	}
 }
 
@@ -1878,8 +1878,8 @@ void ServerSynchronizer::on_variable_changed(NS::ObjectData *p_object_data, VarI
 	ASSERT_COND(p_object_data->get_net_id() != ObjectNetId::NONE);
 #endif
 
-	for (uint32_t g = 0; g < sync_groups.size(); ++g) {
-		sync_groups[g].notify_variable_changed(p_object_data, p_object_data->vars[p_var_id.id].var.name);
+	for (NS::SyncGroup &group : sync_groups) {
+		group.notify_variable_changed(p_object_data, p_object_data->vars[p_var_id.id].var.name);
 	}
 }
 
@@ -1964,8 +1964,8 @@ void ServerSynchronizer::sync_group_update(int p_peer_id) {
 	auto psd_it = MapFunc::insert_if_new(peers_data, p_peer_id, PeerServerData());
 
 	// remove the peer from any sync_group.
-	for (uint32_t i = 0; i < sync_groups.size(); ++i) {
-		sync_groups[i].remove_listening_peer(p_peer_id);
+	for (NS::SyncGroup &group : sync_groups) {
+		group.remove_listening_peer(p_peer_id);
 	}
 
 	if (pd->authority_data.sync_group_id == SyncGroupId::NONE || !pd->authority_data.enabled) {
@@ -2071,9 +2071,7 @@ void ServerSynchronizer::process_snapshot_notificator() {
 		return;
 	}
 
-	for (int g = 0; g < int(sync_groups.size()); ++g) {
-		NS::SyncGroup &group = sync_groups[g];
-
+	for (NS::SyncGroup &group : sync_groups) {
 		if (group.get_listening_peers().empty()) {
 			// No one is interested to this group.
 			continue;
