@@ -433,6 +433,9 @@ void GdSceneSynchronizer::_rpc_net_sync_unreliable(const Vector<uint8_t> &p_args
 }
 
 void GdSceneSynchronizer::reset_synchronizer_mode() {
+	scene_synchronizer.set_debug_rewindings_enabled(ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/log_debug_rewindings"));
+	scene_synchronizer.set_debug_server_speedup(ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/debug_server_speedup"));
+	scene_synchronizer.set_debug_log_nodes_relevancy_update(ProjectSettings::get_singleton()->get_setting("NetworkSynchronizer/log_debug_nodes_relevancy_update"));
 	scene_synchronizer.reset_synchronizer_mode();
 }
 
