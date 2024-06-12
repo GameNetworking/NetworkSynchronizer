@@ -1,6 +1,7 @@
 #include "local_network.h"
 
 #include "../core/ensure.h"
+#include "../core/net_math.h"
 #include "../core/peer_networked_controller.h"
 #include "../core/var_data.h"
 #include "../scene_synchronizer.h"
@@ -182,7 +183,7 @@ bool LocalNetworkInterface::is_local_peer_server() const {
 }
 
 void LocalNetworkInterface::rpc_send(int p_peer_recipient, bool p_reliable, NS::DataBuffer &&p_data_buffer) {
-	ERR_FAIL_COND(!network);
+	ENSURE(network);
 	network->rpc_send(get_owner_name(), p_peer_recipient, p_reliable, std::move(p_data_buffer));
 }
 
@@ -224,7 +225,9 @@ void NS_Test::test_local_network() {
 				ASSERT_COND(a == true);
 				ASSERT_COND(b == 22);
 				ASSERT_COND(c == 44.0);
-				ASSERT_COND(Vector3(d.data.vec.x, d.data.vec.y, d.data.vec.z).distance_to(Vector3(1, 2, 3)) <= 0.001);
+				ASSERT_COND(NS::MathFunc::is_equal_approx(d.data.vec.x, 1.0));
+				ASSERT_COND(NS::MathFunc::is_equal_approx(d.data.vec.y, 2.0));
+				ASSERT_COND(NS::MathFunc::is_equal_approx(d.data.vec.z, 3.0));
 				ASSERT_COND(e.size() == 3);
 				ASSERT_COND(e[0] == 1);
 				ASSERT_COND(e[1] == 2);
@@ -243,7 +246,9 @@ void NS_Test::test_local_network() {
 				ASSERT_COND(a == true);
 				ASSERT_COND(b == 22);
 				ASSERT_COND(c == 44.0);
-				ASSERT_COND(Vector3(d.data.vec.x, d.data.vec.y, d.data.vec.z).distance_to(Vector3(1, 2, 3)) <= 0.001);
+				ASSERT_COND(NS::MathFunc::is_equal_approx(d.data.vec.x, 1.0));
+				ASSERT_COND(NS::MathFunc::is_equal_approx(d.data.vec.y, 2.0));
+				ASSERT_COND(NS::MathFunc::is_equal_approx(d.data.vec.z, 3.0));
 				ASSERT_COND(e.size() == 3);
 				ASSERT_COND(e[0] == 1);
 				ASSERT_COND(e[1] == 2);

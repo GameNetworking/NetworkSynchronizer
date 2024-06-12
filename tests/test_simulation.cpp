@@ -3,7 +3,7 @@
 #include "../core/core.h"
 #include "../core/data_buffer.h"
 #include "../core/ensure.h"
-#include "../core/math.h"
+#include "../core/net_math.h"
 #include "../core/net_utilities.h"
 #include "../core/processor.h"
 #include "../core/var_data.h"

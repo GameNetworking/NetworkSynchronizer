@@ -1,12 +1,7 @@
 #include "data_buffer.h"
 
-#include "core/error/error_macros.h"
-#include "core/io/marshalls.h"
-#include "core/math/vector2.h"
-#include "core/variant/variant.h"
-
 #include "ensure.h"
-#include "math.h"
+#include "net_math.h"
 #include "scene_synchronizer_debugger.h"
 #include <cstddef>
 #include <cstdint>
@@ -91,7 +86,7 @@ void DataBuffer::copy(const BitArray &p_buffer) {
 }
 
 void DataBuffer::begin_write(int p_metadata_size) {
-	CRASH_COND_MSG(p_metadata_size < 0, "Metadata size can't be negative");
+	ASSERT_COND_MSG(p_metadata_size >= 0, "Metadata size can't be negative");
 	metadata_size = p_metadata_size;
 	bit_size = 0;
 	bit_offset = 0;
@@ -104,14 +99,14 @@ void DataBuffer::dry() {
 }
 
 void DataBuffer::seek(int p_bits) {
-	ERR_FAIL_INDEX(p_bits, metadata_size + bit_size + 1);
+	ENSURE(p_bits < metadata_size + bit_size + 1);
 	bit_offset = p_bits;
 }
 
 void DataBuffer::shrink_to(int p_metadata_bit_size, int p_bit_size) {
-	CRASH_COND_MSG(p_metadata_bit_size < 0, "Metadata size can't be negative");
-	ERR_FAIL_COND_MSG(p_bit_size < 0, "Bit size can't be negative");
-	ERR_FAIL_COND_MSG(buffer.size_in_bits() < (p_metadata_bit_size + p_bit_size), "The buffer is smaller than the new given size.");
+	ASSERT_COND_MSG(p_metadata_bit_size >= 0, "Metadata size can't be negative");
+	ENSURE_MSG(p_bit_size >= 0, "Bit size can't be negative");
+	ENSURE_MSG(buffer.size_in_bits() >= (p_metadata_bit_size + p_bit_size), "The buffer is smaller than the new given size.");
 	metadata_size = p_metadata_bit_size;
 	bit_size = p_bit_size;
 }
@@ -192,7 +187,7 @@ void DataBuffer::read(std::uint64_t &r_out) {
 }
 
 void DataBuffer::add(const std::string &p_string) {
-	CRASH_COND(std::uint64_t(p_string.size()) > std::uint64_t(std::numeric_limits<std::uint16_t>::max()));
+	ASSERT_COND(std::uint64_t(p_string.size()) <= std::uint64_t(std::numeric_limits<std::uint16_t>::max()));
 	add_uint(p_string.size(), COMPRESSION_LEVEL_2);
 	if (p_string.size() > 0) {
 		add_bits(reinterpret_cast<const uint8_t *>(p_string.c_str()), p_string.size() * 8);
@@ -212,7 +207,7 @@ void DataBuffer::read(std::string &r_out) {
 }
 
 void DataBuffer::add(const std::u16string &p_string) {
-	CRASH_COND(std::uint64_t(p_string.size()) > std::uint64_t(std::numeric_limits<std::uint16_t>::max()));
+	ASSERT_COND(std::uint64_t(p_string.size()) <= std::uint64_t(std::numeric_limits<std::uint16_t>::max()));
 	add_uint(p_string.size(), COMPRESSION_LEVEL_2);
 	if (p_string.size() > 0) {
 		add_bits(reinterpret_cast<const uint8_t *>(p_string.c_str()), p_string.size() * 8 * (sizeof(char16_t)));
@@ -240,7 +235,7 @@ void DataBuffer::read(DataBuffer &r_db) {
 }
 
 bool DataBuffer::add_bool(bool p_input) {
-	ERR_FAIL_COND_V(is_reading == true, p_input);
+	ENSURE_V(!is_reading, p_input);
 
 	const int bits = get_bit_taken(DATA_TYPE_BOOL, COMPRESSION_LEVEL_0);
 
@@ -252,7 +247,7 @@ bool DataBuffer::add_bool(bool p_input) {
 
 #ifdef DEBUG_ENABLED
 	// Can't never happen because the buffer size is correctly handled.
-	CRASH_COND((metadata_size + bit_size) > buffer.size_in_bits() && bit_offset > buffer.size_in_bits());
+	ASSERT_COND((metadata_size + bit_size) <= buffer.size_in_bits() && bit_offset <= buffer.size_in_bits());
 #endif
 
 	DEB_WRITE(DATA_TYPE_BOOL, COMPRESSION_LEVEL_0, p_input ? "TRUE" : "FALSE");
@@ -261,7 +256,7 @@ bool DataBuffer::add_bool(bool p_input) {
 }
 
 bool DataBuffer::read_bool() {
-	ERR_FAIL_COND_V(is_reading == false, false);
+	ENSURE_V(is_reading, false);
 
 	const int bits = get_bit_taken(DATA_TYPE_BOOL, COMPRESSION_LEVEL_0);
 	std::uint64_t d;
@@ -277,7 +272,7 @@ bool DataBuffer::read_bool() {
 }
 
 int64_t DataBuffer::add_int(int64_t p_input, CompressionLevel p_compression_level) {
-	ERR_FAIL_COND_V(is_reading == true, p_input);
+	ENSURE_V(!is_reading, p_input);
 
 	const int bits = get_bit_taken(DATA_TYPE_INT, p_compression_level);
 
@@ -285,11 +280,11 @@ int64_t DataBuffer::add_int(int64_t p_input, CompressionLevel p_compression_leve
 
 	// Clamp the value to the max that the bit can store.
 	if (bits == 8) {
-		value = CLAMP(value, INT8_MIN, INT8_MAX);
+		value = MathFunc::clamp(value, INT8_MIN, INT8_MAX);
 	} else if (bits == 16) {
-		value = CLAMP(value, INT16_MIN, INT16_MAX);
+		value = MathFunc::clamp(value, INT16_MIN, INT16_MAX);
 	} else if (bits == 32) {
-		value = CLAMP(value, INT32_MIN, INT32_MAX);
+		value = MathFunc::clamp(value, INT32_MIN, INT32_MAX);
 	} else {
 		// Nothing to do here
 	}
@@ -307,16 +302,16 @@ int64_t DataBuffer::add_int(int64_t p_input, CompressionLevel p_compression_leve
 
 #ifdef DEBUG_ENABLED
 	// Can't never happen because the buffer size is correctly handled.
-	CRASH_COND((metadata_size + bit_size) > buffer.size_in_bits() && bit_offset > buffer.size_in_bits());
+	ASSERT_COND((metadata_size + bit_size) <= buffer.size_in_bits() && bit_offset <= buffer.size_in_bits());
 #endif
 
-	DEB_WRITE(DATA_TYPE_INT, p_compression_level, itos(value).utf8());
+	DEB_WRITE(DATA_TYPE_INT, p_compression_level, std::to_string(value));
 
 	return value;
 }
 
 int64_t DataBuffer::read_int(CompressionLevel p_compression_level) {
-	ERR_FAIL_COND_V(is_reading == false, 0);
+	ENSURE_V(is_reading, 0);
 
 	const int bits = get_bit_taken(DATA_TYPE_INT, p_compression_level);
 
@@ -331,25 +326,25 @@ int64_t DataBuffer::read_int(CompressionLevel p_compression_level) {
 	memcpy(&value, &uvalue, sizeof(uint64_t));
 
 	if (bits == 8) {
-		DEB_READ(DATA_TYPE_INT, p_compression_level, itos(static_cast<int8_t>(value)).utf8());
+		DEB_READ(DATA_TYPE_INT, p_compression_level, std::to_string(static_cast<int8_t>(value)));
 		return static_cast<int8_t>(value);
 
 	} else if (bits == 16) {
-		DEB_READ(DATA_TYPE_INT, p_compression_level, itos(static_cast<int16_t>(value)).utf8());
+		DEB_READ(DATA_TYPE_INT, p_compression_level, std::to_string(static_cast<int16_t>(value)));
 		return static_cast<int16_t>(value);
 
 	} else if (bits == 32) {
-		DEB_READ(DATA_TYPE_INT, p_compression_level, itos(static_cast<int32_t>(value)).utf8());
+		DEB_READ(DATA_TYPE_INT, p_compression_level, std::to_string(static_cast<int32_t>(value)));
 		return static_cast<int32_t>(value);
 
 	} else {
-		DEB_READ(DATA_TYPE_INT, p_compression_level, itos(value).utf8());
+		DEB_READ(DATA_TYPE_INT, p_compression_level, std::to_string(value));
 		return value;
 	}
 }
 
 uint64_t DataBuffer::add_uint(uint64_t p_input, CompressionLevel p_compression_level) {
-	ERR_FAIL_COND_V(is_reading == true, p_input);
+	ENSURE_V(!is_reading, p_input);
 
 	const int bits = get_bit_taken(DATA_TYPE_UINT, p_compression_level);
 
@@ -357,11 +352,11 @@ uint64_t DataBuffer::add_uint(uint64_t p_input, CompressionLevel p_compression_l
 
 	// Clamp the value to the max that the bit can store.
 	if (bits == 8) {
-		value = MIN(value, uint64_t(UINT8_MAX));
+		value = std::min(value, uint64_t(UINT8_MAX));
 	} else if (bits == 16) {
-		value = MIN(value, uint64_t(UINT16_MAX));
+		value = std::min(value, uint64_t(UINT16_MAX));
 	} else if (bits == 32) {
-		value = MIN(value, uint64_t(UINT32_MAX));
+		value = std::min(value, uint64_t(UINT32_MAX));
 	} else {
 		// Nothing to do here
 	}
@@ -375,16 +370,16 @@ uint64_t DataBuffer::add_uint(uint64_t p_input, CompressionLevel p_compression_l
 
 #ifdef DEBUG_ENABLED
 	// Can't never happen because the buffer size is correctly handled.
-	CRASH_COND((metadata_size + bit_size) > buffer.size_in_bits() && bit_offset > buffer.size_in_bits());
+	ASSERT_COND((metadata_size + bit_size) <= buffer.size_in_bits() && bit_offset <= buffer.size_in_bits());
 #endif
 
-	DEB_WRITE(DATA_TYPE_UINT, p_compression_level, uitos(value).utf8());
+	DEB_WRITE(DATA_TYPE_UINT, p_compression_level, std::to_string(value));
 
 	return value;
 }
 
 uint64_t DataBuffer::read_uint(CompressionLevel p_compression_level) {
-	ERR_FAIL_COND_V(is_reading == false, 0);
+	ENSURE_V(is_reading, 0);
 
 	const int bits = get_bit_taken(DATA_TYPE_UINT, p_compression_level);
 
@@ -395,21 +390,21 @@ uint64_t DataBuffer::read_uint(CompressionLevel p_compression_level) {
 	}
 	bit_offset += bits;
 
-	DEB_READ(DATA_TYPE_UINT, p_compression_level, uitos(value).utf8());
+	DEB_READ(DATA_TYPE_UINT, p_compression_level, std::to_string(value));
 
 	return value;
 }
 
 double DataBuffer::add_real(double p_input, CompressionLevel p_compression_level) {
-	ERR_FAIL_COND_V(is_reading == true, p_input);
+	ENSURE_V(!is_reading, p_input);
 
 	// Clamp the input value according to the compression level
 	// Minifloat (compression level 0) have a special bias
 	const int exponent_bits = get_exponent_bits(p_compression_level);
 	const int mantissa_bits = get_mantissa_bits(p_compression_level);
-	const double bias = p_compression_level == COMPRESSION_LEVEL_3 ? Math::pow(2.0, exponent_bits) - 3 : Math::pow(2.0, exponent_bits - 1) - 1;
-	const double max_value = (2.0 - Math::pow(2.0, -(mantissa_bits - 1))) * Math::pow(2.0, bias);
-	const double clamped_input = CLAMP(p_input, -max_value, max_value);
+	const double bias = p_compression_level == COMPRESSION_LEVEL_3 ? std::pow(2.0, exponent_bits) - 3 : std::pow(2.0, exponent_bits - 1) - 1;
+	const double max_value = (2.0 - std::pow(2.0, -(mantissa_bits - 1))) * std::pow(2.0, bias);
+	const double clamped_input = MathFunc::clamp(p_input, -max_value, max_value);
 
 	// Split number according to IEEE 754 binary format.
 	// Mantissa floating point value represented in range (-1;-0.5], [0.5; 1).
@@ -418,28 +413,28 @@ double DataBuffer::add_real(double p_input, CompressionLevel p_compression_level
 
 	// Extract sign.
 	const bool sign = mantissa < 0;
-	mantissa = Math::abs(mantissa);
+	mantissa = std::abs(mantissa);
 
 	// Round mantissa into the specified number of bits (like float -> double conversion).
-	double mantissa_scale = Math::pow(2.0, mantissa_bits);
+	double mantissa_scale = std::pow(2.0, mantissa_bits);
 	if (exponent <= 0) {
 		// Subnormal value, apply exponent to mantissa and reduce power of scale by one.
-		mantissa *= Math::pow(2.0, exponent);
+		mantissa *= std::pow(2.0, exponent);
 		exponent = 0;
 		mantissa_scale /= 2.0;
 	}
-	mantissa = Math::round(mantissa * mantissa_scale) / mantissa_scale; // Round to specified number of bits.
+	mantissa = std::round(mantissa * mantissa_scale) / mantissa_scale; // Round to specified number of bits.
 	if (mantissa < 0.5 && mantissa != 0) {
 		// Check underflow, extract exponent from mantissa.
 		exponent += ilogb(mantissa) + 1;
-		mantissa /= Math::pow(2.0, exponent);
+		mantissa /= std::pow(2.0, exponent);
 	} else if (mantissa == 1) {
 		// Check overflow, increment the exponent.
 		++exponent;
 		mantissa = 0.5;
 	}
 	// Convert the mantissa to an integer that represents the offset index (IEE 754 floating point representation) to send over network safely.
-	const uint64_t integer_mantissa = exponent <= 0 ? mantissa * mantissa_scale * Math::pow(2.0, exponent) : (mantissa - 0.5) * mantissa_scale;
+	const uint64_t integer_mantissa = exponent <= 0 ? mantissa * mantissa_scale * std::pow(2.0, exponent) : (mantissa - 0.5) * mantissa_scale;
 
 	make_room_in_bits(mantissa_bits + exponent_bits);
 	if (!buffer.store_bits(bit_offset, sign, 1)) {
@@ -457,12 +452,12 @@ double DataBuffer::add_real(double p_input, CompressionLevel p_compression_level
 	bit_offset += exponent_bits;
 
 	const double value = ldexp(sign ? -mantissa : mantissa, exponent);
-	DEB_WRITE(DATA_TYPE_REAL, p_compression_level, rtos(value).utf8());
+	DEB_WRITE(DATA_TYPE_REAL, p_compression_level, std::to_string(value));
 	return value;
 }
 
 double DataBuffer::read_real(CompressionLevel p_compression_level) {
-	ERR_FAIL_COND_V(is_reading == false, 0.0);
+	ENSURE_V(is_reading, 0.0);
 
 	std::uint64_t sign;
 	if (!buffer.read_bits(bit_offset, 1, sign)) {
@@ -480,7 +475,7 @@ double DataBuffer::read_real(CompressionLevel p_compression_level) {
 	bit_offset += mantissa_bits - 1;
 
 	const int exponent_bits = get_exponent_bits(p_compression_level);
-	const double bias = p_compression_level == COMPRESSION_LEVEL_3 ? Math::pow(2.0, exponent_bits) - 3 : Math::pow(2.0, exponent_bits - 1) - 1;
+	const double bias = p_compression_level == COMPRESSION_LEVEL_3 ? std::pow(2.0, exponent_bits) - 3 : std::pow(2.0, exponent_bits - 1) - 1;
 	std::uint64_t encoded_exponent;
 	if (!buffer.read_bits(bit_offset, exponent_bits, encoded_exponent)) {
 		buffer_failed = true;
@@ -491,21 +486,22 @@ double DataBuffer::read_real(CompressionLevel p_compression_level) {
 
 	// Convert integer mantissa into the floating point representation
 	// When the index of the mantissa and exponent are 0, then this is a special case and the mantissa is 0.
-	const double mantissa_scale = Math::pow(2.0, exponent <= 0 ? mantissa_bits - 1 : mantissa_bits);
-	const double mantissa = exponent <= 0 ? integer_mantissa / mantissa_scale / Math::pow(2.0, exponent) : integer_mantissa / mantissa_scale + 0.5;
+	const double mantissa_scale = std::pow(2.0, exponent <= 0 ? mantissa_bits - 1 : mantissa_bits);
+	const double mantissa = exponent <= 0 ? integer_mantissa / mantissa_scale / std::pow(2.0, exponent) : integer_mantissa / mantissa_scale + 0.5;
 
 	const double value = ldexp(sign != 0 ? -mantissa : mantissa, exponent);
 
-	DEB_READ(DATA_TYPE_REAL, p_compression_level, rtos(value).utf8());
+	DEB_READ(DATA_TYPE_REAL, p_compression_level, std::to_string(value));
 
 	return value;
 }
 
 float DataBuffer::add_positive_unit_real(float p_input, CompressionLevel p_compression_level) {
+	ENSURE_V(!is_reading, p_input);
+
 #ifdef DEBUG_ENABLED
-	ERR_FAIL_COND_V_MSG(p_input < 0 || p_input > 1, p_input, "Value must be between zero and one.");
+	ENSURE_V_MSG(p_input >= 0 && p_input <= 1, p_input, "Value must be between zero and one.");
 #endif
-	ERR_FAIL_COND_V(is_reading == true, p_input);
 
 	const int bits = get_bit_taken(DATA_TYPE_POSITIVE_UNIT_REAL, p_compression_level);
 
@@ -521,16 +517,16 @@ float DataBuffer::add_positive_unit_real(float p_input, CompressionLevel p_compr
 
 #ifdef DEBUG_ENABLED
 	// Can't never happen because the buffer size is correctly handled.
-	CRASH_COND((metadata_size + bit_size) > buffer.size_in_bits() && bit_offset > buffer.size_in_bits());
+	ASSERT_COND((metadata_size + bit_size) <= buffer.size_in_bits() && bit_offset <= buffer.size_in_bits());
 #endif
 
 	const float value = decompress_unit_float(compressed_val, max_value);
-	DEB_WRITE(DATA_TYPE_POSITIVE_UNIT_REAL, p_compression_level, rtos(value).utf8());
+	DEB_WRITE(DATA_TYPE_POSITIVE_UNIT_REAL, p_compression_level, std::to_string(value));
 	return value;
 }
 
 float DataBuffer::read_positive_unit_real(CompressionLevel p_compression_level) {
-	ERR_FAIL_COND_V(is_reading == false, 0.0);
+	ENSURE_V(is_reading, 0.0);
 
 	const int bits = get_bit_taken(DATA_TYPE_POSITIVE_UNIT_REAL, p_compression_level);
 
@@ -545,15 +541,15 @@ float DataBuffer::read_positive_unit_real(CompressionLevel p_compression_level) 
 
 	const float value = decompress_unit_float(compressed_val, max_value);
 
-	DEB_READ(DATA_TYPE_POSITIVE_UNIT_REAL, p_compression_level, rtos(value).utf8());
+	DEB_READ(DATA_TYPE_POSITIVE_UNIT_REAL, p_compression_level, std::to_string(value));
 
 	return value;
 }
 
 float DataBuffer::add_unit_real(float p_input, CompressionLevel p_compression_level) {
-	ERR_FAIL_COND_V(is_reading == true, p_input);
+	ENSURE_V(!is_reading, p_input);
 
-	const float added_real = add_positive_unit_real(ABS(p_input), p_compression_level);
+	const float added_real = add_positive_unit_real(std::abs(p_input), p_compression_level);
 
 	const int bits_for_sign = 1;
 	const uint32_t is_negative = p_input < 0.0;
@@ -565,17 +561,17 @@ float DataBuffer::add_unit_real(float p_input, CompressionLevel p_compression_le
 
 #ifdef DEBUG_ENABLED
 	// Can't never happen because the buffer size is correctly handled.
-	CRASH_COND((metadata_size + bit_size) > buffer.size_in_bits() && bit_offset > buffer.size_in_bits());
+	ASSERT_COND((metadata_size + bit_size) <= buffer.size_in_bits() && bit_offset <= buffer.size_in_bits());
 #endif
 
 	const float value = is_negative ? -added_real : added_real;
-	DEB_WRITE(DATA_TYPE_UNIT_REAL, p_compression_level, rtos(value).utf8());
+	DEB_WRITE(DATA_TYPE_UNIT_REAL, p_compression_level, std::to_string(value));
 
 	return value;
 }
 
 float DataBuffer::read_unit_real(CompressionLevel p_compression_level) {
-	ERR_FAIL_COND_V(is_reading == false, 0.0);
+	ENSURE_V(is_reading, 0.0);
 
 	const float value = read_positive_unit_real(p_compression_level);
 
@@ -589,7 +585,7 @@ float DataBuffer::read_unit_real(CompressionLevel p_compression_level) {
 
 	const float ret = is_negative != 0 ? -value : value;
 
-	DEB_READ(DATA_TYPE_UNIT_REAL, p_compression_level, rtos(ret).utf8());
+	DEB_READ(DATA_TYPE_UNIT_REAL, p_compression_level, std::to_string(ret));
 
 	return ret;
 }
@@ -612,7 +608,6 @@ void DataBuffer::read_vector2(double &x, double &y, CompressionLevel p_compressi
 
 	DEB_DISABLE
 
-	Vector2 r;
 	x = read_real(p_compression_level);
 	y = read_real(p_compression_level);
 
@@ -640,7 +635,7 @@ void DataBuffer::add_normalized_vector2(double x, double y, CompressionLevel p_c
 
 	const double max_value = static_cast<double>(~(UINT64_MAX << bits_for_the_angle));
 
-	const uint64_t compressed_angle = compress_unit_float((angle + Math_PI) / Math_TAU, max_value);
+	const uint64_t compressed_angle = compress_unit_float((angle + M_PI) / M_TAU, max_value);
 
 	make_room_in_bits(bits);
 	if (!buffer.store_bits(bit_offset, is_not_zero, bits_for_zero)) {
@@ -678,9 +673,9 @@ void DataBuffer::read_normalized_vector2(double &x, double &y, CompressionLevel 
 	}
 	bit_offset += bits;
 
-	const double decompressed_angle = (decompress_unit_float(compressed_angle, max_value) * Math_TAU) - Math_PI;
-	x = Math::cos(decompressed_angle);
-	y = Math::sin(decompressed_angle);
+	const double decompressed_angle = (decompress_unit_float(compressed_angle, max_value) * M_TAU) - M_PI;
+	x = std::cos(decompressed_angle);
+	y = std::sin(decompressed_angle);
 
 	DEB_READ(DATA_TYPE_NORMALIZED_VECTOR2, p_compression_level, "X: " + std::to_string(x) + " Y: " + std::to_string(y));
 }
@@ -749,7 +744,7 @@ void DataBuffer::read_normalized_vector3(double &x, double &y, double &z, Compre
 
 void DataBuffer::add_data_buffer(const DataBuffer &p_db) {
 	const std::uint32_t other_db_bit_size = p_db.metadata_size + p_db.bit_size;
-	CRASH_COND_MSG(other_db_bit_size > std::numeric_limits<std::uint32_t>::max(), "DataBuffer can't add DataBuffer bigger than `" + itos(std::numeric_limits<std::uint32_t>::max()) + "` bits at the moment. [If this feature is needed ask for it.]");
+	ASSERT_COND_MSG(other_db_bit_size <= std::numeric_limits<std::uint32_t>::max(), "DataBuffer can't add DataBuffer bigger than `" + std::to_string(std::numeric_limits<std::uint32_t>::max()) + "` bits at the moment. [If this feature is needed ask for it.]");
 
 	const bool using_compression_lvl_2 = other_db_bit_size < std::numeric_limits<std::uint16_t>::max();
 	add(using_compression_lvl_2);
@@ -761,12 +756,12 @@ void DataBuffer::add_data_buffer(const DataBuffer &p_db) {
 }
 
 void DataBuffer::read_data_buffer(DataBuffer &r_db) {
-	ERR_FAIL_COND(!is_reading);
-	CRASH_COND(r_db.is_reading);
+	ENSURE(is_reading);
+	ASSERT_COND(!r_db.is_reading);
 
 	bool using_compression_lvl_2 = false;
 	read(using_compression_lvl_2);
-	ERR_FAIL_COND(is_buffer_failed());
+	ENSURE(!is_buffer_failed());
 	const int other_db_bit_size = read_uint(using_compression_lvl_2 ? COMPRESSION_LEVEL_2 : COMPRESSION_LEVEL_1);
 
 	pad_to_next_byte();
@@ -776,13 +771,13 @@ void DataBuffer::read_data_buffer(DataBuffer &r_db) {
 }
 
 void DataBuffer::add_bits(const uint8_t *p_data, int p_bit_count) {
-	ERR_FAIL_COND(is_reading);
+	ENSURE(!is_reading);
 	const int initial_bit_count = p_bit_count;
 
 	make_room_in_bits(p_bit_count);
 
 	for (int i = 0; p_bit_count > 0; ++i) {
-		const int this_bit_count = MIN(p_bit_count, 8);
+		const int this_bit_count = std::min(p_bit_count, 8);
 		p_bit_count -= this_bit_count;
 
 		if (!buffer.store_bits(bit_offset, p_data[i], this_bit_count)) {
@@ -792,15 +787,16 @@ void DataBuffer::add_bits(const uint8_t *p_data, int p_bit_count) {
 		bit_offset += this_bit_count;
 	}
 
-	DEB_WRITE(DATA_TYPE_BITS, COMPRESSION_LEVEL_0, String("buffer of `" + itos(initial_bit_count) + "` bits.").utf8());
+	DEB_WRITE(DATA_TYPE_BITS, COMPRESSION_LEVEL_0, "buffer of `" + std::to_string(initial_bit_count) + "` bits.");
 }
 
 void DataBuffer::read_bits(uint8_t *r_data, int p_bit_count) {
-	ERR_FAIL_COND(!is_reading);
+	ENSURE(is_reading);
+
 	const int initial_bit_count = p_bit_count;
 
 	for (int i = 0; p_bit_count > 0; ++i) {
-		const int this_bit_count = MIN(p_bit_count, 8);
+		const int this_bit_count = std::min(p_bit_count, 8);
 		p_bit_count -= this_bit_count;
 
 		std::uint64_t d;
@@ -813,7 +809,7 @@ void DataBuffer::read_bits(uint8_t *r_data, int p_bit_count) {
 		bit_offset += this_bit_count;
 	}
 
-	DEB_READ(DATA_TYPE_BITS, COMPRESSION_LEVEL_0, String("buffer of `" + itos(initial_bit_count) + "` bits.").utf8());
+	DEB_READ(DATA_TYPE_BITS, COMPRESSION_LEVEL_0, "buffer of `" + std::to_string(initial_bit_count) + "` bits.");
 }
 
 void DataBuffer::zero() {
@@ -1005,7 +1001,7 @@ int DataBuffer::get_bit_taken(DataType p_data_type, CompressionLevel p_compressi
 					return 8;
 				default:
 					// Unreachable
-					CRASH_NOW_MSG("Compression level not supported!");
+					ASSERT_NO_ENTRY_MSG("Compression level not supported!");
 			}
 		} break;
 		case DATA_TYPE_UINT: {
@@ -1020,7 +1016,7 @@ int DataBuffer::get_bit_taken(DataType p_data_type, CompressionLevel p_compressi
 					return 8;
 				default:
 					// Unreachable
-					CRASH_NOW_MSG("Compression level not supported!");
+					ASSERT_NO_ENTRY_MSG("Compression level not supported!");
 			}
 		} break;
 		case DATA_TYPE_REAL: {
@@ -1039,7 +1035,7 @@ int DataBuffer::get_bit_taken(DataType p_data_type, CompressionLevel p_compressi
 					return 4;
 				default:
 					// Unreachable
-					CRASH_NOW_MSG("Compression level not supported!");
+					ASSERT_NO_ENTRY_MSG("Compression level not supported!");
 			}
 		} break;
 		case DATA_TYPE_UNIT_REAL: {
@@ -1068,10 +1064,10 @@ int DataBuffer::get_bit_taken(DataType p_data_type, CompressionLevel p_compressi
 			return get_bit_taken(DATA_TYPE_UNIT_REAL, p_compression) * 3;
 		} break;
 		case DATA_TYPE_BITS: {
-			ERR_FAIL_V_MSG(0, "The bits size specified by the user and is not determined according to the compression level.");
+			ENSURE_V_MSG(false, 0, "The bits size specified by the user and is not determined according to the compression level.");
 		}
 		case DATA_TYPE_DATABUFFER: {
-			ERR_FAIL_V_MSG(0, "The variant size is dynamic and can't be know at compile time.");
+			ENSURE_V_MSG(false, 0, "The variant size is dynamic and can't be know at compile time.");
 		}
 		default:
 			// Unreachable
@@ -1120,7 +1116,7 @@ int DataBuffer::get_exponent_bits(CompressionLevel p_compression) {
 }
 
 uint64_t DataBuffer::compress_unit_float(double p_value, double p_scale_factor) {
-	return Math::round(MIN(p_value * p_scale_factor, p_scale_factor));
+	return std::round(std::min(p_value * p_scale_factor, p_scale_factor));
 }
 
 double DataBuffer::decompress_unit_float(uint64_t p_value, double p_scale_factor) {
