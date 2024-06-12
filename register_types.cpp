@@ -76,6 +76,7 @@ void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
 		GDREGISTER_CLASS(InputNetworkEncoder);
 
 		memnew(SceneSynchronizerDebugger);
+		SceneSynchronizerDebugger::singleton()->set_file_system(memnew(GdFileSystem));
 
 		GLOBAL_DEF("NetworkSynchronizer/debug_server_speedup", false);
 		GLOBAL_DEF("NetworkSynchronizer/log_debug_rewindings", false);
@@ -100,6 +101,7 @@ void uninitialize_network_synchronizer_module(ModuleInitializationLevel p_level)
 	}
 
 	if (SceneSynchronizerDebugger::singleton()) {
+		memdelete(SceneSynchronizerDebugger::singleton()->get_file_system());
 		memdelete(SceneSynchronizerDebugger::singleton());
 	}
 }
