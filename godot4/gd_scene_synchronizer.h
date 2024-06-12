@@ -162,7 +162,7 @@ public: // ---------------------------------------------------------------- APIs
 	void sync_group_remove_node(NS::ObjectData *p_object_data, uint32_t p_group_id);
 
 	/// Use `std::move()` to transfer `p_new_realtime_nodes` and `p_new_trickled_nodes`.
-	void sync_group_replace_nodes(uint32_t p_group_id, LocalVector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes);
+	void sync_group_replace_nodes(uint32_t p_group_id, std::vector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, std::vector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes);
 
 	void sync_group_remove_all_nodes(uint32_t p_group_id);
 	void sync_group_move_peer_to(int p_peer_id, uint32_t p_group_id);

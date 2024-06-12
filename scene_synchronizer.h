@@ -482,7 +482,7 @@ public: // ---------------------------------------------------------------- APIs
 	void sync_group_fetch_object_grups(const NS::ObjectData *p_object_data, std::vector<SyncGroupId> &r_simulated_groups, std::vector<SyncGroupId> &r_trickled_groups) const;
 
 	/// Use `std::move()` to transfer `p_new_realtime_object` and `p_new_trickled_objects`.
-	void sync_group_replace_objects(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_objects, LocalVector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_objects);
+	void sync_group_replace_objects(SyncGroupId p_group_id, std::vector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_objects, std::vector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_objects);
 
 	void sync_group_remove_all_objects(SyncGroupId p_group_id);
 	void sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id);
@@ -674,7 +674,7 @@ public:
 	void sync_group_add_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime);
 	void sync_group_remove_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id);
 	void sync_group_fetch_object_grups(const NS::ObjectData *p_object_data, std::vector<SyncGroupId> &r_simulated_groups, std::vector<SyncGroupId> &r_trickled_groups) const;
-	void sync_group_replace_object(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes);
+	void sync_group_replace_object(SyncGroupId p_group_id, std::vector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, std::vector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes);
 	void sync_group_remove_all_objects(SyncGroupId p_group_id);
 	void sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id);
 	void sync_group_update(int p_peer_id);
@@ -930,7 +930,7 @@ public:
 	}
 
 	static ObjectHandle to_handle(const BaseType *p_app_object) {
-		return ObjectHandle{{ reinterpret_cast<std::intptr_t>(p_app_object) }};
+		return ObjectHandle{ { reinterpret_cast<std::intptr_t>(p_app_object) } };
 	}
 
 	static BaseType *from_handle(ObjectHandle p_app_object_handle) {

@@ -32,15 +32,15 @@ const std::vector<int> NS::SyncGroup::get_peers_with_newly_calculated_latency() 
 	return peers_with_newly_calculated_latency;
 }
 
-const LocalVector<NS::SyncGroup::SimulatedObjectInfo> &NS::SyncGroup::get_simulated_sync_objects() const {
+const std::vector<NS::SyncGroup::SimulatedObjectInfo> &NS::SyncGroup::get_simulated_sync_objects() const {
 	return simulated_sync_objects;
 }
 
-const LocalVector<NS::SyncGroup::TrickledObjectInfo> &NS::SyncGroup::get_trickled_sync_objects() const {
+const std::vector<NS::SyncGroup::TrickledObjectInfo> &NS::SyncGroup::get_trickled_sync_objects() const {
 	return trickled_sync_objects;
 }
 
-LocalVector<NS::SyncGroup::TrickledObjectInfo> &NS::SyncGroup::get_trickled_sync_objects() {
+std::vector<NS::SyncGroup::TrickledObjectInfo> &NS::SyncGroup::get_trickled_sync_objects() {
 	return trickled_sync_objects;
 }
 
@@ -68,17 +68,18 @@ void NS::SyncGroup::remove_listening_peer(int p_peer) {
 	notify_simulating_peers_about_listener_status(p_peer, false);
 }
 
-uint32_t NS::SyncGroup::add_new_sync_object(ObjectData *p_object_data, bool p_is_simulated) {
+std::size_t NS::SyncGroup::add_new_sync_object(ObjectData *p_object_data, bool p_is_simulated) {
 	if (p_is_simulated) {
 		// Make sure the node is not contained into the trickled sync.
-		const int tso_index = trickled_sync_objects.find(p_object_data);
-		if (tso_index >= 0) {
+
+		const std::size_t tso_index = find_trickled(*p_object_data);
+		if (tso_index != std::numeric_limits<std::size_t>::max()) {
 			remove_sync_object(tso_index, false);
 		}
 	} else {
 		// Make sure the node is not contained into the realtime sync.
-		const int rsn_index = simulated_sync_objects.find(p_object_data);
-		if (rsn_index >= 0) {
+		const int rsn_index = find_simulated(*p_object_data);
+		if (rsn_index != std::numeric_limits<std::size_t>::max()) {
 			remove_sync_object(rsn_index, true);
 		}
 	}
@@ -93,10 +94,10 @@ uint32_t NS::SyncGroup::add_new_sync_object(ObjectData *p_object_data, bool p_is
 	}
 
 	if (p_is_simulated) {
-		// Add it into the realtime sync nodes
-		int index = simulated_sync_objects.find(p_object_data);
+		// Add it into the realtime sync list
+		std::size_t index = find_simulated(*p_object_data);
 
-		if (index <= -1) {
+		if (index == std::numeric_limits<std::size_t>::max()) {
 			index = simulated_sync_objects.size();
 			simulated_sync_objects.push_back(p_object_data);
 			simulated_sync_objects_list_changed = true;
@@ -118,9 +119,9 @@ uint32_t NS::SyncGroup::add_new_sync_object(ObjectData *p_object_data, bool p_is
 		return index;
 	} else {
 		// Add it into the trickled sync nodes
-		int index = trickled_sync_objects.find(p_object_data);
+		std::size_t index = find_trickled(*p_object_data);
 
-		if (index <= -1) {
+		if (index == std::numeric_limits<std::size_t>::max()) {
 			index = trickled_sync_objects.size();
 			trickled_sync_objects.push_back(p_object_data);
 			trickled_sync_objects[index]._unknown = true;
@@ -145,10 +146,10 @@ void NS::SyncGroup::remove_sync_object(std::size_t p_index, bool p_is_simulated)
 	}
 
 	if (p_is_simulated) {
-		simulated_sync_objects.remove_at_unordered(p_index);
+		VecFunc::remove_at_unordered(simulated_sync_objects, p_index);
 		simulated_sync_objects_list_changed = true;
 	} else {
-		trickled_sync_objects.remove_at_unordered(p_index);
+		VecFunc::remove_at_unordered(trickled_sync_objects, p_index);
 		trickled_sync_objects_list_changed = true;
 	}
 
@@ -176,12 +177,12 @@ void NS::SyncGroup::remove_sync_object(const ObjectData &p_object_data) {
 template <class T>
 void replace_nodes_impl(
 		NS::SyncGroup &p_sync_group,
-		LocalVector<T> &&p_nodes_to_add,
+		std::vector<T> &&p_nodes_to_add,
 		bool p_is_simulated,
-		LocalVector<T> &r_sync_group_nodes) {
+		std::vector<T> &r_sync_group_nodes) {
 	for (int i = int(r_sync_group_nodes.size()) - 1; i >= 0; i--) {
-		const int64_t nta_index = p_nodes_to_add.find(r_sync_group_nodes[i].od);
-		if (nta_index == -1) {
+		const std::size_t nta_index = NS::VecFunc::find_index(p_nodes_to_add, r_sync_group_nodes[i].od);
+		if (nta_index == std::numeric_limits<std::size_t>::max()) {
 			// This node is not part of this sync group, remove it.
 			p_sync_group.remove_sync_object(i, p_is_simulated);
 		} else {
@@ -190,29 +191,29 @@ void replace_nodes_impl(
 			r_sync_group_nodes[i].update_from(p_nodes_to_add[nta_index]);
 
 			// Then, make sure not to add again:
-			p_nodes_to_add.remove_at_unordered(nta_index);
+			NS::VecFunc::remove_at_unordered(p_nodes_to_add, nta_index);
 
 #ifdef DEBUG_ENABLED
 			// Make sure there are no duplicates:
-			CRASH_COND_MSG(p_nodes_to_add.find(r_sync_group_nodes[i].od) != -1, "The function `replace_nodes` must receive unique nodes on each array. Make sure not to add duplicates.");
+			ASSERT_COND_MSG(!NS::VecFunc::has(p_nodes_to_add, r_sync_group_nodes[i].od), "The function `replace_nodes` must receive unique nodes on each array. Make sure not to add duplicates.");
 #endif
 		}
 	}
 
-	// Add the missing nodes now.
+	// Add the missing objects now.
 	for (int i = 0; i < int(p_nodes_to_add.size()); i++) {
 		NS::ObjectData *od = p_nodes_to_add[i].od;
 
 #ifdef DEBUG_ENABLED
-		CRASH_COND_MSG(r_sync_group_nodes.find(od) != -1, "[FATAL] This is impossible to trigger, because the above loop cleaned this.");
+		ASSERT_COND_MSG(!NS::VecFunc::has(r_sync_group_nodes, T(od)), "[FATAL] This is impossible to trigger, because the above loop cleaned this.");
 #endif
 
-		const uint32_t index = p_sync_group.add_new_sync_object(od, p_is_simulated);
+		const std::size_t index = p_sync_group.add_new_sync_object(od, p_is_simulated);
 		r_sync_group_nodes[index].update_from(p_nodes_to_add[i]);
 	}
 }
 
-void NS::SyncGroup::replace_objects(LocalVector<SimulatedObjectInfo> &&p_new_simulated_objects, LocalVector<TrickledObjectInfo> &&p_new_trickled_nodes) {
+void NS::SyncGroup::replace_objects(std::vector<SimulatedObjectInfo> &&p_new_simulated_objects, std::vector<TrickledObjectInfo> &&p_new_trickled_nodes) {
 	replace_nodes_impl(
 			*this,
 			std::move(p_new_simulated_objects),
@@ -227,35 +228,35 @@ void NS::SyncGroup::replace_objects(LocalVector<SimulatedObjectInfo> &&p_new_sim
 }
 
 void NS::SyncGroup::remove_all_nodes() {
-	if (!simulated_sync_objects.is_empty()) {
+	if (!simulated_sync_objects.empty()) {
 		simulated_sync_objects.clear();
 		simulated_sync_objects_list_changed = true;
 	}
 
-	if (!trickled_sync_objects.is_empty()) {
+	if (!trickled_sync_objects.empty()) {
 		trickled_sync_objects.clear();
 		trickled_sync_objects_list_changed = true;
 	}
 }
 
 void NS::SyncGroup::notify_new_variable(ObjectData *p_object_data, const std::string &p_var_name) {
-	int index = simulated_sync_objects.find(p_object_data);
-	if (index >= 0) {
+	const std::size_t index = find_simulated(*p_object_data);
+	if (index != std::numeric_limits<std::size_t>::max()) {
 		VecFunc::insert_unique(simulated_sync_objects[index].change.vars, p_var_name);
 		VecFunc::insert_unique(simulated_sync_objects[index].change.uknown_vars, p_var_name);
 	}
 }
 
 void NS::SyncGroup::notify_variable_changed(ObjectData *p_object_data, const std::string &p_var_name) {
-	int index = simulated_sync_objects.find(p_object_data);
-	if (index >= 0) {
+	const std::size_t index = find_simulated(*p_object_data);
+	if (index != std::numeric_limits<std::size_t>::max()) {
 		VecFunc::insert_unique(simulated_sync_objects[index].change.vars, p_var_name);
 	}
 }
 
 void NS::SyncGroup::set_trickled_update_rate(NS::ObjectData *p_object_data, float p_update_rate) {
-	const int index = trickled_sync_objects.find(p_object_data);
-	ENSURE(index >= 0);
+	const std::size_t index = find_trickled(*p_object_data);
+	ENSURE(index != std::numeric_limits<std::size_t>::max());
 	trickled_sync_objects[index].update_rate = p_update_rate;
 }
 
@@ -270,13 +271,12 @@ float NS::SyncGroup::get_trickled_update_rate(const NS::ObjectData *p_object_dat
 }
 
 void NS::SyncGroup::sort_trickled_node_by_update_priority() {
-	struct DNIComparator {
-		_FORCE_INLINE_ bool operator()(const TrickledObjectInfo &a, const TrickledObjectInfo &b) const {
-			return a._update_priority > b._update_priority;
-		}
-	};
-
-	trickled_sync_objects.sort_custom<DNIComparator>();
+	std::sort(
+			trickled_sync_objects.begin(),
+			trickled_sync_objects.end(),
+			[](const TrickledObjectInfo &a, const TrickledObjectInfo &b) {
+				return a._update_priority > b._update_priority;
+			});
 }
 
 void NS::SyncGroup::notify_peer_has_newly_calculated_latency(int p_peer) {
@@ -292,10 +292,10 @@ void NS::SyncGroup::notify_controller_changed(NS::ObjectData *p_object_data, int
 
 	bool is_in_this_sync_group = false;
 	bool is_simulated = false;
-	if (simulated_sync_objects.find(p_object_data) != -1) {
+	if (find_simulated(*p_object_data) != std::numeric_limits<std::size_t>::max()) {
 		is_in_this_sync_group = true;
 		is_simulated = true;
-	} else if (trickled_sync_objects.find(p_object_data) != -1) {
+	} else if (find_trickled(*p_object_data) != std::numeric_limits<std::size_t>::max()) {
 		is_in_this_sync_group = true;
 	}
 
@@ -371,6 +371,14 @@ void NS::SyncGroup::validate_peer_association(int p_peer) {
 		NS::VecFunc::remove_unordered(networked_peers, p_peer);
 		NS::VecFunc::remove_unordered(peers_with_newly_calculated_latency, p_peer);
 	}
+}
+
+bool NS::SyncGroup::has_simulated(const struct ObjectData &p_object_data) const {
+	return find_simulated(p_object_data) != std::numeric_limits<std::size_t>::max();
+}
+
+bool NS::SyncGroup::has_trickled(const struct ObjectData &p_object_data) const {
+	return find_trickled(p_object_data) != std::numeric_limits<std::size_t>::max();
 }
 
 std::size_t NS::SyncGroup::find_simulated(const struct ObjectData &p_object_data) const {
