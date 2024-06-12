@@ -1,9 +1,9 @@
 #pragma once
 
-#include "modules/network_synchronizer/core/core.h"
-#include "modules/network_synchronizer/core/network_interface.h"
-#include "modules/network_synchronizer/core/processor.h"
-#include "modules/network_synchronizer/data_buffer.h"
+#include "../core/core.h"
+#include "../core/network_interface.h"
+#include "../core/processor.h"
+#include "../data_buffer.h"
 #include <functional>
 #include <map>
 #include <memory>
