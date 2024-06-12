@@ -3,7 +3,7 @@
 #include "core/core.h"
 #include "core/data_buffer.h"
 #include "core/ensure.h"
-#include "core/math.h"
+#include "core/net_math.h"
 #include "core/net_utilities.h"
 #include "core/object_data.h"
 #include "core/peer_networked_controller.h"
@@ -608,7 +608,7 @@ ListenerHandle SceneSynchronizerBase::track_variables_changes(
 
 		NS::ObjectData *od = objects_data_storage.get_object_data(id);
 		if (!od) {
-			ERR_PRINT("The passed ObjectHandle `" + itos(id.id) + "` is not pointing to any valid NodeData. Make sure to register the variable first.");
+			SceneSynchronizerDebugger::singleton()->print(ERROR, "The passed ObjectHandle `" + std::to_string(id.id) + "` is not pointing to any valid NodeData. Make sure to register the variable first.");
 			is_valid = false;
 			break;
 		}
@@ -2903,7 +2903,7 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 			const std::vector<NS::NameAndVar> *server_node_vars = ObjectNetId{ { uint32_t(last_received_server_snapshot->object_vars.size()) } } <= net_node_id ? nullptr : &(last_received_server_snapshot->object_vars[net_node_id.id]);
 			const std::vector<NS::NameAndVar> *client_node_vars = ObjectNetId{ { uint32_t(client_snapshots.front().object_vars.size()) } } <= net_node_id ? nullptr : &(client_snapshots.front().object_vars[net_node_id.id]);
 
-			const std::size_t count = MAX(server_node_vars ? server_node_vars->size() : 0, client_node_vars ? client_node_vars->size() : 0);
+			const std::size_t count = std::max(server_node_vars ? server_node_vars->size() : 0, client_node_vars ? client_node_vars->size() : 0);
 
 			variable_names.resize(count);
 			server_values.resize(count);
@@ -3505,7 +3505,7 @@ void ClientSynchronizer::receive_trickled_sync_data(const std::vector<std::uint8
 		}
 
 		std::vector<uint8_t> future_buffer_data;
-		future_buffer_data.resize(Math::ceil(float(buffer_bit_count) / 8.0));
+		future_buffer_data.resize(std::ceil(float(buffer_bit_count) / 8.0));
 		future_epoch_buffer.read_bits(future_buffer_data.data(), buffer_bit_count);
 		ASSERT_COND_MSG(future_epoch_buffer.get_bit_offset() == expected_bit_offset_after_apply, "At this point the buffer is expected to be exactly at this bit.");
 

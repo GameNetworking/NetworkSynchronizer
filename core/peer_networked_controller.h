@@ -68,11 +68,7 @@ private:
 
 	ControllerType controller_type = CONTROLLER_TYPE_NULL;
 	Controller *controller = nullptr;
-	// Created using `memnew` into the constructor:
-	// The reason why this is a pointer allocated on the heap explicitely using
-	// `memnew` is becouse in Godot 4 GDScript doesn't properly handle non
-	// `memnew` created Objects.
-	DataBuffer *inputs_buffer = nullptr;
+	DataBuffer inputs_buffer;
 
 	NS::SceneSynchronizerBase *scene_synchronizer = nullptr;
 
@@ -102,11 +98,11 @@ public: // ---------------------------------------------------------------- APIs
 	FrameIndex get_current_frame_index() const;
 
 	const DataBuffer &get_inputs_buffer() const {
-		return *inputs_buffer;
+		return inputs_buffer;
 	}
 
 	DataBuffer &get_inputs_buffer_mut() {
-		return *inputs_buffer;
+		return inputs_buffer;
 	}
 
 	void server_set_peer_simulating_this_controller(int p_peer, bool p_simulating);
@@ -203,7 +199,7 @@ struct Controller {
 
 struct RemotelyControlledController : public Controller {
 	FrameIndex current_input_buffer_id = FrameIndex::NONE;
-	uint32_t ghost_input_count = 0;
+	std::uint32_t ghost_input_count = 0;
 	std::deque<FrameInput> frames_input;
 	// The stream is paused when the client send an empty buffer.
 	bool streaming_paused = false;

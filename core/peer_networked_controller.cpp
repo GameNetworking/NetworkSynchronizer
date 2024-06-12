@@ -34,17 +34,13 @@ static inline std::uint32_t ns_decode_uint32(const std::uint8_t *p_arr) {
 }
 
 PeerNetworkedController::PeerNetworkedController() {
-	inputs_buffer = memnew(DataBuffer);
 }
 
 PeerNetworkedController::~PeerNetworkedController() {
 	_sorted_controllable_objects.clear();
 
-	memdelete(inputs_buffer);
-	inputs_buffer = nullptr;
-
 	if (controller != nullptr) {
-		memdelete(controller);
+		delete controller;
 		controller = nullptr;
 		controller_type = CONTROLLER_TYPE_NULL;
 	}
@@ -188,8 +184,8 @@ bool PeerNetworkedController::is_nonet_controller() const {
 }
 
 void PeerNetworkedController::set_inputs_buffer(const BitArray &p_new_buffer, uint32_t p_metadata_size_in_bit, uint32_t p_size_in_bit) {
-	inputs_buffer->get_buffer_mut().get_bytes_mut() = p_new_buffer.get_bytes();
-	inputs_buffer->shrink_to(p_metadata_size_in_bit, p_size_in_bit);
+	inputs_buffer.get_buffer_mut().get_bytes_mut() = p_new_buffer.get_bytes();
+	inputs_buffer.shrink_to(p_metadata_size_in_bit, p_size_in_bit);
 }
 
 void PeerNetworkedController::setup_synchronizer(NS::SceneSynchronizerBase &p_synchronizer, int p_peer) {
@@ -324,9 +320,9 @@ bool PeerNetworkedController::__input_data_parse(
 
 	// Contains the entire packet and in turn it will be seek to specific location
 	// so I will not need to copy chunk of the packet data.
-	DataBuffer *pir = memnew(DataBuffer);
-	pir->copy(p_data);
-	pir->begin_read();
+	DataBuffer pir;
+	pir.copy(p_data);
+	pir.begin_read();
 
 	while (ofs < data_len) {
 		ENSURE_V_MSG(ofs + 1 <= data_len, false, "The arrived packet size doesn't meet the expected size.");
@@ -336,16 +332,16 @@ bool PeerNetworkedController::__input_data_parse(
 
 		// Validate input
 		const int input_buffer_offset_bit = ofs * 8;
-		pir->shrink_to(input_buffer_offset_bit, (data_len - ofs) * 8);
-		pir->seek(input_buffer_offset_bit);
+		pir.shrink_to(input_buffer_offset_bit, (data_len - ofs) * 8);
+		pir.seek(input_buffer_offset_bit);
 		// Read metadata
-		const bool has_data = pir->read_bool();
+		const bool has_data = pir.read_bool();
 
-		const int input_size_in_bits = (has_data ? int(controllable_count_input_size(*pir)) : 0) + METADATA_SIZE;
+		const int input_size_in_bits = (has_data ? int(controllable_count_input_size(pir)) : 0) + METADATA_SIZE;
 
 		// Pad to 8 bits.
 		const int input_size_padded =
-				Math::ceil(static_cast<float>(input_size_in_bits) / 8.0);
+				std::ceil(static_cast<float>(input_size_in_bits) / 8.0);
 		ENSURE_V_MSG(ofs + input_size_padded <= data_len, false, "The arrived packet size doesn't meet the expected size.");
 
 		// Extract the data and copy into a BitArray.
@@ -367,9 +363,6 @@ bool PeerNetworkedController::__input_data_parse(
 		// Advance the offset to parse the next input.
 		ofs += input_size_padded;
 	}
-
-	memdelete(pir);
-	pir = nullptr;
 
 	ENSURE_V_MSG(ofs == data_len, false, "At the end was detected that the arrived packet has an unexpected size.");
 	return true;
@@ -410,7 +403,7 @@ FrameIndex RemotelyControlledController::last_known_frame_index() const {
 bool RemotelyControlledController::fetch_next_input(double p_delta) {
 	bool is_new_input = true;
 
-	if (unlikely(current_input_buffer_id == FrameIndex::NONE)) {
+	if make_unlikely (current_input_buffer_id == FrameIndex::NONE) {
 		// As initial packet, anything is good.
 		if (frames_input.empty() == false) {
 			// First input arrived.
@@ -426,7 +419,7 @@ bool RemotelyControlledController::fetch_next_input(double p_delta) {
 		const FrameIndex next_input_id = current_input_buffer_id + 1;
 		SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] The server is looking for: " + next_input_id, "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
-		if (unlikely(streaming_paused)) {
+		if make_unlikely ((streaming_paused)) {
 			SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] The streaming is paused.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 			// Stream is paused.
 			if (frames_input.empty() == false &&
@@ -443,7 +436,7 @@ bool RemotelyControlledController::fetch_next_input(double p_delta) {
 				peer_controller->set_inputs_buffer(BitArray(METADATA_SIZE), METADATA_SIZE, 0);
 				is_new_input = false;
 			}
-		} else if (unlikely(frames_input.empty() == true)) {
+		} else if make_unlikely ((frames_input.empty() == true)) {
 			// The input buffer is empty; a packet is missing.
 			SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] Missing input: " + std::to_string(next_input_id.id) + " Input buffer is void, i'm using the previous one!", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
@@ -501,15 +494,15 @@ bool RemotelyControlledController::fetch_next_input(double p_delta) {
 				SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] The input `" + std::to_string(next_input_id.id) + "` was NOT found. Recovering process started.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 				SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] ghost_input_count: `" + std::to_string(ghost_input_count) + "`", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
-				const int size = MIN(ghost_input_count, frames_input.size());
+				const int size = std::min(ghost_input_count, std::uint32_t(frames_input.size()));
 				const FrameIndex ghost_packet_id = next_input_id + ghost_input_count;
 
 				bool recovered = false;
 				FrameInput pi;
 
-				DataBuffer *pir_A = memnew(DataBuffer);
-				DataBuffer *pir_B = memnew(DataBuffer);
-				pir_A->copy(peer_controller->get_inputs_buffer());
+				DataBuffer pir_A;
+				DataBuffer pir_B;
+				pir_A.copy(peer_controller->get_inputs_buffer());
 
 				for (int i = 0; i < size; i += 1) {
 					SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] checking if `" + std::string(frames_input.front().id) + "` can be used to recover `" + std::string(next_input_id) + "`.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
@@ -531,26 +524,21 @@ bool RemotelyControlledController::fetch_next_input(double p_delta) {
 						// Useful to avoid that the server stay too much behind the
 						// client.
 
-						pir_B->copy(pi.inputs_buffer);
-						pir_B->shrink_to(METADATA_SIZE, pi.buffer_size_bit - METADATA_SIZE);
+						pir_B.copy(pi.inputs_buffer);
+						pir_B.shrink_to(METADATA_SIZE, pi.buffer_size_bit - METADATA_SIZE);
 
-						pir_A->begin_read();
-						pir_A->seek(METADATA_SIZE);
-						pir_B->begin_read();
-						pir_B->seek(METADATA_SIZE);
+						pir_A.begin_read();
+						pir_A.seek(METADATA_SIZE);
+						pir_B.begin_read();
+						pir_B.seek(METADATA_SIZE);
 
-						const bool are_different = peer_controller->controllable_are_inputs_different(*pir_A, *pir_B);
+						const bool are_different = peer_controller->controllable_are_inputs_different(pir_A, pir_B);
 						if (are_different) {
 							SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] The input `" + input_id + "` is different from the one executed so far, so better to execute it.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 							break;
 						}
 					}
 				}
-
-				memdelete(pir_A);
-				pir_A = nullptr;
-				memdelete(pir_B);
-				pir_B = nullptr;
 
 				if (recovered) {
 					set_frame_input(pi, false);
@@ -589,7 +577,7 @@ void RemotelyControlledController::process(double p_delta) {
 #endif
 			fetch_next_input(p_delta);
 
-	if (unlikely(current_input_buffer_id == FrameIndex::NONE)) {
+	if make_unlikely ((current_input_buffer_id == FrameIndex::NONE)) {
 		// Skip this until the first input arrive.
 		SceneSynchronizerDebugger::singleton()->print(INFO, "Server skips this frame as the current_input_buffer_id == FrameIndex::NONE", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 		return;
@@ -631,7 +619,7 @@ bool RemotelyControlledController::receive_inputs(const std::vector<std::uint8_t
 			[](void *p_user_pointer, FrameIndex p_input_id, int p_input_size_in_bits, const BitArray &p_bit_array) -> void {
 				SCParseTmpData *pd = static_cast<SCParseTmpData *>(p_user_pointer);
 
-				if (unlikely(pd->controller.current_input_buffer_id != FrameIndex::NONE && pd->controller.current_input_buffer_id >= p_input_id)) {
+				if make_unlikely ((pd->controller.current_input_buffer_id != FrameIndex::NONE && pd->controller.current_input_buffer_id >= p_input_id)) {
 					// We already have this input, so we don't need it anymore.
 					return;
 				}
@@ -764,7 +752,7 @@ bool AutonomousServerController::fetch_next_input(double p_delta) {
 	SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
 	peer_controller->get_inputs_buffer_mut().dry();
 
-	if (unlikely(current_input_buffer_id == FrameIndex::NONE)) {
+	if make_unlikely ((current_input_buffer_id == FrameIndex::NONE)) {
 		// This is the first input.
 		current_input_buffer_id = FrameIndex{ { 0 } };
 	} else {
@@ -892,7 +880,7 @@ bool PlayerController::has_another_instant_to_process_after(int p_i) const {
 }
 
 void PlayerController::process(double p_delta) {
-	if (unlikely(queued_instant_to_process >= 0)) {
+	if make_unlikely ((queued_instant_to_process >= 0)) {
 		// There is a queued instant. It means the SceneSync is rewinding:
 		// instead to fetch a new input, read it from the stored snapshots.
 		DataBuffer ib(frames_input[queued_instant_to_process].inputs_buffer);
@@ -991,7 +979,7 @@ void PlayerController::send_frame_input_buffer_to_server() {
 	// |-- First byte the amount of times this input is duplicated in the packet.
 	// |-- Input buffer.
 
-	const size_t inputs_count = MIN(frames_input.size(), static_cast<size_t>(peer_controller->get_max_redundant_inputs() + 1));
+	const size_t inputs_count = std::min(frames_input.size(), static_cast<size_t>(peer_controller->get_max_redundant_inputs() + 1));
 	// This is unreachable because `can_accept_new_inputs()`, used just before
 	// this function, checks the `frames_input` array to definite
 	// whether the client can collects new inputs and make sure it always contains
@@ -1016,9 +1004,9 @@ void PlayerController::send_frame_input_buffer_to_server() {
 	int previous_buffer_size = 0;
 	uint8_t duplication_count = 0;
 
-	DataBuffer *pir_A = memnew(DataBuffer);
-	DataBuffer *pir_B = memnew(DataBuffer);
-	pir_A->copy(peer_controller->get_inputs_buffer().get_buffer());
+	DataBuffer pir_A;
+	DataBuffer pir_B;
+	pir_A.copy(peer_controller->get_inputs_buffer().get_buffer());
 
 	// Compose the packets
 	for (size_t i = frames_input.size() - inputs_count; i < frames_input.size(); i += 1) {
@@ -1035,15 +1023,15 @@ void PlayerController::send_frame_input_buffer_to_server() {
 			if (frames_input[i].similarity != previous_input_id) {
 				if (frames_input[i].similarity == FrameIndex::NONE) {
 					// This input was never compared, let's do it now.
-					pir_B->copy(frames_input[i].inputs_buffer);
-					pir_B->shrink_to(METADATA_SIZE, frames_input[i].buffer_size_bit - METADATA_SIZE);
+					pir_B.copy(frames_input[i].inputs_buffer);
+					pir_B.shrink_to(METADATA_SIZE, frames_input[i].buffer_size_bit - METADATA_SIZE);
 
-					pir_A->begin_read();
-					pir_A->seek(METADATA_SIZE);
-					pir_B->begin_read();
-					pir_B->seek(METADATA_SIZE);
+					pir_A.begin_read();
+					pir_A.seek(METADATA_SIZE);
+					pir_B.begin_read();
+					pir_B.seek(METADATA_SIZE);
 
-					const bool are_different = peer_controller->controllable_are_inputs_different(*pir_A, *pir_B);
+					const bool are_different = peer_controller->controllable_are_inputs_different(pir_A, pir_B);
 					is_similar = !are_different;
 
 				} else if (frames_input[i].similarity == previous_input_similarity) {
@@ -1109,15 +1097,10 @@ void PlayerController::send_frame_input_buffer_to_server() {
 			previous_input_similarity = frames_input[i].similarity;
 			previous_buffer_size = buffer_size;
 
-			pir_A->get_buffer_mut() = frames_input[i].inputs_buffer;
-			pir_A->shrink_to(METADATA_SIZE, frames_input[i].buffer_size_bit - METADATA_SIZE);
+			pir_A.get_buffer_mut() = frames_input[i].inputs_buffer;
+			pir_A.shrink_to(METADATA_SIZE, frames_input[i].buffer_size_bit - METADATA_SIZE);
 		}
 	}
-
-	memdelete(pir_A);
-	pir_A = nullptr;
-	memdelete(pir_B);
-	pir_B = nullptr;
 
 	// Finalize the last added input_buffer.
 	cached_packet_data[ofs - previous_buffer_size - 1] = duplication_count;

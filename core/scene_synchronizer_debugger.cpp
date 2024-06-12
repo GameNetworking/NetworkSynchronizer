@@ -151,7 +151,7 @@ void SceneSynchronizerDebugger::write_dump(int p_peer, uint32_t p_frame_index) {
 		int iteration = 0;
 		std::string iteration_mark = "";
 		do {
-			file_path = main_dump_directory_path + "/" + dump_name + "/fd-" /*+ itos(p_peer) + "-"*/ + std::to_string(p_frame_index) + iteration_mark + ".json";
+			file_path = main_dump_directory_path + "/" + dump_name + "/fd-" /*+ std::to_string(p_peer) + "-"*/ + std::to_string(p_frame_index) + iteration_mark + ".json";
 			iteration_mark += "@";
 			iteration += 1;
 		} while (file_system->file_exists(file_path) && iteration < 100);
@@ -201,6 +201,7 @@ void SceneSynchronizerDebugger::start_new_frame() {
 }
 
 #ifdef DEBUG_ENABLED
+/*
 std::string type_to_string(Variant::Type p_type) {
 	switch (p_type) {
 		case Variant::NIL:
@@ -286,6 +287,7 @@ std::string type_to_string(Variant::Type p_type) {
 	}
 	return "";
 }
+*/
 
 std::string data_type_to_string(uint32_t p_type) {
 	switch (p_type) {

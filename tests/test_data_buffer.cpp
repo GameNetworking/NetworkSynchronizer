@@ -1,6 +1,7 @@
 #include "test_data_buffer.h"
 
 #include "../core/data_buffer.h"
+#include "../core/ensure.h"
 
 void test_data_buffer_string() {
 	NS::DataBuffer db;
@@ -13,7 +14,7 @@ void test_data_buffer_string() {
 	std::string abc_1_r;
 	db.read(abc_1_r);
 
-	CRASH_COND(abc_1 != abc_1_r);
+	ASSERT_COND(abc_1 == abc_1_r);
 }
 
 void test_data_buffer_u16string() {
@@ -40,9 +41,9 @@ void test_data_buffer_u16string() {
 		std::u16string abc_3_r;
 		db.read(abc_3_r);
 
-		CRASH_COND(abc_1 != abc_1_r);
-		CRASH_COND(abc_2 != abc_2_r);
-		CRASH_COND(abc_3 != abc_3_r);
+		ASSERT_COND(abc_1 == abc_1_r);
+		ASSERT_COND(abc_2 == abc_2_r);
+		ASSERT_COND(abc_3 == abc_3_r);
 	}
 }
 

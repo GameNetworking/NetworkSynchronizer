@@ -1,7 +1,5 @@
 #pragma once
 
-#include "core/object/class_db.h" // TODO remove
-
 #include "bit_array.h"
 #include "core.h"
 #include <string>
