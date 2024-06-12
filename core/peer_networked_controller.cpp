@@ -244,7 +244,7 @@ void PeerNetworkedController::controllable_process(double p_delta, DataBuffer &p
 	}
 }
 
-void PeerNetworkedController::notify_receive_inputs(const Vector<uint8_t> &p_data) {
+void PeerNetworkedController::notify_receive_inputs(const std::vector<std::uint8_t> &p_data) {
 	if (controller) {
 		controller->receive_inputs(p_data);
 	}
@@ -282,7 +282,7 @@ void PeerNetworkedController::notify_controller_reset() {
 }
 
 bool PeerNetworkedController::__input_data_parse(
-		const Vector<uint8_t> &p_data,
+		const std::vector<std::uint8_t> &p_data,
 		void *p_user_pointer,
 		void (*p_input_parse)(void *p_user_pointer, FrameIndex p_input_id, int p_input_size_in_bits, const BitArray &p_input)) {
 	// The packet is composed as follow:
@@ -298,7 +298,7 @@ bool PeerNetworkedController::__input_data_parse(
 	int ofs = 0;
 
 	ENSURE_V(data_len >= 4, false);
-	const FrameIndex first_input_id = FrameIndex{ { decode_uint32(p_data.ptr() + ofs) } };
+	const FrameIndex first_input_id = FrameIndex{ { decode_uint32(p_data.data() + ofs) } };
 	ofs += 4;
 
 	uint32_t inserted_input_count = 0;
@@ -333,8 +333,8 @@ bool PeerNetworkedController::__input_data_parse(
 		BitArray bit_array;
 		bit_array.get_bytes_mut().resize(input_size_padded);
 		memcpy(
-				bit_array.get_bytes_mut().ptrw(),
-				p_data.ptr() + ofs,
+				bit_array.get_bytes_mut().data(),
+				p_data.data() + ofs,
 				input_size_padded);
 
 		// The input is valid, and the bit array is created: now execute the callback.
@@ -597,7 +597,7 @@ bool is_remote_frame_A_older(const FrameInput &p_snap_a, const FrameInput &p_sna
 	return p_snap_a.id < p_snap_b.id;
 }
 
-bool RemotelyControlledController::receive_inputs(const Vector<uint8_t> &p_data) {
+bool RemotelyControlledController::receive_inputs(const std::vector<std::uint8_t> &p_data) {
 	const uint32_t now = OS::get_singleton()->get_ticks_msec();
 	struct SCParseTmpData {
 		RemotelyControlledController &controller;
@@ -700,7 +700,7 @@ void ServerController::notify_send_state() {
 	}
 }
 
-bool ServerController::receive_inputs(const Vector<uint8_t> &p_data) {
+bool ServerController::receive_inputs(const std::vector<std::uint8_t> &p_data) {
 	const bool success = RemotelyControlledController::receive_inputs(p_data);
 
 	if (success) {
@@ -729,7 +729,7 @@ AutonomousServerController::AutonomousServerController(
 		ServerController(p_peer_controller) {
 }
 
-bool AutonomousServerController::receive_inputs(const Vector<uint8_t> &p_data) {
+bool AutonomousServerController::receive_inputs(const std::vector<std::uint8_t> &p_data) {
 	SceneSynchronizerDebugger::singleton()->print(ERROR, "`receive_input` called on the `AutonomousServerController` it should not happen by design. This is a bug.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 	return false;
 }
@@ -955,7 +955,7 @@ FrameIndex PlayerController::get_current_frame_index() const {
 	return current_input_id;
 }
 
-bool PlayerController::receive_inputs(const Vector<uint8_t> &p_data) {
+bool PlayerController::receive_inputs(const std::vector<std::uint8_t> &p_data) {
 	SceneSynchronizerDebugger::singleton()->print(NS::ERROR, "`receive_input` called on the `PlayerServerController` -This function is not supposed to be called on the player controller. Only the server and the doll should receive this.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 	return false;
 }
@@ -1086,7 +1086,7 @@ void PlayerController::send_frame_input_buffer_to_server() {
 			MAKE_ROOM(buffer_size);
 			memcpy(
 					cached_packet_data.data() + ofs,
-					frames_input[i].inputs_buffer.get_bytes().ptr(),
+					frames_input[i].inputs_buffer.get_bytes().data(),
 					buffer_size);
 			ofs += buffer_size;
 
@@ -1109,11 +1109,11 @@ void PlayerController::send_frame_input_buffer_to_server() {
 	cached_packet_data[ofs - previous_buffer_size - 1] = duplication_count;
 
 	// Make the packet data.
-	Vector<uint8_t> packet_data;
+	std::vector<std::uint8_t> packet_data;
 	packet_data.resize(ofs);
 
 	memcpy(
-			packet_data.ptrw(),
+			packet_data.data(),
 			cached_packet_data.data(),
 			ofs);
 
@@ -1162,7 +1162,7 @@ DollController::~DollController() {
 	event_handler_snapshot_applied = NS::NullPHandler;
 }
 
-bool DollController::receive_inputs(const Vector<uint8_t> &p_data) {
+bool DollController::receive_inputs(const std::vector<uint8_t> &p_data) {
 	const uint32_t now = OS::get_singleton()->get_ticks_msec();
 	struct SCParseTmpData {
 		DollController &controller;

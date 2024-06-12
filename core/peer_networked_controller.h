@@ -155,7 +155,7 @@ public:
 	bool controllable_are_inputs_different(DataBuffer &p_data_buffer_A, DataBuffer &p_data_buffer_B);
 	void controllable_process(double p_delta, DataBuffer &p_data_buffer);
 
-	void notify_receive_inputs(const Vector<uint8_t> &p_data);
+	void notify_receive_inputs(const std::vector<std::uint8_t> &p_data);
 
 private:
 	void player_set_has_new_input(bool p_has);
@@ -170,7 +170,7 @@ protected:
 
 public:
 	bool __input_data_parse(
-			const Vector<uint8_t> &p_data,
+			const std::vector<std::uint8_t> &p_data,
 			void *p_user_pointer,
 			void (*p_input_parse)(void *p_user_pointer, FrameIndex p_input_id, int p_input_size_in_bits, const BitArray &p_input));
 };
@@ -200,7 +200,7 @@ struct Controller {
 	virtual FrameIndex get_current_frame_index() const = 0;
 	virtual void process(double p_delta) = 0;
 
-	virtual bool receive_inputs(const Vector<uint8_t> &p_data) { return false; };
+	virtual bool receive_inputs(const std::vector<std::uint8_t> &p_data) { return false; };
 };
 
 struct RemotelyControlledController : public Controller {
@@ -228,7 +228,7 @@ public:
 
 	virtual void process(double p_delta) override;
 
-	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;
+	virtual bool receive_inputs(const std::vector<std::uint8_t> &p_data) override;
 };
 
 struct ServerController : public RemotelyControlledController {
@@ -245,14 +245,14 @@ struct ServerController : public RemotelyControlledController {
 
 	void notify_send_state();
 
-	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;
+	virtual bool receive_inputs(const std::vector<std::uint8_t> &p_data) override;
 };
 
 struct AutonomousServerController final : public ServerController {
 	AutonomousServerController(
 			PeerNetworkedController *p_node);
 
-	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;
+	virtual bool receive_inputs(const std::vector<std::uint8_t> &p_data) override;
 	virtual int get_inputs_count() const override;
 	virtual bool fetch_next_input(double p_delta) override;
 };
@@ -284,7 +284,7 @@ struct PlayerController final : public Controller {
 	virtual void process(double p_delta) override;
 	void on_state_validated(FrameIndex p_frame_index, bool p_detected_desync);
 
-	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;
+	virtual bool receive_inputs(const std::vector<std::uint8_t> &p_data) override;
 
 	void store_input_buffer(FrameIndex p_frame_index);
 
@@ -332,7 +332,7 @@ public:
 	FrameIndex last_doll_validated_input = FrameIndex::NONE;
 	// The lastest `FrameIndex` on which the server / doll snapshots were compared.
 	FrameIndex last_doll_compared_input = FrameIndex::NONE;
-	FrameIndex queued_frame_index_to_process = FrameIndex{{ 0 }};
+	FrameIndex queued_frame_index_to_process = FrameIndex{ { 0 } };
 	int queued_instant_to_process = -1;
 
 	// Contains the controlled nodes frames snapshot.
@@ -345,7 +345,7 @@ public:
 	DollController(PeerNetworkedController *p_node);
 	~DollController();
 
-	virtual bool receive_inputs(const Vector<uint8_t> &p_data) override;
+	virtual bool receive_inputs(const std::vector<std::uint8_t> &p_data) override;
 	void on_rewind_frame_begin(FrameIndex p_frame_index, int p_rewinding_index, int p_rewinding_frame_count);
 	int fetch_optimal_queued_inputs() const;
 	virtual bool fetch_next_input(double p_delta) override;

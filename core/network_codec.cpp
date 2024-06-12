@@ -49,21 +49,21 @@ void decode_variable(Variant &val, DataBuffer &p_buffer) {
 	val = p_buffer.read_variant();
 }
 
-void encode_variable(const Vector<uint8_t> &val, DataBuffer &r_buffer) {
+void encode_variable(const std::vector<std::uint8_t> &val, DataBuffer &r_buffer) {
 	// TODO optimize?
-	CRASH_COND(val.size() >= 4294967295);
+	ASSERT_COND(val.size() < 4294967295);
 	r_buffer.add_uint(val.size(), DataBuffer::COMPRESSION_LEVEL_1);
 	for (const auto v : val) {
 		r_buffer.add_uint(v, DataBuffer::COMPRESSION_LEVEL_3);
 	}
 }
 
-void decode_variable(Vector<uint8_t> &val, DataBuffer &p_buffer) {
+void decode_variable(std::vector<std::uint8_t> &val, DataBuffer &p_buffer) {
 	// TODO optimize?
 	const int size = p_buffer.read_uint(DataBuffer::COMPRESSION_LEVEL_1);
 	val.resize(size);
 	for (int i = 0; i < size; i++) {
-		val.write[i] = p_buffer.read_uint(DataBuffer::COMPRESSION_LEVEL_3);
+		val[i] = p_buffer.read_uint(DataBuffer::COMPRESSION_LEVEL_3);
 	}
 }
 

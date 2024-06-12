@@ -89,7 +89,7 @@ void SceneSynchronizerBase::setup(SynchronizerManager &p_synchronizer_interface)
 
 	rpc_handler_trickled_sync_data =
 			network_interface->rpc_config(
-					std::function<void(const Vector<uint8_t> &)>(std::bind(&SceneSynchronizerBase::rpc_trickled_sync_data, this, std::placeholders::_1)),
+					std::function<void(const std::vector<std::uint8_t> &)>(std::bind(&SceneSynchronizerBase::rpc_trickled_sync_data, this, std::placeholders::_1)),
 					false,
 					false);
 
@@ -101,7 +101,7 @@ void SceneSynchronizerBase::setup(SynchronizerManager &p_synchronizer_interface)
 
 	rpc_handle_receive_input =
 			network_interface->rpc_config(
-					std::function<void(int, const Vector<uint8_t> &)>(std::bind(&SceneSynchronizerBase::rpc_receive_inputs, this, std::placeholders::_1, std::placeholders::_2)),
+					std::function<void(int, const std::vector<std::uint8_t> &)>(std::bind(&SceneSynchronizerBase::rpc_receive_inputs, this, std::placeholders::_1, std::placeholders::_2)),
 					false,
 					false);
 
@@ -1154,7 +1154,7 @@ void SceneSynchronizerBase::rpc_notify_peer_status(bool p_enabled) {
 	static_cast<ClientSynchronizer *>(synchronizer)->set_enabled(p_enabled);
 }
 
-void SceneSynchronizerBase::rpc_trickled_sync_data(const Vector<uint8_t> &p_data) {
+void SceneSynchronizerBase::rpc_trickled_sync_data(const std::vector<std::uint8_t> &p_data) {
 	ENSURE_MSG(is_client(), "Only clients are supposed to receive this function call.");
 	ENSURE_MSG(p_data.size() > 0, "It's not supposed to receive a 0 size data.");
 
@@ -1250,7 +1250,7 @@ void SceneSynchronizerBase::rpc_notify_netstats(DataBuffer &p_data) {
 #endif
 }
 
-void SceneSynchronizerBase::call_rpc_receive_inputs(int p_recipient, int p_peer, const Vector<uint8_t> &p_data) {
+void SceneSynchronizerBase::call_rpc_receive_inputs(int p_recipient, int p_peer, const std::vector<std::uint8_t> &p_data) {
 	rpc_handle_receive_input.rpc(
 			get_network_interface(),
 			p_recipient,
@@ -1258,7 +1258,7 @@ void SceneSynchronizerBase::call_rpc_receive_inputs(int p_recipient, int p_peer,
 			p_data);
 }
 
-void SceneSynchronizerBase::rpc_receive_inputs(int p_peer, const Vector<uint8_t> &p_data) {
+void SceneSynchronizerBase::rpc_receive_inputs(int p_peer, const std::vector<std::uint8_t> &p_data) {
 	PeerData *pd = MapFunc::get_or_null(peer_data, p_peer);
 	if (pd && pd->get_controller()) {
 		pd->get_controller()->notify_receive_inputs(p_data);
@@ -2410,8 +2410,8 @@ void ServerSynchronizer::process_trickled_sync(double p_delta) {
 				}
 
 				// Collapse the two DataBuffer.
-				global_buffer.add_uint(uint32_t(tmp_buffer->total_size()), DataBuffer::COMPRESSION_LEVEL_2);
-				global_buffer.add_bits(tmp_buffer->get_buffer().get_bytes().ptr(), tmp_buffer->total_size());
+				global_buffer.add_uint(std::uint32_t(tmp_buffer->total_size()), DataBuffer::COMPRESSION_LEVEL_2);
+				global_buffer.add_bits(tmp_buffer->get_buffer().get_bytes().data(), tmp_buffer->total_size());
 
 			} else {
 				object_info._update_priority += object_info.update_rate * current_frame_factor;
@@ -3441,7 +3441,7 @@ void ClientSynchronizer::set_enabled(bool p_enabled) {
 	}
 }
 
-void ClientSynchronizer::receive_trickled_sync_data(const Vector<uint8_t> &p_data) {
+void ClientSynchronizer::receive_trickled_sync_data(const std::vector<std::uint8_t> &p_data) {
 	DataBuffer future_epoch_buffer(p_data);
 	future_epoch_buffer.begin_read();
 
@@ -3505,9 +3505,9 @@ void ClientSynchronizer::receive_trickled_sync_data(const Vector<uint8_t> &p_dat
 			continue;
 		}
 
-		Vector<uint8_t> future_buffer_data;
+		std::vector<uint8_t> future_buffer_data;
 		future_buffer_data.resize(Math::ceil(float(buffer_bit_count) / 8.0));
-		future_epoch_buffer.read_bits(future_buffer_data.ptrw(), buffer_bit_count);
+		future_epoch_buffer.read_bits(future_buffer_data.data(), buffer_bit_count);
 		ASSERT_COND_MSG(future_epoch_buffer.get_bit_offset() == expected_bit_offset_after_apply, "At this point the buffer is expected to be exactly at this bit.");
 
 		std::size_t index = VecFunc::find_index(trickled_sync_array, od);

@@ -22,8 +22,8 @@ void decode_variable(double &val, DataBuffer &p_buffer);
 void encode_variable(const Variant &val, DataBuffer &r_buffer);
 void decode_variable(Variant &val, DataBuffer &p_buffer);
 
-void encode_variable(const Vector<uint8_t> &val, DataBuffer &r_buffer);
-void decode_variable(Vector<uint8_t> &val, DataBuffer &p_buffer);
+void encode_variable(const std::vector<std::uint8_t> &val, DataBuffer &r_buffer);
+void decode_variable(std::vector<std::uint8_t> &val, DataBuffer &p_buffer);
 
 void encode_variable(const DataBuffer &val, DataBuffer &r_buffer);
 void decode_variable(DataBuffer &val, DataBuffer &p_buffer);
