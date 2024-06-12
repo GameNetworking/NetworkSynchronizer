@@ -1,6 +1,6 @@
 #pragma once
 
-#include "modules/network_synchronizer/core/core.h"
+#include "core.h"
 #include <memory>
 #include <vector>
 

@@ -10,6 +10,17 @@
 
 #include "modules/network_synchronizer/core/core.h"
 #include "modules/network_synchronizer/core/net_utilities.h"
+#include "modules/network_synchronizer/core/scene_synchronizer_debugger.h"
+
+class GdFileSystem : public NS::FileSystem {
+	virtual std::string get_base_dir() const override;
+	virtual std::string get_date() const override;
+	virtual std::string get_time() const override;
+	virtual bool make_dir_recursive(const std::string &p_dir_path, bool p_erase_content) const override;
+	virtual bool store_file_string(const std::string &p_path, const std::string &p_string_file) const override;
+	virtual bool store_file_buffer(const std::string &p_path, const std::uint8_t *p_src, uint64_t p_length) const override;
+	virtual bool is_file_exists(const std::string &p_path) const;
+};
 
 class GdSceneSynchronizer : public Node, public NS::SynchronizerManager {
 	GDCLASS(GdSceneSynchronizer, Node);

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "core.h"
-#include "core/string/ustring.h"
 #include "json.hpp"
 
 namespace NS {
@@ -12,6 +11,19 @@ class SceneTree;
 namespace NS {
 class NetworkInterface;
 };
+
+namespace NS {
+class FileSystem {
+public:
+	virtual std::string get_base_dir() const = 0;
+	virtual std::string get_date() const = 0;
+	virtual std::string get_time() const = 0;
+	virtual bool make_dir_recursive(const std::string &p_dir_path, bool p_erase_content) const = 0;
+	virtual bool store_file_string(const std::string &p_path, const std::string &p_string_file) const = 0;
+	virtual bool store_file_buffer(const std::string &p_path, const std::uint8_t *p_src, uint64_t p_length) const = 0;
+	virtual bool is_file_exists(const std::string &p_path) const = 0;
+};
+}; //namespace NS
 
 class SceneSynchronizerDebugger {
 	static SceneSynchronizerDebugger *the_singleton;
@@ -38,6 +50,8 @@ private:
 #ifdef DEBUG_ENABLED
 	bool dump_enabled = false;
 	bool setup_done = false;
+
+	NS::FileSystem *file_system = nullptr;
 
 	uint32_t log_counter = 0;
 	SceneTree *scene_tree = nullptr;
@@ -79,6 +93,9 @@ private:
 public:
 	SceneSynchronizerDebugger();
 	~SceneSynchronizerDebugger();
+
+	void set_file_system(NS::FileSystem *p_file_system);
+	NS::FileSystem *get_file_system() const { return file_system; }
 
 	void set_log_level(NS::PrintMessageType p_log_level);
 	NS::PrintMessageType get_log_level() const;

@@ -1,6 +1,8 @@
 #include "gd_scene_synchronizer.h"
 
 #include "core/config/project_settings.h"
+#include "core/io/dir_access.h"
+#include "core/io/file_access.h"
 #include "core/object/object.h"
 #include "core/string/string_name.h"
 #include "core/string/ustring.h"
@@ -19,6 +21,62 @@
 #include <cstring>
 #include <string>
 #include <vector>
+
+std::string GdFileSystem::get_base_dir() const {
+	return OS::get_singleton()->get_executable_path().get_base_dir().utf8().ptr();
+}
+
+std::string GdFileSystem::get_date() const {
+	OS::DateTime date = OS::get_singleton()->get_datetime();
+	return std::to_string(date.day) + "/" + std::to_string(date.month) + "/" + std::to_string(date.year);
+}
+
+std::string GdFileSystem::get_time() const {
+	OS::DateTime date = OS::get_singleton()->get_datetime();
+	return std::to_string(date.hour) + "::" + std::to_string(date.minute);
+}
+
+bool GdFileSystem::make_dir_recursive(const std::string &p_dir_path, bool p_erase_content) const {
+	Ref<DirAccess> dir = DirAccess::create_for_path(p_dir_path.c_str());
+
+	Error e;
+	e = dir->make_dir_recursive(p_dir_path.c_str());
+
+	ERR_FAIL_COND_V(e != OK, false);
+
+	e = dir->change_dir(p_dir_path.c_str());
+
+	ERR_FAIL_COND_V(e != OK, false);
+
+	if (p_erase_content) {
+		dir->erase_contents_recursive();
+	}
+
+	return true;
+}
+
+bool GdFileSystem::store_file_string(const std::string &p_path, const std::string &p_string_file) const {
+	Error e;
+	Ref<FileAccess> file = FileAccess::open(String(p_path.c_str()), FileAccess::WRITE, &e);
+
+	ERR_FAIL_COND_V(e != OK, false);
+
+	file->flush();
+	file->store_string(p_string_file.c_str());
+
+	return true;
+}
+
+bool GdFileSystem::store_file_buffer(const std::string &p_path, const std::uint8_t *p_src, uint64_t p_length) const {
+	Ref<FileAccess> f = FileAccess::open(p_path.c_str(), FileAccess::WRITE);
+	ENSURE_V_MSG(!f.is_null(), false, "Can't create the `" + p_path + "` file.");
+	f->store_buffer(p_src, p_length);
+	return true;
+}
+
+bool GdFileSystem::is_file_exists(const std::string &p_path) const {
+	return FileAccess::exists(p_path.c_str());
+}
 
 const uint32_t GdSceneSynchronizer::GLOBAL_SYNC_GROUP_ID = NS::SyncGroupId::GLOBAL.id;
 

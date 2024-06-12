@@ -4,10 +4,6 @@
 
 #include "__generated__debugger_ui.h"
 
-#include "core/io/dir_access.h"
-#include "core/io/file_access.h"
-#include "core/os/os.h"
-
 #include "../data_buffer.h"
 #include "net_utilities.h"
 
@@ -45,6 +41,12 @@ SceneSynchronizerDebugger::~SceneSynchronizerDebugger() {
 #endif
 }
 
+void SceneSynchronizerDebugger::set_file_system(NS::FileSystem *p_file_system) {
+#ifdef DEBUG_ENABLED
+	file_system = p_file_system;
+#endif
+}
+
 void SceneSynchronizerDebugger::set_log_level(NS::PrintMessageType p_log_level) {
 	log_level = p_log_level;
 }
@@ -73,8 +75,10 @@ void SceneSynchronizerDebugger::setup_debugger(const std::string &p_dump_name, i
 		setup_done = true;
 	}
 
+	ASSERT_COND_MSG(!file_system, "Please set the FileSystem using the function set_file_system().");
+
 	// Setup directories.
-	main_dump_directory_path = (OS::get_singleton()->get_executable_path().get_base_dir() + "/net-sync-debugs/dump").utf8().ptr();
+	main_dump_directory_path = file_system->get_base_dir() + "/net-sync-debugs/dump";
 	dump_name = p_dump_name;
 
 	prepare_dumping(p_peer, p_scene_tree);
@@ -89,50 +93,25 @@ void SceneSynchronizerDebugger::prepare_dumping(int p_peer, SceneTree *p_scene_t
 		return;
 	}
 
+	ASSERT_COND_MSG(!file_system, "Please set the FileSystem using the function set_file_system().");
+
 	// Prepare the dir.
 	{
 		std::string path = main_dump_directory_path + "/" + dump_name;
-
-		Ref<DirAccess> dir = DirAccess::create_for_path(path.c_str());
-
-		Error e;
-		e = dir->make_dir_recursive(path.c_str());
-
-		ERR_FAIL_COND(e != OK);
-
-		e = dir->change_dir(path.c_str());
-
-		ERR_FAIL_COND(e != OK);
-
-		// Empty the directory making sure we are ready to write.
-		dir->erase_contents_recursive();
-		//if (dir->list_dir_begin() == OK) {
-		//	for (String name = dir->get_next(); name != String(); name = dir->get_next()) {
-		//		if (name.begins_with("fd-" + itos(p_peer) + "-")) {
-		//			dir->remove(name);
-		//		}
-		//	}
-		//	dir->list_dir_end();
-		//}
+		ENSURE(file_system->make_dir_recursive(path, true));
 	}
 
 	// Store generic info about this dump.
 	{
-		Error e;
-		Ref<FileAccess> file = FileAccess::open(String((main_dump_directory_path + "/" + "dump-info-" + dump_name + /*"-" + itos(p_peer) +*/ ".json").c_str()), FileAccess::WRITE, &e);
-
-		ERR_FAIL_COND(e != OK);
-
-		OS::DateTime date = OS::get_singleton()->get_datetime();
-
 		nlohmann::json d;
 		d["dump-name"] = dump_name;
 		d["peer"] = p_peer;
-		d["date"] = std::to_string(date.day) + "/" + std::to_string(date.month) + "/" + std::to_string(date.year);
-		d["time"] = std::to_string(date.hour) + "::" + std::to_string(date.minute);
+		d["date"] = file_system->get_date();
+		d["time"] = file_system->get_time();
 
-		file->flush();
-		file->store_string(d.dump().c_str());
+		ENSURE(file_system->store_file_string(
+				main_dump_directory_path + "/" + "dump-info-" + dump_name + /*"-" + std::to_string(p_peer) +*/ ".json",
+				d.dump()));
 	}
 
 	scene_tree = p_scene_tree;
@@ -141,19 +120,18 @@ void SceneSynchronizerDebugger::prepare_dumping(int p_peer, SceneTree *p_scene_t
 
 void SceneSynchronizerDebugger::setup_debugger_python_ui() {
 #ifdef DEBUG_ENABLED
+	ASSERT_COND_MSG(!file_system, "Please set the FileSystem using the function set_file_system().");
+
 	// Verify if file exists.
 	const std::string path = main_dump_directory_path + "/debugger.py";
 
-	if (FileAccess::exists(path.c_str())) {
+	if (file_system->is_file_exists(path.c_str())) {
 		// Nothing to do.
 		return;
 	}
 
 	// Copy the python UI into the directory.
-	Ref<FileAccess> f = FileAccess::open(path.c_str(), FileAccess::WRITE);
-	ENSURE_MSG(!f.is_null(), "Can't create the `" + path + "` file.");
-
-	f->store_buffer((uint8_t *)__debugger_ui_code, __debugger_ui_code_size);
+	ENSURE(file_system->store_file_buffer(path, (std::uint8_t *)__debugger_ui_code, __debugger_ui_code_size));
 #endif
 }
 
@@ -168,21 +146,15 @@ void SceneSynchronizerDebugger::write_dump(int p_peer, uint32_t p_frame_index) {
 		return;
 	}
 
-	Ref<FileAccess> file = nullptr;
+	std::string file_path = "";
 	{
-		std::string file_path = "";
-
 		int iteration = 0;
 		std::string iteration_mark = "";
 		do {
 			file_path = main_dump_directory_path + "/" + dump_name + "/fd-" /*+ itos(p_peer) + "-"*/ + std::to_string(p_frame_index) + iteration_mark + ".json";
 			iteration_mark += "@";
 			iteration += 1;
-		} while (FileAccess::exists(file_path.c_str()) && iteration < 100);
-
-		Error e;
-		file = FileAccess::open(file_path.c_str(), FileAccess::WRITE, &e);
-		ENSURE(e == OK);
+		} while (file_system->is_file_exists(file_path) && iteration < 100);
 	}
 
 	std::string frame_summary;
@@ -211,7 +183,7 @@ void SceneSynchronizerDebugger::write_dump(int p_peer, uint32_t p_frame_index) {
 	d["data_buffer_reads"] = frame_dump__data_buffer_reads;
 	d["are_inputs_different_results"] = frame_dump__are_inputs_different_results;
 
-	file->store_string(String(d.dump().c_str()));
+	ENSURE(file_system->store_file_string(file_path, d.dump()));
 #endif
 }
 
