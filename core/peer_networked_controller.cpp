@@ -3,7 +3,6 @@
 #include "core/config/project_settings.h"
 #include "core/io/marshalls.h"
 #include "core/os/os.h"
-#include "core/templates/vector.h"
 
 #include "../scene_synchronizer.h"
 #include "ensure.h"
@@ -299,7 +298,7 @@ bool PeerNetworkedController::__input_data_parse(
 	int ofs = 0;
 
 	ENSURE_V(data_len >= 4, false);
-	const FrameIndex first_input_id = FrameIndex{{ decode_uint32(p_data.ptr() + ofs) }};
+	const FrameIndex first_input_id = FrameIndex{ { decode_uint32(p_data.ptr() + ofs) } };
 	ofs += 4;
 
 	uint32_t inserted_input_count = 0;
@@ -752,7 +751,7 @@ bool AutonomousServerController::fetch_next_input(double p_delta) {
 
 	if (unlikely(current_input_buffer_id == FrameIndex::NONE)) {
 		// This is the first input.
-		current_input_buffer_id = FrameIndex{{ 0 }};
+		current_input_buffer_id = FrameIndex{ { 0 } };
 	} else {
 		// Just advance from now on.
 		current_input_buffer_id += 1;
@@ -899,7 +898,7 @@ void PlayerController::process(double p_delta) {
 		const bool accept_new_inputs = can_accept_new_inputs();
 
 		if (accept_new_inputs) {
-			current_input_id = FrameIndex{{ input_buffers_counter }};
+			current_input_id = FrameIndex{ { input_buffers_counter } };
 
 			SceneSynchronizerDebugger::singleton()->print(INFO, "Player process index: " + std::string(current_input_id), "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
@@ -996,7 +995,7 @@ void PlayerController::send_frame_input_buffer_to_server() {
 	// Let's store the ID of the first snapshot.
 	MAKE_ROOM(4);
 	const FrameIndex first_input_id = frames_input[frames_input.size() - inputs_count].id;
-	ofs += encode_uint32(first_input_id.id, cached_packet_data.ptr() + ofs);
+	ofs += encode_uint32(first_input_id.id, cached_packet_data.data() + ofs);
 
 	FrameIndex previous_input_id = FrameIndex::NONE;
 	FrameIndex previous_input_similarity = FrameIndex::NONE;
@@ -1086,7 +1085,7 @@ void PlayerController::send_frame_input_buffer_to_server() {
 			const int buffer_size = frames_input[i].inputs_buffer.get_bytes().size();
 			MAKE_ROOM(buffer_size);
 			memcpy(
-					cached_packet_data.ptr() + ofs,
+					cached_packet_data.data() + ofs,
 					frames_input[i].inputs_buffer.get_bytes().ptr(),
 					buffer_size);
 			ofs += buffer_size;
@@ -1115,7 +1114,7 @@ void PlayerController::send_frame_input_buffer_to_server() {
 
 	memcpy(
 			packet_data.ptrw(),
-			cached_packet_data.ptr(),
+			cached_packet_data.data(),
 			ofs);
 
 	peer_controller->scene_synchronizer->call_rpc_receive_inputs(
@@ -1335,7 +1334,7 @@ bool DollController::fetch_next_input(double p_delta) {
 void DollController::process(double p_delta) {
 	const bool is_new_input = fetch_next_input(p_delta);
 
-	if make_likely (current_input_buffer_id > FrameIndex{{ 0 }}) {
+	if make_likely (current_input_buffer_id > FrameIndex{ { 0 } }) {
 		// This operation is done here, because the doll process on a different
 		// timeline than the one processed by the client.
 		// Whenever it found a server snapshot, it's applied.
@@ -1499,7 +1498,7 @@ void DollController::copy_controlled_objects_snapshot(
 
 	// Find the biggest ID to initialize the snapshot.
 	{
-		ObjectNetId biggest_id = ObjectNetId{{ 0 }};
+		ObjectNetId biggest_id = ObjectNetId{ { 0 } };
 		for (ObjectData *object_data : *controlled_objects) {
 			if (object_data->get_net_id() > biggest_id) {
 				biggest_id = object_data->get_net_id();
@@ -1681,7 +1680,7 @@ void DollController::apply_snapshot_instant_input_reconciliation(const Snapshot 
 	if make_likely (frames_input.back().id.id >= std::uint32_t(optimal_queued_inputs)) {
 		last_doll_compared_input = frames_input.back().id - optimal_queued_inputs;
 	} else {
-		last_doll_compared_input = FrameIndex{{ 0 }};
+		last_doll_compared_input = FrameIndex{ { 0 } };
 	}
 
 	// 3. Once the ideal input to restore is found, it's necessary to find the
@@ -1735,7 +1734,7 @@ void DollController::apply_snapshot_rewinding_input_reconciliation(const Snapsho
 		if make_likely (frames_input.back().id.id >= std::uint32_t(optimal_input_count)) {
 			new_last_doll_compared_input = frames_input.back().id - optimal_input_count;
 		} else {
-			new_last_doll_compared_input = FrameIndex{{ 0 }};
+			new_last_doll_compared_input = FrameIndex{ { 0 } };
 		}
 
 		// 4. Ensure there is a server snapshot at some point, in between the new
@@ -1779,11 +1778,11 @@ void DollController::apply_snapshot_rewinding_input_reconciliation(const Snapsho
 		// The follow logic make sure that the rewinding is about to happen
 		// doesn't alter this doll timeline: At the end of the rewinding this
 		// doll will be exactly as is right now.
-		const FrameIndex frames_to_travel = FrameIndex{{ std::uint32_t(p_frame_count_to_rewind + optimal_queued_inputs) }};
+		const FrameIndex frames_to_travel = FrameIndex{ { std::uint32_t(p_frame_count_to_rewind + optimal_queued_inputs) } };
 		if make_likely (current_input_buffer_id > frames_to_travel) {
 			last_doll_compared_input = current_input_buffer_id - frames_to_travel;
 		} else {
-			last_doll_compared_input = FrameIndex{{ 0 }};
+			last_doll_compared_input = FrameIndex{ { 0 } };
 		}
 	} else {
 		last_doll_compared_input = new_last_doll_compared_input;
@@ -1828,7 +1827,7 @@ void DollController::apply_snapshot_rewinding_input_reconciliation(const Snapsho
 
 NoNetController::NoNetController(PeerNetworkedController *p_peer_controller) :
 		Controller(p_peer_controller),
-		frame_id(FrameIndex{{ 0 }}) {
+		frame_id(FrameIndex{ { 0 } }) {
 }
 
 void NoNetController::process(double p_delta) {

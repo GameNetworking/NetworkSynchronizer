@@ -266,7 +266,7 @@ struct PlayerController final : public Controller {
 	bool streaming_paused = false;
 
 	std::deque<FrameInput> frames_input;
-	LocalVector<uint8_t> cached_packet_data;
+	std::vector<uint8_t> cached_packet_data;
 	int queued_instant_to_process = -1;
 
 	PlayerController(PeerNetworkedController *p_node);
