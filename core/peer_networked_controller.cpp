@@ -1,8 +1,6 @@
 #include "peer_networked_controller.h"
 
-#include "core/config/project_settings.h"
 #include "core/io/marshalls.h"
-#include "core/os/os.h"
 
 #include "../scene_synchronizer.h"
 #include "ensure.h"
@@ -598,13 +596,10 @@ bool is_remote_frame_A_older(const FrameInput &p_snap_a, const FrameInput &p_sna
 }
 
 bool RemotelyControlledController::receive_inputs(const std::vector<std::uint8_t> &p_data) {
-	const uint32_t now = OS::get_singleton()->get_ticks_msec();
 	struct SCParseTmpData {
 		RemotelyControlledController &controller;
-		uint32_t now;
 	} tmp = {
 		*this,
-		now
 	};
 
 	const bool success = peer_controller->__input_data_parse(
@@ -632,7 +627,6 @@ bool RemotelyControlledController::receive_inputs(const std::vector<std::uint8_t
 				if (!found) {
 					rfs.buffer_size_bit = p_input_size_in_bits;
 					rfs.inputs_buffer = p_bit_array;
-					rfs.received_timestamp = pd->now;
 
 					pd->controller.frames_input.push_back(rfs);
 
@@ -966,7 +960,6 @@ void PlayerController::store_input_buffer(FrameIndex p_frame_index) {
 	inputs.inputs_buffer = peer_controller->get_inputs_buffer().get_buffer();
 	inputs.buffer_size_bit = peer_controller->get_inputs_buffer().size() + METADATA_SIZE;
 	inputs.similarity = FrameIndex::NONE;
-	inputs.received_timestamp = UINT32_MAX;
 	frames_input.push_back(inputs);
 }
 
@@ -1163,13 +1156,10 @@ DollController::~DollController() {
 }
 
 bool DollController::receive_inputs(const std::vector<uint8_t> &p_data) {
-	const uint32_t now = OS::get_singleton()->get_ticks_msec();
 	struct SCParseTmpData {
 		DollController &controller;
-		uint32_t now;
 	} tmp = {
 		*this,
-		now
 	};
 
 	const bool success = peer_controller->__input_data_parse(
@@ -1198,7 +1188,6 @@ bool DollController::receive_inputs(const std::vector<uint8_t> &p_data) {
 				if (!found) {
 					rfs.buffer_size_bit = p_input_size_in_bits;
 					rfs.inputs_buffer = p_bit_array;
-					rfs.received_timestamp = pd->now;
 
 					pd->controller.frames_input.push_back(std::move(rfs));
 
