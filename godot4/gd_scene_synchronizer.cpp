@@ -884,12 +884,21 @@ bool GdSceneSynchronizer::is_networked() const {
 void GdSceneSynchronizer::encode(NS::DataBuffer &r_buffer, const NS::VarData &p_val) {
 	Variant vA;
 	convert(vA, p_val);
-	r_buffer.add_variant(vA);
+
+	GdDataBuffer *gd_db = memnew(GdDataBuffer);
+	gd_db->data_buffer = &r_buffer;
+	gd_db->add_variant(vA);
+	memdelete(gd_db);
 }
 
 void GdSceneSynchronizer::decode(NS::VarData &r_val, NS::DataBuffer &p_buffer) {
-	Variant vA = p_buffer.read_variant();
+	GdDataBuffer *gd_db = memnew(GdDataBuffer);
+	gd_db->data_buffer = &p_buffer;
+
+	Variant vA = gd_db->read_variant();
 	convert(r_val, vA);
+
+	memdelete(gd_db);
 }
 
 #define CONVERT_VARDATA(CLAZZ, variant, vardata)           \

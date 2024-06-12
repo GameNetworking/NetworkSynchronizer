@@ -385,7 +385,7 @@
 		</constant>
 		<constant name="DATA_TYPE_BITS" value="10" enum="DataType">
 		</constant>
-		<constant name="DATA_TYPE_VARIANT" value="11" enum="DataType">
+		<constant name="DATA_TYPE_DATABUFFER" value="11" enum="DataType">
 		</constant>
 		<constant name="COMPRESSION_LEVEL_0" value="0" enum="CompressionLevel">
 		</constant>

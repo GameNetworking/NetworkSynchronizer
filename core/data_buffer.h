@@ -23,7 +23,7 @@ public:
 		DATA_TYPE_NORMALIZED_VECTOR3,
 		DATA_TYPE_BITS,
 		// The only dynamic sized value.
-		DATA_TYPE_VARIANT
+		DATA_TYPE_DATABUFFER
 	};
 
 	/// Compression level for the stored input data.
@@ -215,16 +215,16 @@ public:
 	bool read_bool();
 
 	/// Add the next data as int.
-	int64_t add_int(int64_t p_input, CompressionLevel p_compression_level);
+	std::int64_t add_int(std::int64_t p_input, CompressionLevel p_compression_level);
 
 	/// Parse the next data as int.
-	int64_t read_int(CompressionLevel p_compression_level);
+	std::int64_t read_int(CompressionLevel p_compression_level);
 
 	/// Add the next data as uint
-	uint64_t add_uint(uint64_t p_input, CompressionLevel p_compression_level);
+	std::uint64_t add_uint(std::uint64_t p_input, CompressionLevel p_compression_level);
 
 	/// Parse the next data as uint.
-	uint64_t read_uint(CompressionLevel p_compression_level);
+	std::uint64_t read_uint(CompressionLevel p_compression_level);
 
 	/// Add a real into the buffer. Depending on the compression level is possible
 	/// to store different range level.
@@ -265,10 +265,10 @@ public:
 	///
 	/// Returns the decompressed vector so both the client and the peers can use
 	/// the same data.
-	Vector2 add_vector2(Vector2 p_input, CompressionLevel p_compression_level);
+	void add_vector2(double x, double y, CompressionLevel p_compression_level);
 
 	/// Parse next data as vector from the input buffer.
-	Vector2 read_vector2(CompressionLevel p_compression_level);
+	void read_vector2(double &x, double &y, CompressionLevel p_compression_level);
 
 	/// Add a normalized vector2 into the buffer.
 	/// Note: The compression algorithm rely on the fact that this is a
@@ -276,10 +276,10 @@ public:
 	///
 	/// Returns the decompressed vector so both the client and the peers can use
 	/// the same data.
-	Vector2 add_normalized_vector2(Vector2 p_input, CompressionLevel p_compression_level);
+	void add_normalized_vector2(double x, double y, CompressionLevel p_compression_level);
 
 	/// Parse next data as normalized vector from the input buffer.
-	Vector2 read_normalized_vector2(CompressionLevel p_compression_level);
+	void read_normalized_vector2(double &x, double &y, CompressionLevel p_compression_level);
 
 	/// Add a vector3 into the buffer.
 	/// Note: This kind of vector occupies more space than the normalized verison.
@@ -287,10 +287,10 @@ public:
 	///
 	/// Returns the decompressed vector so both the client and the peers can use
 	/// the same data.
-	Vector3 add_vector3(Vector3 p_input, CompressionLevel p_compression_level);
+	void add_vector3(double x, double y, double z, CompressionLevel p_compression_level);
 
 	/// Parse next data as vector3 from the input buffer.
-	Vector3 read_vector3(CompressionLevel p_compression_level);
+	void read_vector3(double &x, double &y, double &z, CompressionLevel p_compression_level);
 
 	/// Add a normalized vector3 into the buffer.
 	/// Note: The compression algorithm rely on the fact that this is a
@@ -298,25 +298,10 @@ public:
 	///
 	/// Returns the decompressed vector so both the client and the peers can use
 	/// the same data.
-	Vector3 add_normalized_vector3(Vector3 p_input, CompressionLevel p_compression_level);
+	void add_normalized_vector3(double x, double y, double z, CompressionLevel p_compression_level);
 
 	/// Parse next data as normalized vector3 from the input buffer.
-	Vector3 read_normalized_vector3(CompressionLevel p_compression_level);
-
-	/// Add a variant. This is the only supported dynamic sized value.
-	Variant add_variant(const Variant &p_input);
-
-	/// Parse the next data as Variant and returns it.
-	Variant read_variant();
-
-	/// This function differ from the `add_variant` because when the variant passed
-	/// equals to the default one: the variant is not encoded into the data buffer
-	/// and takes no space.
-	Variant add_optional_variant(const Variant &p_input, const Variant &p_def);
-
-	/// Returns the variant encoded using `add_optinal_variant`.
-	/// Make sure `p_def` equals to the one passed to `add_optional_variant`.
-	Variant read_optional_variant(const Variant &p_def);
+	void read_normalized_vector3(double &x, double &y, double &z, CompressionLevel p_compression_level);
 
 	/// Add a data buffer to this buffer.
 	void add_data_buffer(const DataBuffer &p_db);
@@ -341,8 +326,7 @@ public:
 	void skip_normalized_vector2(CompressionLevel p_compression);
 	void skip_vector3(CompressionLevel p_compression);
 	void skip_normalized_vector3(CompressionLevel p_compression);
-	void skip_variant();
-	void skip_optional_variant(const Variant &p_def);
+	void skip_buffer();
 
 	/** Just returns the size of a specific type. */
 
@@ -369,15 +353,13 @@ public:
 	int read_normalized_vector2_size(CompressionLevel p_compression);
 	int read_vector3_size(CompressionLevel p_compression);
 	int read_normalized_vector3_size(CompressionLevel p_compression);
-	int read_variant_size();
-	int read_optional_variant_size(const Variant &p_def);
 	int read_buffer_size();
 
 	static int get_bit_taken(DataType p_data_type, CompressionLevel p_compression);
 	static int get_mantissa_bits(CompressionLevel p_compression);
 	static int get_exponent_bits(CompressionLevel p_compression);
 
-private:
+public: // ---------------------------------------------------------------- Internal
 	static uint64_t compress_unit_float(double p_value, double p_scale_factor);
 	static double decompress_unit_float(uint64_t p_value, double p_scale_factor);
 

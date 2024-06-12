@@ -5,6 +5,8 @@
 #include "core/math/vector2.h"
 #include "core/variant/variant.h"
 
+#include "ensure.h"
+#include "math.h"
 #include "scene_synchronizer_debugger.h"
 #include <cstddef>
 #include <cstdint>
@@ -131,7 +133,7 @@ int DataBuffer::get_bit_offset() const {
 }
 
 void DataBuffer::skip(int p_bits) {
-	ERR_FAIL_COND((metadata_size + bit_size) < (bit_offset + p_bits));
+	ENSURE((metadata_size + bit_size) >= (bit_offset + p_bits));
 	bit_offset += p_bits;
 }
 
@@ -592,52 +594,49 @@ float DataBuffer::read_unit_real(CompressionLevel p_compression_level) {
 	return ret;
 }
 
-Vector2 DataBuffer::add_vector2(Vector2 p_input, CompressionLevel p_compression_level) {
-	ERR_FAIL_COND_V(is_reading == true, p_input);
+void DataBuffer::add_vector2(double x, double y, CompressionLevel p_compression_level) {
+	ENSURE(!is_reading);
+
+	DEB_DISABLE
+
+	add_real(x, p_compression_level);
+	add_real(y, p_compression_level);
+
+	DEB_ENABLE
+
+	DEB_WRITE(DATA_TYPE_VECTOR2, p_compression_level, "X: " + std::to_string(x) + " Y: " + std::to_string(y));
+}
+
+void DataBuffer::read_vector2(double &x, double &y, CompressionLevel p_compression_level) {
+	ENSURE(is_reading);
 
 	DEB_DISABLE
 
 	Vector2 r;
-	r[0] = add_real(p_input[0], p_compression_level);
-	r[1] = add_real(p_input[1], p_compression_level);
+	x = read_real(p_compression_level);
+	y = read_real(p_compression_level);
 
 	DEB_ENABLE
 
-	DEB_WRITE(DATA_TYPE_VECTOR2, p_compression_level, String("X: " + rtos(r.x) + " Y: " + rtos(r.y)).utf8());
-
-	return r;
+	DEB_WRITE(DATA_TYPE_VECTOR2, p_compression_level, "X: " + std::to_string(x) + " Y: " + std::to_string(y));
 }
 
-Vector2 DataBuffer::read_vector2(CompressionLevel p_compression_level) {
-	ERR_FAIL_COND_V(is_reading == false, Vector2());
+void DataBuffer::add_normalized_vector2(double x, double y, CompressionLevel p_compression_level) {
+	ENSURE(!is_reading);
 
-	DEB_DISABLE
-
-	Vector2 r;
-	r[0] = read_real(p_compression_level);
-	r[1] = read_real(p_compression_level);
-
-	DEB_ENABLE
-
-	DEB_READ(DATA_TYPE_VECTOR2, p_compression_level, String("X: " + rtos(r.x) + " Y: " + rtos(r.y)).utf8());
-
-	return r;
-}
-
-Vector2 DataBuffer::add_normalized_vector2(Vector2 p_input, CompressionLevel p_compression_level) {
-	const std::uint64_t is_not_zero = p_input.length_squared() > CMP_EPSILON ? 1 : 0;
+	const std::uint64_t is_not_zero = MathFunc::is_zero_approx(x) && MathFunc::is_zero_approx(y) ? 1 : 0;
 
 #ifdef DEBUG_ENABLED
-	ERR_FAIL_COND_V_MSG(p_input.is_normalized() == false && is_not_zero, p_input, "[FATAL] The encoding failed because this function expects a normalized vector.");
+	if (!is_not_zero) {
+		ENSURE_MSG(MathFunc::vec2_is_normalized(x, y), "[FATAL] The encoding failed because this function expects a normalized vector.");
+	}
 #endif
-
-	ERR_FAIL_COND_V(is_reading == true, p_input);
 
 	const int bits = get_bit_taken(DATA_TYPE_NORMALIZED_VECTOR2, p_compression_level);
 	const int bits_for_the_angle = bits - 1;
 	const int bits_for_zero = 1;
 
-	const double angle = p_input.angle();
+	const double angle = MathFunc::vec2_angle(x, y);
 
 	const double max_value = static_cast<double>(~(UINT64_MAX << bits_for_the_angle));
 
@@ -652,22 +651,14 @@ Vector2 DataBuffer::add_normalized_vector2(Vector2 p_input, CompressionLevel p_c
 	}
 	bit_offset += bits;
 
-	const double decompressed_angle = (decompress_unit_float(compressed_angle, max_value) * Math_TAU) - Math_PI;
-	const double x = Math::cos(decompressed_angle);
-	const double y = Math::sin(decompressed_angle);
-
-#ifdef DEBUG_ENABLED
 	// Can't never happen because the buffer size is correctly handled.
-	CRASH_COND((metadata_size + bit_size) > buffer.size_in_bits() && bit_offset > buffer.size_in_bits());
-#endif
+	ASSERT_COND((metadata_size + bit_size) <= buffer.size_in_bits() && bit_offset <= buffer.size_in_bits());
 
-	const Vector2 value = Vector2(x, y) * static_cast<float>(is_not_zero);
-	DEB_WRITE(DATA_TYPE_NORMALIZED_VECTOR2, p_compression_level, String("X: " + rtos(value.x) + " Y: " + rtos(value.y)).utf8());
-	return value;
+	DEB_WRITE(DATA_TYPE_NORMALIZED_VECTOR2, p_compression_level, "X: " + std::to_string(x) + " Y: " + std::to_string(y));
 }
 
-Vector2 DataBuffer::read_normalized_vector2(CompressionLevel p_compression_level) {
-	ERR_FAIL_COND_V(is_reading == false, Vector2());
+void DataBuffer::read_normalized_vector2(double &x, double &y, CompressionLevel p_compression_level) {
+	ENSURE(is_reading);
 
 	const int bits = get_bit_taken(DATA_TYPE_NORMALIZED_VECTOR2, p_compression_level);
 	const int bits_for_the_angle = bits - 1;
@@ -678,198 +669,82 @@ Vector2 DataBuffer::read_normalized_vector2(CompressionLevel p_compression_level
 	std::uint64_t is_not_zero;
 	if (!buffer.read_bits(bit_offset, bits_for_zero, is_not_zero)) {
 		buffer_failed = true;
-		return Vector2();
+		return;
 	}
 	std::uint64_t compressed_angle;
 	if (!buffer.read_bits(bit_offset + 1, bits_for_the_angle, compressed_angle)) {
 		buffer_failed = true;
-		return Vector2();
+		return;
 	}
 	bit_offset += bits;
 
 	const double decompressed_angle = (decompress_unit_float(compressed_angle, max_value) * Math_TAU) - Math_PI;
-	const double x = Math::cos(decompressed_angle);
-	const double y = Math::sin(decompressed_angle);
+	x = Math::cos(decompressed_angle);
+	y = Math::sin(decompressed_angle);
 
-	const Vector2 value = Vector2(x, y) * static_cast<float>(is_not_zero);
-
-	DEB_READ(DATA_TYPE_NORMALIZED_VECTOR2, p_compression_level, String("X: " + rtos(value.x) + " Y: " + rtos(value.y)).utf8());
-	return value;
+	DEB_READ(DATA_TYPE_NORMALIZED_VECTOR2, p_compression_level, "X: " + std::to_string(x) + " Y: " + std::to_string(y));
 }
 
-Vector3 DataBuffer::add_vector3(Vector3 p_input, CompressionLevel p_compression_level) {
-	ERR_FAIL_COND_V(is_reading == true, p_input);
+void DataBuffer::add_vector3(double x, double y, double z, CompressionLevel p_compression_level) {
+	ENSURE(!is_reading);
 
 	DEB_DISABLE
 
-	Vector3 r;
-	r[0] = add_real(p_input[0], p_compression_level);
-	r[1] = add_real(p_input[1], p_compression_level);
-	r[2] = add_real(p_input[2], p_compression_level);
+	add_real(x, p_compression_level);
+	add_real(y, p_compression_level);
+	add_real(z, p_compression_level);
 
 	DEB_ENABLE
 
-	DEB_WRITE(DATA_TYPE_VECTOR3, p_compression_level, String("X: " + rtos(r.x) + " Y: " + rtos(r.y) + " Z: " + rtos(r.z)).utf8());
-	return r;
+	DEB_WRITE(DATA_TYPE_VECTOR3, p_compression_level, "X: " + std::to_string(x) + " Y: " + std::to_string(y) + " Z: " + std::to_string(z));
 }
 
-Vector3 DataBuffer::read_vector3(CompressionLevel p_compression_level) {
-	ERR_FAIL_COND_V(is_reading == false, Vector3());
+void DataBuffer::read_vector3(double &x, double &y, double &z, CompressionLevel p_compression_level) {
+	ENSURE(is_reading);
 
 	DEB_DISABLE
 
-	Vector3 r;
-	r[0] = read_real(p_compression_level);
-	r[1] = read_real(p_compression_level);
-	r[2] = read_real(p_compression_level);
+	x = read_real(p_compression_level);
+	y = read_real(p_compression_level);
+	z = read_real(p_compression_level);
 
 	DEB_ENABLE
 
-	DEB_READ(DATA_TYPE_VECTOR3, p_compression_level, String("X: " + rtos(r.x) + " Y: " + rtos(r.y) + " Z: " + rtos(r.z)).utf8());
-
-	return r;
+	DEB_READ(DATA_TYPE_VECTOR3, p_compression_level, "X: " + std::to_string(x) + " Y: " + std::to_string(y) + " Z: " + std::to_string(z));
 }
 
-Vector3 DataBuffer::add_normalized_vector3(Vector3 p_input, CompressionLevel p_compression_level) {
-#ifdef DEBUG_ENABLED
-	const uint32_t is_not_zero = p_input.length_squared() > CMP_EPSILON;
-	ERR_FAIL_COND_V_MSG(p_input.is_normalized() == false && is_not_zero, p_input, "[FATAL] This function expects a normalized vector.");
-#endif
-	ERR_FAIL_COND_V(is_reading == true, p_input);
-
-	DEB_DISABLE
-
-	const float x_axis = add_unit_real(p_input.x, p_compression_level);
-	const float y_axis = add_unit_real(p_input.y, p_compression_level);
-	const float z_axis = add_unit_real(p_input.z, p_compression_level);
-
-	DEB_ENABLE
-
-	const Vector3 value = Vector3(x_axis, y_axis, z_axis);
-	DEB_WRITE(DATA_TYPE_NORMALIZED_VECTOR3, p_compression_level, String("X: " + rtos(value.x) + " Y: " + rtos(value.y) + " Z: " + rtos(value.z)).utf8());
-	return value;
-}
-
-Vector3 DataBuffer::read_normalized_vector3(CompressionLevel p_compression_level) {
-	ERR_FAIL_COND_V(is_reading == false, Vector3());
-
-	DEB_DISABLE
-
-	const float x_axis = read_unit_real(p_compression_level);
-	const float y_axis = read_unit_real(p_compression_level);
-	const float z_axis = read_unit_real(p_compression_level);
-
-	DEB_ENABLE
-
-	const Vector3 value(x_axis, y_axis, z_axis);
-
-	DEB_READ(DATA_TYPE_NORMALIZED_VECTOR3, p_compression_level, String("X: " + rtos(value.x) + " Y: " + rtos(value.y) + " Z: " + rtos(value.z)).utf8());
-
-	return value;
-}
-
-Variant DataBuffer::add_variant(const Variant &p_input) {
-	ERR_FAIL_COND_V(is_reading, Variant());
-	// TODO consider to use a method similar to `_encode_and_compress_variant`
-	// to compress the encoded data a bit.
-
-	// Get the variant size.
-	int len = 0;
-
-	const Error len_err = encode_variant(
-			p_input,
-			nullptr,
-			len,
-			false);
-
-	ERR_FAIL_COND_V_MSG(
-			len_err != OK,
-			Variant(),
-			"Was not possible encode the variant.");
-
-	// Variant encoding pads the data to byte, so doesn't make sense write it
-	// unpadded.
-	make_room_pad_to_next_byte();
-	make_room_in_bits(len * 8);
+void DataBuffer::add_normalized_vector3(double x, double y, double z, CompressionLevel p_compression_level) {
+	ENSURE(!is_reading);
 
 #ifdef DEBUG_ENABLED
-	// This condition is always false thanks to the `make_room_pad_to_next_byte`.
-	// so it's safe to assume we are starting from the begin of the byte.
-	CRASH_COND((bit_offset % 8) != 0);
-#endif
-
-	const Error write_err = encode_variant(
-			p_input,
-			buffer.get_bytes_mut().data() + (bit_offset / 8),
-			len,
-			false);
-
-	ERR_FAIL_COND_V_MSG(
-			write_err != OK,
-			Variant(),
-			"Was not possible encode the variant.");
-
-	bit_offset += len * 8;
-
-	DEB_WRITE(DATA_TYPE_VARIANT, COMPRESSION_LEVEL_0, p_input.stringify().utf8());
-	return p_input;
-}
-
-/// This is an optimization for when we want a null Variant to be a single bit in the buffer.
-Variant DataBuffer::add_optional_variant(const Variant &p_input, const Variant &p_default) {
-	if (p_input == p_default) {
-		add(true);
-		return p_default;
-	} else {
-		add(false);
-		add_variant(p_input);
-		return p_input;
+	if (MathFunc::is_zero_approx(x) && MathFunc::is_zero_approx(y) && MathFunc::is_zero_approx(z)) {
+		ENSURE_MSG(MathFunc::vec3_is_normalized(x, y, z), "[FATAL] This function expects a normalized vector.");
 	}
-}
-
-Variant DataBuffer::read_optional_variant(const Variant &p_default) {
-	bool is_def = true;
-	read(is_def);
-	if (is_def) {
-		return p_default;
-	} else {
-		return read_variant();
-	}
-}
-
-Variant DataBuffer::read_variant() {
-	ERR_FAIL_COND_V(!is_reading, Variant());
-	Variant ret;
-
-	int len = 0;
-
-	// The Variant is always written starting from the beginning of the byte.
-	const bool success = pad_to_next_byte();
-	ERR_FAIL_COND_V_MSG(success == false, Variant(), "Padding failed.");
-
-#ifdef DEBUG_ENABLED
-	// This condition is always false thanks to the `pad_to_next_byte`; So is
-	// safe to assume we are starting from the begin of the byte.
-	CRASH_COND((bit_offset % 8) != 0);
 #endif
 
-	const Error read_err = decode_variant(
-			ret,
-			buffer.get_bytes().data() + (bit_offset / 8),
-			buffer.size_in_bytes() - (bit_offset / 8),
-			&len,
-			false);
+	DEB_DISABLE
 
-	ERR_FAIL_COND_V_MSG(
-			read_err != OK,
-			Variant(),
-			"Was not possible decode the variant.");
+	add_unit_real(x, p_compression_level);
+	add_unit_real(y, p_compression_level);
+	add_unit_real(z, p_compression_level);
 
-	bit_offset += len * 8;
+	DEB_ENABLE
 
-	DEB_READ(DATA_TYPE_VARIANT, COMPRESSION_LEVEL_0, ret.stringify().utf8());
+	DEB_WRITE(DATA_TYPE_NORMALIZED_VECTOR3, p_compression_level, "X: " + std::to_string(x) + " Y: " + std::to_string(y) + " Z: " + std::to_string(z));
+}
 
-	return ret;
+void DataBuffer::read_normalized_vector3(double &x, double &y, double &z, CompressionLevel p_compression_level) {
+	ENSURE(is_reading);
+
+	DEB_DISABLE
+
+	x = read_unit_real(p_compression_level);
+	y = read_unit_real(p_compression_level);
+	z = read_unit_real(p_compression_level);
+
+	DEB_ENABLE
+
+	DEB_READ(DATA_TYPE_NORMALIZED_VECTOR3, p_compression_level, "X: " + std::to_string(x) + " Y: " + std::to_string(y) + " Z: " + std::to_string(z));
 }
 
 void DataBuffer::add_data_buffer(const DataBuffer &p_db) {
@@ -995,14 +870,9 @@ void DataBuffer::skip_normalized_vector3(CompressionLevel p_compression) {
 	skip(bits);
 }
 
-void DataBuffer::skip_variant() {
+void DataBuffer::skip_buffer() {
 	// This already seek the offset as `skip` does.
-	read_variant_size();
-}
-
-void DataBuffer::skip_optional_variant(const Variant &p_def) {
-	// This already seek the offset as `skip` does.
-	read_optional_variant_size(p_def);
+	read_buffer_size();
 }
 
 int DataBuffer::get_bool_size() const {
@@ -1105,49 +975,17 @@ int DataBuffer::read_normalized_vector3_size(CompressionLevel p_compression) {
 	return bits;
 }
 
-int DataBuffer::read_variant_size() {
-	Variant ret;
+int DataBuffer::read_buffer_size() {
+	bool using_compression_lvl_2;
+	read(using_compression_lvl_2);
+	ENSURE_V(!is_buffer_failed(), 0);
 
-	// The Variant is always written starting from the beginning of the byte.
-	int padding_bits;
-	const bool success = pad_to_next_byte(&padding_bits);
-	ERR_FAIL_COND_V_MSG(success == false, Variant(), "Padding failed.");
+	const int other_db_bit_size = read_uint(using_compression_lvl_2 ? COMPRESSION_LEVEL_2 : COMPRESSION_LEVEL_1);
 
-#ifdef DEBUG_ENABLED
-	// This condition is always false thanks to the `pad_to_next_byte`; So is
-	// safe to assume we are starting from the begin of the byte.
-	CRASH_COND((bit_offset % 8) != 0);
-#endif
+	pad_to_next_byte();
+	skip(other_db_bit_size);
 
-	int len = 0;
-	const Error read_err = decode_variant(
-			ret,
-			buffer.get_bytes().data() + (bit_offset / 8),
-			buffer.size_in_bytes() - (bit_offset / 8),
-			&len,
-			false);
-
-	ERR_FAIL_COND_V_MSG(
-			read_err != OK,
-			0,
-			"Was not possible to decode the variant, error: " + itos(read_err));
-
-	bit_offset += len * 8;
-
-	return padding_bits + (len * 8);
-}
-
-int DataBuffer::read_optional_variant_size(const Variant &p_def) {
-	int len = get_bool_size();
-
-	bool is_def = true;
-	read(is_def);
-
-	if (!is_def) {
-		len += read_variant_size();
-	}
-
-	return len;
+	return other_db_bit_size;
 }
 
 int DataBuffer::get_bit_taken(DataType p_data_type, CompressionLevel p_compression) {
@@ -1232,16 +1070,16 @@ int DataBuffer::get_bit_taken(DataType p_data_type, CompressionLevel p_compressi
 		case DATA_TYPE_BITS: {
 			ERR_FAIL_V_MSG(0, "The bits size specified by the user and is not determined according to the compression level.");
 		}
-		case DATA_TYPE_VARIANT: {
+		case DATA_TYPE_DATABUFFER: {
 			ERR_FAIL_V_MSG(0, "The variant size is dynamic and can't be know at compile time.");
 		}
 		default:
 			// Unreachable
-			CRASH_NOW_MSG("Input type not supported!");
+			ASSERT_NO_ENTRY_MSG("Input type not supported!");
 	}
 
 	// Unreachable
-	CRASH_NOW_MSG("It was not possible to obtain the bit taken by this input data.");
+	ASSERT_NO_ENTRY_MSG("It was not possible to obtain the bit taken by this input data.");
 	return 0; // Useless, but MS CI is too noisy.
 }
 
@@ -1259,7 +1097,7 @@ int DataBuffer::get_mantissa_bits(CompressionLevel p_compression) {
 	}
 
 	// Unreachable
-	CRASH_NOW_MSG("Unknown compression level.");
+	ASSERT_NO_ENTRY_MSG("Unknown compression level.");
 	return 0; // Useless, but MS CI is too noisy.
 }
 
@@ -1277,7 +1115,7 @@ int DataBuffer::get_exponent_bits(CompressionLevel p_compression) {
 	}
 
 	// Unreachable
-	CRASH_NOW_MSG("Unknown compression level.");
+	ASSERT_NO_ENTRY_MSG("Unknown compression level.");
 	return 0; // Useless, but MS CI is too noisy.
 }
 
@@ -1311,10 +1149,9 @@ void DataBuffer::make_room_pad_to_next_byte() {
 
 bool DataBuffer::pad_to_next_byte(int *p_bits_to_next_byte) {
 	const int bits_to_next_byte = ((bit_offset + 7) & ~7) - bit_offset;
-	ERR_FAIL_COND_V_MSG(
-			bit_offset + bits_to_next_byte > buffer.size_in_bits(),
-			false,
-			"");
+	ENSURE_V(
+			(bit_offset + bits_to_next_byte) <= buffer.size_in_bits(),
+			false);
 	bit_offset += bits_to_next_byte;
 	if (p_bits_to_next_byte) {
 		*p_bits_to_next_byte = bits_to_next_byte;

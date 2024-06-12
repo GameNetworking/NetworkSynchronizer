@@ -44,13 +44,6 @@
 
 NS_NAMESPACE_BEGIN
 
-namespace MathFunc {
-template <typename F>
-F lerp(F a, F b, F alpha) {
-	return a + alpha * (b - a);
-}
-} //namespace MathFunc
-
 namespace MapFunc {
 
 template <class K, class V>

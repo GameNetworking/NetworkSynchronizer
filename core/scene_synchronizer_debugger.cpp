@@ -309,7 +309,7 @@ std::string data_type_to_string(uint32_t p_type) {
 			return "Vector3";
 		case NS::DataBuffer::DATA_TYPE_NORMALIZED_VECTOR3:
 			return "Normalized Vector3";
-		case NS::DataBuffer::DATA_TYPE_VARIANT:
+		case NS::DataBuffer::DATA_TYPE_DATABUFFER:
 			return "Variant";
 	}
 

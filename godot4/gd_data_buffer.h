@@ -21,7 +21,7 @@ public:
 		DATA_TYPE_NORMALIZED_VECTOR3,
 		DATA_TYPE_BITS,
 		// The only dynamic sized value.
-		DATA_TYPE_VARIANT
+		DATA_TYPE_DATABUFFER
 	};
 
 	/// Compression level for the stored input data.
@@ -113,19 +113,6 @@ public:
 		COMPRESSION_LEVEL_3
 	};
 
-private:
-	int metadata_size = 0;
-	int bit_offset = 0;
-	int bit_size = 0;
-	bool is_reading = false;
-	BitArray buffer;
-
-	bool buffer_failed = false;
-
-#if DEBUG_ENABLED
-	bool debug_enabled = true;
-#endif
-
 public:
 	NS::DataBuffer *data_buffer = nullptr;
 
@@ -133,80 +120,17 @@ public:
 	static void _bind_methods();
 
 	GdDataBuffer() = default;
-	GdDataBuffer(const GdDataBuffer &p_other);
-	GdDataBuffer(const BitArray &p_buffer);
 
-	//DataBuffer &operator=(DataBuffer &&p_other);
-
-	void copy(const GdDataBuffer &p_other);
-	void copy(const BitArray &p_buffer);
-
-	const BitArray &get_buffer() const {
-		return buffer;
-	}
-
-	BitArray &get_buffer_mut() {
-		return buffer;
-	}
-
-	/// Begin write.
-	void begin_write(int p_metadata_size);
-
-	/// Make sure the buffer takes least space possible.
-	void dry();
-
-	/// Seek the offset to a specific bit. Seek to a bit greater than the actual
-	/// size is not allowed.
-	void seek(int p_bits);
-
-	/// Set the bit size and the metadata size.
-	void shrink_to(int p_metadata_bit_size, int p_bit_size);
-
-	/// Returns the metadata size in bits.
-	int get_metadata_size() const;
 	/// Returns the buffer size in bits
 	int size() const;
-	/// Total size in bits.
-	int total_size() const;
 
-	/// Returns the bit offset.
-	int get_bit_offset() const;
-
-	/// Skip n bits.
-	void skip(int p_bits);
+	/// Begin write.
+	void begin_write(int ms);
 
 	/// Begin read.
 	void begin_read();
 
-	bool is_buffer_failed() const { return buffer_failed; }
-
-	// ------------------------------------------------------ Type serialization
-	void add(bool p_input);
-	void read(bool &p_out);
-
-	void add(std::uint8_t p_input);
-	void read(std::uint8_t &r_out);
-
-	void add(std::uint16_t p_input);
-	void read(std::uint16_t &r_out);
-
-	void add(std::uint32_t p_input);
-	void read(std::uint32_t &r_out);
-
-	void add(int p_input);
-	void read(int &r_out);
-
-	void add(std::uint64_t p_input);
-	void read(std::uint64_t &r_out);
-
-	void add(const std::string &p_string);
-	void read(std::string &r_out);
-
-	void add(const std::u16string &p_string);
-	void read(std::u16string &r_out);
-
-	void add(const GdDataBuffer &p_db);
-	void read(GdDataBuffer &r_db);
+	void dry();
 
 	// -------------------------------------------------- Specific serialization
 
@@ -321,17 +245,6 @@ public:
 	/// Make sure `p_def` equals to the one passed to `add_optional_variant`.
 	Variant read_optional_variant(const Variant &p_def);
 
-	/// Add a data buffer to this buffer.
-	void add_data_buffer(const GdDataBuffer &p_db);
-	void read_data_buffer(GdDataBuffer &r_db);
-
-	/// Add bits of custom size.
-	void add_bits(const uint8_t *p_data, int p_bit_count);
-	void read_bits(uint8_t *r_data, int p_bit_count);
-
-	/// Puts all the bytes to 0.
-	void zero();
-
 	/** Skips the amount of bits a type takes. */
 
 	void skip_bool();
@@ -375,18 +288,6 @@ public:
 	int read_variant_size();
 	int read_optional_variant_size(const Variant &p_def);
 	int read_buffer_size();
-
-	static int get_bit_taken(DataType p_data_type, CompressionLevel p_compression);
-	static int get_mantissa_bits(CompressionLevel p_compression);
-	static int get_exponent_bits(CompressionLevel p_compression);
-
-private:
-	static uint64_t compress_unit_float(double p_value, double p_scale_factor);
-	static double decompress_unit_float(uint64_t p_value, double p_scale_factor);
-
-	void make_room_in_bits(int p_dim);
-	void make_room_pad_to_next_byte();
-	bool pad_to_next_byte(int *p_bits_to_next_byte = nullptr);
 };
 
 VARIANT_ENUM_CAST(GdDataBuffer::DataType)
