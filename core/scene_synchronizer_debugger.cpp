@@ -125,7 +125,7 @@ void SceneSynchronizerDebugger::setup_debugger_python_ui() {
 	// Verify if file exists.
 	const std::string path = main_dump_directory_path + "/debugger.py";
 
-	if (file_system->is_file_exists(path.c_str())) {
+	if (file_system->file_exists(path.c_str())) {
 		// Nothing to do.
 		return;
 	}
@@ -154,7 +154,7 @@ void SceneSynchronizerDebugger::write_dump(int p_peer, uint32_t p_frame_index) {
 			file_path = main_dump_directory_path + "/" + dump_name + "/fd-" /*+ itos(p_peer) + "-"*/ + std::to_string(p_frame_index) + iteration_mark + ".json";
 			iteration_mark += "@";
 			iteration += 1;
-		} while (file_system->is_file_exists(file_path) && iteration < 100);
+		} while (file_system->file_exists(file_path) && iteration < 100);
 	}
 
 	std::string frame_summary;
