@@ -1,5 +1,6 @@
 #include "ensure.h"
-#include "modules/network_synchronizer/scene_synchronizer.h"
+
+#include "../scene_synchronizer.h"
 
 void _ns_print_code_message(
 		const char *p_function,
