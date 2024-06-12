@@ -3,6 +3,7 @@
 #include "core/core.h"
 #include "core/data_buffer.h"
 #include "core/ensure.h"
+#include "core/math.h"
 #include "core/net_utilities.h"
 #include "core/object_data.h"
 #include "core/peer_networked_controller.h"
@@ -3390,7 +3391,9 @@ bool ClientSynchronizer::parse_sync_data(
 				bool var_has_value = false;
 				p_snapshot.read(var_has_value);
 				if (var_has_value) {
-					p_snapshot.read_variant();
+					VarData value;
+					SceneSynchronizerBase::var_data_decode(value, p_snapshot);
+					ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `variable value` was expected at this point. Object: `" + synchronizer_object_data->object_name + "` Var: `NOT AVAILABLE BECOUSE THE OBJECT IS UNKNOWN AT THIS MOMENT.`");
 				}
 			}
 		} else {

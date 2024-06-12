@@ -3,6 +3,7 @@
 #include "../core/core.h"
 #include "../core/data_buffer.h"
 #include "../core/ensure.h"
+#include "../core/math.h"
 #include "../core/net_utilities.h"
 #include "../core/processor.h"
 #include "../core/var_data.h"
@@ -158,21 +159,34 @@ public:
 	void collect_inputs(double p_delta, NS::DataBuffer &r_buffer) {
 		const NS::FrameIndex current_frame_index = scene_owner->scene_sync->get_controller_for_peer(authoritative_peer_id)->get_current_frame_index();
 		const int index = current_frame_index.id % 20;
-		std::ignore = r_buffer.add_normalized_vector3(Vector3(inputs[index].x, inputs[index].y, inputs[index].z), NS::DataBuffer::COMPRESSION_LEVEL_3);
+		r_buffer.add_normalized_vector3(inputs[index].x, inputs[index].y, inputs[index].z, NS::DataBuffer::COMPRESSION_LEVEL_3);
 	}
 
 	void controller_process(double p_delta, NS::DataBuffer &p_buffer) {
 		ASSERT_COND(p_delta == delta);
 		const float speed = 1.0;
-		const Vector3 v = p_buffer.read_normalized_vector3(NS::DataBuffer::COMPRESSION_LEVEL_3);
-		const Vec3 input(v.x, v.y, v.z);
+		double x;
+		double y;
+		double z;
+		p_buffer.read_normalized_vector3(x, y, z, NS::DataBuffer::COMPRESSION_LEVEL_3);
+		const Vec3 input(x, y, z);
 		set_position(get_position() + (input * speed * p_delta));
 	}
 
 	bool are_inputs_different(NS::DataBuffer &p_buffer_A, NS::DataBuffer &p_buffer_B) {
-		const Vector3 v1 = p_buffer_A.read_normalized_vector3(NS::DataBuffer::COMPRESSION_LEVEL_3);
-		const Vector3 v2 = p_buffer_B.read_normalized_vector3(NS::DataBuffer::COMPRESSION_LEVEL_3);
-		return v1 != v2;
+		double x1;
+		double y1;
+		double z1;
+		double x2;
+		double y2;
+		double z2;
+
+		p_buffer_A.read_normalized_vector3(x1, y1, z1, NS::DataBuffer::COMPRESSION_LEVEL_3);
+		p_buffer_B.read_normalized_vector3(x2, y2, z2, NS::DataBuffer::COMPRESSION_LEVEL_3);
+
+		return NS::MathFunc::is_equal_approx(x1, x2) &&
+				NS::MathFunc::is_equal_approx(y1, y2) &&
+				NS::MathFunc::is_equal_approx(z1, z2);
 	}
 
 	uint32_t count_input_size(NS::DataBuffer &p_buffer) {
