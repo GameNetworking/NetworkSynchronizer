@@ -885,7 +885,7 @@ Variant DataBuffer::add_variant(const Variant &p_input) {
 
 	const Error write_err = encode_variant(
 			p_input,
-			buffer.get_bytes_mut().ptrw() + (bit_offset / 8),
+			buffer.get_bytes_mut().data() + (bit_offset / 8),
 			len,
 			false);
 
@@ -940,7 +940,7 @@ Variant DataBuffer::read_variant() {
 
 	const Error read_err = decode_variant(
 			ret,
-			buffer.get_bytes().ptr() + (bit_offset / 8),
+			buffer.get_bytes().data() + (bit_offset / 8),
 			buffer.size_in_bytes() - (bit_offset / 8),
 			&len,
 			false);
@@ -966,7 +966,7 @@ void DataBuffer::add_data_buffer(const DataBuffer &p_db) {
 	add_uint(other_db_bit_size, using_compression_lvl_2 ? COMPRESSION_LEVEL_2 : COMPRESSION_LEVEL_1);
 
 	make_room_pad_to_next_byte();
-	const std::uint8_t *ptr = p_db.buffer.get_bytes().ptr();
+	const std::uint8_t *ptr = p_db.buffer.get_bytes().data();
 	add_bits(ptr, other_db_bit_size);
 }
 
@@ -1207,7 +1207,7 @@ int DataBuffer::read_variant_size() {
 	int len = 0;
 	const Error read_err = decode_variant(
 			ret,
-			buffer.get_bytes().ptr() + (bit_offset / 8),
+			buffer.get_bytes().data() + (bit_offset / 8),
 			buffer.size_in_bytes() - (bit_offset / 8),
 			&len,
 			false);

@@ -228,7 +228,7 @@ void NS_Test::test_local_network() {
 
 	std::vector<int> server_rpc_executed_by;
 	const auto rpc_handle_server = server_obj_1.rpc_config(
-			std::function<void(bool, int, float, const NS::VarData &, const Vector<uint8_t> &)>([&server_rpc_executed_by, &server_obj_1](bool a, int b, float c, const NS::VarData &d, const Vector<uint8_t> &e) {
+			std::function<void(bool, int, float, const NS::VarData &, const std::vector<std::uint8_t> &)>([&server_rpc_executed_by, &server_obj_1](bool a, int b, float c, const NS::VarData &d, const std::vector<uint8_t> &e) {
 				server_rpc_executed_by.push_back(server_obj_1.rpc_get_sender());
 				CRASH_COND(a != true);
 				CRASH_COND(b != 22);
@@ -247,7 +247,7 @@ void NS_Test::test_local_network() {
 
 	std::vector<int> peer_1_rpc_executed_by;
 	const auto rpc_handle_1_obj_1 = peer_1_obj_1.rpc_config(
-			std::function<void(bool, int, float, const NS::VarData &, const Vector<uint8_t> &)>([&peer_1_rpc_executed_by, &peer_1_obj_1](bool a, int b, float c, const NS::VarData &d, const Vector<uint8_t> &e) {
+			std::function<void(bool, int, float, const NS::VarData &, const std::vector<std::uint8_t> &)>([&peer_1_rpc_executed_by, &peer_1_obj_1](bool a, int b, float c, const NS::VarData &d, const std::vector<std::uint8_t> &e) {
 				peer_1_rpc_executed_by.push_back(peer_1_obj_1.rpc_get_sender());
 				CRASH_COND(a != true);
 				CRASH_COND(b != 22);
@@ -267,7 +267,7 @@ void NS_Test::test_local_network() {
 	std::vector<int> peer_2_rpc_executed_by;
 	std::vector<int> peer_2_rpc_b_values_by_exec_order;
 	const auto rpc_handle_2_obj_1 = peer_2_obj_1.rpc_config(
-			std::function<void(bool, int, float, const NS::VarData &, const Vector<uint8_t> &)>([&peer_2_rpc_executed_by, &peer_2_obj_1, &peer_2_rpc_b_values_by_exec_order](bool a, int b, float c, const NS::VarData &d, const Vector<uint8_t> &e) {
+			std::function<void(bool, int, float, const NS::VarData &, const std::vector<std::uint8_t> &)>([&peer_2_rpc_executed_by, &peer_2_obj_1, &peer_2_rpc_b_values_by_exec_order](bool a, int b, float c, const NS::VarData &d, const std::vector<std::uint8_t> &e) {
 				peer_2_rpc_executed_by.push_back(peer_2_obj_1.rpc_get_sender());
 				peer_2_rpc_b_values_by_exec_order.push_back(b);
 			}),
@@ -335,7 +335,7 @@ void NS_Test::test_local_network() {
 		ASSERT_COND(NS::VecFunc::has(connected_peers, peer_1.get_peer()));
 	}
 
-	Vector<uint8_t> vec;
+	std::vector<std::uint8_t> vec;
 	vec.push_back(1);
 	vec.push_back(2);
 	vec.push_back(3);

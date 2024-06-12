@@ -164,11 +164,11 @@ protected:
 	RpcHandle<> rpc_handler_notify_need_full_snapshot;
 	RpcHandle<bool> rpc_handler_set_network_enabled;
 	RpcHandle<bool> rpc_handler_notify_peer_status;
-	RpcHandle<const Vector<uint8_t> &> rpc_handler_trickled_sync_data;
+	RpcHandle<const std::vector<std::uint8_t> &> rpc_handler_trickled_sync_data;
 	RpcHandle<DataBuffer &> rpc_handle_notify_netstats;
 
 	// Controller RPCs.
-	RpcHandle<int, const Vector<uint8_t> &> rpc_handle_receive_input;
+	RpcHandle<int, const std::vector<std::uint8_t> &> rpc_handle_receive_input;
 
 	/// Fixed rate at which the NetSync has to produce frames.
 	int frames_per_seconds = 60;
@@ -392,12 +392,12 @@ public: // ---------------------------------------------------------------- RPCs
 	void rpc__notify_need_full_snapshot();
 	void rpc_set_network_enabled(bool p_enabled);
 	void rpc_notify_peer_status(bool p_enabled);
-	void rpc_trickled_sync_data(const Vector<uint8_t> &p_data);
+	void rpc_trickled_sync_data(const std::vector<std::uint8_t> &p_data);
 	void rpc_notify_netstats(DataBuffer &p_data);
 
-	void call_rpc_receive_inputs(int p_recipient, int p_peer, const Vector<uint8_t> &p_data);
+	void call_rpc_receive_inputs(int p_recipient, int p_peer, const std::vector<std::uint8_t> &p_data);
 
-	void rpc_receive_inputs(int p_peer, const Vector<uint8_t> &p_data);
+	void rpc_receive_inputs(int p_peer, const std::vector<std::uint8_t> &p_data);
 
 public: // ---------------------------------------------------------------- APIs
 	void set_settings(Settings &p_settings);
@@ -854,7 +854,7 @@ public:
 
 	void set_enabled(bool p_enabled);
 
-	void receive_trickled_sync_data(const Vector<uint8_t> &p_data);
+	void receive_trickled_sync_data(const std::vector<std::uint8_t> &p_data);
 	void process_trickled_sync(double p_delta);
 
 	void remove_object_from_trickled_sync(NS::ObjectData *p_object_data);
