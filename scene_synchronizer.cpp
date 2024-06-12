@@ -445,7 +445,7 @@ void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const std::str
 		if (valid == false) {
 			SceneSynchronizerDebugger::singleton()->print(ERROR, "The variable `" + p_variable + "` on the node `" + object_data->object_name + "` was not found, make sure the variable exist.", network_interface->get_owner_name());
 		}
-		var_id = VarId{{ uint32_t(object_data->vars.size()) }};
+		var_id = VarId{ { uint32_t(object_data->vars.size()) } };
 		object_data->vars.push_back(
 				NS::VarDescriptor(
 						var_id,
@@ -459,7 +459,7 @@ void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const std::str
 	}
 
 #ifdef DEBUG_ENABLED
-	for (VarId v = VarId{{ 0 }}; v < VarId{{ uint32_t(object_data->vars.size()) }}; v += 1) {
+	for (VarId v = VarId{ { 0 } }; v < VarId{ { uint32_t(object_data->vars.size()) } }; v += 1) {
 		// This can't happen, because the IDs are always consecutive, or NONE.
 		ASSERT_COND(object_data->vars[v.id].id == v);
 	}
@@ -782,7 +782,7 @@ void SceneSynchronizerBase::sync_group_fetch_object_grups(const NS::ObjectData *
 	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_fetch_object_grups(p_object_data, r_simulated_groups, r_trickled_groups);
 }
 
-void SceneSynchronizerBase::sync_group_replace_objects(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes) {
+void SceneSynchronizerBase::sync_group_replace_objects(SyncGroupId p_group_id, std::vector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, std::vector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes) {
 	ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
 	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_replace_object(p_group_id, std::move(p_new_realtime_nodes), std::move(p_new_trickled_nodes));
 }
@@ -1034,7 +1034,7 @@ void SceneSynchronizerBase::init_synchronizer(bool p_was_generating_ids) {
 
 			// Handle the node ID.
 			if (generate_id) {
-				od->set_net_id(ObjectNetId{{ i }});
+				od->set_net_id(ObjectNetId{ { i } });
 			} else {
 				od->set_net_id(ObjectNetId::NONE);
 			}
@@ -1042,7 +1042,7 @@ void SceneSynchronizerBase::init_synchronizer(bool p_was_generating_ids) {
 			// Handle the variables ID.
 			for (uint32_t v = 0; v < od->vars.size(); v += 1) {
 				if (generate_id) {
-					od->vars[v].id = VarId{{ v }};
+					od->vars[v].id = VarId{ { v } };
 				} else {
 					od->vars[v].id = VarId::NONE;
 				}
@@ -1594,7 +1594,7 @@ const NS::PeerData *SceneSynchronizerBase::get_peer_data_for_controller(const Pe
 }
 
 ObjectNetId SceneSynchronizerBase::get_biggest_object_id() const {
-	return objects_data_storage.get_sorted_objects_data().size() == 0 ? ObjectNetId::NONE : ObjectNetId{{ uint32_t(objects_data_storage.get_sorted_objects_data().size() - 1) }};
+	return objects_data_storage.get_sorted_objects_data().size() == 0 ? ObjectNetId::NONE : ObjectNetId{ { uint32_t(objects_data_storage.get_sorted_objects_data().size() - 1) } };
 }
 
 void SceneSynchronizerBase::reset_controllers() {
@@ -1926,13 +1926,13 @@ void ServerSynchronizer::sync_group_fetch_object_grups(const ObjectData *p_objec
 	r_simulated_groups.clear();
 	r_trickled_groups.clear();
 
-	SyncGroupId id = SyncGroupId{{ 0 }};
+	SyncGroupId id = SyncGroupId{ { 0 } };
 	for (const SyncGroup &group : sync_groups) {
-		if (group.get_simulated_sync_objects().find(SyncGroup::SimulatedObjectInfo(const_cast<ObjectData *>(p_object_data))) != -1) {
+		if (group.has_simulated(*p_object_data)) {
 			r_simulated_groups.push_back(id);
 		}
 
-		if (group.get_trickled_sync_objects().find(SyncGroup::TrickledObjectInfo(const_cast<ObjectData *>(p_object_data))) != -1) {
+		if (group.has_trickled(*p_object_data)) {
 			r_trickled_groups.push_back(id);
 		}
 
@@ -1940,7 +1940,7 @@ void ServerSynchronizer::sync_group_fetch_object_grups(const ObjectData *p_objec
 	}
 }
 
-void ServerSynchronizer::sync_group_replace_object(SyncGroupId p_group_id, LocalVector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, LocalVector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes) {
+void ServerSynchronizer::sync_group_replace_object(SyncGroupId p_group_id, std::vector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, std::vector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes) {
 	ENSURE_MSG(p_group_id.id < sync_groups.size(), "The group id `" + p_group_id + "` doesn't exist.");
 	ENSURE_MSG(p_group_id != SyncGroupId::GLOBAL, "You can't change this SyncGroup in any way. Create a new one.");
 	sync_groups[p_group_id.id].replace_objects(std::move(p_new_realtime_nodes), std::move(p_new_trickled_nodes));
@@ -2045,7 +2045,7 @@ void ServerSynchronizer::sync_group_debug_print() {
 			SceneSynchronizerDebugger::singleton()->print(INFO, "|      |- " + std::to_string(peer), scene_synchronizer->get_network_interface().get_owner_name());
 		}
 
-		const LocalVector<NS::SyncGroup::SimulatedObjectInfo> &realtime_node_info = group.get_simulated_sync_objects();
+		const std::vector<NS::SyncGroup::SimulatedObjectInfo> &realtime_node_info = group.get_simulated_sync_objects();
 		SceneSynchronizerDebugger::singleton()->print(INFO, "|", scene_synchronizer->get_network_interface().get_owner_name());
 		SceneSynchronizerDebugger::singleton()->print(INFO, "|    [Realtime nodes]", scene_synchronizer->get_network_interface().get_owner_name());
 		for (auto info : realtime_node_info) {
@@ -2054,7 +2054,7 @@ void ServerSynchronizer::sync_group_debug_print() {
 
 		SceneSynchronizerDebugger::singleton()->print(INFO, "|", scene_synchronizer->get_network_interface().get_owner_name());
 
-		const LocalVector<NS::SyncGroup::TrickledObjectInfo> &trickled_node_info = group.get_trickled_sync_objects();
+		const std::vector<NS::SyncGroup::TrickledObjectInfo> &trickled_node_info = group.get_trickled_sync_objects();
 		SceneSynchronizerDebugger::singleton()->print(INFO, "|    [Trickled nodes (UR: Update Rate)]", scene_synchronizer->get_network_interface().get_owner_name());
 		for (auto info : trickled_node_info) {
 			SceneSynchronizerDebugger::singleton()->print(INFO, "|      |- [UR: " + std::to_string(info.update_rate) + "] " + info.od->object_name.c_str(), scene_synchronizer->get_network_interface().get_owner_name());
@@ -2165,7 +2165,7 @@ void ServerSynchronizer::generate_snapshot(
 		bool p_force_full_snapshot,
 		const NS::SyncGroup &p_group,
 		DataBuffer &r_snapshot_db) const {
-	const LocalVector<NS::SyncGroup::SimulatedObjectInfo> &relevant_node_data = p_group.get_simulated_sync_objects();
+	const std::vector<NS::SyncGroup::SimulatedObjectInfo> &relevant_node_data = p_group.get_simulated_sync_objects();
 
 	// First insert the list of ALL simulated ObjectData, if changed.
 	if (p_group.is_realtime_node_list_changed() || p_force_full_snapshot) {
@@ -2351,7 +2351,7 @@ void ServerSynchronizer::process_trickled_sync(double p_delta) {
 			continue;
 		}
 
-		LocalVector<NS::SyncGroup::TrickledObjectInfo> &objects_info = group.get_trickled_sync_objects();
+		std::vector<NS::SyncGroup::TrickledObjectInfo> &objects_info = group.get_trickled_sync_objects();
 		if (objects_info.size() == 0) {
 			// Nothing to sync.
 			continue;
@@ -2818,7 +2818,7 @@ void ClientSynchronizer::process_received_server_state() {
 				player_controller,
 				inner_player_controller);
 	} else {
-		if (no_rewind_recover.input_id == FrameIndex{{ 0 }}) {
+		if (no_rewind_recover.input_id == FrameIndex{ { 0 } }) {
 			SceneSynchronizerDebugger::singleton()->notify_event(SceneSynchronizerDebugger::FrameEvent::CLIENT_DESYNC_DETECTED_SOFT);
 
 			// Sync.
@@ -2899,8 +2899,8 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 			const ObjectNetId net_node_id = different_node_data[i];
 			NS::ObjectData *rew_node_data = scene_synchronizer->get_object_data(net_node_id);
 
-			const std::vector<NS::NameAndVar> *server_node_vars = ObjectNetId{{ uint32_t(last_received_server_snapshot->object_vars.size()) }} <= net_node_id ? nullptr : &(last_received_server_snapshot->object_vars[net_node_id.id]);
-			const std::vector<NS::NameAndVar> *client_node_vars = ObjectNetId{{ uint32_t(client_snapshots.front().object_vars.size()) }} <= net_node_id ? nullptr : &(client_snapshots.front().object_vars[net_node_id.id]);
+			const std::vector<NS::NameAndVar> *server_node_vars = ObjectNetId{ { uint32_t(last_received_server_snapshot->object_vars.size()) } } <= net_node_id ? nullptr : &(last_received_server_snapshot->object_vars[net_node_id.id]);
+			const std::vector<NS::NameAndVar> *client_node_vars = ObjectNetId{ { uint32_t(client_snapshots.front().object_vars.size()) } } <= net_node_id ? nullptr : &(client_snapshots.front().object_vars[net_node_id.id]);
 
 			const std::size_t count = MAX(server_node_vars ? server_node_vars->size() : 0, client_node_vars ? client_node_vars->size() : 0);
 
@@ -3038,7 +3038,7 @@ void ClientSynchronizer::__pcr__rewind(
 
 void ClientSynchronizer::__pcr__sync__no_rewind(const NS::Snapshot &p_no_rewind_recover) {
 	NS_PROFILE
-	ASSERT_COND_MSG(p_no_rewind_recover.input_id == FrameIndex{{ 0 }}, "This function is never called unless there is something to recover without rewinding.");
+	ASSERT_COND_MSG(p_no_rewind_recover.input_id == FrameIndex{ { 0 } }, "This function is never called unless there is something to recover without rewinding.");
 
 	// Apply found differences without rewind.
 	std::vector<std::string> applied_data_info;
@@ -3885,7 +3885,7 @@ void ClientSynchronizer::apply_snapshot(
 
 		// NOTE: The vars may not contain ALL the variables: it depends on how
 		//       the snapshot was captured.
-		for (VarId v = VarId{{ 0 }}; v < VarId{{ uint32_t(snap_object_vars.size()) }}; v += 1) {
+		for (VarId v = VarId{ { 0 } }; v < VarId{ { uint32_t(snap_object_vars.size()) } }; v += 1) {
 			if (snap_object_vars[v.id].name.empty()) {
 				// This variable was not set, skip it.
 				continue;

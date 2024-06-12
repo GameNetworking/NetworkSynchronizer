@@ -1,7 +1,5 @@
 #pragma once
 
-#include "core/templates/local_vector.h"
-
 #include "core.h"
 #include "processor.h"
 #include "var_data.h"
@@ -117,6 +115,12 @@ typename std::map<K, V>::iterator insert_if_new(std::map<K, V> &p_map, const K &
 }; //namespace MapFunc
 
 namespace VecFunc {
+
+template <class V, typename T>
+std::size_t find_index(const std::vector<V> &p_vec, const T &p_val) {
+	const auto it = std::find(p_vec.begin(), p_vec.end(), p_val);
+	return it == p_vec.end() ? std::numeric_limits<std::size_t>::max() : std::distance(p_vec.begin(), it);
+}
 
 template <class V, typename T>
 typename std::vector<V>::const_iterator find(const std::vector<V> &p_vec, const T &p_val) {
@@ -349,7 +353,7 @@ public:
 		SimulatedObjectInfo &operator=(SimulatedObjectInfo &&) = default;
 		SimulatedObjectInfo(struct ObjectData *p_nd) :
 				od(p_nd) {}
-		bool operator==(const SimulatedObjectInfo &p_other) { return od == p_other.od; }
+		bool operator==(const SimulatedObjectInfo &p_other) const { return od == p_other.od; }
 
 		void update_from(const SimulatedObjectInfo &p_other) {}
 	};
@@ -375,7 +379,7 @@ public:
 		TrickledObjectInfo &operator=(TrickledObjectInfo &&) = default;
 		TrickledObjectInfo(struct ObjectData *p_nd) :
 				od(p_nd) {}
-		bool operator==(const TrickledObjectInfo &p_other) { return od == p_other.od; }
+		bool operator==(const TrickledObjectInfo &p_other) const { return od == p_other.od; }
 
 		void update_from(const TrickledObjectInfo &p_other) {
 			update_rate = p_other.update_rate;
@@ -388,10 +392,10 @@ public:
 
 private:
 	bool simulated_sync_objects_list_changed = false;
-	LocalVector<SimulatedObjectInfo> simulated_sync_objects;
+	std::vector<SimulatedObjectInfo> simulated_sync_objects;
 
 	bool trickled_sync_objects_list_changed = false;
-	LocalVector<TrickledObjectInfo> trickled_sync_objects;
+	std::vector<TrickledObjectInfo> trickled_sync_objects;
 
 	/// Contains the list of peers being networked by this sync group.
 	/// In other terms, if an object controller by peer 76 is contained into
@@ -415,9 +419,9 @@ public:
 	bool is_trickled_node_list_changed() const;
 	const std::vector<int> get_peers_with_newly_calculated_latency() const;
 
-	const LocalVector<NS::SyncGroup::SimulatedObjectInfo> &get_simulated_sync_objects() const;
-	const LocalVector<NS::SyncGroup::TrickledObjectInfo> &get_trickled_sync_objects() const;
-	LocalVector<NS::SyncGroup::TrickledObjectInfo> &get_trickled_sync_objects();
+	const std::vector<NS::SyncGroup::SimulatedObjectInfo> &get_simulated_sync_objects() const;
+	const std::vector<NS::SyncGroup::TrickledObjectInfo> &get_trickled_sync_objects() const;
+	std::vector<NS::SyncGroup::TrickledObjectInfo> &get_trickled_sync_objects();
 
 	void mark_changes_as_notified();
 
@@ -429,10 +433,10 @@ public:
 	const std::vector<int> &get_simulating_peers() const { return simulating_peers; }
 
 	/// Returns the `index` or `UINT32_MAX` on error.
-	uint32_t add_new_sync_object(struct ObjectData *p_object_data, bool p_is_simulated);
+	std::size_t add_new_sync_object(struct ObjectData *p_object_data, bool p_is_simulated);
 	void remove_sync_object(std::size_t p_index, bool p_is_simulated);
 	void remove_sync_object(const struct ObjectData &p_object_data);
-	void replace_objects(LocalVector<SimulatedObjectInfo> &&p_new_simulated_objects, LocalVector<TrickledObjectInfo> &&p_new_trickled_objects);
+	void replace_objects(std::vector<SimulatedObjectInfo> &&p_new_simulated_objects, std::vector<TrickledObjectInfo> &&p_new_trickled_objects);
 	void remove_all_nodes();
 
 	void notify_new_variable(struct ObjectData *p_object_data, const std::string &p_var_name);
@@ -456,6 +460,9 @@ public:
 	// Removes the peer from this sync group if it's not associated to any object
 	// data into this group.
 	void validate_peer_association(int p_peer);
+
+	bool has_simulated(const struct ObjectData &p_object_data) const;
+	bool has_trickled(const struct ObjectData &p_object_data) const;
 
 private:
 	std::size_t find_simulated(const struct ObjectData &p_object_data) const;
