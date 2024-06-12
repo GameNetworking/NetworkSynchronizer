@@ -639,7 +639,7 @@ class ServerSynchronizer final : public Synchronizer {
 	float objects_relevancy_update_timer = 0.0;
 	uint32_t epoch = 0;
 	/// This array contains a map between the peers and the relevant objects.
-	LocalVector<NS::SyncGroup> sync_groups;
+	std::vector<NS::SyncGroup> sync_groups;
 	std::vector<ObjectData *> active_objects;
 
 	enum SnapshotGenerationMode {
