@@ -31,7 +31,7 @@ void test_ids() {
 	var_id_3 += var_id_1;
 	var_id_3 += int(1);
 	var_id_3 += uint32_t(1);
-	ASSERT_COND(var_id_3.id != 3);
+	ASSERT_COND(var_id_3.id == 3);
 }
 
 const double delta = 1.0 / 60.0;
