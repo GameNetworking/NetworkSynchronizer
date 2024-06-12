@@ -180,8 +180,6 @@ struct FrameInput {
 	BitArray inputs_buffer;
 	uint32_t buffer_size_bit = 0;
 	FrameIndex similarity = FrameIndex::NONE;
-	/// Local timestamp.
-	uint32_t received_timestamp = 0;
 
 	bool operator==(const FrameInput &p_other) const {
 		return p_other.id == id;
