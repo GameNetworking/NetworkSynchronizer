@@ -260,11 +260,11 @@ struct PlayerController final : public Controller {
 	NS::PHandler event_handler_state_validated = NS::NullPHandler;
 
 	FrameIndex current_input_id;
-	uint32_t input_buffers_counter;
+	std::uint32_t input_buffers_counter;
 	bool streaming_paused = false;
 
 	std::deque<FrameInput> frames_input;
-	std::vector<uint8_t> cached_packet_data;
+	std::vector<std::uint8_t> cached_packet_data;
 	int queued_instant_to_process = -1;
 
 	PlayerController(PeerNetworkedController *p_node);

@@ -1,7 +1,5 @@
 #include "peer_networked_controller.h"
 
-#include "core/io/marshalls.h"
-
 #include "../scene_synchronizer.h"
 #include "ensure.h"
 #include "scene_synchronizer_debugger.h"
@@ -11,6 +9,29 @@
 #define METADATA_SIZE 1
 
 NS_NAMESPACE_BEGIN
+
+static inline unsigned int ns_encode_uint32(std::uint32_t p_uint, std::uint8_t *p_arr) {
+	for (int i = 0; i < 4; i++) {
+		*p_arr = p_uint & 0xFF;
+		p_arr++;
+		p_uint >>= 8;
+	}
+
+	return sizeof(std::uint32_t);
+}
+
+static inline std::uint32_t ns_decode_uint32(const std::uint8_t *p_arr) {
+	std::uint32_t u = 0;
+
+	for (int i = 0; i < 4; i++) {
+		std::uint32_t b = *p_arr;
+		b <<= (i * 8);
+		u |= b;
+		p_arr++;
+	}
+
+	return u;
+}
 
 PeerNetworkedController::PeerNetworkedController() {
 	inputs_buffer = memnew(DataBuffer);
@@ -296,7 +317,7 @@ bool PeerNetworkedController::__input_data_parse(
 	int ofs = 0;
 
 	ENSURE_V(data_len >= 4, false);
-	const FrameIndex first_input_id = FrameIndex{ { decode_uint32(p_data.data() + ofs) } };
+	const FrameIndex first_input_id = FrameIndex{ { ns_decode_uint32(p_data.data() + ofs) } };
 	ofs += 4;
 
 	uint32_t inserted_input_count = 0;
@@ -988,7 +1009,7 @@ void PlayerController::send_frame_input_buffer_to_server() {
 	// Let's store the ID of the first snapshot.
 	MAKE_ROOM(4);
 	const FrameIndex first_input_id = frames_input[frames_input.size() - inputs_count].id;
-	ofs += encode_uint32(first_input_id.id, cached_packet_data.data() + ofs);
+	ofs += ns_encode_uint32(first_input_id.id, cached_packet_data.data() + ofs);
 
 	FrameIndex previous_input_id = FrameIndex::NONE;
 	FrameIndex previous_input_similarity = FrameIndex::NONE;
@@ -1101,19 +1122,10 @@ void PlayerController::send_frame_input_buffer_to_server() {
 	// Finalize the last added input_buffer.
 	cached_packet_data[ofs - previous_buffer_size - 1] = duplication_count;
 
-	// Make the packet data.
-	std::vector<std::uint8_t> packet_data;
-	packet_data.resize(ofs);
-
-	memcpy(
-			packet_data.data(),
-			cached_packet_data.data(),
-			ofs);
-
 	peer_controller->scene_synchronizer->call_rpc_receive_inputs(
 			peer_controller->scene_synchronizer->get_network_interface().get_server_peer(),
 			peer_controller->authority_peer,
-			packet_data);
+			cached_packet_data);
 }
 
 bool PlayerController::can_accept_new_inputs() const {
