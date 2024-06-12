@@ -1,9 +1,6 @@
 #include "network_codec.h"
 
-#include "modules/network_synchronizer/core/network_interface.h"
-#include "modules/network_synchronizer/scene_synchronizer.h"
-#include "var_data.h"
-#include <vector>
+#include "../scene_synchronizer.h"
 
 NS_NAMESPACE_BEGIN
 
@@ -39,14 +36,6 @@ void encode_variable(double val, DataBuffer &r_buffer) {
 
 void decode_variable(double &val, DataBuffer &p_buffer) {
 	val = p_buffer.read_real(DataBuffer::COMPRESSION_LEVEL_0);
-}
-
-void encode_variable(const Variant &val, DataBuffer &r_buffer) {
-	r_buffer.add_variant(val);
-}
-
-void decode_variable(Variant &val, DataBuffer &p_buffer) {
-	val = p_buffer.read_variant();
 }
 
 void encode_variable(const std::vector<std::uint8_t> &val, DataBuffer &r_buffer) {
