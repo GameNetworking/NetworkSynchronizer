@@ -73,13 +73,13 @@ std::size_t NS::SyncGroup::add_new_sync_object(ObjectData *p_object_data, bool p
 		// Make sure the node is not contained into the trickled sync.
 
 		const std::size_t tso_index = find_trickled(*p_object_data);
-		if (tso_index != std::numeric_limits<std::size_t>::max()) {
+		if (tso_index != VecFunc::index_none()) {
 			remove_sync_object(tso_index, false);
 		}
 	} else {
 		// Make sure the node is not contained into the realtime sync.
 		const int rsn_index = find_simulated(*p_object_data);
-		if (rsn_index != std::numeric_limits<std::size_t>::max()) {
+		if (rsn_index != VecFunc::index_none()) {
 			remove_sync_object(rsn_index, true);
 		}
 	}
@@ -97,7 +97,7 @@ std::size_t NS::SyncGroup::add_new_sync_object(ObjectData *p_object_data, bool p
 		// Add it into the realtime sync list
 		std::size_t index = find_simulated(*p_object_data);
 
-		if (index == std::numeric_limits<std::size_t>::max()) {
+		if (index == VecFunc::index_none()) {
 			index = simulated_sync_objects.size();
 			simulated_sync_objects.push_back(p_object_data);
 			simulated_sync_objects_list_changed = true;
@@ -121,7 +121,7 @@ std::size_t NS::SyncGroup::add_new_sync_object(ObjectData *p_object_data, bool p
 		// Add it into the trickled sync nodes
 		std::size_t index = find_trickled(*p_object_data);
 
-		if (index == std::numeric_limits<std::size_t>::max()) {
+		if (index == VecFunc::index_none()) {
 			index = trickled_sync_objects.size();
 			trickled_sync_objects.push_back(p_object_data);
 			trickled_sync_objects[index]._unknown = true;
@@ -159,7 +159,7 @@ void NS::SyncGroup::remove_sync_object(std::size_t p_index, bool p_is_simulated)
 void NS::SyncGroup::remove_sync_object(const ObjectData &p_object_data) {
 	{
 		const std::size_t index = find_simulated(p_object_data);
-		if (index != std::numeric_limits<std::size_t>::max()) {
+		if (index != VecFunc::index_none()) {
 			remove_sync_object(index, true);
 			// No need to check the trickled array. Nodes can be in 1 single array.
 			return;
@@ -168,7 +168,7 @@ void NS::SyncGroup::remove_sync_object(const ObjectData &p_object_data) {
 
 	{
 		const std::size_t index = find_trickled(p_object_data);
-		if (index != std::numeric_limits<std::size_t>::max()) {
+		if (index != VecFunc::index_none()) {
 			remove_sync_object(index, false);
 		}
 	}
@@ -182,7 +182,7 @@ void replace_nodes_impl(
 		std::vector<T> &r_sync_group_nodes) {
 	for (int i = int(r_sync_group_nodes.size()) - 1; i >= 0; i--) {
 		const std::size_t nta_index = NS::VecFunc::find_index(p_nodes_to_add, r_sync_group_nodes[i].od);
-		if (nta_index == std::numeric_limits<std::size_t>::max()) {
+		if (nta_index == NS::VecFunc::index_none()) {
 			// This node is not part of this sync group, remove it.
 			p_sync_group.remove_sync_object(i, p_is_simulated);
 		} else {
@@ -241,7 +241,7 @@ void NS::SyncGroup::remove_all_nodes() {
 
 void NS::SyncGroup::notify_new_variable(ObjectData *p_object_data, const std::string &p_var_name) {
 	const std::size_t index = find_simulated(*p_object_data);
-	if (index != std::numeric_limits<std::size_t>::max()) {
+	if (index != VecFunc::index_none()) {
 		VecFunc::insert_unique(simulated_sync_objects[index].change.vars, p_var_name);
 		VecFunc::insert_unique(simulated_sync_objects[index].change.uknown_vars, p_var_name);
 	}
@@ -249,14 +249,14 @@ void NS::SyncGroup::notify_new_variable(ObjectData *p_object_data, const std::st
 
 void NS::SyncGroup::notify_variable_changed(ObjectData *p_object_data, const std::string &p_var_name) {
 	const std::size_t index = find_simulated(*p_object_data);
-	if (index != std::numeric_limits<std::size_t>::max()) {
+	if (index != VecFunc::index_none()) {
 		VecFunc::insert_unique(simulated_sync_objects[index].change.vars, p_var_name);
 	}
 }
 
 void NS::SyncGroup::set_trickled_update_rate(NS::ObjectData *p_object_data, float p_update_rate) {
 	const std::size_t index = find_trickled(*p_object_data);
-	ENSURE(index != std::numeric_limits<std::size_t>::max());
+	ENSURE(index != VecFunc::index_none());
 	trickled_sync_objects[index].update_rate = p_update_rate;
 }
 
@@ -292,10 +292,10 @@ void NS::SyncGroup::notify_controller_changed(NS::ObjectData *p_object_data, int
 
 	bool is_in_this_sync_group = false;
 	bool is_simulated = false;
-	if (find_simulated(*p_object_data) != std::numeric_limits<std::size_t>::max()) {
+	if (find_simulated(*p_object_data) != VecFunc::index_none()) {
 		is_in_this_sync_group = true;
 		is_simulated = true;
-	} else if (find_trickled(*p_object_data) != std::numeric_limits<std::size_t>::max()) {
+	} else if (find_trickled(*p_object_data) != VecFunc::index_none()) {
 		is_in_this_sync_group = true;
 	}
 
@@ -374,11 +374,11 @@ void NS::SyncGroup::validate_peer_association(int p_peer) {
 }
 
 bool NS::SyncGroup::has_simulated(const struct ObjectData &p_object_data) const {
-	return find_simulated(p_object_data) != std::numeric_limits<std::size_t>::max();
+	return find_simulated(p_object_data) != VecFunc::index_none();
 }
 
 bool NS::SyncGroup::has_trickled(const struct ObjectData &p_object_data) const {
-	return find_trickled(p_object_data) != std::numeric_limits<std::size_t>::max();
+	return find_trickled(p_object_data) != VecFunc::index_none();
 }
 
 std::size_t NS::SyncGroup::find_simulated(const struct ObjectData &p_object_data) const {
@@ -389,7 +389,7 @@ std::size_t NS::SyncGroup::find_simulated(const struct ObjectData &p_object_data
 		}
 		i++;
 	}
-	return std::numeric_limits<std::size_t>::max();
+	return VecFunc::index_none();
 }
 
 std::size_t NS::SyncGroup::find_trickled(const struct ObjectData &p_object_data) const {
@@ -400,5 +400,5 @@ std::size_t NS::SyncGroup::find_trickled(const struct ObjectData &p_object_data)
 		}
 		i++;
 	}
-	return std::numeric_limits<std::size_t>::max();
+	return VecFunc::index_none();
 }
