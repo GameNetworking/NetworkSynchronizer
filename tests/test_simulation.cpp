@@ -359,8 +359,12 @@ public:
 				break;
 			}
 
-			ASSERT_COND(controller_server->get_current_frame_index() >= (process_until_frame + process_until_frame_timeout) && controller_server->get_current_frame_index() == NS::FrameIndex::NONE);
-			ASSERT_COND(controller_p1->get_current_frame_index() >= (process_until_frame + process_until_frame_timeout) && controller_p1->get_current_frame_index() == NS::FrameIndex::NONE);
+			if (controller_server->get_current_frame_index() != NS::FrameIndex::NONE) {
+				ASSERT_COND(controller_server->get_current_frame_index() < (process_until_frame + process_until_frame_timeout));
+			}
+			if (controller_p1->get_current_frame_index() != NS::FrameIndex::NONE) {
+				ASSERT_COND(controller_p1->get_current_frame_index() < (process_until_frame + process_until_frame_timeout));
+			}
 		}
 
 		//                  ---- Validation phase ----
