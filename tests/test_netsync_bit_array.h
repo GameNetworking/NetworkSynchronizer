@@ -64,7 +64,7 @@ TEST_CASE("[NetSync][BitArray] Read and write") {
 }
 
 TEST_CASE("[NetSync][BitArray] Constructing from Vector") {
-	Vector<std::uint8_t> data;
+	std::vector<std::uint8_t> data;
 	data.push_back(-1);
 	data.push_back(0);
 	data.push_back(1);
@@ -92,4 +92,3 @@ TEST_CASE("[NetSync][BitArray] Pre-allocation and zeroing") {
 	CHECK_MESSAGE(buffer_val == 0, "Should read zero");
 }
 } //namespace test_netsync_BitArray
-

@@ -365,14 +365,15 @@ TEST_CASE("[NetSync][NS::DataBuffer] Vector2") {
 		const Vector2 value = Vector2(clamped_value, clamped_value);
 #endif
 		buffer.begin_write(0);
-		const Vector2 added_value = buffer.add_vector2(value, compression_level);
-		CHECK_MESSAGE(added_value.x == doctest::Approx(value.x).epsilon(epsilon), "Added Vector2 should have the same x axis");
-		CHECK_MESSAGE(added_value.y == doctest::Approx(value.y).epsilon(epsilon), "Added Vector2 should have the same y axis");
+		buffer.add_vector2(value.x, value.y, compression_level);
 
 		CHECK(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_VECTOR2, compression_level));
 
 		buffer.begin_read();
-		const Vector2 read_value = buffer.read_vector2(compression_level);
+		double x;
+		double y;
+		buffer.read_vector2(x, y, compression_level);
+		Vector2 read_value(x, y);
 		CHECK_MESSAGE(read_value.x == doctest::Approx(value.x).epsilon(epsilon), "Read Vector2 should have the same x axis");
 		CHECK_MESSAGE(read_value.y == doctest::Approx(value.y).epsilon(epsilon), "Read Vector2 should have the same y axis");
 	}
@@ -416,14 +417,15 @@ TEST_CASE("[NetSync][NS::DataBuffer] Normalized Vector2") {
 		}
 
 		buffer.begin_write(0);
-		const Vector2 added_value = buffer.add_normalized_vector2(value, compression_level);
-		CHECK_MESSAGE(added_value.x == doctest::Approx(value.x).epsilon(epsilon), "Added Vector2 should have the same x axis");
-		CHECK_MESSAGE(added_value.y == doctest::Approx(value.y).epsilon(epsilon), "Added Vector2 should have the same y axis");
+		buffer.add_normalized_vector2(value.x, value.y, compression_level);
 
 		CHECK(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_NORMALIZED_VECTOR2, compression_level));
 
 		buffer.begin_read();
-		const Vector2 read_value = buffer.read_normalized_vector2(compression_level);
+		double x;
+		double y;
+		buffer.read_normalized_vector2(x, y, compression_level);
+		Vector2 read_value(x, y);
 		CHECK_MESSAGE(read_value.x == doctest::Approx(value.x).epsilon(epsilon), "Read Vector2 should have the same x axis");
 		CHECK_MESSAGE(read_value.y == doctest::Approx(value.y).epsilon(epsilon), "Read Vector2 should have the same y axis");
 	}
