@@ -184,9 +184,9 @@ public:
 		p_buffer_A.read_normalized_vector3(x1, y1, z1, NS::DataBuffer::COMPRESSION_LEVEL_3);
 		p_buffer_B.read_normalized_vector3(x2, y2, z2, NS::DataBuffer::COMPRESSION_LEVEL_3);
 
-		return NS::MathFunc::is_equal_approx(x1, x2) &&
+		return !(NS::MathFunc::is_equal_approx(x1, x2) &&
 				NS::MathFunc::is_equal_approx(y1, y2) &&
-				NS::MathFunc::is_equal_approx(z1, z2);
+				NS::MathFunc::is_equal_approx(z1, z2));
 	}
 
 	uint32_t count_input_size(NS::DataBuffer &p_buffer) {
