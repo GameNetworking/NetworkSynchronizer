@@ -3,11 +3,8 @@
 #include "core.h"
 #include "processor.h"
 #include "var_data.h"
-#include <math.h>
-#include <chrono>
+#include <algorithm>
 #include <map>
-#include <string>
-#include <vector>
 
 #ifdef TRACY_ENABLE
 

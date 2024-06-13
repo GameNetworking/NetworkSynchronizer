@@ -3,12 +3,21 @@
 #include "ensure.h"
 #include "net_math.h"
 #include "scene_synchronizer_debugger.h"
-#include <cstddef>
-#include <cstdint>
-#include <limits>
-#include <string>
-#include <utility>
-#include <vector>
+
+// Using explicit declaration because std::numeric_limits<int16_t>::max() etc..
+// may return different value depending on the compiler used.
+#define NS__INT8_MIN (-127i8 - 1)
+#define NS__INT16_MIN (-32767i16 - 1)
+#define NS__INT32_MIN (-2147483647i32 - 1)
+#define NS__INT64_MIN (-9223372036854775807i64 - 1)
+#define NS__INT8_MAX 127i8
+#define NS__INT16_MAX 32767i16
+#define NS__INT32_MAX 2147483647i32
+#define NS__INT64_MAX 9223372036854775807i64
+#define NS__UINT8_MAX 0xffui8
+#define NS__UINT16_MAX 0xffffui16
+#define NS__UINT32_MAX 0xffffffffui32
+#define NS__UINT64_MAX 0xffffffffffffffffui64
 
 #ifdef DEBUG_ENABLED
 #define DEBUG_DATA_BUFFER
@@ -187,7 +196,7 @@ void DataBuffer::read(std::uint64_t &r_out) {
 }
 
 void DataBuffer::add(const std::string &p_string) {
-	ASSERT_COND(std::uint64_t(p_string.size()) <= std::uint64_t(std::numeric_limits<std::uint16_t>::max()));
+	ASSERT_COND(std::uint64_t(p_string.size()) <= std::uint64_t(NS__INT16_MAX));
 	add_uint(p_string.size(), COMPRESSION_LEVEL_2);
 	if (p_string.size() > 0) {
 		add_bits(reinterpret_cast<const uint8_t *>(p_string.c_str()), p_string.size() * 8);
@@ -207,7 +216,7 @@ void DataBuffer::read(std::string &r_out) {
 }
 
 void DataBuffer::add(const std::u16string &p_string) {
-	ASSERT_COND(std::uint64_t(p_string.size()) <= std::uint64_t(std::numeric_limits<std::uint16_t>::max()));
+	ASSERT_COND(std::uint64_t(p_string.size()) <= std::uint64_t(NS__UINT16_MAX));
 	add_uint(p_string.size(), COMPRESSION_LEVEL_2);
 	if (p_string.size() > 0) {
 		add_bits(reinterpret_cast<const uint8_t *>(p_string.c_str()), p_string.size() * 8 * (sizeof(char16_t)));
@@ -280,11 +289,11 @@ int64_t DataBuffer::add_int(int64_t p_input, CompressionLevel p_compression_leve
 
 	// Clamp the value to the max that the bit can store.
 	if (bits == 8) {
-		value = MathFunc::clamp(value, INT8_MIN, INT8_MAX);
+		value = MathFunc::clamp(value, NS__INT8_MIN, NS__INT8_MAX);
 	} else if (bits == 16) {
-		value = MathFunc::clamp(value, INT16_MIN, INT16_MAX);
+		value = MathFunc::clamp(value, NS__INT16_MIN, NS__INT16_MAX);
 	} else if (bits == 32) {
-		value = MathFunc::clamp(value, INT32_MIN, INT32_MAX);
+		value = MathFunc::clamp(value, NS__INT32_MIN, NS__INT32_MAX);
 	} else {
 		// Nothing to do here
 	}
@@ -343,7 +352,7 @@ int64_t DataBuffer::read_int(CompressionLevel p_compression_level) {
 	}
 }
 
-uint64_t DataBuffer::add_uint(uint64_t p_input, CompressionLevel p_compression_level) {
+std::uint64_t DataBuffer::add_uint(std::uint64_t p_input, CompressionLevel p_compression_level) {
 	ENSURE_V(!is_reading, p_input);
 
 	const int bits = get_bit_taken(DATA_TYPE_UINT, p_compression_level);
@@ -352,11 +361,11 @@ uint64_t DataBuffer::add_uint(uint64_t p_input, CompressionLevel p_compression_l
 
 	// Clamp the value to the max that the bit can store.
 	if (bits == 8) {
-		value = std::min(value, uint64_t(UINT8_MAX));
+		value = std::min(value, std::uint64_t(NS__UINT8_MAX));
 	} else if (bits == 16) {
-		value = std::min(value, uint64_t(UINT16_MAX));
+		value = std::min(value, std::uint64_t(NS__UINT16_MAX));
 	} else if (bits == 32) {
-		value = std::min(value, uint64_t(UINT32_MAX));
+		value = std::min(value, std::uint64_t(NS__UINT32_MAX));
 	} else {
 		// Nothing to do here
 	}
@@ -378,12 +387,12 @@ uint64_t DataBuffer::add_uint(uint64_t p_input, CompressionLevel p_compression_l
 	return value;
 }
 
-uint64_t DataBuffer::read_uint(CompressionLevel p_compression_level) {
+std::uint64_t DataBuffer::read_uint(CompressionLevel p_compression_level) {
 	ENSURE_V(is_reading, 0);
 
 	const int bits = get_bit_taken(DATA_TYPE_UINT, p_compression_level);
 
-	uint64_t value;
+	std::uint64_t value;
 	if (!buffer.read_bits(bit_offset, bits, value)) {
 		buffer_failed = true;
 		return 0;
@@ -744,9 +753,9 @@ void DataBuffer::read_normalized_vector3(double &x, double &y, double &z, Compre
 
 void DataBuffer::add_data_buffer(const DataBuffer &p_db) {
 	const std::uint32_t other_db_bit_size = p_db.metadata_size + p_db.bit_size;
-	ASSERT_COND_MSG(other_db_bit_size <= std::numeric_limits<std::uint32_t>::max(), "DataBuffer can't add DataBuffer bigger than `" + std::to_string(std::numeric_limits<std::uint32_t>::max()) + "` bits at the moment. [If this feature is needed ask for it.]");
+	ASSERT_COND_MSG(other_db_bit_size <= NS__UINT32_MAX, "DataBuffer can't add DataBuffer bigger than `" + std::to_string(NS__UINT32_MAX) + "` bits at the moment. [If this feature is needed ask for it.]");
 
-	const bool using_compression_lvl_2 = other_db_bit_size < std::numeric_limits<std::uint16_t>::max();
+	const bool using_compression_lvl_2 = other_db_bit_size < NS__UINT16_MAX;
 	add(using_compression_lvl_2);
 	add_uint(other_db_bit_size, using_compression_lvl_2 ? COMPRESSION_LEVEL_2 : COMPRESSION_LEVEL_1);
 

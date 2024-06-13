@@ -1,18 +1,11 @@
 #pragma once
 
 #include "core.h"
-#include "json.hpp"
 
-namespace NS {
+NS_NAMESPACE_BEGIN
 class SceneSynchronizerBase;
-};
-class SceneTree;
-
-namespace NS {
 class NetworkInterface;
-};
 
-namespace NS {
 class FileSystem {
 public:
 	virtual std::string get_base_dir() const = 0;
@@ -23,7 +16,7 @@ public:
 	virtual bool store_file_buffer(const std::string &p_path, const std::uint8_t *p_src, uint64_t p_length) const = 0;
 	virtual bool file_exists(const std::string &p_path) const = 0;
 };
-}; //namespace NS
+NS_NAMESPACE_END
 
 class SceneSynchronizerDebugger {
 	static SceneSynchronizerDebugger *the_singleton;
@@ -54,40 +47,18 @@ private:
 	NS::FileSystem *file_system = nullptr;
 
 	uint32_t log_counter = 0;
-	SceneTree *scene_tree = nullptr;
 	std::string main_dump_directory_path;
 	std::string dump_name;
 
-	nlohmann::json::object_t frame_dump__begin_state;
-
-	// JSON of dictionary containing nodes info.
-	nlohmann::json::object_t frame_dump__end_state;
-
-	// The JSON containing the data buffer operations performed by the controllers.
-	nlohmann::json::object_t frame_dump__node_log;
-
-	// The controller name for which the data buffer operations is in progress.
-	std::string frame_dump__data_buffer_name;
+	// NOTICE: This is created at runtime when the object spawns.
+	//         The reason for this mechanism is to keep the Json header
+	//         inside the CPP and avoid clutter the includes, since that header includes many non wanted includes.
+	struct SceneSynchronizerDebuggerJsonStorage *frame_dump_storage = nullptr;
 
 	// A really small description about what happens on this frame.
 	FrameEvent frame_dump__frame_events = FrameEvent::EMPTY;
 
-	// This Array contains all the inputs (stringified) written on the `DataBuffer` from the
-	// `_controller_process` function
-	nlohmann::json::array_t frame_dump__data_buffer_writes;
-
-	// This Array contains all the inputs (stringified) read on the `DataBuffer` from the
-	// `_controller_process` function
-	nlohmann::json::array_t frame_dump__data_buffer_reads;
-
-	// This JSON contains the comparison (`_are_inputs_different`) fetched by this frame, and
-	// the result.
-	nlohmann::json::object_t frame_dump__are_inputs_different_results;
-
 	DataBufferDumpMode frame_dump_data_buffer_dump_mode = NONE;
-
-	bool frame_dump__has_warnings = false;
-	bool frame_dump__has_errors = false;
 #endif
 
 public:
@@ -103,10 +74,10 @@ public:
 	void set_dump_enabled(bool p_dump_enabled);
 	bool get_dump_enabled() const;
 
-	void setup_debugger(const std::string &p_dump_name, int p_peer, SceneTree *p_scene_tree);
+	void setup_debugger(const std::string &p_dump_name, int p_peer);
 
 private:
-	void prepare_dumping(int p_peer, SceneTree *p_scene_tree);
+	void prepare_dumping(int p_peer);
 	void setup_debugger_python_ui();
 
 public:
@@ -133,7 +104,4 @@ public:
 	void notify_event(FrameEvent p_event);
 
 	void __add_message(const std::string &p_message, const std::string &p_object_name);
-
-private:
-	void dump_tracked_objects(const NS::SceneSynchronizerBase *p_scene_sync, nlohmann::json::object_t &p_dump);
 };

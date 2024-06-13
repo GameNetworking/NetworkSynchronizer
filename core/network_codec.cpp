@@ -1,6 +1,8 @@
 #include "network_codec.h"
 
 #include "../scene_synchronizer.h"
+#include "data_buffer.h"
+#include "var_data.h"
 
 NS_NAMESPACE_BEGIN
 

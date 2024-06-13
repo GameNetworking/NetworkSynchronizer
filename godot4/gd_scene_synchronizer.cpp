@@ -333,7 +333,7 @@ void GdSceneSynchronizer::on_init_synchronizer(bool p_was_generating_ids) {
 	} else if (scene_synchronizer.is_no_network()) {
 		debugger_mode = "nonet";
 	}
-	SceneSynchronizerDebugger::singleton()->setup_debugger(debugger_mode, 0, get_tree());
+	SceneSynchronizerDebugger::singleton()->setup_debugger(debugger_mode, 0);
 
 	// Setup the debugger log level.
 	const int log_level = GLOBAL_GET("NetworkSynchronizer/log_level");

@@ -1,11 +1,11 @@
 #pragma once
 
-#include "data_buffer.h"
-#include "var_data.h"
+#include "core.h"
+#include <vector>
 
 NS_NAMESPACE_BEGIN
 
-void encode_variable(bool val, DataBuffer &r_buffer);
+void encode_variable(bool val, class DataBuffer &r_buffer);
 void decode_variable(bool &val, DataBuffer &p_buffer);
 
 void encode_variable(int val, DataBuffer &r_buffer);
@@ -23,7 +23,7 @@ void decode_variable(std::vector<std::uint8_t> &val, DataBuffer &p_buffer);
 void encode_variable(const DataBuffer &val, DataBuffer &r_buffer);
 void decode_variable(DataBuffer &val, DataBuffer &p_buffer);
 
-void encode_variable(const VarData &val, DataBuffer &r_buffer);
+void encode_variable(const struct VarData &val, DataBuffer &r_buffer);
 void decode_variable(VarData &val, DataBuffer &p_buffer);
 
 template <int Index>

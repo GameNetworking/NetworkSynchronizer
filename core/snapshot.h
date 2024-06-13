@@ -1,8 +1,8 @@
 #pragma once
 
-#include "net_utilities.h"
+#include "core.h"
 #include "object_data.h"
-#include "var_data.h"
+#include <map>
 
 namespace NS {
 class SceneSynchronizerBase;

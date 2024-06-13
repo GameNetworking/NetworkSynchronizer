@@ -3,7 +3,6 @@
 #include "../scene_synchronizer.h"
 #include "ensure.h"
 #include "scene_synchronizer_debugger.h"
-#include "var_data.h"
 
 NS_NAMESPACE_BEGIN
 
