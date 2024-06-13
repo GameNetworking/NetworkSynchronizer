@@ -5,8 +5,6 @@
 #include "object_data.h"
 #include "peer_networked_controller.h"
 #include "scene_synchronizer_debugger.h"
-#include <limits>
-#include <memory>
 
 void NS::PeerData::set_latency(float p_latency) {
 	compressed_latency = std::round(std::clamp(p_latency, 0.f, 1000.0f) / 4.0);

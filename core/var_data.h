@@ -2,7 +2,6 @@
 
 #include "core.h"
 #include <memory>
-#include <vector>
 
 NS_NAMESPACE_BEGIN
 

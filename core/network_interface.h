@@ -1,11 +1,11 @@
 #pragma once
 
 #include "core.h"
+#include "data_buffer.h"
 #include "ensure.h"
 #include "net_utilities.h"
 #include "network_codec.h"
 #include <functional>
-#include <string>
 #include <vector>
 
 NS_NAMESPACE_BEGIN

@@ -1,8 +1,6 @@
 #pragma once
 
 #include "core.h"
-#include "net_utilities.h"
-#include "object_data.h"
 #include <map>
 #include <vector>
 
@@ -14,7 +12,7 @@ class ObjectDataStorage {
 	std::vector<ObjectLocalId> free_local_indices;
 
 	// All allocated object data.
-	std::vector<ObjectData *> objects_data;
+	std::vector<struct ObjectData *> objects_data;
 
 	// All registered objects, that have the NetId assigned, organized per NetId.
 	std::vector<ObjectData *> objects_data_organized_by_netid;
