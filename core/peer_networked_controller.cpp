@@ -993,6 +993,9 @@ void PlayerController::send_frame_input_buffer_to_server() {
 		cached_packet_data.resize(ofs + p_size);
 
 	int ofs = 0;
+	cached_packet_data.clear();
+	// At this point both the cached_packet_data and ofs are the same.
+	ASSERT_COND(ofs == cached_packet_data.size());
 
 	// Let's store the ID of the first snapshot.
 	MAKE_ROOM(4);
@@ -1104,6 +1107,9 @@ void PlayerController::send_frame_input_buffer_to_server() {
 
 	// Finalize the last added input_buffer.
 	cached_packet_data[ofs - previous_buffer_size - 1] = duplication_count;
+
+	// At this point both the cached_packet_data.size() and ofs MUST be the same.
+	ASSERT_COND(ofs == cached_packet_data.size());
 
 	peer_controller->scene_synchronizer->call_rpc_receive_inputs(
 			peer_controller->scene_synchronizer->get_network_interface().get_server_peer(),
