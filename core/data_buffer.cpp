@@ -509,7 +509,7 @@ float DataBuffer::add_positive_unit_real(float p_input, CompressionLevel p_compr
 	ENSURE_V(!is_reading, p_input);
 
 #ifdef DEBUG_ENABLED
-	ENSURE_V_MSG(p_input >= 0 && p_input <= 1, p_input, "Value must be between zero and one.");
+	ENSURE_V_MSG(p_input >= 0.0 && p_input <= 1.0, p_input, "Value must be between zero and one.");
 #endif
 
 	const int bits = get_bit_taken(DATA_TYPE_POSITIVE_UNIT_REAL, p_compression_level);
@@ -622,13 +622,13 @@ void DataBuffer::read_vector2(double &x, double &y, CompressionLevel p_compressi
 
 	DEB_ENABLE
 
-	DEB_WRITE(DATA_TYPE_VECTOR2, p_compression_level, "X: " + std::to_string(x) + " Y: " + std::to_string(y));
+	DEB_READ(DATA_TYPE_VECTOR2, p_compression_level, "X: " + std::to_string(x) + " Y: " + std::to_string(y));
 }
 
 void DataBuffer::add_normalized_vector2(double x, double y, CompressionLevel p_compression_level) {
 	ENSURE(!is_reading);
 
-	const std::uint64_t is_not_zero = MathFunc::is_zero_approx(x) && MathFunc::is_zero_approx(y) ? 1 : 0;
+	const std::uint64_t is_not_zero = MathFunc::is_zero_approx(x) && MathFunc::is_zero_approx(y) ? 0 : 1;
 
 #ifdef DEBUG_ENABLED
 	if (!is_not_zero) {
@@ -655,8 +655,10 @@ void DataBuffer::add_normalized_vector2(double x, double y, CompressionLevel p_c
 	}
 	bit_offset += bits;
 
+#ifdef DEBUG_ENABLED
 	// Can't never happen because the buffer size is correctly handled.
 	ASSERT_COND((metadata_size + bit_size) <= buffer.size_in_bits() && bit_offset <= buffer.size_in_bits());
+#endif
 
 	DEB_WRITE(DATA_TYPE_NORMALIZED_VECTOR2, p_compression_level, "X: " + std::to_string(x) + " Y: " + std::to_string(y));
 }
@@ -721,7 +723,7 @@ void DataBuffer::add_normalized_vector3(double x, double y, double z, Compressio
 	ENSURE(!is_reading);
 
 #ifdef DEBUG_ENABLED
-	if (MathFunc::is_zero_approx(x) && MathFunc::is_zero_approx(y) && MathFunc::is_zero_approx(z)) {
+	if (!MathFunc::is_zero_approx(x) || !MathFunc::is_zero_approx(y) || !MathFunc::is_zero_approx(z)) {
 		ENSURE_MSG(MathFunc::vec3_is_normalized(x, y, z), "[FATAL] This function expects a normalized vector.");
 	}
 #endif
