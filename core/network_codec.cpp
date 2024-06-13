@@ -29,7 +29,7 @@ void encode_variable(float val, DataBuffer &r_buffer) {
 }
 
 void decode_variable(float &val, DataBuffer &p_buffer) {
-	val = p_buffer.read_real(DataBuffer::COMPRESSION_LEVEL_1);
+	p_buffer.read_real(val, DataBuffer::COMPRESSION_LEVEL_1);
 }
 
 void encode_variable(double val, DataBuffer &r_buffer) {
@@ -37,7 +37,7 @@ void encode_variable(double val, DataBuffer &r_buffer) {
 }
 
 void decode_variable(double &val, DataBuffer &p_buffer) {
-	val = p_buffer.read_real(DataBuffer::COMPRESSION_LEVEL_0);
+	p_buffer.read_real(val, DataBuffer::COMPRESSION_LEVEL_0);
 }
 
 void encode_variable(const std::vector<std::uint8_t> &val, DataBuffer &r_buffer) {
