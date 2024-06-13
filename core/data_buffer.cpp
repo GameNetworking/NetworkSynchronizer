@@ -1,6 +1,7 @@
 #include "data_buffer.h"
 
 #include "ensure.h"
+#include "fp16.h"
 #include "net_math.h"
 #include "scene_synchronizer_debugger.h"
 
@@ -108,7 +109,7 @@ void DataBuffer::dry() {
 }
 
 void DataBuffer::seek(int p_bits) {
-	ENSURE(p_bits < metadata_size + bit_size + 1);
+	ENSURE(p_bits < metadata_size + bit_size + 1 && p_bits >= 0);
 	bit_offset = p_bits;
 }
 
@@ -404,105 +405,102 @@ std::uint64_t DataBuffer::read_uint(CompressionLevel p_compression_level) {
 	return value;
 }
 
-double DataBuffer::add_real(double p_input, CompressionLevel p_compression_level) {
-	ENSURE_V(!is_reading, p_input);
+void DataBuffer::add_real(double p_input, CompressionLevel p_compression_level) {
+	if (p_compression_level == COMPRESSION_LEVEL_0) {
+		const uint64_t val = fp64_to_bits(p_input);
+		make_room_in_bits(64);
+		if (!buffer.store_bits(bit_offset, val, 64)) {
+			buffer_failed = true;
+		}
+		bit_offset += 64;
 
-	// Clamp the input value according to the compression level
-	// Minifloat (compression level 0) have a special bias
-	const int exponent_bits = get_exponent_bits(p_compression_level);
-	const int mantissa_bits = get_mantissa_bits(p_compression_level);
-	const double bias = p_compression_level == COMPRESSION_LEVEL_3 ? std::pow(2.0, exponent_bits) - 3 : std::pow(2.0, exponent_bits - 1) - 1;
-	const double max_value = (2.0 - std::pow(2.0, -(mantissa_bits - 1))) * std::pow(2.0, bias);
-	const double clamped_input = MathFunc::clamp(p_input, -max_value, max_value);
-
-	// Split number according to IEEE 754 binary format.
-	// Mantissa floating point value represented in range (-1;-0.5], [0.5; 1).
-	int exponent;
-	double mantissa = frexp(clamped_input, &exponent);
-
-	// Extract sign.
-	const bool sign = mantissa < 0;
-	mantissa = std::abs(mantissa);
-
-	// Round mantissa into the specified number of bits (like float -> double conversion).
-	double mantissa_scale = std::pow(2.0, mantissa_bits);
-	if (exponent <= 0) {
-		// Subnormal value, apply exponent to mantissa and reduce power of scale by one.
-		mantissa *= std::pow(2.0, exponent);
-		exponent = 0;
-		mantissa_scale /= 2.0;
+		DEB_WRITE(DATA_TYPE_REAL, p_compression_level, std::to_string(p_input));
+	} else {
+		add_real(float(p_input), p_compression_level);
 	}
-	mantissa = std::round(mantissa * mantissa_scale) / mantissa_scale; // Round to specified number of bits.
-	if (mantissa < 0.5 && mantissa != 0) {
-		// Check underflow, extract exponent from mantissa.
-		exponent += ilogb(mantissa) + 1;
-		mantissa /= std::pow(2.0, exponent);
-	} else if (mantissa == 1) {
-		// Check overflow, increment the exponent.
-		++exponent;
-		mantissa = 0.5;
-	}
-	// Convert the mantissa to an integer that represents the offset index (IEE 754 floating point representation) to send over network safely.
-	const uint64_t integer_mantissa = exponent <= 0 ? mantissa * mantissa_scale * std::pow(2.0, exponent) : (mantissa - 0.5) * mantissa_scale;
-
-	make_room_in_bits(mantissa_bits + exponent_bits);
-	if (!buffer.store_bits(bit_offset, sign, 1)) {
-		buffer_failed = true;
-	}
-	bit_offset += 1;
-	if (!buffer.store_bits(bit_offset, integer_mantissa, mantissa_bits - 1)) {
-		buffer_failed = true;
-	}
-	bit_offset += mantissa_bits - 1;
-	// Send unsigned value (just shift it by bias) to avoid sign issues.
-	if (!buffer.store_bits(bit_offset, exponent + bias, exponent_bits)) {
-		buffer_failed = true;
-	}
-	bit_offset += exponent_bits;
-
-	const double value = ldexp(sign ? -mantissa : mantissa, exponent);
-	DEB_WRITE(DATA_TYPE_REAL, p_compression_level, std::to_string(value));
-	return value;
 }
 
-double DataBuffer::read_real(CompressionLevel p_compression_level) {
-	ENSURE_V(is_reading, 0.0);
-
-	std::uint64_t sign;
-	if (!buffer.read_bits(bit_offset, 1, sign)) {
-		buffer_failed = true;
-		return 0.0;
+void DataBuffer::add_real(float p_input, CompressionLevel p_compression_level) {
+	if (p_compression_level == COMPRESSION_LEVEL_0) {
+		SceneSynchronizerDebugger::singleton()->print(WARNING, "The real(float) fall back to compression level 1 as the level 0 is for double compression.");
+		p_compression_level = COMPRESSION_LEVEL_1;
 	}
-	bit_offset += 1;
 
-	const int mantissa_bits = get_mantissa_bits(p_compression_level);
-	std::uint64_t integer_mantissa;
-	if (!buffer.read_bits(bit_offset, mantissa_bits - 1, integer_mantissa)) {
-		buffer_failed = true;
-		return 0.0;
+	if (p_compression_level == COMPRESSION_LEVEL_1) {
+		const uint32_t val = fp32_to_bits(p_input);
+		make_room_in_bits(32);
+		if (!buffer.store_bits(bit_offset, val, 32)) {
+			buffer_failed = true;
+		}
+		bit_offset += 32;
+
+	} else if (p_compression_level == COMPRESSION_LEVEL_2 || p_compression_level == COMPRESSION_LEVEL_3) {
+		std::uint16_t val = fp16_ieee_from_fp32_value(p_input);
+		make_room_in_bits(16);
+		if (!buffer.store_bits(bit_offset, val, 16)) {
+			buffer_failed = true;
+		}
+		bit_offset += 16;
+
+	} else {
+		// Unreachable.
+		ASSERT_NO_ENTRY();
 	}
-	bit_offset += mantissa_bits - 1;
 
-	const int exponent_bits = get_exponent_bits(p_compression_level);
-	const double bias = p_compression_level == COMPRESSION_LEVEL_3 ? std::pow(2.0, exponent_bits) - 3 : std::pow(2.0, exponent_bits - 1) - 1;
-	std::uint64_t encoded_exponent;
-	if (!buffer.read_bits(bit_offset, exponent_bits, encoded_exponent)) {
-		buffer_failed = true;
-		return 0.0;
+	DEB_WRITE(DATA_TYPE_REAL, p_compression_level, std::to_string(p_input));
+}
+
+void DataBuffer::read_real(double &r_value, CompressionLevel p_compression_level) {
+	if (p_compression_level == COMPRESSION_LEVEL_0) {
+		std::uint64_t bit_value;
+		if (!buffer.read_bits(bit_offset, 64, bit_value)) {
+			buffer_failed = true;
+			return;
+		}
+		bit_offset += 64;
+
+		r_value = fp64_from_bits(bit_value);
+		DEB_READ(DATA_TYPE_REAL, p_compression_level, std::to_string(r_value));
+
+	} else {
+		float flt_value;
+		read_real(flt_value, p_compression_level);
+		r_value = flt_value;
 	}
-	const int exponent = static_cast<int>(encoded_exponent) - static_cast<int>(bias);
-	bit_offset += exponent_bits;
+}
 
-	// Convert integer mantissa into the floating point representation
-	// When the index of the mantissa and exponent are 0, then this is a special case and the mantissa is 0.
-	const double mantissa_scale = std::pow(2.0, exponent <= 0 ? mantissa_bits - 1 : mantissa_bits);
-	const double mantissa = exponent <= 0 ? integer_mantissa / mantissa_scale / std::pow(2.0, exponent) : integer_mantissa / mantissa_scale + 0.5;
+void DataBuffer::read_real(float &r_value, CompressionLevel p_compression_level) {
+	if (p_compression_level == COMPRESSION_LEVEL_0) {
+		SceneSynchronizerDebugger::singleton()->print(WARNING, "The real(float) fall back to compression level 1 as the level 0 is for double compression.");
+		p_compression_level = COMPRESSION_LEVEL_1;
+	}
 
-	const double value = ldexp(sign != 0 ? -mantissa : mantissa, exponent);
+	if (p_compression_level == COMPRESSION_LEVEL_1) {
+		std::uint64_t bit_value;
+		if (!buffer.read_bits(bit_offset, 32, bit_value)) {
+			buffer_failed = true;
+			return;
+		}
+		bit_offset += 32;
 
-	DEB_READ(DATA_TYPE_REAL, p_compression_level, std::to_string(value));
+		r_value = fp32_from_bits(bit_value);
 
-	return value;
+	} else if (p_compression_level == COMPRESSION_LEVEL_2 || p_compression_level == COMPRESSION_LEVEL_3) {
+		std::uint64_t bit_value;
+		if (!buffer.read_bits(bit_offset, 16, bit_value)) {
+			buffer_failed = true;
+			return;
+		}
+		bit_offset += 16;
+
+		r_value = fp16_ieee_to_fp32_value(bit_value);
+
+	} else {
+		// Unreachable.
+		ASSERT_NO_ENTRY();
+	}
+
+	DEB_READ(DATA_TYPE_REAL, p_compression_level, std::to_string(r_value));
 }
 
 float DataBuffer::add_positive_unit_real(float p_input, CompressionLevel p_compression_level) {
@@ -516,7 +514,7 @@ float DataBuffer::add_positive_unit_real(float p_input, CompressionLevel p_compr
 
 	const double max_value = static_cast<double>(~(UINT64_MAX << bits));
 
-	const uint64_t compressed_val = compress_unit_float(p_input, max_value);
+	const uint64_t compressed_val = compress_unit_float<float>(p_input, max_value);
 
 	make_room_in_bits(bits);
 	if (!buffer.store_bits(bit_offset, compressed_val, bits)) {
@@ -612,26 +610,56 @@ void DataBuffer::add_vector2(double x, double y, CompressionLevel p_compression_
 	DEB_WRITE(DATA_TYPE_VECTOR2, p_compression_level, "X: " + std::to_string(x) + " Y: " + std::to_string(y));
 }
 
+void DataBuffer::add_vector2(float x, float y, CompressionLevel p_compression_level) {
+	ENSURE(!is_reading);
+
+	DEB_DISABLE
+
+	add_real(x, p_compression_level);
+	add_real(y, p_compression_level);
+
+	DEB_ENABLE
+
+	DEB_WRITE(DATA_TYPE_VECTOR2, p_compression_level, "X: " + std::to_string(x) + " Y: " + std::to_string(y));
+}
+
 void DataBuffer::read_vector2(double &x, double &y, CompressionLevel p_compression_level) {
 	ENSURE(is_reading);
 
 	DEB_DISABLE
 
-	x = read_real(p_compression_level);
-	y = read_real(p_compression_level);
+	read_real(x, p_compression_level);
+	read_real(y, p_compression_level);
 
 	DEB_ENABLE
 
 	DEB_READ(DATA_TYPE_VECTOR2, p_compression_level, "X: " + std::to_string(x) + " Y: " + std::to_string(y));
 }
 
-void DataBuffer::add_normalized_vector2(double x, double y, CompressionLevel p_compression_level) {
+void DataBuffer::read_vector2(float &x, float &y, CompressionLevel p_compression_level) {
+	ENSURE(is_reading);
+
+	DEB_DISABLE
+
+	read_real(x, p_compression_level);
+	read_real(y, p_compression_level);
+
+	DEB_ENABLE
+
+	DEB_READ(DATA_TYPE_VECTOR2, p_compression_level, "X: " + std::to_string(x) + " Y: " + std::to_string(y));
+}
+
+template void DataBuffer::add_normalized_vector2<float>(float, float, DataBuffer::CompressionLevel);
+template void DataBuffer::add_normalized_vector2<double>(double, double, DataBuffer::CompressionLevel);
+
+template <typename T>
+void DataBuffer::add_normalized_vector2(T x, T y, CompressionLevel p_compression_level) {
 	ENSURE(!is_reading);
 
 	const std::uint64_t is_not_zero = MathFunc::is_zero_approx(x) && MathFunc::is_zero_approx(y) ? 0 : 1;
 
 #ifdef DEBUG_ENABLED
-	if (!is_not_zero) {
+	if (is_not_zero) {
 		ENSURE_MSG(MathFunc::vec2_is_normalized(x, y), "[FATAL] The encoding failed because this function expects a normalized vector.");
 	}
 #endif
@@ -640,11 +668,11 @@ void DataBuffer::add_normalized_vector2(double x, double y, CompressionLevel p_c
 	const int bits_for_the_angle = bits - 1;
 	const int bits_for_zero = 1;
 
-	const double angle = MathFunc::vec2_angle(x, y);
+	const T angle = is_not_zero ? MathFunc::vec2_angle(x, y) : 0.0;
 
-	const double max_value = static_cast<double>(~(UINT64_MAX << bits_for_the_angle));
+	const T max_value = static_cast<T>(~(NS__UINT64_MAX << bits_for_the_angle));
 
-	const uint64_t compressed_angle = compress_unit_float((angle + M_PI) / M_TAU, max_value);
+	const uint64_t compressed_angle = compress_unit_float<T>((angle + M_PI) / M_TAU, max_value);
 
 	make_room_in_bits(bits);
 	if (!buffer.store_bits(bit_offset, is_not_zero, bits_for_zero)) {
@@ -663,14 +691,18 @@ void DataBuffer::add_normalized_vector2(double x, double y, CompressionLevel p_c
 	DEB_WRITE(DATA_TYPE_NORMALIZED_VECTOR2, p_compression_level, "X: " + std::to_string(x) + " Y: " + std::to_string(y));
 }
 
-void DataBuffer::read_normalized_vector2(double &x, double &y, CompressionLevel p_compression_level) {
+template void DataBuffer::read_normalized_vector2<float>(float &, float &, DataBuffer::CompressionLevel);
+template void DataBuffer::read_normalized_vector2<double>(double &, double &, DataBuffer::CompressionLevel);
+
+template <typename T>
+void DataBuffer::read_normalized_vector2(T &x, T &y, CompressionLevel p_compression_level) {
 	ENSURE(is_reading);
 
 	const int bits = get_bit_taken(DATA_TYPE_NORMALIZED_VECTOR2, p_compression_level);
 	const int bits_for_the_angle = bits - 1;
 	const int bits_for_zero = 1;
 
-	const double max_value = static_cast<double>(~(UINT64_MAX << bits_for_the_angle));
+	const T max_value = static_cast<T>(~(UINT64_MAX << bits_for_the_angle));
 
 	std::uint64_t is_not_zero;
 	if (!buffer.read_bits(bit_offset, bits_for_zero, is_not_zero)) {
@@ -684,9 +716,9 @@ void DataBuffer::read_normalized_vector2(double &x, double &y, CompressionLevel 
 	}
 	bit_offset += bits;
 
-	const double decompressed_angle = (decompress_unit_float(compressed_angle, max_value) * M_TAU) - M_PI;
-	x = std::cos(decompressed_angle);
-	y = std::sin(decompressed_angle);
+	const T decompressed_angle = (decompress_unit_float<T>(compressed_angle, max_value) * M_TAU) - M_PI;
+	x = std::cos(decompressed_angle) * static_cast<T>(is_not_zero);
+	y = std::sin(decompressed_angle) * static_cast<T>(is_not_zero);
 
 	DEB_READ(DATA_TYPE_NORMALIZED_VECTOR2, p_compression_level, "X: " + std::to_string(x) + " Y: " + std::to_string(y));
 }
@@ -705,21 +737,53 @@ void DataBuffer::add_vector3(double x, double y, double z, CompressionLevel p_co
 	DEB_WRITE(DATA_TYPE_VECTOR3, p_compression_level, "X: " + std::to_string(x) + " Y: " + std::to_string(y) + " Z: " + std::to_string(z));
 }
 
+void DataBuffer::add_vector3(float x, float y, float z, CompressionLevel p_compression_level) {
+	ENSURE(!is_reading);
+
+	DEB_DISABLE
+
+	add_real(x, p_compression_level);
+	add_real(y, p_compression_level);
+	add_real(z, p_compression_level);
+
+	DEB_ENABLE
+
+	DEB_WRITE(DATA_TYPE_VECTOR3, p_compression_level, "X: " + std::to_string(x) + " Y: " + std::to_string(y) + " Z: " + std::to_string(z));
+}
+
 void DataBuffer::read_vector3(double &x, double &y, double &z, CompressionLevel p_compression_level) {
 	ENSURE(is_reading);
 
 	DEB_DISABLE
 
-	x = read_real(p_compression_level);
-	y = read_real(p_compression_level);
-	z = read_real(p_compression_level);
+	read_real(x, p_compression_level);
+	read_real(y, p_compression_level);
+	read_real(z, p_compression_level);
 
 	DEB_ENABLE
 
 	DEB_READ(DATA_TYPE_VECTOR3, p_compression_level, "X: " + std::to_string(x) + " Y: " + std::to_string(y) + " Z: " + std::to_string(z));
 }
 
-void DataBuffer::add_normalized_vector3(double x, double y, double z, CompressionLevel p_compression_level) {
+void DataBuffer::read_vector3(float &x, float &y, float &z, CompressionLevel p_compression_level) {
+	ENSURE(is_reading);
+
+	DEB_DISABLE
+
+	read_real(x, p_compression_level);
+	read_real(y, p_compression_level);
+	read_real(z, p_compression_level);
+
+	DEB_ENABLE
+
+	DEB_READ(DATA_TYPE_VECTOR3, p_compression_level, "X: " + std::to_string(x) + " Y: " + std::to_string(y) + " Z: " + std::to_string(z));
+}
+
+template void DataBuffer::add_normalized_vector3<double>(double x, double y, double z, CompressionLevel p_compression_level);
+template void DataBuffer::add_normalized_vector3<float>(float x, float y, float z, CompressionLevel p_compression_level);
+
+template <typename T>
+void DataBuffer::add_normalized_vector3(T x, T y, T z, CompressionLevel p_compression_level) {
 	ENSURE(!is_reading);
 
 #ifdef DEBUG_ENABLED
@@ -739,7 +803,11 @@ void DataBuffer::add_normalized_vector3(double x, double y, double z, Compressio
 	DEB_WRITE(DATA_TYPE_NORMALIZED_VECTOR3, p_compression_level, "X: " + std::to_string(x) + " Y: " + std::to_string(y) + " Z: " + std::to_string(z));
 }
 
-void DataBuffer::read_normalized_vector3(double &x, double &y, double &z, CompressionLevel p_compression_level) {
+template void DataBuffer::read_normalized_vector3<double>(double &x, double &y, double &z, CompressionLevel p_compression_level);
+template void DataBuffer::read_normalized_vector3<float>(float &x, float &y, float &z, CompressionLevel p_compression_level);
+
+template <typename T>
+void DataBuffer::read_normalized_vector3(T &x, T &y, T &z, CompressionLevel p_compression_level) {
 	ENSURE(is_reading);
 
 	DEB_DISABLE
@@ -1031,8 +1099,18 @@ int DataBuffer::get_bit_taken(DataType p_data_type, CompressionLevel p_compressi
 			}
 		} break;
 		case DATA_TYPE_REAL: {
-			return get_mantissa_bits(p_compression) +
-					get_exponent_bits(p_compression);
+			switch (p_compression) {
+				case COMPRESSION_LEVEL_0:
+					return 64;
+				case COMPRESSION_LEVEL_1:
+					return 32;
+				case COMPRESSION_LEVEL_2:
+				case COMPRESSION_LEVEL_3:
+					return 16;
+				default:
+					// Unreachable
+					ASSERT_NO_ENTRY_MSG("Compression level not supported!");
+			}
 		} break;
 		case DATA_TYPE_POSITIVE_UNIT_REAL: {
 			switch (p_compression) {
@@ -1090,48 +1168,81 @@ int DataBuffer::get_bit_taken(DataType p_data_type, CompressionLevel p_compressi
 	return 0; // Useless, but MS CI is too noisy.
 }
 
-int DataBuffer::get_mantissa_bits(CompressionLevel p_compression) {
-	// https://en.wikipedia.org/wiki/IEEE_754#Basic_and_interchange_formats
-	switch (p_compression) {
-		case CompressionLevel::COMPRESSION_LEVEL_0:
-			return 53; // Binary64 format
-		case CompressionLevel::COMPRESSION_LEVEL_1:
-			return 24; // Binary32 format
-		case CompressionLevel::COMPRESSION_LEVEL_2:
-			return 11; // Binary16 format
-		case CompressionLevel::COMPRESSION_LEVEL_3:
-			return 4; // https://en.wikipedia.org/wiki/Minifloat
-	}
+double DataBuffer::get_real_epsilon(DataType p_data_type, CompressionLevel p_compression) {
+	switch (p_data_type) {
+		case DATA_TYPE_VECTOR2:
+		case DATA_TYPE_VECTOR3:
+		case DATA_TYPE_REAL: {
+			// https://en.wikipedia.org/wiki/IEEE_754#Basic_and_interchange_formats
+			// To get the exact precision for the stored number, you need to find the lower power of two relative to the number and divide it by 2^mantissa_bits.
+			// To get the mantissa or exponent bits for a specific compression level, you can use the get_mantissa_bits and get_exponent_bits functions.
 
-	// Unreachable
-	ASSERT_NO_ENTRY_MSG("Unknown compression level.");
-	return 0; // Useless, but MS CI is too noisy.
+			float mantissa_bits;
+			switch (p_compression) {
+				case CompressionLevel::COMPRESSION_LEVEL_0:
+					mantissa_bits = 53; // Binary64 format
+					break;
+				case CompressionLevel::COMPRESSION_LEVEL_1:
+					mantissa_bits = 24; // Binary32 format
+					break;
+				case CompressionLevel::COMPRESSION_LEVEL_2:
+				case CompressionLevel::COMPRESSION_LEVEL_3:
+					mantissa_bits = 11; // Binary16 format
+					break;
+			}
+
+			return std::pow(2.0, -(mantissa_bits - 1.0));
+		}
+		case DATA_TYPE_NORMALIZED_VECTOR3:
+		case DATA_TYPE_UNIT_REAL:
+		case DATA_TYPE_POSITIVE_UNIT_REAL: {
+			/// COMPRESSION_LEVEL_0: 10 bits are used - Max loss ~0.005%
+			/// COMPRESSION_LEVEL_1: 8 bits are used - Max loss ~0.020%
+			/// COMPRESSION_LEVEL_2: 6 bits are used - Max loss ~0.793%
+			/// COMPRESSION_LEVEL_3: 4 bits are used - Max loss ~3.333%
+			switch (p_compression) {
+				case CompressionLevel::COMPRESSION_LEVEL_0:
+					return 0.0005;
+				case CompressionLevel::COMPRESSION_LEVEL_1:
+					return 0.002;
+				case CompressionLevel::COMPRESSION_LEVEL_2:
+					return 0.008;
+				case CompressionLevel::COMPRESSION_LEVEL_3:
+					return 0.35;
+			}
+		}
+		case DATA_TYPE_NORMALIZED_VECTOR2: {
+			switch (p_compression) {
+				case CompressionLevel::COMPRESSION_LEVEL_0:
+					return 0.002;
+				case CompressionLevel::COMPRESSION_LEVEL_1:
+					return 0.007;
+				case CompressionLevel::COMPRESSION_LEVEL_2:
+					return 0.01;
+				case CompressionLevel::COMPRESSION_LEVEL_3:
+					return 0.02;
+			}
+		}
+
+		default:
+			return 0.0;
+	}
 }
 
-int DataBuffer::get_exponent_bits(CompressionLevel p_compression) {
-	// https://en.wikipedia.org/wiki/IEEE_754#Basic_and_interchange_formats
-	switch (p_compression) {
-		case CompressionLevel::COMPRESSION_LEVEL_0:
-			return 11; // Binary64 format
-		case CompressionLevel::COMPRESSION_LEVEL_1:
-			return 8; // Binary32 format
-		case CompressionLevel::COMPRESSION_LEVEL_2:
-			return 5; // Binary16 format
-		case CompressionLevel::COMPRESSION_LEVEL_3:
-			return 4; // https://en.wikipedia.org/wiki/Minifloat
-	}
+template uint64_t DataBuffer::compress_unit_float<double>(double p_value, double p_scale_factor);
+template uint64_t DataBuffer::compress_unit_float<float>(float p_value, float p_scale_factor);
 
-	// Unreachable
-	ASSERT_NO_ENTRY_MSG("Unknown compression level.");
-	return 0; // Useless, but MS CI is too noisy.
-}
-
-uint64_t DataBuffer::compress_unit_float(double p_value, double p_scale_factor) {
+template <typename T>
+uint64_t DataBuffer::compress_unit_float(T p_value, T p_scale_factor) {
 	return std::round(std::min(p_value * p_scale_factor, p_scale_factor));
 }
 
-double DataBuffer::decompress_unit_float(uint64_t p_value, double p_scale_factor) {
-	return static_cast<double>(p_value) / p_scale_factor;
+template double DataBuffer::decompress_unit_float<double>(uint64_t p_value, double p_scale_factor);
+template float DataBuffer::decompress_unit_float<float>(uint64_t p_value, float p_scale_factor);
+
+template <typename T>
+T DataBuffer::decompress_unit_float(uint64_t p_value, T p_scale_factor) {
+	return static_cast<T>(p_value) / p_scale_factor;
 }
 
 void DataBuffer::make_room_in_bits(int p_dim) {

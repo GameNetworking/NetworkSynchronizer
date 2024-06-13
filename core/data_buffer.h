@@ -53,10 +53,9 @@ public:
 	/// COMPRESSION_LEVEL_0: 64 bits are used - Double precision. Up to 16 precision is 0.00000000000000177636 in worst case. Up to 512 precision is 0.00000000000005684342 in worst case. Up to 1024 precision is 0.00000000000011368684 in worst case.
 	/// COMPRESSION_LEVEL_1: 32 bits are used - Single precision (float). Up to 16 precision is 0.00000095367431640625 in worst case. Up to 512 precision is 0.000030517578125 in worst case. Up to 1024 precision is 0.00006103515625 in worst case.
 	/// COMPRESSION_LEVEL_2: 16 bits are used - Half precision. Up to 16 precision is 0.0078125 in worst case. Up to 512 precision is 0.25 in worst case. Up to 1024 precision is 0.5.
-	/// COMPRESSION_LEVEL_3: 8 bits are used - Minifloat: Up to 2 precision is 0.125. Up to 4 precision is 0.25. Up to 8 precision is 0.5.
+	/// COMPRESSION_LEVEL_3:                  - Fallbacks to level 2.
 	///
-	/// To get the exact precision for the stored number, you need to find the lower power of two relative to the number and divide it by 2^mantissa_bits.
-	/// To get the mantissa or exponent bits for a specific compression level, you can use the get_mantissa_bits and get_exponent_bits functions.
+	/// NOTE: User get_real_precision to get the epsilon for each precision according to the compression level.
 	///
 	///
 	/// ## Positive unit real
@@ -107,10 +106,10 @@ public:
 	/// ## Variant
 	/// It's dynamic sized. It's not possible to compress it.
 	enum CompressionLevel {
-		COMPRESSION_LEVEL_0,
-		COMPRESSION_LEVEL_1,
-		COMPRESSION_LEVEL_2,
-		COMPRESSION_LEVEL_3
+		COMPRESSION_LEVEL_0 = 0,
+		COMPRESSION_LEVEL_1 = 1,
+		COMPRESSION_LEVEL_2 = 2,
+		COMPRESSION_LEVEL_3 = 3
 	};
 
 private:
@@ -230,10 +229,12 @@ public:
 	///
 	/// Returns the compressed value so both the client and the peers can use
 	/// the same data.
-	double add_real(double p_input, CompressionLevel p_compression_level);
+	void add_real(double p_input, CompressionLevel p_compression_level);
+	void add_real(float p_input, CompressionLevel p_compression_level);
 
 	/// Parse the following data as a real.
-	double read_real(CompressionLevel p_compression_level);
+	void read_real(double &r_value, CompressionLevel p_compression_level);
+	void read_real(float &r_value, CompressionLevel p_compression_level);
 
 	/// Add a positive unit real into the buffer.
 	///
@@ -264,9 +265,11 @@ public:
 	/// Returns the decompressed vector so both the client and the peers can use
 	/// the same data.
 	void add_vector2(double x, double y, CompressionLevel p_compression_level);
+	void add_vector2(float x, float y, CompressionLevel p_compression_level);
 
 	/// Parse next data as vector from the input buffer.
 	void read_vector2(double &x, double &y, CompressionLevel p_compression_level);
+	void read_vector2(float &x, float &y, CompressionLevel p_compression_level);
 
 	/// Add a normalized vector2 into the buffer.
 	/// Note: The compression algorithm rely on the fact that this is a
@@ -274,10 +277,12 @@ public:
 	///
 	/// Returns the decompressed vector so both the client and the peers can use
 	/// the same data.
-	void add_normalized_vector2(double x, double y, CompressionLevel p_compression_level);
+	template <typename T>
+	void add_normalized_vector2(T x, T y, CompressionLevel p_compression_level);
 
 	/// Parse next data as normalized vector from the input buffer.
-	void read_normalized_vector2(double &x, double &y, CompressionLevel p_compression_level);
+	template <typename T>
+	void read_normalized_vector2(T &x, T &y, CompressionLevel p_compression_level);
 
 	/// Add a vector3 into the buffer.
 	/// Note: This kind of vector occupies more space than the normalized verison.
@@ -286,9 +291,11 @@ public:
 	/// Returns the decompressed vector so both the client and the peers can use
 	/// the same data.
 	void add_vector3(double x, double y, double z, CompressionLevel p_compression_level);
+	void add_vector3(float x, float y, float z, CompressionLevel p_compression_level);
 
 	/// Parse next data as vector3 from the input buffer.
 	void read_vector3(double &x, double &y, double &z, CompressionLevel p_compression_level);
+	void read_vector3(float &x, float &y, float &z, CompressionLevel p_compression_level);
 
 	/// Add a normalized vector3 into the buffer.
 	/// Note: The compression algorithm rely on the fact that this is a
@@ -296,10 +303,12 @@ public:
 	///
 	/// Returns the decompressed vector so both the client and the peers can use
 	/// the same data.
-	void add_normalized_vector3(double x, double y, double z, CompressionLevel p_compression_level);
+	template <typename T>
+	void add_normalized_vector3(T x, T y, T z, CompressionLevel p_compression_level);
 
 	/// Parse next data as normalized vector3 from the input buffer.
-	void read_normalized_vector3(double &x, double &y, double &z, CompressionLevel p_compression_level);
+	template <typename T>
+	void read_normalized_vector3(T &x, T &y, T &z, CompressionLevel p_compression_level);
 
 	/// Add a data buffer to this buffer.
 	void add_data_buffer(const DataBuffer &p_db);
@@ -354,12 +363,13 @@ public:
 	int read_buffer_size();
 
 	static int get_bit_taken(DataType p_data_type, CompressionLevel p_compression);
-	static int get_mantissa_bits(CompressionLevel p_compression);
-	static int get_exponent_bits(CompressionLevel p_compression);
+	static double get_real_epsilon(DataType p_data_type, CompressionLevel p_compression);
 
 public: // ---------------------------------------------------------------- Internal
-	static uint64_t compress_unit_float(double p_value, double p_scale_factor);
-	static double decompress_unit_float(uint64_t p_value, double p_scale_factor);
+	template <typename T>
+	static uint64_t compress_unit_float(T p_value, T p_scale_factor);
+	template <typename T>
+	static T decompress_unit_float(uint64_t p_value, T p_scale_factor);
 
 	void make_room_in_bits(int p_dim);
 	void make_room_pad_to_next_byte();

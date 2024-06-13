@@ -179,11 +179,14 @@ uint64_t GdDataBuffer::read_uint(CompressionLevel p_compression_level) {
 }
 
 double GdDataBuffer::add_real(double p_input, CompressionLevel p_compression_level) {
-	return data_buffer->add_real(p_input, (NS::DataBuffer::CompressionLevel)p_compression_level);
+	data_buffer->add_real(p_input, (NS::DataBuffer::CompressionLevel)p_compression_level);
+	return p_input;
 }
 
 double GdDataBuffer::read_real(CompressionLevel p_compression_level) {
-	return data_buffer->read_real((NS::DataBuffer::CompressionLevel)p_compression_level);
+	double ret;
+	data_buffer->read_real(ret, (NS::DataBuffer::CompressionLevel)p_compression_level);
+	return ret;
 }
 
 float GdDataBuffer::add_positive_unit_real(float p_input, CompressionLevel p_compression_level) {

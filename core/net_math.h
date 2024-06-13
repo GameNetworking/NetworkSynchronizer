@@ -20,7 +20,7 @@ public:
 		}
 
 		// Then check for approximate equality.
-		return std::abs(a - b) < epsilon;
+		return std::abs(a - b) <= epsilon;
 	}
 
 	template <typename T>
@@ -59,8 +59,36 @@ public:
 	}
 
 	template <typename T>
-	static bool vec2_angle(T x, T y) {
+	static T vec2_angle(T x, T y) {
 		return std::atan2(y, x);
+	}
+
+	template <typename T>
+	static void vec2_normalize(T &x, T &y) {
+		T l = x * x + y * y;
+		if (l != 0) {
+			l = std::sqrt(l);
+			x /= l;
+			y /= l;
+		} else {
+			x = 0;
+			y = 0;
+		}
+	}
+
+	template <typename T>
+	static void vec3_normalize(T &x, T &y, T &z) {
+		T l = x * x + y * y + z * z;
+		if (l != 0) {
+			l = std::sqrt(l);
+			x /= l;
+			y /= l;
+			z /= l;
+		} else {
+			x = 0;
+			y = 0;
+			z = 0;
+		}
 	}
 
 	template <typename F>
