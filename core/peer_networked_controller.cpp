@@ -419,7 +419,7 @@ bool RemotelyControlledController::fetch_next_input(double p_delta) {
 		const FrameIndex next_input_id = current_input_buffer_id + 1;
 		SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] The server is looking for: " + next_input_id, "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
-		if make_unlikely ((streaming_paused)) {
+		if make_unlikely (streaming_paused) {
 			SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] The streaming is paused.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 			// Stream is paused.
 			if (frames_input.empty() == false &&
@@ -436,7 +436,7 @@ bool RemotelyControlledController::fetch_next_input(double p_delta) {
 				peer_controller->set_inputs_buffer(BitArray(METADATA_SIZE), METADATA_SIZE, 0);
 				is_new_input = false;
 			}
-		} else if make_unlikely ((frames_input.empty() == true)) {
+		} else if make_unlikely (frames_input.empty() == true) {
 			// The input buffer is empty; a packet is missing.
 			SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] Missing input: " + std::to_string(next_input_id.id) + " Input buffer is void, i'm using the previous one!", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
@@ -577,7 +577,7 @@ void RemotelyControlledController::process(double p_delta) {
 #endif
 			fetch_next_input(p_delta);
 
-	if make_unlikely ((current_input_buffer_id == FrameIndex::NONE)) {
+	if make_unlikely (current_input_buffer_id == FrameIndex::NONE) {
 		// Skip this until the first input arrive.
 		SceneSynchronizerDebugger::singleton()->print(INFO, "Server skips this frame as the current_input_buffer_id == FrameIndex::NONE", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 		return;
@@ -619,7 +619,7 @@ bool RemotelyControlledController::receive_inputs(const std::vector<std::uint8_t
 			[](void *p_user_pointer, FrameIndex p_input_id, int p_input_size_in_bits, const BitArray &p_bit_array) -> void {
 				SCParseTmpData *pd = static_cast<SCParseTmpData *>(p_user_pointer);
 
-				if make_unlikely ((pd->controller.current_input_buffer_id != FrameIndex::NONE && pd->controller.current_input_buffer_id >= p_input_id)) {
+				if make_unlikely (pd->controller.current_input_buffer_id != FrameIndex::NONE && pd->controller.current_input_buffer_id >= p_input_id) {
 					// We already have this input, so we don't need it anymore.
 					return;
 				}
@@ -752,7 +752,7 @@ bool AutonomousServerController::fetch_next_input(double p_delta) {
 	SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
 	peer_controller->get_inputs_buffer_mut().dry();
 
-	if make_unlikely ((current_input_buffer_id == FrameIndex::NONE)) {
+	if make_unlikely (current_input_buffer_id == FrameIndex::NONE) {
 		// This is the first input.
 		current_input_buffer_id = FrameIndex{ { 0 } };
 	} else {
@@ -880,7 +880,7 @@ bool PlayerController::has_another_instant_to_process_after(int p_i) const {
 }
 
 void PlayerController::process(double p_delta) {
-	if make_unlikely ((queued_instant_to_process >= 0)) {
+	if make_unlikely (queued_instant_to_process >= 0) {
 		// There is a queued instant. It means the SceneSync is rewinding:
 		// instead to fetch a new input, read it from the stored snapshots.
 		DataBuffer ib(frames_input[queued_instant_to_process].inputs_buffer);
