@@ -2483,7 +2483,6 @@ void ServerSynchronizer::send_net_stat_to_peer(int p_peer, PeerData &p_peer_data
 		return;
 	}
 
-	// TODO This doesn't need to be a pointer. Remove it once it doesn't inherit anymore a godot Object.
 	DataBuffer db;
 	db.begin_write(0);
 

@@ -35,12 +35,6 @@ SceneSynchronizerDebugger::~SceneSynchronizerDebugger() {
 #ifdef DEBUG_ENABLED
 	delete frame_dump_storage;
 	frame_dump_storage = nullptr;
-	frame_dump_storage->frame_dump__begin_state.clear();
-	frame_dump_storage->frame_dump__end_state.clear();
-	frame_dump_storage->frame_dump__node_log.clear();
-	frame_dump_storage->frame_dump__data_buffer_writes.clear();
-	frame_dump_storage->frame_dump__data_buffer_reads.clear();
-	frame_dump_storage->frame_dump__are_inputs_different_results.clear();
 #endif
 }
 

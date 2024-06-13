@@ -1,15 +1,15 @@
 #ifndef TEST_NETSYNC_DATA_BUFFER_H
 #define TEST_NETSYNC_DATA_BUFFER_H
 
+#include "../core/data_buffer.h"
 #include "../godot4/gd_network_interface.h"
 #include "../scene_synchronizer.h"
-#include "data_buffer.h"
 
 #include "modules/network_synchronizer/godot4/gd_network_interface.h"
 #include "modules/network_synchronizer/godot4/gd_scene_synchronizer.h"
 #include "tests/test_macros.h"
 
-namespace test_netsync_NS::DataBuffer {
+namespace test_netsync_DataBuffer {
 
 inline Vector<double> real_values(NS::DataBuffer::CompressionLevel p_compression_level) {
 	Vector<double> values;
@@ -686,6 +686,6 @@ TEST_CASE("[NetSync][NS::DataBuffer] Skip") {
 	buffer.seek(NS::DataBuffer::get_bit_taken(NS::DataBuffer::DATA_TYPE_BOOL, NS::DataBuffer::COMPRESSION_LEVEL_0));
 	CHECK_MESSAGE(buffer.read_bool() == value, "Should read the same value");
 }
-} //namespace test_netsync_NS::DataBuffer
+} //namespace test_netsync_DataBuffer
 
 #endif
