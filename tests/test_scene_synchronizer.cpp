@@ -34,7 +34,7 @@ void test_ids() {
 	ASSERT_COND(var_id_3.id == 3);
 }
 
-const double delta = 1.0 / 60.0;
+const float delta = 1.0 / 60.0;
 
 class LocalNetworkedController : public NS::LocalSceneObject {
 public:
@@ -66,11 +66,11 @@ public:
 		p_scene_sync.register_variable(p_id, "position");
 	}
 
-	void collect_inputs(double p_delta, NS::DataBuffer &r_buffer) {
+	void collect_inputs(float p_delta, NS::DataBuffer &r_buffer) {
 		r_buffer.add_bool(true);
 	}
 
-	void controller_process(double p_delta, NS::DataBuffer &p_buffer) {
+	void controller_process(float p_delta, NS::DataBuffer &p_buffer) {
 		if (p_buffer.read_bool()) {
 			const float one_meter = 1.0;
 			variables["position"].data.f32 += p_delta * one_meter;

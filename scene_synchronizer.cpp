@@ -145,7 +145,7 @@ void SceneSynchronizerBase::conclude() {
 	rpc_handle_receive_input.reset();
 }
 
-void SceneSynchronizerBase::process(double p_delta) {
+void SceneSynchronizerBase::process(float p_delta) {
 	NS_PROFILE
 
 	if (settings_changed) {
@@ -211,7 +211,7 @@ int SceneSynchronizerBase::get_frames_per_seconds() const {
 	return frames_per_seconds;
 }
 
-double SceneSynchronizerBase::get_fixed_frame_delta() const {
+float SceneSynchronizerBase::get_fixed_frame_delta() const {
 	return fixed_frame_delta;
 }
 
@@ -417,10 +417,10 @@ void SceneSynchronizerBase::unregister_app_object(ObjectLocalId p_id) {
 void SceneSynchronizerBase::setup_controller(
 		ObjectLocalId p_id,
 		int p_peer,
-		std::function<void(double /*delta*/, DataBuffer & /*r_data_buffer*/)> p_collect_input_func,
+		std::function<void(float /*delta*/, DataBuffer & /*r_data_buffer*/)> p_collect_input_func,
 		std::function<int(DataBuffer & /*p_data_buffer*/)> p_count_input_size_func,
 		std::function<bool(DataBuffer & /*p_data_buffer_A*/, DataBuffer & /*p_data_buffer_B*/)> p_are_inputs_different_func,
-		std::function<void(double /*delta*/, DataBuffer & /*p_data_buffer*/)> p_process_func) {
+		std::function<void(float /*delta*/, DataBuffer & /*p_data_buffer*/)> p_process_func) {
 	ENSURE_MSG(p_id != ObjectLocalId::NONE, "The passed object_id is not valid.");
 
 	NS::ObjectData *object_data = get_object_data(p_id);
@@ -670,7 +670,7 @@ void SceneSynchronizerBase::untrack_variable_changes(ListenerHandle p_handle) {
 	delete listener;
 }
 
-NS::PHandler SceneSynchronizerBase::register_process(ObjectLocalId p_id, ProcessPhase p_phase, std::function<void(double)> p_func) {
+NS::PHandler SceneSynchronizerBase::register_process(ObjectLocalId p_id, ProcessPhase p_phase, std::function<void(float)> p_func) {
 	ENSURE_V(p_id != NS::ObjectLocalId::NONE, NS::NullPHandler);
 	ENSURE_V(p_func, NS::NullPHandler);
 
@@ -697,7 +697,7 @@ void SceneSynchronizerBase::unregister_process(ObjectLocalId p_id, ProcessPhase 
 void SceneSynchronizerBase::setup_trickled_sync(
 		ObjectLocalId p_id,
 		std::function<void(DataBuffer & /*out_buffer*/, float /*update_rate*/)> p_func_trickled_collect,
-		std::function<void(double /*delta*/, float /*interpolation_alpha*/, DataBuffer & /*past_buffer*/, DataBuffer & /*future_buffer*/)> p_func_trickled_apply) {
+		std::function<void(float /*delta*/, float /*interpolation_alpha*/, DataBuffer & /*past_buffer*/, DataBuffer & /*future_buffer*/)> p_func_trickled_apply) {
 	ENSURE(p_id != ObjectLocalId::NONE);
 
 	NS::ObjectData *od = get_object_data(p_id);
@@ -1702,7 +1702,7 @@ void NoNetSynchronizer::clear() {
 	frame_count = 0;
 }
 
-void NoNetSynchronizer::process(double p_delta) {
+void NoNetSynchronizer::process(float p_delta) {
 	if make_unlikely (enabled == false) {
 		return;
 	}
@@ -1753,10 +1753,10 @@ bool NoNetSynchronizer::is_enabled() const {
 	return enabled;
 }
 
-int NoNetSynchronizer::fetch_sub_processes_count(double p_delta) {
+int NoNetSynchronizer::fetch_sub_processes_count(float p_delta) {
 	time_bank += p_delta;
-	const double sub_frames = std::floor(time_bank * static_cast<double>(scene_synchronizer->get_frames_per_seconds()));
-	time_bank -= sub_frames / static_cast<double>(scene_synchronizer->get_frames_per_seconds());
+	const float sub_frames = std::floor(time_bank * static_cast<float>(scene_synchronizer->get_frames_per_seconds()));
+	time_bank -= sub_frames / static_cast<float>(scene_synchronizer->get_frames_per_seconds());
 	// Clamp the maximum possible frames that we can process on a single frame.
 	// This is a guard to make sure we do not process way too many frames on a single frame.
 	return std::min(static_cast<int>(scene_synchronizer->get_max_sub_process_per_frame()), static_cast<int>(sub_frames));
@@ -1774,7 +1774,7 @@ void ServerSynchronizer::clear() {
 	sync_groups.clear();
 }
 
-void ServerSynchronizer::process(double p_delta) {
+void ServerSynchronizer::process(float p_delta) {
 	SceneSynchronizerDebugger::singleton()->print(VERBOSE, "ServerSynchronizer::process", scene_synchronizer->get_network_interface().get_owner_name());
 
 	if (objects_relevancy_update_timer >= scene_synchronizer->objects_relevancy_update_time) {
@@ -2343,12 +2343,12 @@ void ServerSynchronizer::generate_snapshot_object_data(
 	}
 }
 
-void ServerSynchronizer::process_trickled_sync(double p_delta) {
+void ServerSynchronizer::process_trickled_sync(float p_delta) {
 	DataBuffer tmp_buffer;
 
 	// Since the `update_rate` is a rate relative to the fixed_frame_delta,
 	// we need to compute this factor to correctly scale the `update_rate`.
-	const double current_frame_factor = p_delta / scene_synchronizer->get_fixed_frame_delta();
+	const float current_frame_factor = p_delta / scene_synchronizer->get_fixed_frame_delta();
 
 	for (auto &group : sync_groups) {
 		if (group.get_listening_peers().empty()) {
@@ -2431,7 +2431,7 @@ void ServerSynchronizer::process_trickled_sync(double p_delta) {
 	}
 }
 
-void ServerSynchronizer::update_peers_net_statistics(double p_delta) {
+void ServerSynchronizer::update_peers_net_statistics(float p_delta) {
 	for (auto &[peer, peer_data] : scene_synchronizer->get_peers()) {
 		if (peer == scene_synchronizer->get_network_interface().fetch_local_peer_id()) {
 			// No need to update the ping for `self` (the server).
@@ -2507,10 +2507,10 @@ void ServerSynchronizer::send_net_stat_to_peer(int p_peer, PeerData &p_peer_data
 			db);
 }
 
-int ServerSynchronizer::fetch_sub_processes_count(double p_delta) {
+int ServerSynchronizer::fetch_sub_processes_count(float p_delta) {
 	time_bank += p_delta;
-	const double sub_frames = std::floor(time_bank * static_cast<double>(scene_synchronizer->get_frames_per_seconds()));
-	time_bank -= sub_frames / static_cast<double>(scene_synchronizer->get_frames_per_seconds());
+	const float sub_frames = std::floor(time_bank * static_cast<float>(scene_synchronizer->get_frames_per_seconds()));
+	time_bank -= sub_frames / static_cast<float>(scene_synchronizer->get_frames_per_seconds());
 	// Clamp the maximum possible frames that we can process on a single frame.
 	// This is a guard to make sure we do not process way too many frames on a single frame.
 	return std::min(static_cast<int>(scene_synchronizer->get_max_sub_process_per_frame()), static_cast<int>(sub_frames));
@@ -2536,7 +2536,7 @@ void ClientSynchronizer::clear() {
 	need_full_snapshot_notified = false;
 }
 
-void ClientSynchronizer::process(double p_delta) {
+void ClientSynchronizer::process(float p_delta) {
 	NS_PROFILE
 
 	SceneSynchronizerDebugger::singleton()->print(VERBOSE, "ClientSynchronizer::process", scene_synchronizer->get_network_interface().get_owner_name());
@@ -3096,20 +3096,20 @@ void ClientSynchronizer::process_paused_controller_recovery() {
 	}
 }
 
-int ClientSynchronizer::calculates_sub_ticks(const double p_delta) {
-	const double frames_per_seconds = 1.0 / p_delta;
+int ClientSynchronizer::calculates_sub_ticks(const float p_delta) {
+	const float frames_per_seconds = 1.0 / p_delta;
 	// Extract the frame acceleration:
 	// 1. convert the Accelerated Tick Hz to second.
-	const double fully_accelerated_delta = 1.0 / (frames_per_seconds + acceleration_fps_speed);
+	const float fully_accelerated_delta = 1.0 / (frames_per_seconds + acceleration_fps_speed);
 
 	// 2. Subtract the `accelerated_delta - delta` to obtain the acceleration magnitude.
-	const double acceleration_delta = std::abs(fully_accelerated_delta - p_delta);
+	const float acceleration_delta = std::abs(fully_accelerated_delta - p_delta);
 
 	// 3. Avoids overshots by taking the smallest value between `acceleration_delta` and the `remaining timer`.
-	const double frame_acceleration_delta = std::max(0.0, std::min(acceleration_delta, acceleration_fps_timer));
+	const float frame_acceleration_delta = std::max(0.0f, std::min(acceleration_delta, acceleration_fps_timer));
 
 	// Updates the timer by removing the extra accelration.
-	acceleration_fps_timer = std::max(acceleration_fps_timer - frame_acceleration_delta, 0.0);
+	acceleration_fps_timer = std::max(acceleration_fps_timer - frame_acceleration_delta, 0.0f);
 
 	// Calculates the pretended delta.
 	pretended_delta = p_delta + (frame_acceleration_delta * NS::sign(acceleration_fps_speed));
@@ -3117,9 +3117,9 @@ int ClientSynchronizer::calculates_sub_ticks(const double p_delta) {
 	// Add the current delta to the bank
 	time_bank += pretended_delta;
 
-	const int sub_ticks = std::floor(time_bank * static_cast<double>(scene_synchronizer->get_frames_per_seconds()));
+	const int sub_ticks = std::floor(time_bank * static_cast<float>(scene_synchronizer->get_frames_per_seconds()));
 
-	time_bank -= static_cast<double>(sub_ticks) / static_cast<double>(scene_synchronizer->get_frames_per_seconds());
+	time_bank -= static_cast<float>(sub_ticks) / static_cast<float>(scene_synchronizer->get_frames_per_seconds());
 	if make_unlikely (time_bank < 0.0) {
 		time_bank = 0.0;
 	}
@@ -3142,7 +3142,7 @@ int ClientSynchronizer::calculates_sub_ticks(const double p_delta) {
 	return sub_ticks;
 }
 
-void ClientSynchronizer::process_simulation(double p_delta) {
+void ClientSynchronizer::process_simulation(float p_delta) {
 	NS_PROFILE
 
 	if make_unlikely (player_controller == nullptr || enabled == false || !player_controller->can_simulate()) {
@@ -3553,7 +3553,7 @@ void ClientSynchronizer::receive_trickled_sync_data(const std::vector<std::uint8
 	}
 }
 
-void ClientSynchronizer::process_trickled_sync(double p_delta) {
+void ClientSynchronizer::process_trickled_sync(float p_delta) {
 	NS_PROFILE
 
 	DataBuffer db1;

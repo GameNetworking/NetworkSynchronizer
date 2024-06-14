@@ -107,7 +107,7 @@ bool PeerNetworkedController::has_another_instant_to_process_after(int p_i) cons
 	return static_cast<PlayerController *>(controller)->has_another_instant_to_process_after(p_i);
 }
 
-void PeerNetworkedController::process(double p_delta) {
+void PeerNetworkedController::process(float p_delta) {
 	if make_likely (controller && can_simulate()) {
 		// This function is registered as processed function, so it's called by the
 		// `SceneSync` in sync with the scene processing.
@@ -226,7 +226,7 @@ void PeerNetworkedController::on_peer_status_updated(int p_peer_id, bool p_conne
 	}
 }
 
-void PeerNetworkedController::controllable_collect_input(double p_delta, DataBuffer &r_data_buffer) {
+void PeerNetworkedController::controllable_collect_input(float p_delta, DataBuffer &r_data_buffer) {
 	const std::vector<ObjectData *> &sorted_controllable_objects = get_sorted_controllable_objects();
 	for (ObjectData *object_data : sorted_controllable_objects) {
 		object_data->controller_funcs.collect_input(p_delta, r_data_buffer);
@@ -252,7 +252,7 @@ bool PeerNetworkedController::controllable_are_inputs_different(DataBuffer &p_da
 	return false;
 }
 
-void PeerNetworkedController::controllable_process(double p_delta, DataBuffer &p_data_buffer) {
+void PeerNetworkedController::controllable_process(float p_delta, DataBuffer &p_data_buffer) {
 	const std::vector<ObjectData *> &sorted_controllable_objects = get_sorted_controllable_objects();
 	for (ObjectData *object_data : sorted_controllable_objects) {
 		object_data->controller_funcs.process(p_delta, p_data_buffer);
@@ -400,7 +400,7 @@ FrameIndex RemotelyControlledController::last_known_frame_index() const {
 	}
 }
 
-bool RemotelyControlledController::fetch_next_input(double p_delta) {
+bool RemotelyControlledController::fetch_next_input(float p_delta) {
 	bool is_new_input = true;
 
 	if make_unlikely (current_input_buffer_id == FrameIndex::NONE) {
@@ -571,7 +571,7 @@ void RemotelyControlledController::set_frame_input(const FrameInput &p_frame_sna
 	current_input_buffer_id = p_frame_snapshot.id;
 }
 
-void RemotelyControlledController::process(double p_delta) {
+void RemotelyControlledController::process(float p_delta) {
 #ifdef DEBUG_ENABLED
 	const bool is_new_input =
 #endif
@@ -667,7 +667,7 @@ ServerController::ServerController(
 		RemotelyControlledController(p_peer_controller) {
 }
 
-void ServerController::process(double p_delta) {
+void ServerController::process(float p_delta) {
 	RemotelyControlledController::process(p_delta);
 
 	if (!streaming_paused) {
@@ -723,10 +723,6 @@ bool ServerController::receive_inputs(const std::vector<std::uint8_t> &p_data) {
 	return success;
 }
 
-int ceil_with_tolerance(double p_value, double p_tolerance) {
-	return std::ceil(p_value - p_tolerance);
-}
-
 AutonomousServerController::AutonomousServerController(
 		PeerNetworkedController *p_peer_controller) :
 		ServerController(p_peer_controller) {
@@ -742,7 +738,7 @@ int AutonomousServerController::get_inputs_count() const {
 	return 0;
 }
 
-bool AutonomousServerController::fetch_next_input(double p_delta) {
+bool AutonomousServerController::fetch_next_input(float p_delta) {
 	SceneSynchronizerDebugger::singleton()->print(INFO, "Autonomous server fetch input.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
 	peer_controller->get_inputs_buffer_mut().begin_write(METADATA_SIZE);
@@ -879,7 +875,7 @@ bool PlayerController::has_another_instant_to_process_after(int p_i) const {
 	}
 }
 
-void PlayerController::process(double p_delta) {
+void PlayerController::process(float p_delta) {
 	if make_unlikely (queued_instant_to_process >= 0) {
 		// There is a queued instant. It means the SceneSync is rewinding:
 		// instead to fetch a new input, read it from the stored snapshots.
@@ -1239,7 +1235,7 @@ int DollController::fetch_optimal_queued_inputs() const {
 	return peer_controller->scene_synchronizer->get_min_server_input_buffer_size();
 }
 
-bool DollController::fetch_next_input(double p_delta) {
+bool DollController::fetch_next_input(float p_delta) {
 	if (queued_instant_to_process >= 0) {
 		if make_unlikely (queued_frame_index_to_process == FrameIndex::NONE) {
 			// This happens when the server didn't start to process this doll yet.
@@ -1321,7 +1317,7 @@ bool DollController::fetch_next_input(double p_delta) {
 	}
 }
 
-void DollController::process(double p_delta) {
+void DollController::process(float p_delta) {
 	const bool is_new_input = fetch_next_input(p_delta);
 
 	if make_likely (current_input_buffer_id > FrameIndex{ { 0 } }) {
@@ -1820,7 +1816,7 @@ NoNetController::NoNetController(PeerNetworkedController *p_peer_controller) :
 		frame_id(FrameIndex{ { 0 } }) {
 }
 
-void NoNetController::process(double p_delta) {
+void NoNetController::process(float p_delta) {
 	peer_controller->get_inputs_buffer_mut().begin_write(0); // No need of meta in this case.
 	SceneSynchronizerDebugger::singleton()->print(INFO, "Nonet process index: " + std::string(frame_id), "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 	SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(peer_controller->authority_peer, SceneSynchronizerDebugger::WRITE);

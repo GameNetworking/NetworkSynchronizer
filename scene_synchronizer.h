@@ -172,7 +172,7 @@ protected:
 
 	/// Fixed rate at which the NetSync has to produce frames.
 	int frames_per_seconds = 60;
-	double fixed_frame_delta = 1.0 / frames_per_seconds;
+	float fixed_frame_delta = 1.0 / frames_per_seconds;
 
 	/// This number is used to clamp the maximum amount of frames that is
 	/// possible to produce per frame by the client;
@@ -251,7 +251,7 @@ protected:
 	std::vector<ChangesListener *> changes_listeners;
 
 	bool cached_process_functions_valid = false;
-	Processor<double> cached_process_functions[PROCESS_PHASE_COUNT];
+	Processor<float> cached_process_functions[PROCESS_PHASE_COUNT];
 
 	bool debug_rewindings_enabled = false;
 	bool debug_server_speedup = false;
@@ -300,7 +300,7 @@ public: // -------------------------------------------------------- Manager APIs
 	void conclude();
 
 	/// Process the SceneSync.
-	void process(double p_delta);
+	void process(float p_delta);
 
 	/// Call this function when a networked app object is destroyed.
 	void on_app_object_removed(ObjectHandle p_app_object_handle);
@@ -335,7 +335,7 @@ public:
 	int get_frames_per_seconds() const;
 
 	// The tick delta time used to step the networking processing.
-	double get_fixed_frame_delta() const;
+	float get_fixed_frame_delta() const;
 
 	void set_max_sub_process_per_frame(std::uint8_t p_max_sub_process_per_frame);
 	std::uint8_t get_max_sub_process_per_frame() const;
@@ -409,10 +409,10 @@ public: // ---------------------------------------------------------------- APIs
 	void setup_controller(
 			ObjectLocalId p_id,
 			int p_peer,
-			std::function<void(double /*delta*/, DataBuffer & /*r_data_buffer*/)> p_collect_input_func,
+			std::function<void(float /*delta*/, DataBuffer & /*r_data_buffer*/)> p_collect_input_func,
 			std::function<int(DataBuffer & /*p_data_buffer*/)> p_count_input_size_func,
 			std::function<bool(DataBuffer & /*p_data_buffer_A*/, DataBuffer & /*p_data_buffer_B*/)> p_are_inputs_different_func,
-			std::function<void(double /*delta*/, DataBuffer & /*p_data_buffer*/)> p_process_func);
+			std::function<void(float /*delta*/, DataBuffer & /*p_data_buffer*/)> p_process_func);
 	void register_variable(ObjectLocalId p_id, const std::string &p_variable);
 	void unregister_variable(ObjectLocalId p_id, const std::string &p_variable);
 
@@ -449,7 +449,7 @@ public: // ---------------------------------------------------------------- APIs
 	void untrack_variable_changes(ListenerHandle p_handle);
 
 	/// You can use the macro `callable_mp()` to register custom C++ function.
-	NS::PHandler register_process(ObjectLocalId p_id, ProcessPhase p_phase, std::function<void(double)> p_func);
+	NS::PHandler register_process(ObjectLocalId p_id, ProcessPhase p_phase, std::function<void(float)> p_func);
 	void unregister_process(ObjectLocalId p_id, ProcessPhase p_phase, NS::PHandler p_func_handler);
 
 	/// Setup the trickled sync method for this specific object.
@@ -458,7 +458,7 @@ public: // ---------------------------------------------------------------- APIs
 	void setup_trickled_sync(
 			ObjectLocalId p_id,
 			std::function<void(DataBuffer & /*out_buffer*/, float /*update_rate*/)> p_func_trickled_collect,
-			std::function<void(double /*delta*/, float /*interpolation_alpha*/, DataBuffer & /*past_buffer*/, DataBuffer & /*future_buffer*/)> p_func_trickled_apply);
+			std::function<void(float /*delta*/, float /*interpolation_alpha*/, DataBuffer & /*past_buffer*/, DataBuffer & /*future_buffer*/)> p_func_trickled_apply);
 
 	/// Returns the latency (RTT in ms) for this peer or -1 if the latency is not available.
 	int get_peer_latency_ms(int p_peer) const;
@@ -603,7 +603,7 @@ public:
 
 	virtual void clear() = 0;
 
-	virtual void process(double p_delta) = 0;
+	virtual void process(float p_delta) = 0;
 	virtual void on_peer_connected(int p_peer_id) {}
 	virtual void on_peer_disconnected(int p_peer_id) {}
 	virtual void on_object_data_added(NS::ObjectData &p_object_data) {}
@@ -618,7 +618,7 @@ public:
 class NoNetSynchronizer final : public Synchronizer {
 	friend class SceneSynchronizerBase;
 
-	double time_bank = 0.0;
+	float time_bank = 0.0;
 	bool enabled = true;
 	uint32_t frame_count = 0;
 	std::vector<ObjectData *> active_objects;
@@ -627,7 +627,7 @@ public:
 	NoNetSynchronizer(SceneSynchronizerBase *p_ss);
 
 	virtual void clear() override;
-	virtual void process(double p_delta) override;
+	virtual void process(float p_delta) override;
 	virtual void on_object_data_added(NS::ObjectData &p_object_data) override;
 	virtual void on_object_data_removed(NS::ObjectData &p_object_data) override;
 	virtual const std::vector<ObjectData *> &get_active_objects() const override { return active_objects; }
@@ -635,7 +635,7 @@ public:
 	void set_enabled(bool p_enabled);
 	bool is_enabled() const;
 
-	int fetch_sub_processes_count(double p_delta);
+	int fetch_sub_processes_count(float p_delta);
 };
 
 class ServerSynchronizer final : public Synchronizer {
@@ -643,7 +643,7 @@ class ServerSynchronizer final : public Synchronizer {
 
 	std::map<int, NS::PeerServerData> peers_data;
 
-	double time_bank = 0.0;
+	float time_bank = 0.0;
 	float objects_relevancy_update_timer = 0.0;
 	uint32_t epoch = 0;
 	/// This array contains a map between the peers and the relevant objects.
@@ -663,7 +663,7 @@ public:
 	ServerSynchronizer(SceneSynchronizerBase *p_ss);
 
 	virtual void clear() override;
-	virtual void process(double p_delta) override;
+	virtual void process(float p_delta) override;
 	virtual void on_peer_connected(int p_peer_id) override;
 	virtual void on_peer_disconnected(int p_peer_id) override;
 	virtual void on_object_data_added(NS::ObjectData &p_object_data) override;
@@ -713,21 +713,21 @@ public:
 			std::vector<int> &r_frame_index_added_for_peer,
 			DataBuffer &r_snapshot_db) const;
 
-	void process_trickled_sync(double p_delta);
-	void update_peers_net_statistics(double p_delta);
+	void process_trickled_sync(float p_delta);
+	void update_peers_net_statistics(float p_delta);
 	void send_net_stat_to_peer(int p_peer, PeerData &p_peer_data);
 
-	int fetch_sub_processes_count(double p_delta);
+	int fetch_sub_processes_count(float p_delta);
 };
 
 class ClientSynchronizer final : public Synchronizer {
 	friend class SceneSynchronizerBase;
 
 public:
-	double time_bank = 0.0;
-	double acceleration_fps_speed = 0.0;
-	double acceleration_fps_timer = 0.0;
-	double pretended_delta = 1.0;
+	float time_bank = 0.0;
+	float acceleration_fps_speed = 0.0;
+	float acceleration_fps_timer = 0.0;
+	float pretended_delta = 1.0;
 
 	std::vector<ObjectNetId> simulated_objects;
 	std::vector<ObjectData *> active_objects;
@@ -834,7 +834,7 @@ public:
 
 	virtual void clear() override;
 
-	virtual void process(double p_delta) override;
+	virtual void process(float p_delta) override;
 	virtual void on_object_data_added(NS::ObjectData &p_object_data) override;
 	virtual void on_object_data_removed(NS::ObjectData &p_object_data) override;
 	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) override;
@@ -855,7 +855,7 @@ public:
 	void set_enabled(bool p_enabled);
 
 	void receive_trickled_sync_data(const std::vector<std::uint8_t> &p_data);
-	void process_trickled_sync(double p_delta);
+	void process_trickled_sync(float p_delta);
 
 	void remove_object_from_trickled_sync(NS::ObjectData *p_object_data);
 
@@ -895,8 +895,8 @@ private:
 	void process_paused_controller_recovery();
 
 	/// Returns the amount of frames to process for this frame.
-	int calculates_sub_ticks(const double p_delta);
-	void process_simulation(double p_delta);
+	int calculates_sub_ticks(const float p_delta);
+	void process_simulation(float p_delta);
 
 	bool parse_snapshot(DataBuffer &p_snapshot);
 

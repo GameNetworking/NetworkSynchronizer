@@ -163,7 +163,7 @@ void LocalScene::remove_object(const char *p_object_name) {
 	}
 }
 
-void LocalScene::process(double p_delta) {
+void LocalScene::process(float p_delta) {
 	scene_sync->process(p_delta);
 	// Clear any pending RPC.
 	// NOTE: The network process is executed after the scene_sync so any pending

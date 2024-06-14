@@ -72,10 +72,10 @@ bool ObjectData::can_trickled_sync() const {
 
 void ObjectData::set_controlled_by_peer(
 		int p_peer,
-		std::function<void(double /*delta*/, DataBuffer & /*r_data_buffer*/)> p_collect_input_func,
+		std::function<void(float /*delta*/, DataBuffer & /*r_data_buffer*/)> p_collect_input_func,
 		std::function<int(DataBuffer & /*p_data_buffer*/)> p_count_input_size_func,
 		std::function<bool(DataBuffer & /*p_data_buffer_A*/, DataBuffer & /*p_data_buffer_B*/)> p_are_inputs_different_func,
-		std::function<void(double /*delta*/, DataBuffer & /*p_data_buffer*/)> p_process_func) {
+		std::function<void(float /*delta*/, DataBuffer & /*p_data_buffer*/)> p_process_func) {
 	if (p_peer == controlled_by_peer) {
 		return;
 	}

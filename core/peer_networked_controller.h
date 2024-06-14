@@ -110,7 +110,7 @@ public: // ---------------------------------------------------------------- APIs
 
 public: // -------------------------------------------------------------- Events
 	bool has_another_instant_to_process_after(int p_i) const;
-	void process(double p_delta);
+	void process(float p_delta);
 
 	/// Returns the server controller or nullptr if this is not a server.
 	ServerController *get_server_controller();
@@ -146,10 +146,10 @@ public:
 
 	void on_peer_status_updated(int p_peer_id, bool p_connected, bool p_enabled);
 
-	void controllable_collect_input(double p_delta, DataBuffer &r_data_buffer);
+	void controllable_collect_input(float p_delta, DataBuffer &r_data_buffer);
 	int controllable_count_input_size(DataBuffer &p_data_buffer);
 	bool controllable_are_inputs_different(DataBuffer &p_data_buffer_A, DataBuffer &p_data_buffer_B);
-	void controllable_process(double p_delta, DataBuffer &p_data_buffer);
+	void controllable_process(float p_delta, DataBuffer &p_data_buffer);
 
 	void notify_receive_inputs(const std::vector<std::uint8_t> &p_data);
 
@@ -192,7 +192,7 @@ struct Controller {
 
 	virtual void ready() {}
 	virtual FrameIndex get_current_frame_index() const = 0;
-	virtual void process(double p_delta) = 0;
+	virtual void process(float p_delta) = 0;
 
 	virtual bool receive_inputs(const std::vector<std::uint8_t> &p_data) { return false; };
 };
@@ -216,11 +216,11 @@ public:
 	FrameIndex last_known_frame_index() const;
 
 	/// Fetch the next inputs, returns true if the input is new.
-	virtual bool fetch_next_input(double p_delta);
+	virtual bool fetch_next_input(float p_delta);
 
 	virtual void set_frame_input(const FrameInput &p_frame_snapshot, bool p_first_input);
 
-	virtual void process(double p_delta) override;
+	virtual void process(float p_delta) override;
 
 	virtual bool receive_inputs(const std::vector<std::uint8_t> &p_data) override;
 };
@@ -231,7 +231,7 @@ struct ServerController : public RemotelyControlledController {
 	ServerController(
 			PeerNetworkedController *p_node);
 
-	virtual void process(double p_delta) override;
+	virtual void process(float p_delta) override;
 
 	virtual void on_peer_update(bool p_peer_enabled) override;
 
@@ -248,7 +248,7 @@ struct AutonomousServerController final : public ServerController {
 
 	virtual bool receive_inputs(const std::vector<std::uint8_t> &p_data) override;
 	virtual int get_inputs_count() const override;
-	virtual bool fetch_next_input(double p_delta) override;
+	virtual bool fetch_next_input(float p_delta) override;
 };
 
 struct PlayerController final : public Controller {
@@ -275,7 +275,7 @@ struct PlayerController final : public Controller {
 
 	void on_rewind_frame_begin(FrameIndex p_frame_index, int p_rewinding_index, int p_rewinding_frame_count);
 	bool has_another_instant_to_process_after(int p_i) const;
-	virtual void process(double p_delta) override;
+	virtual void process(float p_delta) override;
 	void on_state_validated(FrameIndex p_frame_index, bool p_detected_desync);
 
 	virtual bool receive_inputs(const std::vector<std::uint8_t> &p_data) override;
@@ -342,8 +342,8 @@ public:
 	virtual bool receive_inputs(const std::vector<std::uint8_t> &p_data) override;
 	void on_rewind_frame_begin(FrameIndex p_frame_index, int p_rewinding_index, int p_rewinding_frame_count);
 	int fetch_optimal_queued_inputs() const;
-	virtual bool fetch_next_input(double p_delta) override;
-	virtual void process(double p_delta) override;
+	virtual bool fetch_next_input(float p_delta) override;
+	virtual void process(float p_delta) override;
 
 	void on_state_validated(FrameIndex p_frame_index, bool p_detected_desync);
 	void notify_frame_checked(FrameIndex p_input_id);
@@ -385,7 +385,7 @@ struct NoNetController : public Controller {
 
 	NoNetController(PeerNetworkedController *p_node);
 
-	virtual void process(double p_delta) override;
+	virtual void process(float p_delta) override;
 	virtual FrameIndex get_current_frame_index() const override;
 };
 

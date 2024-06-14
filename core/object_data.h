@@ -59,10 +59,10 @@ private:
 
 public:
 	struct {
-		std::function<void(double /*delta*/, DataBuffer & /*r_data_buffer*/)> collect_input;
+		std::function<void(float /*delta*/, DataBuffer & /*r_data_buffer*/)> collect_input;
 		std::function<int(DataBuffer & /*p_data_buffer*/)> count_input_size;
 		std::function<bool(DataBuffer & /*p_data_buffer_A*/, DataBuffer & /*p_data_buffer_B*/)> are_inputs_different;
-		std::function<void(double /*delta*/, DataBuffer & /*p_data_buffer*/)> process;
+		std::function<void(float /*delta*/, DataBuffer & /*p_data_buffer*/)> process;
 	} controller_funcs;
 
 public:
@@ -76,10 +76,10 @@ public:
 	/// The sync variables of this node. The order of this vector matters
 	/// because the index is the `VarId`.
 	std::vector<VarDescriptor> vars;
-	NS::Processor<double> functions[PROCESS_PHASE_COUNT];
+	NS::Processor<float> functions[PROCESS_PHASE_COUNT];
 
 	std::function<void(DataBuffer & /*out_buffer*/, float /*update_rate*/)> func_trickled_collect;
-	std::function<void(double /*delta*/, float /*interpolation_alpha*/, DataBuffer & /*past_buffer*/, DataBuffer & /*future_buffer*/)> func_trickled_apply;
+	std::function<void(float /*delta*/, float /*interpolation_alpha*/, DataBuffer & /*past_buffer*/, DataBuffer & /*future_buffer*/)> func_trickled_apply;
 
 public:
 	void set_net_id(ObjectNetId p_id);
@@ -92,10 +92,10 @@ public:
 
 	void set_controlled_by_peer(
 			int p_peer,
-			std::function<void(double /*delta*/, DataBuffer & /*r_data_buffer*/)> p_collect_input_func = nullptr,
+			std::function<void(float /*delta*/, DataBuffer & /*r_data_buffer*/)> p_collect_input_func = nullptr,
 			std::function<int(DataBuffer & /*p_data_buffer*/)> p_count_input_size_func = nullptr,
 			std::function<bool(DataBuffer & /*p_data_buffer_A*/, DataBuffer & /*p_data_buffer_B*/)> p_are_inputs_different_func = nullptr,
-			std::function<void(double /*delta*/, DataBuffer & /*p_data_buffer*/)> p_process_func = nullptr);
+			std::function<void(float /*delta*/, DataBuffer & /*p_data_buffer*/)> p_process_func = nullptr);
 	int get_controlled_by_peer() const;
 
 	VarId find_variable_id(const std::string &p_var_name) const;

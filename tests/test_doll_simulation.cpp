@@ -16,7 +16,7 @@
 
 namespace NS_Test {
 
-const double delta = 1.0 / 60.0;
+const float delta = 1.0 / 60.0;
 
 class TDSControlledObject : public NS::LocalSceneObject {
 public:
@@ -66,13 +66,13 @@ public:
 
 	// ------------------------------------------------- NetController interface
 	bool previous_input = true;
-	void collect_inputs(double p_delta, NS::DataBuffer &r_buffer) {
+	void collect_inputs(float p_delta, NS::DataBuffer &r_buffer) {
 		// Write true or false alternating each other.
 		r_buffer.add(!previous_input);
 		previous_input = !previous_input;
 	}
 
-	void controller_process(double p_delta, NS::DataBuffer &p_buffer) {
+	void controller_process(float p_delta, NS::DataBuffer &p_buffer) {
 		bool advance_or_turn;
 		p_buffer.read(advance_or_turn);
 
@@ -126,10 +126,10 @@ struct TestDollSimulationBase {
 
 private:
 	virtual void on_scenes_initialized() {}
-	virtual void on_server_process(double p_delta) {}
-	virtual void on_client_1_process(double p_delta) {}
-	virtual void on_client_2_process(double p_delta) {}
-	virtual void on_scenes_processed(double p_delta) {}
+	virtual void on_server_process(float p_delta) {}
+	virtual void on_client_1_process(float p_delta) {}
+	virtual void on_client_2_process(float p_delta) {}
+	virtual void on_scenes_processed(float p_delta) {}
 
 public:
 	TestDollSimulationBase() {}
@@ -168,13 +168,13 @@ public:
 		controlled_2_peer1 = peer_1_scene.add_object<TDSControlledObject>("controller_2", peer_2_scene.get_peer());
 		controlled_2_peer2 = peer_2_scene.add_object<TDSControlledObject>("controller_2", peer_2_scene.get_peer());
 
-		server_scene.scene_sync->register_process(server_scene.scene_sync->find_local_id(), PROCESS_PHASE_LATE, [=](double p_delta) -> void {
+		server_scene.scene_sync->register_process(server_scene.scene_sync->find_local_id(), PROCESS_PHASE_LATE, [=](float p_delta) -> void {
 			on_server_process(p_delta);
 		});
-		peer_1_scene.scene_sync->register_process(peer_1_scene.scene_sync->find_local_id(), PROCESS_PHASE_LATE, [=](double p_delta) -> void {
+		peer_1_scene.scene_sync->register_process(peer_1_scene.scene_sync->find_local_id(), PROCESS_PHASE_LATE, [=](float p_delta) -> void {
 			on_client_1_process(p_delta);
 		});
-		peer_2_scene.scene_sync->register_process(peer_2_scene.scene_sync->find_local_id(), PROCESS_PHASE_LATE, [=](double p_delta) -> void {
+		peer_2_scene.scene_sync->register_process(peer_2_scene.scene_sync->find_local_id(), PROCESS_PHASE_LATE, [=](float p_delta) -> void {
 			on_client_2_process(p_delta);
 		});
 
@@ -201,7 +201,7 @@ public:
 		on_scenes_initialized();
 	}
 
-	double rand_range(double M, double N) {
+	float rand_range(float M, float N) {
 		return M + (rand() / (RAND_MAX / (N - M)));
 	}
 
@@ -247,19 +247,19 @@ struct TestDollSimulationWithPositionCheck : public TestDollSimulationBase {
 	std::vector<NS::VarData> controlled_1_player_position;
 	std::vector<NS::VarData> controlled_2_player_position;
 
-	virtual void on_server_process(double p_delta) override {
+	virtual void on_server_process(float p_delta) override {
 		// Nothing to do.
 	}
 
-	virtual void on_client_1_process(double p_delta) override {
+	virtual void on_client_1_process(float p_delta) override {
 		controlled_1_player_position.push_back(controlled_1_peer1->get_xy());
 	}
 
-	virtual void on_client_2_process(double p_delta) override {
+	virtual void on_client_2_process(float p_delta) override {
 		controlled_2_player_position.push_back(controlled_2_peer2->get_xy());
 	}
 
-	virtual void on_scenes_processed(double p_delta) override {
+	virtual void on_scenes_processed(float p_delta) override {
 		const NS::FrameIndex controller_1_player_frame_index = peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index();
 		const NS::FrameIndex controller_2_player_frame_index = peer_2_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->get_current_frame_index();
 
@@ -316,10 +316,10 @@ struct TestDollSimulationStorePositions : public TestDollSimulationBase {
 	int doll_1_max_queued_input_count = 0;
 	int doll_2_max_queued_input_count = 0;
 
-	virtual void on_server_process(double p_delta) override {
+	virtual void on_server_process(float p_delta) override {
 	}
 
-	virtual void on_client_1_process(double p_delta) override {
+	virtual void on_client_1_process(float p_delta) override {
 		const NS::FrameIndex controller_1_player_frame_index = peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index();
 		const NS::FrameIndex controller_2_doll_frame_index = peer_1_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->get_current_frame_index();
 
@@ -330,7 +330,7 @@ struct TestDollSimulationStorePositions : public TestDollSimulationBase {
 		NS::MapFunc::assign(controlled_2_doll_position, controller_2_doll_frame_index, controlled_2_peer1->get_xy());
 	}
 
-	virtual void on_client_2_process(double p_delta) override {
+	virtual void on_client_2_process(float p_delta) override {
 		const NS::FrameIndex controller_2_player_frame_index = peer_2_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->get_current_frame_index();
 		const NS::FrameIndex controller_1_doll_frame_index = peer_2_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index();
 

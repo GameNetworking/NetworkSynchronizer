@@ -14,7 +14,7 @@
 
 namespace NS_Test {
 
-const double delta = 1.0 / 60.0;
+const float delta = 1.0 / 60.0;
 
 class MagnetSceneObject : public NS::LocalSceneObject {
 public:
@@ -92,10 +92,10 @@ public:
 		p_scene_sync.setup_controller(
 				p_id,
 				authoritative_peer_id,
-				[this](double p_delta, NS::DataBuffer &r_buffer) -> void { collect_inputs(p_delta, r_buffer); },
+				[this](float p_delta, NS::DataBuffer &r_buffer) -> void { collect_inputs(p_delta, r_buffer); },
 				[this](NS::DataBuffer &p_buffer) -> int { return count_input_size(p_buffer); },
 				[this](NS::DataBuffer &p_buffer_A, NS::DataBuffer &p_buffer_b) -> bool { return are_inputs_different(p_buffer_A, p_buffer_b); },
-				[this](double p_delta, NS::DataBuffer &p_buffer) -> void { controller_process(p_delta, p_buffer); });
+				[this](float p_delta, NS::DataBuffer &p_buffer) -> void { controller_process(p_delta, p_buffer); });
 
 		p_scene_sync.register_variable(p_id, "weight");
 		p_scene_sync.register_variable(p_id, "position");
@@ -156,13 +156,13 @@ public:
 		Vec3(0.0, 1.0, 0.0)
 	};
 
-	void collect_inputs(double p_delta, NS::DataBuffer &r_buffer) {
+	void collect_inputs(float p_delta, NS::DataBuffer &r_buffer) {
 		const NS::FrameIndex current_frame_index = scene_owner->scene_sync->get_controller_for_peer(authoritative_peer_id)->get_current_frame_index();
 		const int index = current_frame_index.id % 20;
 		r_buffer.add_normalized_vector3(inputs[index].x, inputs[index].y, inputs[index].z, NS::DataBuffer::COMPRESSION_LEVEL_3);
 	}
 
-	void controller_process(double p_delta, NS::DataBuffer &p_buffer) {
+	void controller_process(float p_delta, NS::DataBuffer &p_buffer) {
 		ASSERT_COND(p_delta == delta);
 		const float speed = 1.0;
 		double x;
@@ -194,7 +194,7 @@ public:
 	}
 };
 
-void process_magnet_simulation(NS::LocalSceneSynchronizer &scene_sync, double p_delta, MagnetSceneObject &p_mag) {
+void process_magnet_simulation(NS::LocalSceneSynchronizer &scene_sync, float p_delta, MagnetSceneObject &p_mag) {
 	ASSERT_COND(p_delta == delta);
 	const float pushing_force = 200.0;
 
@@ -219,7 +219,7 @@ void process_magnet_simulation(NS::LocalSceneSynchronizer &scene_sync, double p_
 	}
 }
 
-void process_magnets_simulation(NS::LocalSceneSynchronizer &scene_sync, double p_delta) {
+void process_magnets_simulation(NS::LocalSceneSynchronizer &scene_sync, float p_delta) {
 	for (const NS::ObjectData *od : scene_sync.get_sorted_objects_data()) {
 		if (!od) {
 			continue;
@@ -252,16 +252,16 @@ struct TestSimulationBase {
 
 private:
 	virtual void on_scenes_initialized() {}
-	virtual void on_server_process(double p_delta) {}
-	virtual void on_client_process(double p_delta) {}
-	virtual void on_scenes_processed(double p_delta) {}
+	virtual void on_server_process(float p_delta) {}
+	virtual void on_client_process(float p_delta) {}
+	virtual void on_scenes_processed(float p_delta) {}
 	virtual void on_scenes_done() {}
 
 public:
 	TestSimulationBase() {}
 	virtual ~TestSimulationBase() {}
 
-	double rand_range(double M, double N) {
+	float rand_range(float M, float N) {
 		return M + (rand() / (RAND_MAX / (N - M)));
 	}
 
@@ -292,16 +292,16 @@ public:
 		MagnetSceneObject *heavy_magnet_p1 = peer_1_scene.add_object<MagnetSceneObject>("magnet_2", server_scene.get_peer());
 
 		// Register the process
-		server_scene.scene_sync->register_process(controlled_obj_server->local_id, PROCESS_PHASE_POST, [=](double p_delta) -> void {
+		server_scene.scene_sync->register_process(controlled_obj_server->local_id, PROCESS_PHASE_POST, [=](float p_delta) -> void {
 			process_magnets_simulation(*server_scene.scene_sync, p_delta);
 		});
-		peer_1_scene.scene_sync->register_process(controlled_obj_p1->local_id, PROCESS_PHASE_POST, [=](double p_delta) -> void {
+		peer_1_scene.scene_sync->register_process(controlled_obj_p1->local_id, PROCESS_PHASE_POST, [=](float p_delta) -> void {
 			process_magnets_simulation(*peer_1_scene.scene_sync, p_delta);
 		});
-		server_scene.scene_sync->register_process(controlled_obj_server->local_id, PROCESS_PHASE_LATE, [=](double p_delta) -> void {
+		server_scene.scene_sync->register_process(controlled_obj_server->local_id, PROCESS_PHASE_LATE, [=](float p_delta) -> void {
 			on_server_process(p_delta);
 		});
-		peer_1_scene.scene_sync->register_process(controlled_obj_p1->local_id, PROCESS_PHASE_LATE, [=](double p_delta) -> void {
+		peer_1_scene.scene_sync->register_process(controlled_obj_p1->local_id, PROCESS_PHASE_LATE, [=](float p_delta) -> void {
 			on_client_process(p_delta);
 		});
 
@@ -336,7 +336,7 @@ public:
 		while (true) {
 			// Use a random delta, to make sure the NetSync can be processed
 			// by a normal process loop with dynamic `delta_time`.
-			const double rand_delta = rand_range(0.005, delta);
+			const float rand_delta = rand_range(0.005, delta);
 			server_scene.process(rand_delta);
 			peer_1_scene.process(rand_delta);
 
@@ -416,7 +416,7 @@ public:
 		});
 	}
 
-	virtual void on_server_process(double p_delta) override {
+	virtual void on_server_process(float p_delta) override {
 		if (controller_server->get_current_frame_index() == reset_position_on_frame) {
 			// Reset the character position only on the server, to simulate a desync.
 			controlled_obj_server->set_position(Vec3(0.0, 0.0, 0.0));
@@ -430,7 +430,7 @@ public:
 		}
 	}
 
-	virtual void on_scenes_processed(double p_delta) override {
+	virtual void on_scenes_processed(float p_delta) override {
 	}
 
 	virtual void on_scenes_done() override {
