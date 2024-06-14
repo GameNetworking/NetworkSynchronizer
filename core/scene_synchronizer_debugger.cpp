@@ -330,8 +330,8 @@ std::string compression_level_to_string(uint32_t p_type) {
 }
 #endif
 
-void dump_tracked_objects(const NS::SceneSynchronizerBase *p_scene_sync, nlohmann::json::object_t &p_dump) {
 #ifdef DEBUG_ENABLED
+void dump_tracked_objects(const NS::SceneSynchronizerBase *p_scene_sync, nlohmann::json::object_t &p_dump) {
 	p_dump.clear();
 
 	/*
@@ -354,8 +354,8 @@ void dump_tracked_objects(const NS::SceneSynchronizerBase *p_scene_sync, nlohman
 		p_dump[node_path] = object_dump;
 	}
 	*/
-#endif
 }
+#endif
 
 void SceneSynchronizerDebugger::scene_sync_process_start(const NS::SceneSynchronizerBase *p_scene_sync) {
 #ifdef DEBUG_ENABLED

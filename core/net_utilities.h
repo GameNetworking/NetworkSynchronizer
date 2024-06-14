@@ -279,7 +279,7 @@ private:
 	std::uint8_t compressed_latency = 0;
 
 	/// Get OUT packetloss in %
-	float out_packet_loss_percentage = 0.0;
+	float out_packet_loss_percentage = 0.0f;
 
 	/// Current jitter for this connection in milliseconds.
 	/// Jitter represents the average time divergence of all sent packets.
@@ -288,7 +288,7 @@ private:
 	///   100ms; the jitter will be 0.
 	/// - If the time difference is either 150ms or 100ms, the jitter will tend
 	///   towards 50ms.
-	float latency_jitter_ms = 0.0;
+	float latency_jitter_ms = 0.0f;
 
 public:
 	// In ms

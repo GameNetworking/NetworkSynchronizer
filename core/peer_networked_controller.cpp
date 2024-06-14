@@ -9,7 +9,6 @@
 #define METADATA_SIZE 1
 
 NS_NAMESPACE_BEGIN
-
 static inline unsigned int ns_encode_uint32(std::uint32_t p_uint, std::uint8_t *p_arr) {
 	for (int i = 0; i < 4; i++) {
 		*p_arr = p_uint & 0xFF;
@@ -108,7 +107,7 @@ bool PeerNetworkedController::has_another_instant_to_process_after(int p_i) cons
 }
 
 void PeerNetworkedController::process(float p_delta) {
-	if make_likely (controller && can_simulate()) {
+	if make_likely(controller && can_simulate()) {
 		// This function is registered as processed function, so it's called by the
 		// `SceneSync` in sync with the scene processing.
 		controller->process(p_delta);
@@ -308,7 +307,7 @@ bool PeerNetworkedController::__input_data_parse(
 	//
 	// Let's decode it!
 
-	const int data_len = p_data.size();
+	const int data_len = (int)p_data.size();
 
 	int ofs = 0;
 
@@ -341,7 +340,7 @@ bool PeerNetworkedController::__input_data_parse(
 
 		// Pad to 8 bits.
 		const int input_size_padded =
-				std::ceil(static_cast<float>(input_size_in_bits) / 8.0);
+				int(std::ceil(static_cast<float>(input_size_in_bits) / 8.0f));
 		ENSURE_V_MSG(ofs + input_size_padded <= data_len, false, "The arrived packet size doesn't meet the expected size.");
 
 		// Extract the data and copy into a BitArray.
@@ -369,7 +368,8 @@ bool PeerNetworkedController::__input_data_parse(
 }
 
 RemotelyControlledController::RemotelyControlledController(PeerNetworkedController *p_peer_controller) :
-		Controller(p_peer_controller) {}
+	Controller(p_peer_controller) {
+}
 
 void RemotelyControlledController::on_peer_update(bool p_peer_enabled) {
 	if (p_peer_enabled == peer_enabled) {
@@ -389,7 +389,7 @@ FrameIndex RemotelyControlledController::get_current_frame_index() const {
 }
 
 int RemotelyControlledController::get_inputs_count() const {
-	return frames_input.size();
+	return (int)frames_input.size();
 }
 
 FrameIndex RemotelyControlledController::last_known_frame_index() const {
@@ -403,7 +403,7 @@ FrameIndex RemotelyControlledController::last_known_frame_index() const {
 bool RemotelyControlledController::fetch_next_input(float p_delta) {
 	bool is_new_input = true;
 
-	if make_unlikely (current_input_buffer_id == FrameIndex::NONE) {
+	if make_unlikely(current_input_buffer_id == FrameIndex::NONE) {
 		// As initial packet, anything is good.
 		if (frames_input.empty() == false) {
 			// First input arrived.
@@ -419,11 +419,11 @@ bool RemotelyControlledController::fetch_next_input(float p_delta) {
 		const FrameIndex next_input_id = current_input_buffer_id + 1;
 		SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] The server is looking for: " + next_input_id, "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
-		if make_unlikely (streaming_paused) {
+		if make_unlikely(streaming_paused) {
 			SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] The streaming is paused.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 			// Stream is paused.
 			if (frames_input.empty() == false &&
-					frames_input.front().id >= next_input_id) {
+				frames_input.front().id >= next_input_id) {
 				// A new input has arrived while the stream is paused.
 				const bool is_buffer_void = (frames_input.front().buffer_size_bit - METADATA_SIZE) == 0;
 				streaming_paused = is_buffer_void;
@@ -436,13 +436,12 @@ bool RemotelyControlledController::fetch_next_input(float p_delta) {
 				peer_controller->set_inputs_buffer(BitArray(METADATA_SIZE), METADATA_SIZE, 0);
 				is_new_input = false;
 			}
-		} else if make_unlikely (frames_input.empty() == true) {
+		} else if make_unlikely(frames_input.empty() == true) {
 			// The input buffer is empty; a packet is missing.
 			SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] Missing input: " + std::to_string(next_input_id.id) + " Input buffer is void, i'm using the previous one!", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
 			is_new_input = false;
 			ghost_input_count += 1;
-
 		} else {
 			SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] The input buffer is not empty, so looking for the next input. Hopefully `" + std::to_string(next_input_id.id) + "`", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
@@ -575,9 +574,9 @@ void RemotelyControlledController::process(float p_delta) {
 #ifdef DEBUG_ENABLED
 	const bool is_new_input =
 #endif
-			fetch_next_input(p_delta);
+	fetch_next_input(p_delta);
 
-	if make_unlikely (current_input_buffer_id == FrameIndex::NONE) {
+	if make_unlikely(current_input_buffer_id == FrameIndex::NONE) {
 		// Skip this until the first input arrive.
 		SceneSynchronizerDebugger::singleton()->print(INFO, "Server skips this frame as the current_input_buffer_id == FrameIndex::NONE", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 		return;
@@ -608,8 +607,8 @@ bool RemotelyControlledController::receive_inputs(const std::vector<std::uint8_t
 	struct SCParseTmpData {
 		RemotelyControlledController &controller;
 	} tmp = {
-		*this,
-	};
+				*this,
+			};
 
 	const bool success = peer_controller->__input_data_parse(
 			p_data,
@@ -619,7 +618,7 @@ bool RemotelyControlledController::receive_inputs(const std::vector<std::uint8_t
 			[](void *p_user_pointer, FrameIndex p_input_id, int p_input_size_in_bits, const BitArray &p_bit_array) -> void {
 				SCParseTmpData *pd = static_cast<SCParseTmpData *>(p_user_pointer);
 
-				if make_unlikely (pd->controller.current_input_buffer_id != FrameIndex::NONE && pd->controller.current_input_buffer_id >= p_input_id) {
+				if make_unlikely(pd->controller.current_input_buffer_id != FrameIndex::NONE && pd->controller.current_input_buffer_id >= p_input_id) {
 					// We already have this input, so we don't need it anymore.
 					return;
 				}
@@ -664,7 +663,7 @@ bool RemotelyControlledController::receive_inputs(const std::vector<std::uint8_t
 
 ServerController::ServerController(
 		PeerNetworkedController *p_peer_controller) :
-		RemotelyControlledController(p_peer_controller) {
+	RemotelyControlledController(p_peer_controller) {
 }
 
 void ServerController::process(float p_delta) {
@@ -725,7 +724,7 @@ bool ServerController::receive_inputs(const std::vector<std::uint8_t> &p_data) {
 
 AutonomousServerController::AutonomousServerController(
 		PeerNetworkedController *p_peer_controller) :
-		ServerController(p_peer_controller) {
+	ServerController(p_peer_controller) {
 }
 
 bool AutonomousServerController::receive_inputs(const std::vector<std::uint8_t> &p_data) {
@@ -748,7 +747,7 @@ bool AutonomousServerController::fetch_next_input(float p_delta) {
 	SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
 	peer_controller->get_inputs_buffer_mut().dry();
 
-	if make_unlikely (current_input_buffer_id == FrameIndex::NONE) {
+	if make_unlikely(current_input_buffer_id == FrameIndex::NONE) {
 		// This is the first input.
 		current_input_buffer_id = FrameIndex{ { 0 } };
 	} else {
@@ -761,9 +760,9 @@ bool AutonomousServerController::fetch_next_input(float p_delta) {
 }
 
 PlayerController::PlayerController(PeerNetworkedController *p_peer_controller) :
-		Controller(p_peer_controller),
-		current_input_id(FrameIndex::NONE),
-		input_buffers_counter(0) {
+	Controller(p_peer_controller),
+	current_input_id(FrameIndex::NONE),
+	input_buffers_counter(0) {
 	event_handler_rewind_frame_begin =
 			peer_controller->scene_synchronizer->event_rewind_frame_begin.bind(std::bind(&PlayerController::on_rewind_frame_begin, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 
@@ -812,7 +811,7 @@ void PlayerController::notify_frame_checked(FrameIndex p_frame_index) {
 }
 
 int PlayerController::get_frames_count() const {
-	return frames_input.size();
+	return int(frames_input.size());
 }
 
 int PlayerController::count_frames_after(FrameIndex p_frame_index) const {
@@ -876,7 +875,7 @@ bool PlayerController::has_another_instant_to_process_after(int p_i) const {
 }
 
 void PlayerController::process(float p_delta) {
-	if make_unlikely (queued_instant_to_process >= 0) {
+	if make_unlikely(queued_instant_to_process >= 0) {
 		// There is a queued instant. It means the SceneSync is rewinding:
 		// instead to fetch a new input, read it from the stored snapshots.
 		DataBuffer ib(frames_input[queued_instant_to_process].inputs_buffer);
@@ -1032,7 +1031,6 @@ void PlayerController::send_frame_input_buffer_to_server() {
 
 					const bool are_different = peer_controller->controllable_are_inputs_different(pir_A, pir_B);
 					is_similar = !are_different;
-
 				} else if (frames_input[i].similarity == previous_input_similarity) {
 					// This input is similar to the previous one, the thing is
 					// that the similarity check was done on an older input.
@@ -1062,7 +1060,6 @@ void PlayerController::send_frame_input_buffer_to_server() {
 			frames_input[i].similarity = previous_input_id;
 
 			SceneSynchronizerDebugger::singleton()->notify_input_sent_to_server(peer_controller->authority_peer, frames_input[i].id.id, previous_input_id.id);
-
 		} else {
 			// This input is different from the previous one, so let's
 			// finalize the previous and start another one.
@@ -1083,7 +1080,7 @@ void PlayerController::send_frame_input_buffer_to_server() {
 			ofs += 1;
 
 			// Write the inputs
-			const int buffer_size = frames_input[i].inputs_buffer.get_bytes().size();
+			const int buffer_size = (int)frames_input[i].inputs_buffer.get_bytes().size();
 			MAKE_ROOM(buffer_size);
 			memcpy(
 					cached_packet_data.data() + ofs,
@@ -1118,7 +1115,7 @@ bool PlayerController::can_accept_new_inputs() const {
 }
 
 DollController::DollController(PeerNetworkedController *p_peer_controller) :
-		RemotelyControlledController(p_peer_controller) {
+	RemotelyControlledController(p_peer_controller) {
 	event_handler_received_snapshot =
 			peer_controller->scene_synchronizer->event_received_server_snapshot.bind(std::bind(&DollController::on_received_server_snapshot, this, std::placeholders::_1));
 
@@ -1156,8 +1153,8 @@ bool DollController::receive_inputs(const std::vector<uint8_t> &p_data) {
 	struct SCParseTmpData {
 		DollController &controller;
 	} tmp = {
-		*this,
-	};
+				*this,
+			};
 
 	const bool success = peer_controller->__input_data_parse(
 			p_data,
@@ -1237,7 +1234,7 @@ int DollController::fetch_optimal_queued_inputs() const {
 
 bool DollController::fetch_next_input(float p_delta) {
 	if (queued_instant_to_process >= 0) {
-		if make_unlikely (queued_frame_index_to_process == FrameIndex::NONE) {
+		if make_unlikely(queued_frame_index_to_process == FrameIndex::NONE) {
 			// This happens when the server didn't start to process this doll yet.
 			return false;
 		}
@@ -1263,7 +1260,7 @@ bool DollController::fetch_next_input(float p_delta) {
 		return false;
 	}
 
-	if make_unlikely (current_input_buffer_id == FrameIndex::NONE) {
+	if make_unlikely(current_input_buffer_id == FrameIndex::NONE) {
 		if (frames_input.size() > 0) {
 			// Anything, as first input is good.
 			set_frame_input(frames_input.front(), true);
@@ -1279,13 +1276,13 @@ bool DollController::fetch_next_input(float p_delta) {
 	int closest_frame_distance = std::numeric_limits<int>::max();
 	// NOTE: Iterating in reverse order since I've noticed it's likely to find
 	// the input at the end of this vector.
-	for (int i = frames_input.size() - 1; i >= 0; i--) {
+	for (int i = (int)frames_input.size() - 1; i >= 0; i--) {
 		if (frames_input[i].id == next_input_id) {
 			set_frame_input(frames_input[i], false);
 			return true;
 		}
 
-		const int distance = std::abs(std::int64_t(frames_input[i].id.id) - std::int64_t(next_input_id.id));
+		const int distance = (int)std::abs(std::int64_t(frames_input[i].id.id) - std::int64_t(next_input_id.id));
 		if (distance < closest_frame_distance) {
 			closest_frame_index = i;
 			closest_frame_distance = distance;
@@ -1320,7 +1317,7 @@ bool DollController::fetch_next_input(float p_delta) {
 void DollController::process(float p_delta) {
 	const bool is_new_input = fetch_next_input(p_delta);
 
-	if make_likely (current_input_buffer_id > FrameIndex{ { 0 } }) {
+	if make_likely(current_input_buffer_id > FrameIndex{ { 0 } }) {
 		// This operation is done here, because the doll process on a different
 		// timeline than the one processed by the client.
 		// Whenever it found a server snapshot, it's applied.
@@ -1358,7 +1355,7 @@ void DollController::notify_frame_checked(FrameIndex p_doll_frame_index) {
 		return;
 	}
 
-	if make_likely (p_doll_frame_index != FrameIndex::NONE) {
+	if make_likely(p_doll_frame_index != FrameIndex::NONE) {
 		// Removes all the inputs older than the known one (included).
 		while (!frames_input.empty() && frames_input.front().id <= p_doll_frame_index) {
 			if (frames_input.front().id == p_doll_frame_index) {
@@ -1396,7 +1393,7 @@ void DollController::notify_frame_checked(FrameIndex p_doll_frame_index) {
 }
 
 void DollController::clear_previously_generated_client_snapshots() {
-	if make_likely (current_input_buffer_id != FrameIndex::NONE) {
+	if make_likely(current_input_buffer_id != FrameIndex::NONE) {
 		// Removed all the client snapshots which input is more than the specified one
 		// to ensure the function `__pcr__fetch_recovery_info` works properly.
 		for (int i = int(client_snapshots.size()) - 1; i >= 0; i--) {
@@ -1547,13 +1544,13 @@ bool DollController::__pcr__fetch_recovery_info(
 		,
 		std::vector<ObjectNetId> *r_different_node_data
 #endif
-) {
+		) {
 	// ---------------------------------------------- Force input reconciliation
 	const Settings &settings = peer_controller->scene_synchronizer->get_settings();
 	if (p_frame_count_to_rewind >= settings.lag_compensation.doll_force_input_reconciliation_min_frames) {
 		const int optimal_queued_inputs = fetch_optimal_queued_inputs();
-		const float optimal_input_count = p_frame_count_to_rewind + optimal_queued_inputs;
-		const int input_count = frames_input.size();
+		const float optimal_input_count = float(p_frame_count_to_rewind + optimal_queued_inputs);
+		const int input_count = (int)frames_input.size();
 		if (input_count > (optimal_input_count + settings.lag_compensation.doll_force_input_reconciliation)) {
 			return false;
 		}
@@ -1588,7 +1585,7 @@ bool DollController::__pcr__fetch_recovery_info(
 			,
 			r_different_node_data
 #endif
-	);
+			);
 
 	return compare;
 }
@@ -1612,12 +1609,12 @@ void DollController::on_snapshot_applied(
 	//       - Delaying the input processing when the input buffer is small (with the goal of growing the buffer)
 	//       - Discarding part of the input buffer, if the buffer grown too much, to remain up-to-dated with the server.
 
-	if make_unlikely (!server_snapshots.empty() && server_snapshots.back().doll_executed_input == FrameIndex::NONE) {
+	if make_unlikely(!server_snapshots.empty() && server_snapshots.back().doll_executed_input == FrameIndex::NONE) {
 		// This controller is not simulating on the server. This function handles this case.
 		apply_snapshot_no_input_reconciliation(p_global_server_snapshot);
 	}
 
-	if make_likely (current_input_buffer_id != FrameIndex::NONE) {
+	if make_likely(current_input_buffer_id != FrameIndex::NONE) {
 		if (p_frame_count_to_rewind == 0) {
 			apply_snapshot_instant_input_reconciliation(p_global_server_snapshot, p_frame_count_to_rewind);
 		} else {
@@ -1642,8 +1639,8 @@ void DollController::apply_snapshot_instant_input_reconciliation(const Snapshot 
 	// This function assume the "frame count to rewind" is always 0.
 	ASSERT_COND(p_frame_count_to_rewind == 0);
 
-	const int input_count = frames_input.size();
-	if make_unlikely (input_count == 0) {
+	const int input_count = (int)frames_input.size();
+	if make_unlikely(input_count == 0) {
 		// When there are not inputs to process, it's much better not to apply
 		// any snapshot.
 		// The reason is that at some point it will receive inputs, and then
@@ -1663,7 +1660,7 @@ void DollController::apply_snapshot_instant_input_reconciliation(const Snapshot 
 	//    mainly to alter the input buffering size:
 	//    If the input buffer `frames_input` is too big it discards the superflous inputs.
 	//    If the input buffer is too small adds some fake inputs to delay the execution.
-	if make_likely (frames_input.back().id.id >= std::uint32_t(optimal_queued_inputs)) {
+	if make_likely(frames_input.back().id.id >= std::uint32_t(optimal_queued_inputs)) {
 		last_doll_compared_input = frames_input.back().id - optimal_queued_inputs;
 	} else {
 		last_doll_compared_input = FrameIndex{ { 0 } };
@@ -1705,10 +1702,10 @@ void DollController::apply_snapshot_rewinding_input_reconciliation(const Snapsho
 	//    on the current connection).
 	const int optimal_queued_inputs = fetch_optimal_queued_inputs();
 
-	const int input_count = frames_input.size();
+	const int input_count = (int)frames_input.size();
 	const DollSnapshot *server_snapshot = nullptr;
 	FrameIndex new_last_doll_compared_input = FrameIndex::NONE;
-	if make_likely (input_count > 0) {
+	if make_likely(input_count > 0) {
 		// 2. Fetch the best input to start processing.
 		const int optimal_input_count = p_frame_count_to_rewind + optimal_queued_inputs;
 
@@ -1717,7 +1714,7 @@ void DollController::apply_snapshot_rewinding_input_reconciliation(const Snapsho
 		// at the end of the reconcilation (rewinding) operation.
 
 		// 3. Fetch the ideal frame to reset.
-		if make_likely (frames_input.back().id.id >= std::uint32_t(optimal_input_count)) {
+		if make_likely(frames_input.back().id.id >= std::uint32_t(optimal_input_count)) {
 			new_last_doll_compared_input = frames_input.back().id - optimal_input_count;
 		} else {
 			new_last_doll_compared_input = FrameIndex{ { 0 } };
@@ -1729,7 +1726,7 @@ void DollController::apply_snapshot_rewinding_input_reconciliation(const Snapsho
 		bool server_snapshot_found = false;
 		for (auto it = server_snapshots.rbegin(); it != server_snapshots.rend(); it++) {
 			if (it->doll_executed_input < (new_last_doll_compared_input + optimal_input_count)) {
-				if make_likely (it->doll_executed_input > new_last_doll_compared_input) {
+				if make_likely(it->doll_executed_input > new_last_doll_compared_input) {
 					// This is the most common case: The server snapshot is in between the rewinding.
 					// Nothing to do here.
 				} else if (it->doll_executed_input == new_last_doll_compared_input) {
@@ -1756,7 +1753,7 @@ void DollController::apply_snapshot_rewinding_input_reconciliation(const Snapsho
 		}
 	}
 
-	if make_unlikely (input_count == 0 || new_last_doll_compared_input == FrameIndex::NONE) {
+	if make_unlikely(input_count == 0 || new_last_doll_compared_input == FrameIndex::NONE) {
 		// There are no inputs or there were no server snapshots to apply during
 		// the rewinding phase, so it's preferable to wait more inputs and snapshots
 		// so to safely apply the reconciliation without introducing any desynchronizations.
@@ -1765,7 +1762,7 @@ void DollController::apply_snapshot_rewinding_input_reconciliation(const Snapsho
 		// doesn't alter this doll timeline: At the end of the rewinding this
 		// doll will be exactly as is right now.
 		const FrameIndex frames_to_travel = FrameIndex{ { std::uint32_t(p_frame_count_to_rewind + optimal_queued_inputs) } };
-		if make_likely (current_input_buffer_id > frames_to_travel) {
+		if make_likely(current_input_buffer_id > frames_to_travel) {
 			last_doll_compared_input = current_input_buffer_id - frames_to_travel;
 		} else {
 			last_doll_compared_input = FrameIndex{ { 0 } };
@@ -1780,21 +1777,21 @@ void DollController::apply_snapshot_rewinding_input_reconciliation(const Snapsho
 	current_input_buffer_id = last_doll_compared_input;
 	queued_frame_index_to_process = last_doll_compared_input + 1;
 
-	if make_unlikely (server_snapshot) {
+	if make_unlikely(server_snapshot) {
 		// 6. Apply the server snapshot found during the point `4`.
 		//    That logic detected that this controller has the server snapshot
 		//    for the input we have to reset.
 		//    In this case, it's mandatory to apply that, to ensure the scene
 		//    reconciliation.
 		static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(server_snapshots.back().data, 0, 0, nullptr, true, true, true, true, true);
-	} else if make_likely (!client_snapshots.empty()) {
+	} else if make_likely(!client_snapshots.empty()) {
 		// 7. Get the closest available snapshot, and apply it, no need to be
 		//    precise here, since the process will apply the server snapshot
 		//    when available.
 		int distance = std::numeric_limits<int>::max();
 		DollSnapshot *best = nullptr;
 		for (auto &snap : client_snapshots) {
-			const int delta = std::abs(std::int64_t(last_doll_compared_input.id) - std::int64_t(snap.doll_executed_input.id));
+			const int delta = (int)std::abs(std::int64_t(last_doll_compared_input.id) - std::int64_t(snap.doll_executed_input.id));
 			if (delta < distance) {
 				best = &snap;
 				distance = delta;
@@ -1812,8 +1809,8 @@ void DollController::apply_snapshot_rewinding_input_reconciliation(const Snapsho
 }
 
 NoNetController::NoNetController(PeerNetworkedController *p_peer_controller) :
-		Controller(p_peer_controller),
-		frame_id(FrameIndex{ { 0 } }) {
+	Controller(p_peer_controller),
+	frame_id(FrameIndex{ { 0 } }) {
 }
 
 void NoNetController::process(float p_delta) {

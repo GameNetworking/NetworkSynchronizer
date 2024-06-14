@@ -66,7 +66,13 @@ public:
 	~SceneSynchronizerDebugger();
 
 	void set_file_system(NS::FileSystem *p_file_system);
-	NS::FileSystem *get_file_system() const { return file_system; }
+	NS::FileSystem *get_file_system() const {
+#ifdef DEBUG_ENABLED
+		return file_system;
+#else
+		return nullptr;
+#endif
+	}
 
 	void set_log_level(NS::PrintMessageType p_log_level);
 	NS::PrintMessageType get_log_level() const;

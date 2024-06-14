@@ -172,7 +172,7 @@ protected:
 
 	/// Fixed rate at which the NetSync has to produce frames.
 	int frames_per_seconds = 60;
-	float fixed_frame_delta = 1.0 / frames_per_seconds;
+	float fixed_frame_delta = 1.0f / frames_per_seconds;
 
 	/// This number is used to clamp the maximum amount of frames that is
 	/// possible to produce per frame by the client;
@@ -193,7 +193,7 @@ protected:
 	int max_server_input_buffer_size = 7;
 
 	/// Negligible packet loss we can just ignore.
-	float negligible_packet_loss = 0.001;
+	float negligible_packet_loss = 0.001f;
 
 	/// The worst packet loss.
 	/// NOTE: The smallest the more conservative the system is: increasing the
@@ -201,34 +201,34 @@ protected:
 	///       server before being processed.
 	///       Too small number would make the server collects way too few inputs.
 	/// Default 2.5%
-	float worst_packet_loss = 0.025;
+	float worst_packet_loss = 0.025f;
 
 	/// Amount of additional frames produced per second in % relative to
 	/// `frames_per_seconds` defined above.
-	float max_fps_acceleration_percentage = 0.2;
+	float max_fps_acceleration_percentage = 0.2f;
 
 	/// Interval (seconds) between each network statistic update sent to the clients
-	float netstats_update_interval_sec = 0.6;
+	float netstats_update_interval_sec = 0.6f;
 
 	int max_trickled_objects_per_update = 30;
-	float max_trickled_interpolation_alpha = 1.2;
+	float max_trickled_interpolation_alpha = 1.2f;
 
 	/// How much time passes between each snapshot sent by the server to confirm
 	/// a set of frames predicted by the client.
-	float frame_confirmation_timespan = 1.0;
+	float frame_confirmation_timespan = 1.0f;
 
 	/// This parameter is used to defines how many intervals the client can ever
 	/// predict.
 	/// The NetSync stops recording more frames, if the clients overflow this span.
 	/// - This is a way to keep the rewinginds smaller.
 	/// - This is a way to avoid the client to go too ahead the server.
-	float max_predicted_intervals = 3.0;
+	float max_predicted_intervals = 3.0f;
 
 	/// Can be 0.0 to update the relevancy each frame.
-	float objects_relevancy_update_time = 0.5;
+	float objects_relevancy_update_time = 0.5f;
 
 	/// Update the latency each 3 seconds.
-	float latency_update_rate = 3.0;
+	float latency_update_rate = 3.0f;
 
 	Settings settings;
 	bool settings_changed = true;
@@ -241,7 +241,7 @@ protected:
 	bool rewinding_in_progress = false;
 	bool end_sync = false;
 
-	std::map<int, NS::PeerData> peer_data;
+	std::map<int, PeerData> peer_data;
 
 	bool generate_id = false;
 

@@ -21,7 +21,7 @@ void encode_variable(int val, DataBuffer &r_buffer) {
 
 void decode_variable(int &val, DataBuffer &p_buffer) {
 	// TODO optimize
-	val = p_buffer.read_int(DataBuffer::COMPRESSION_LEVEL_0);
+	val = int(p_buffer.read_int(DataBuffer::COMPRESSION_LEVEL_0));
 }
 
 void encode_variable(float val, DataBuffer &r_buffer) {
@@ -51,10 +51,10 @@ void encode_variable(const std::vector<std::uint8_t> &val, DataBuffer &r_buffer)
 
 void decode_variable(std::vector<std::uint8_t> &val, DataBuffer &p_buffer) {
 	// TODO optimize?
-	const int size = p_buffer.read_uint(DataBuffer::COMPRESSION_LEVEL_1);
+	const std::uint64_t size = p_buffer.read_uint(DataBuffer::COMPRESSION_LEVEL_1);
 	val.resize(size);
 	for (int i = 0; i < size; i++) {
-		val[i] = p_buffer.read_uint(DataBuffer::COMPRESSION_LEVEL_3);
+		val[i] = std::uint8_t(p_buffer.read_uint(DataBuffer::COMPRESSION_LEVEL_3));
 	}
 }
 

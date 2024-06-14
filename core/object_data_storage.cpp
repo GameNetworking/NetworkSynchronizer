@@ -5,9 +5,8 @@
 #include "scene_synchronizer_debugger.h"
 
 NS_NAMESPACE_BEGIN
-
 ObjectDataStorage::ObjectDataStorage(SceneSynchronizerBase &p_sync) :
-		sync(p_sync) {
+	sync(p_sync) {
 }
 
 ObjectDataStorage::~ObjectDataStorage() {
@@ -27,7 +26,7 @@ ObjectData *ObjectDataStorage::allocate_object_data() {
 	ObjectData *od = new ObjectData(*this);
 
 	if (free_local_indices.empty()) {
-		od->local_id.id = objects_data.size();
+		od->local_id.id = ObjectLocalId::IdType(objects_data.size());
 		objects_data.push_back(od);
 	} else {
 		od->local_id.id = free_local_indices.back().id;
@@ -87,8 +86,8 @@ void ObjectDataStorage::object_set_net_id(ObjectData &p_object_data, ObjectNetId
 		}
 	} else {
 		// Expand the array
-		const uint32_t new_size = p_new_id.id + 1;
-		const uint32_t old_size = objects_data_organized_by_netid.size();
+		const std::size_t new_size = p_new_id.id + 1;
+		const std::size_t old_size = objects_data_organized_by_netid.size();
 		objects_data_organized_by_netid.resize(new_size);
 		// Set the new pointers to nullptr.
 		memset(objects_data_organized_by_netid.data() + old_size, 0, sizeof(void *) * (new_size - old_size));

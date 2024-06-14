@@ -7,11 +7,11 @@
 #include "scene_synchronizer_debugger.h"
 
 void NS::PeerData::set_latency(float p_latency) {
-	compressed_latency = std::round(std::clamp(p_latency, 0.f, 1000.0f) / 4.0);
+	compressed_latency = (std::uint8_t)std::round(std::clamp(p_latency, 0.f, 1000.0f) / 4.0f);
 }
 
 float NS::PeerData::get_latency() const {
-	return compressed_latency * 4.0;
+	return compressed_latency * 4.0f;
 }
 
 void NS::PeerData::make_controller() {
@@ -76,7 +76,7 @@ std::size_t NS::SyncGroup::add_new_sync_object(ObjectData *p_object_data, bool p
 		}
 	} else {
 		// Make sure the node is not contained into the realtime sync.
-		const int rsn_index = find_simulated(*p_object_data);
+		const std::size_t rsn_index = find_simulated(*p_object_data);
 		if (rsn_index != VecFunc::index_none()) {
 			remove_sync_object(rsn_index, true);
 		}

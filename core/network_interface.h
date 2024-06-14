@@ -107,7 +107,7 @@ public: // ---------------------------------------------------------------- APIs
 					internal_call_rpc(p_rpc_func, p_db);
 				};
 
-		const std::uint8_t rpc_index = rpcs_info.size();
+		const std::uint8_t rpc_index = std::uint8_t(rpcs_info.size());
 		rpcs_info.push_back({ p_reliable, p_call_local, func });
 		return RpcHandle<ARGS...>(rpc_index);
 	}
