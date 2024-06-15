@@ -31,12 +31,12 @@
 #ifdef DEBUG_DATA_BUFFER
 #define DEB_WRITE(dt, compression, input)                                                             \
 	if (debug_enabled) {                                                                              \
-		SceneSynchronizerDebugger::singleton()->databuffer_write(dt, compression, bit_offset, input); \
+		SceneSynchronizerDebugger::singleton()->databuffer_write(dt, compression, bit_offset, std::string(input).c_str()); \
 	}
 
 #define DEB_READ(dt, compression, input)                                                             \
 	if (debug_enabled) {                                                                             \
-		SceneSynchronizerDebugger::singleton()->databuffer_read(dt, compression, bit_offset, input); \
+		SceneSynchronizerDebugger::singleton()->databuffer_read(dt, compression, bit_offset, std::string(input).c_str()); \
 	}
 
 // Beware that the following two macros were written to make sure nested function call doesn't add debug calls,

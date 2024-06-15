@@ -20,18 +20,18 @@ bool BitArray::resize_in_bytes(int p_bytes_count) {
 }
 
 int BitArray::size_in_bytes() const {
-	return bytes.size();
+	return int(bytes.size());
 }
 
 bool BitArray::resize_in_bits(int p_bits_count) {
 	ENSURE_V_MSG(p_bits_count >= 0, false, "Bits count can't be negative");
-	const int min_size = std::ceil((static_cast<float>(p_bits_count)) / 8.0);
+	const int min_size = int(std::ceil((static_cast<float>(p_bits_count)) / 8.0f));
 	bytes.resize(min_size);
 	return true;
 }
 
 int BitArray::size_in_bits() const {
-	return bytes.size() * 8;
+	return int(bytes.size() * 8);
 }
 
 bool BitArray::store_bits(int p_bit_offset, std::uint64_t p_value, int p_bits) {

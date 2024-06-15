@@ -2,7 +2,10 @@
 
 #ifdef DEBUG_ENABLED
 
+// At the moment this debugger is disabled. We need an easier solution to write the UI debugger.
+#ifdef UI_DEBUGGER_ENABLED
 #include "__generated__debugger_ui.h"
+#endif
 
 #include "data_buffer.h"
 #include "net_utilities.h"
@@ -107,14 +110,15 @@ void SceneSynchronizerDebugger::prepare_dumping(int p_peer) {
 		d["time"] = file_system->get_time();
 
 		ENSURE(file_system->store_file_string(
-				main_dump_directory_path + "/" + "dump-info-" + dump_name + /*"-" + std::to_string(p_peer) +*/ ".json",
-				d.dump()));
+			main_dump_directory_path + "/" + "dump-info-" + dump_name + /*"-" + std::to_string(p_peer) +*/ ".json",
+			d.dump()));
 	}
 
 #endif
 }
 
 void SceneSynchronizerDebugger::setup_debugger_python_ui() {
+#ifdef UI_DEBUGGER_ENABLED
 #ifdef DEBUG_ENABLED
 	ASSERT_COND_MSG(!file_system, "Please set the FileSystem using the function set_file_system().");
 
@@ -128,6 +132,7 @@ void SceneSynchronizerDebugger::setup_debugger_python_ui() {
 
 	// Copy the python UI into the directory.
 	ENSURE(file_system->store_file_buffer(path, (std::uint8_t *)__debugger_ui_code, __debugger_ui_code_size));
+#endif
 #endif
 }
 
@@ -163,7 +168,6 @@ void SceneSynchronizerDebugger::write_dump(int p_peer, uint32_t p_frame_index) {
 
 	if ((frame_dump__frame_events & FrameEvent::CLIENT_DESYNC_DETECTED) > 0) {
 		frame_summary += "Client desync; ";
-
 	} else if ((frame_dump__frame_events & FrameEvent::CLIENT_DESYNC_DETECTED_SOFT) > 0) {
 		frame_summary += "Client desync; No controller rewind; ";
 	}
