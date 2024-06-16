@@ -156,7 +156,7 @@ void LocalNetworkInterface::stop_listening_peer_connection() {
 	processor_handler_disconnected = NS::NullPHandler;
 }
 
-int LocalNetworkInterface::fetch_local_peer_id() const {
+int LocalNetworkInterface::get_local_peer_id() const {
 	return network->get_peer();
 }
 
@@ -164,7 +164,7 @@ void LocalNetworkInterface::fetch_connected_peers(std::vector<int> &p_connected_
 	p_connected_peers.clear();
 	// Get all the connected peers.
 	for (const auto &[peer_id, _] : network->get_connected_peers()) {
-		if (peer_id != fetch_local_peer_id()) {
+		if (peer_id != get_local_peer_id()) {
 			p_connected_peers.push_back(peer_id);
 		}
 	}

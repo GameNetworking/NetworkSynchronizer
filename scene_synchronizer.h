@@ -926,7 +926,10 @@ class SceneSynchronizer : public SceneSynchronizerBase {
 	NetInterfaceClass custom_network_interface;
 
 public:
-	SceneSynchronizer(bool p_pedantic_checks) :
+	// Note: Pedantic checks is meant to be used with unit tests (mainly).
+	// It does a bunch of extra checks that ensure write/read.
+	// Eventually can be turned on to also verify everything works in game too.
+	SceneSynchronizer(bool p_pedantic_checks = false) :
 			SceneSynchronizerBase(&custom_network_interface, p_pedantic_checks) {}
 
 	NetInterfaceClass &get_network_interface() {

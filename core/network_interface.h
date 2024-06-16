@@ -66,7 +66,7 @@ public: // ----------------------------------------------------------- Interface
 	virtual void stop_listening_peer_connection() = 0;
 
 	/// Fetch the current client peer_id
-	virtual int fetch_local_peer_id() const = 0;
+	virtual int get_local_peer_id() const = 0;
 
 	/// Fetch the list with all the connected peers.
 	virtual void fetch_connected_peers(std::vector<int> &p_connected_peers) const = 0;
@@ -87,7 +87,7 @@ public: // ----------------------------------------------------------- Interface
 public: // ---------------------------------------------------------------- APIs
 	/// Can be used to verify if the local peer is the authority of this unit.
 	virtual bool is_local_peer_authority_of_this_unit() const {
-		return get_unit_authority() == fetch_local_peer_id();
+		return get_unit_authority() == get_local_peer_id();
 	}
 
 	/// Returns the peer that remotelly called the currently executed rpc function.
@@ -167,7 +167,7 @@ private: // ------------------------------------------------------- RPC internal
 template <typename... ARGs>
 void RpcHandle<ARGs...>::rpc(NetworkInterface &p_interface, int p_peer_id, ARGs... p_args) const {
 	ENSURE(p_interface.rpcs_info.size() > index);
-	ASSERT_COND_MSG(p_interface.fetch_local_peer_id() != p_peer_id, "Sending an rpc to self is not allowed.");
+	ASSERT_COND_MSG(p_interface.get_local_peer_id() != p_peer_id, "Sending an rpc to self is not allowed.");
 
 	DataBuffer db;
 	db.begin_write(0);
@@ -182,7 +182,7 @@ void RpcHandle<ARGs...>::rpc(NetworkInterface &p_interface, int p_peer_id, ARGs.
 	db.begin_read();
 
 	if (p_interface.rpcs_info[index].call_local) {
-		p_interface.rpc_receive(p_interface.fetch_local_peer_id(), db);
+		p_interface.rpc_receive(p_interface.get_local_peer_id(), db);
 	}
 
 	db.begin_read();

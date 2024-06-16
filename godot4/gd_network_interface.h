@@ -37,7 +37,7 @@ public: // ---------------------------------------------------------------- APIs
 	virtual void stop_listening_peer_connection() override;
 
 	/// Fetch the current client peer_id
-	virtual int fetch_local_peer_id() const override;
+	virtual int get_local_peer_id() const override;
 
 	/// Fetch the list with all the connected peers.
 	virtual void fetch_connected_peers(std::vector<int> &p_connected_peers) const override;

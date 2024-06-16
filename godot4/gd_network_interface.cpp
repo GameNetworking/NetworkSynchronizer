@@ -68,7 +68,7 @@ void GdNetworkInterface::stop_listening_peer_connection() {
 	on_peer_disconnected_callback = [](int) {};
 }
 
-int GdNetworkInterface::fetch_local_peer_id() const {
+int GdNetworkInterface::get_local_peer_id() const {
 	if (owner && owner->get_multiplayer().is_valid()) {
 		return owner->get_multiplayer()->get_unique_id();
 	}

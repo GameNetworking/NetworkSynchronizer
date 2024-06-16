@@ -750,7 +750,7 @@ bool GdSceneSynchronizer::client_is_object_simulating(NS::ObjectNetId p_id) cons
 Array GdSceneSynchronizer::local_controller_get_controlled_nodes() const {
 	Array a;
 
-	const std::vector<NS::ObjectData *> *objects = scene_synchronizer.get_peer_controlled_objects_data(scene_synchronizer.get_network_interface().fetch_local_peer_id());
+	const std::vector<NS::ObjectData *> *objects = scene_synchronizer.get_peer_controlled_objects_data(scene_synchronizer.get_network_interface().get_local_peer_id());
 	if (objects) {
 		for (auto object : *objects) {
 			Node *n = scene_synchronizer.from_handle(object->app_object_handle);

@@ -269,9 +269,11 @@ struct PeerAuthorityData {
 };
 
 struct PeerData {
-	std::unique_ptr<class PeerNetworkedController> controller;
+	class PeerNetworkedController* controller = nullptr;
 
 public:
+	~PeerData();
+	
 	PeerAuthorityData authority_data;
 
 private:
@@ -308,10 +310,10 @@ public:
 
 	void make_controller();
 	PeerNetworkedController *get_controller() {
-		return controller.get();
+		return controller;
 	}
 	const PeerNetworkedController *get_controller() const {
-		return controller.get();
+		return controller;
 	}
 };
 

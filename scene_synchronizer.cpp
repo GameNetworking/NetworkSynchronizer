@@ -116,7 +116,7 @@ void SceneSynchronizerBase::setup(SynchronizerManager &p_synchronizer_interface)
 	reset_controllers();
 
 	// Spawn the self peer.
-	on_peer_connected(get_network_interface().fetch_local_peer_id());
+	on_peer_connected(get_network_interface().get_local_peer_id());
 
 	// Init the peers already connected.
 	std::vector<int> peer_ids;
@@ -1183,7 +1183,7 @@ void SceneSynchronizerBase::rpc_notify_netstats(DataBuffer &p_data) {
 	ENSURE_MSG(!p_data.is_buffer_failed(), "Failed to read compressed input count.");
 
 	// 1. Updates the peer network statistics
-	const int local_peer = network_interface->fetch_local_peer_id();
+	const int local_peer = network_interface->get_local_peer_id();
 	PeerData *local_peer_data = NS::MapFunc::get_or_null(peer_data, local_peer);
 	ENSURE_MSG(local_peer_data, "The local peer was not found. This is a bug. PeerID: " + std::to_string(local_peer))
 	local_peer_data->set_compressed_latency(compressed_latency);
@@ -1488,9 +1488,9 @@ void SceneSynchronizerBase::process_functions__execute() {
 		{
 			// Fetch the connected peers and sort them
 			std::vector<int> peers;
-			for (const auto &[peer, _] : peer_data) {
-				peers.push_back(peer);
-			}
+			//for (const auto [peer, _] : peer_data) {
+			//	peers.push_back(peer);
+			//}
 			std::sort(peers.begin(), peers.end());
 
 			// For each peer, add the process function.
@@ -1642,7 +1642,7 @@ void SceneSynchronizerBase::reset_controller(PeerNetworkedController &p_controll
 			p_controller.controller_type = PeerNetworkedController::CONTROLLER_TYPE_SERVER;
 			p_controller.controller = new ServerController(&p_controller);
 		}
-	} else if (get_network_interface().fetch_local_peer_id() == p_controller.get_authority_peer()) {
+	} else if (get_network_interface().get_local_peer_id() == p_controller.get_authority_peer()) {
 		p_controller.controller_type = PeerNetworkedController::CONTROLLER_TYPE_PLAYER;
 		p_controller.controller = new PlayerController(&p_controller);
 	} else {
@@ -2098,7 +2098,7 @@ void ServerSynchronizer::process_snapshot_notificator() {
 		delta_snapshot.begin_write(0);
 
 		for (int peer_id : group.get_listening_peers()) {
-			if (peer_id == scene_synchronizer->get_network_interface().fetch_local_peer_id()) {
+			if (peer_id == scene_synchronizer->get_network_interface().get_local_peer_id()) {
 				// Never send the snapshot to self (notice `self` is the server).
 				continue;
 			}
@@ -2428,7 +2428,7 @@ void ServerSynchronizer::process_trickled_sync(float p_delta) {
 
 void ServerSynchronizer::update_peers_net_statistics(float p_delta) {
 	for (auto &[peer, peer_data] : scene_synchronizer->get_peers()) {
-		if (peer == scene_synchronizer->get_network_interface().fetch_local_peer_id()) {
+		if (peer == scene_synchronizer->get_network_interface().get_local_peer_id()) {
 			// No need to update the ping for `self` (the server).
 			continue;
 		}
@@ -2548,7 +2548,7 @@ void ClientSynchronizer::process(float p_delta) {
 
 #if DEBUG_ENABLED
 	if (player_controller && player_controller->can_simulate()) {
-		const int client_peer = scene_synchronizer->network_interface->fetch_local_peer_id();
+		const int client_peer = scene_synchronizer->network_interface->get_local_peer_id();
 		SceneSynchronizerDebugger::singleton()->write_dump(client_peer, player_controller->get_current_frame_index().id);
 		SceneSynchronizerDebugger::singleton()->start_new_frame();
 	}
@@ -2634,7 +2634,7 @@ void ClientSynchronizer::on_controller_reset(PeerNetworkedController &p_controll
 	if (p_controller.is_player_controller()) {
 		// This can't trigger because the reset function creates the player
 		// controller when the following condition is true.
-		ASSERT_COND(p_controller.get_authority_peer() == scene_synchronizer->get_network_interface().fetch_local_peer_id());
+		ASSERT_COND(p_controller.get_authority_peer() == scene_synchronizer->get_network_interface().get_local_peer_id());
 
 		// Reset the node_data.
 		player_controller = &p_controller;
@@ -2846,7 +2846,7 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 			*scene_synchronizer,
 			*last_received_server_snapshot,
 			client_snapshots.front(),
-			scene_synchronizer->network_interface->fetch_local_peer_id(),
+			scene_synchronizer->network_interface->get_local_peer_id(),
 			&r_no_rewind_recover,
 			scene_synchronizer->debug_rewindings_enabled ? &differences_info : nullptr
 #ifdef DEBUG_ENABLED
@@ -3191,7 +3191,7 @@ void ClientSynchronizer::process_simulation(float p_delta) {
 		if (sub_ticks > 0) {
 			// This is an intermediate sub tick, so store the dumlatency.
 			// The last sub frame is not dumped, untile the end of the frame, so we can capture any subsequent message.
-			const int client_peer = scene_synchronizer->network_interface->fetch_local_peer_id();
+			const int client_peer = scene_synchronizer->network_interface->get_local_peer_id();
 			SceneSynchronizerDebugger::singleton()->write_dump(client_peer, player_controller->get_current_frame_index().id);
 			SceneSynchronizerDebugger::singleton()->start_new_frame();
 		}
@@ -3830,7 +3830,7 @@ void ClientSynchronizer::apply_snapshot(
 	if (!p_skip_change_event) {
 		scene_synchronizer->change_events_begin(p_flag);
 	}
-	const int this_peer = scene_synchronizer->network_interface->fetch_local_peer_id();
+	const int this_peer = scene_synchronizer->network_interface->get_local_peer_id();
 
 	if (!p_skip_simulated_objects_update) {
 		update_simulated_objects_list(p_snapshot.simulated_objects);
