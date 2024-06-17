@@ -46,7 +46,7 @@ public:
 	/// 		If you have a pointer pointing to a parent class, cast it using
 	///			`static_cast` first, or you will cause a segmentation fault.
 	virtual ObjectHandle fetch_app_object(const std::string &p_object_name) override;
-	virtual uint64_t get_object_id(ObjectHandle p_app_object_handle) const override;
+	virtual uint64_t debug_only_get_object_id(ObjectHandle p_app_object_handle) const override;
 	virtual std::string get_object_name(ObjectHandle p_app_object_handle) const override;
 	virtual void setup_synchronizer_for(ObjectHandle p_app_object_handle, ObjectLocalId p_id) override;
 };

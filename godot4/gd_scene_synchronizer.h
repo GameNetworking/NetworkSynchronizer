@@ -77,6 +77,7 @@ public: // ---------------------------------------- Scene Synchronizer Interface
 
 #ifdef NS_DEBUG_ENABLED
 	virtual void debug_only_validate_objects() override;
+	virtual uint64_t debug_only_get_object_id(NS::ObjectHandle p_app_object_handle) const override;
 #endif
 
 	virtual void on_add_object_data(NS::ObjectData &p_object_data) override;
@@ -84,7 +85,6 @@ public: // ---------------------------------------- Scene Synchronizer Interface
 	virtual void update_objects_relevancy() override;
 
 	virtual NS::ObjectHandle fetch_app_object(const std::string &p_object_name) override;
-	virtual uint64_t get_object_id(NS::ObjectHandle p_app_object_handle) const override;
 	virtual std::string get_object_name(NS::ObjectHandle p_app_object_handle) const override;
 	virtual void setup_synchronizer_for(NS::ObjectHandle p_app_object_handle, NS::ObjectLocalId p_id) override;
 

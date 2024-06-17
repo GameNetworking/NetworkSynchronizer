@@ -20,6 +20,8 @@ public:
 
 #ifdef NS_DEBUG_ENABLED
 	virtual void debug_only_validate_objects() {}
+	// Unique ID that is used to validate the object and ensure that destroyed objects are properly unregistered.
+	virtual uint64_t debug_only_get_object_id(ObjectHandle p_app_object_handle) const = 0;
 #endif
 
 	/// Add object data and generates the `ObjectNetId` if allowed.
@@ -36,7 +38,6 @@ public:
 	virtual void snapshot_set_custom_data(const VarData &r_custom_data) {}
 
 	virtual ObjectHandle fetch_app_object(const std::string &p_object_name) = 0;
-	virtual uint64_t get_object_id(ObjectHandle p_app_object_handle) const = 0;
 	virtual std::string get_object_name(ObjectHandle p_app_object_handle) const = 0;
 	virtual void setup_synchronizer_for(ObjectHandle p_app_object_handle, ObjectLocalId p_id) = 0;
 };

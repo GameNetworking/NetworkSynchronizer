@@ -353,7 +353,7 @@ void GdSceneSynchronizer::debug_only_validate_objects() {
 	for (uint32_t i = 0; i < scene_synchronizer.get_all_object_data().size(); i += 1) {
 		const NS::ObjectData *nd = scene_synchronizer.get_all_object_data()[i];
 		if (nd) {
-			if (ObjectDB::get_instance(ObjectID(nd->instance_id)) == nullptr) {
+			if (ObjectDB::get_instance(ObjectID(nd->debug_object_id)) == nullptr) {
 				// Mark for removal.
 				null_objects.push_back(nd->app_object_handle);
 			}
@@ -386,7 +386,7 @@ NS::ObjectHandle GdSceneSynchronizer::fetch_app_object(const std::string &p_obje
 	return NS::ObjectHandle::NONE;
 }
 
-uint64_t GdSceneSynchronizer::get_object_id(NS::ObjectHandle p_app_object_handle) const {
+uint64_t GdSceneSynchronizer::debug_only_get_object_id(NS::ObjectHandle p_app_object_handle) const {
 	return scene_synchronizer.from_handle(p_app_object_handle)->get_instance_id();
 }
 

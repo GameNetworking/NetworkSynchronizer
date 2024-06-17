@@ -372,7 +372,7 @@ void SceneSynchronizerBase::register_app_object(ObjectHandle p_app_object_handle
 		}
 
 		od->set_net_id(ObjectNetId::NONE);
-		od->instance_id = synchronizer_manager->get_object_id(p_app_object_handle);
+		od->debug_object_id = synchronizer_manager->debug_only_get_object_id(p_app_object_handle);
 		od->object_name = synchronizer_manager->get_object_name(p_app_object_handle);
 		od->app_object_handle = p_app_object_handle;
 

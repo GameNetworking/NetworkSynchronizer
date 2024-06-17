@@ -103,7 +103,7 @@ ObjectHandle LocalSceneSynchronizer::fetch_app_object(const std::string &p_objec
 	return ObjectHandle::NONE;
 }
 
-uint64_t LocalSceneSynchronizer::get_object_id(ObjectHandle p_app_object_handle) const {
+uint64_t LocalSceneSynchronizer::debug_only_get_object_id(ObjectHandle p_app_object_handle) const {
 	// No Object ID.
 	return 0;
 }

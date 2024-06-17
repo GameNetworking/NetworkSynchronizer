@@ -68,7 +68,9 @@ public:
 	} controller_funcs;
 
 public:
-	uint64_t instance_id = 0; // TODO remove this?
+#ifdef NS_DEBUG_ENABLED
+	uint64_t debug_object_id = 0;
+#endif
 	std::string object_name;
 	// The local application object handle associated to this `NodeData`.
 	ObjectHandle app_object_handle = ObjectHandle::NONE;
