@@ -2300,8 +2300,9 @@ void ServerSynchronizer::generate_snapshot_object_data(
 
 	// This is necessary to allow the client decode the snapshot even if it
 	// doesn't know this object.
-	std::uint8_t vars_count = (std::uint8_t)p_object_data->vars.size();
-	r_snapshot_db.add(vars_count);
+	const int buffer_offset_for_vars_size_bits = r_snapshot_db.get_bit_offset();
+	std::uint16_t vars_size_bits = 0;
+	r_snapshot_db.add(vars_size_bits);
 
 	// This is assuming the client and the server have the same vars registered
 	// with the same order.
@@ -2333,10 +2334,20 @@ void ServerSynchronizer::generate_snapshot_object_data(
 #endif
 
 		r_snapshot_db.add(var_has_value);
+		vars_size_bits += 1;
 		if (var_has_value) {
+			const int pre_write = r_snapshot_db.get_bit_offset();
 			SceneSynchronizerBase::var_data_encode(r_snapshot_db, var.var.value);
+			const int post_write = r_snapshot_db.get_bit_offset();
+			vars_size_bits += post_write - pre_write;
 		}
 	}
+
+	// Now write the buffer size in bits.
+	const int buffer_offset_after_vars = r_snapshot_db.get_bit_offset();
+	r_snapshot_db.seek(buffer_offset_for_vars_size_bits);
+	r_snapshot_db.add(vars_size_bits);
+	r_snapshot_db.seek(buffer_offset_after_vars);
 }
 
 void ServerSynchronizer::process_trickled_sync(float p_delta) {
@@ -3374,21 +3385,13 @@ bool ClientSynchronizer::parse_sync_data(
 		}
 
 		// Now it's time to fetch the variables.
-		std::uint8_t vars_count;
-		p_snapshot.read(vars_count);
+		std::uint16_t vars_size_in_bits;
+		p_snapshot.read(vars_size_in_bits);
 		NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `vars_count` was expected here.");
 
 		if (skip_object) {
 			// Skip all the variables for this object.
-			for (std::uint8_t rvid = 0; rvid < vars_count; rvid++) {
-				bool var_has_value = false;
-				p_snapshot.read(var_has_value);
-				if (var_has_value) {
-					VarData value;
-					SceneSynchronizerBase::var_data_decode(value, p_snapshot);
-					NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `variable value` was expected at this point. Object: `" + synchronizer_object_data->object_name + "` Var: `NOT AVAILABLE BECOUSE THE OBJECT IS UNKNOWN AT THIS MOMENT.`");
-				}
-			}
+			p_snapshot.seek(p_snapshot.get_bit_offset() + vars_size_in_bits);
 		} else {
 			for (auto &var_desc : synchronizer_object_data->vars) {
 				bool var_has_value = false;

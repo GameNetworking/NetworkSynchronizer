@@ -10,6 +10,9 @@
 
 NS_NAMESPACE_BEGIN
 
+//typedef std::function<void(VarData &val)> var_data_get_func;
+//typedef std::function<void(const VarData &val)> var_data_set_func;
+
 struct NameAndVar {
 	std::string name;
 	VarData value;
