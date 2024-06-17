@@ -170,10 +170,6 @@ void LocalNetworkInterface::fetch_connected_peers(std::vector<int> &p_connected_
 	}
 }
 
-int LocalNetworkInterface::get_unit_authority() const {
-	return authoritative_peer_id;
-}
-
 bool LocalNetworkInterface::is_local_peer_networked() const {
 	return network->get_peer() != 0;
 }

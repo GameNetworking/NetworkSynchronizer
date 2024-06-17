@@ -42,17 +42,11 @@ public: // ---------------------------------------------------------------- APIs
 	/// Fetch the list with all the connected peers.
 	virtual void fetch_connected_peers(std::vector<int> &p_connected_peers) const override;
 
-	/// Get the peer id controlling this unit.
-	virtual int get_unit_authority() const override;
-
 	/// Can be used to verify if the local peer is connected to a server.
 	virtual bool is_local_peer_networked() const override;
 
 	/// Can be used to verify if the local peer is the server.
 	virtual bool is_local_peer_server() const override;
-
-	/// Can be used to verify if the local peer is the authority of this unit.
-	virtual bool is_local_peer_authority_of_this_unit() const override;
 
 	virtual void rpc_send(int p_peer_recipient, bool p_reliable, NS::DataBuffer &&p_buffer) override;
 	void gd_rpc_receive(const Vector<uint8_t> &p_args);

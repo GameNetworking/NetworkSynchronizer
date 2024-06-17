@@ -86,10 +86,6 @@ void GdNetworkInterface::fetch_connected_peers(std::vector<int> &p_connected_pee
 	}
 }
 
-int GdNetworkInterface::get_unit_authority() const {
-	return owner->get_multiplayer_authority();
-}
-
 bool GdNetworkInterface::is_local_peer_networked() const {
 	return owner->get_tree() &&
 			owner->get_tree()->get_multiplayer()->get_multiplayer_peer()->get_class_name() != "OfflineMultiplayerPeer";
@@ -101,10 +97,6 @@ bool GdNetworkInterface::is_local_peer_server() const {
 	} else {
 		return false;
 	}
-}
-
-bool GdNetworkInterface::is_local_peer_authority_of_this_unit() const {
-	return owner->is_multiplayer_authority();
 }
 
 void NS_GD_Test::test_var_data_conversin() {

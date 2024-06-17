@@ -71,9 +71,6 @@ public: // ----------------------------------------------------------- Interface
 	/// Fetch the list with all the connected peers.
 	virtual void fetch_connected_peers(std::vector<int> &p_connected_peers) const = 0;
 
-	/// Get the peer id controlling this unit.
-	virtual int get_unit_authority() const = 0;
-
 	/// Can be used to verify if the local peer is connected to a server.
 	virtual bool is_local_peer_networked() const = 0;
 	/// Can be used to verify if the local peer is the server.
@@ -85,11 +82,6 @@ public: // ----------------------------------------------------------- Interface
 	virtual void server_update_net_stats(int p_peer, PeerData &r_peer_data) const = 0;
 
 public: // ---------------------------------------------------------------- APIs
-	/// Can be used to verify if the local peer is the authority of this unit.
-	virtual bool is_local_peer_authority_of_this_unit() const {
-		return get_unit_authority() == get_local_peer_id();
-	}
-
 	/// Returns the peer that remotelly called the currently executed rpc function.
 	/// Should be called always from an rpc function.
 	int rpc_get_sender() const {
