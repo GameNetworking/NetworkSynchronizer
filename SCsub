@@ -12,6 +12,8 @@ env_network_synchronizer = env_modules.Clone()
 if "tracy_enable" in env and env["tracy_enable"] == "yes":
     env_network_synchronizer.Append(CPPDEFINES=["TRACY_ENABLE"])
 
+# TODO ensure debugs are enabled only in debug builds.
+env_network_synchronizer.Append(CPPDEFINES=["NS_DEBUG_ENABLED"])
 
 env_network_synchronizer.Append(CPPDEFINES=["DISABLE_DEBUG_DATA_BUFFER"])
 
