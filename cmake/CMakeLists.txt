@@ -74,6 +74,8 @@ set(NS_SRC_FILES
 	${NS_ROOT}/core/object_data.cpp
 	${NS_ROOT}/core/object_data_storage.h
 	${NS_ROOT}/core/object_data_storage.cpp
+	${NS_ROOT}/core/peer_data.h
+	${NS_ROOT}/core/peer_data.cpp
 	${NS_ROOT}/core/peer_networked_controller.h
 	${NS_ROOT}/core/peer_networked_controller.cpp
 	${NS_ROOT}/core/processor.h
