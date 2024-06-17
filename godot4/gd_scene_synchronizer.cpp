@@ -325,16 +325,6 @@ void GdSceneSynchronizer::on_init_synchronizer(bool p_was_generating_ids) {
 	set_process_internal(true);
 	low_level_peer = get_multiplayer()->get_multiplayer_peer().ptr();
 
-	std::string debugger_mode;
-	if (scene_synchronizer.is_server()) {
-		debugger_mode = "server";
-	} else if (scene_synchronizer.is_client()) {
-		debugger_mode = "client";
-	} else if (scene_synchronizer.is_no_network()) {
-		debugger_mode = "nonet";
-	}
-	SceneSynchronizerDebugger::singleton()->setup_debugger(debugger_mode, 0);
-
 	// Setup the debugger log level.
 	const int log_level = GLOBAL_GET("NetworkSynchronizer/log_level");
 	if (log_level == 0) {

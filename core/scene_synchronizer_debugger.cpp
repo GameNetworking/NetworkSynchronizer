@@ -75,11 +75,11 @@ void SceneSynchronizerDebugger::setup_debugger(const std::string &p_dump_name, i
 		setup_done = true;
 	}
 
-	ASSERT_COND_MSG(!file_system, "Please set the FileSystem using the function set_file_system().");
-
-	// Setup directories.
-	main_dump_directory_path = file_system->get_base_dir() + "/net-sync-debugs/dump";
-	dump_name = p_dump_name;
+	if (file_system) {
+		// Setup directories.
+		main_dump_directory_path = file_system->get_base_dir() + "/net-sync-debugs/dump";
+		dump_name = p_dump_name;
+	}
 
 	prepare_dumping(p_peer);
 	setup_debugger_python_ui();
@@ -93,7 +93,7 @@ void SceneSynchronizerDebugger::prepare_dumping(int p_peer) {
 		return;
 	}
 
-	ASSERT_COND_MSG(!file_system, "Please set the FileSystem using the function set_file_system().");
+	NS_ENSURE_MSG(!file_system, "Please set the FileSystem using the function set_file_system().");
 
 	// Prepare the dir.
 	{
@@ -110,8 +110,8 @@ void SceneSynchronizerDebugger::prepare_dumping(int p_peer) {
 		d["time"] = file_system->get_time();
 
 		NS_ENSURE(file_system->store_file_string(
-			main_dump_directory_path + "/" + "dump-info-" + dump_name + /*"-" + std::to_string(p_peer) +*/ ".json",
-			d.dump()));
+				main_dump_directory_path + "/" + "dump-info-" + dump_name + /*"-" + std::to_string(p_peer) +*/ ".json",
+				d.dump()));
 	}
 
 #endif
@@ -120,7 +120,7 @@ void SceneSynchronizerDebugger::prepare_dumping(int p_peer) {
 void SceneSynchronizerDebugger::setup_debugger_python_ui() {
 #ifdef UI_DEBUGGER_ENABLED
 #ifdef NS_DEBUG_ENABLED
-	ASSERT_COND_MSG(!file_system, "Please set the FileSystem using the function set_file_system().");
+	NS_ENSURE_MSG(!file_system, "Please set the FileSystem using the function set_file_system().");
 
 	// Verify if file exists.
 	const std::string path = main_dump_directory_path + "/debugger.py";
@@ -146,6 +146,8 @@ void SceneSynchronizerDebugger::write_dump(int p_peer, uint32_t p_frame_index) {
 		// Nothing to write.
 		return;
 	}
+
+	NS_ENSURE_MSG(!file_system, "Please set the FileSystem using the function set_file_system().");
 
 	std::string file_path = "";
 	{

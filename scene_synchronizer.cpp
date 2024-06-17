@@ -1086,6 +1086,21 @@ void SceneSynchronizerBase::init_synchronizer(bool p_was_generating_ids) {
 	reset_controllers();
 
 	process_functions__clear();
+
+	// Setup debugger mode.
+	{
+		std::string debugger_mode;
+		if (is_server()) {
+			debugger_mode = "server";
+		} else if (is_client()) {
+			debugger_mode = "client";
+		} else if (is_no_network()) {
+			debugger_mode = "nonet";
+		}
+
+		SceneSynchronizerDebugger::singleton()->setup_debugger(debugger_mode, network_interface->get_local_peer_id());
+	}
+
 	synchronizer_manager->on_init_synchronizer(p_was_generating_ids);
 }
 
