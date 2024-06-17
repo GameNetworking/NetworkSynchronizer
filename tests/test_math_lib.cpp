@@ -12,6 +12,7 @@ Vec3::operator NS::VarData() const {
 	return vd;
 }
 
+
 Vec3 Vec3::from(const NS::VarData &p_vd) {
 	Vec3 v;
 	v.x = p_vd.data.vec.x;

@@ -21,6 +21,7 @@ class TDSControlledObject : public NS::LocalSceneObject {
 public:
 	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
 	bool modify_input_on_next_frame = false;
+	NS::VarData xy;
 
 	TDSControlledObject() = default;
 
@@ -43,24 +44,25 @@ public:
 				std::bind(&TDSControlledObject::are_inputs_different, this, std::placeholders::_1, std::placeholders::_2),
 				std::bind(&TDSControlledObject::controller_process, this, std::placeholders::_1, std::placeholders::_2));
 
-		p_scene_sync.register_variable(p_id, "xy");
+		p_scene_sync.register_variable(
+				p_id,
+				"xy",
+				[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const char *p_var_name, const NS::VarData &p_value) {
+					static_cast<TDSControlledObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->xy.copy(p_value);
+				},
+				[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const char *p_var_name, NS::VarData &r_value) {
+					r_value.copy(static_cast<const TDSControlledObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->xy);
+				});
 	}
 
 	void set_xy(double x, double y) {
-		NS::VarData vd;
-		vd.data.vec.x = x;
-		vd.data.vec.y = y;
-		vd.type = 0;
-		NS::MapFunc::assign(variables, std::string("xy"), std::move(vd));
+		xy.data.vec.x = x;
+		xy.data.vec.y = y;
+		xy.type = 0;
 	}
 
 	NS::VarData get_xy() const {
-		const NS::VarData *vd = NS::MapFunc::get_or_null(variables, std::string("xy"));
-		if (vd) {
-			return NS::VarData::make_copy(*vd);
-		} else {
-			return NS::VarData(0., 0.);
-		}
+		return NS::VarData::make_copy(xy);
 	}
 
 	// ------------------------------------------------- NetController interface

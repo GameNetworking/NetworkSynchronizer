@@ -442,9 +442,11 @@ void SceneSynchronizerBase::setup_controller(
 	}
 }
 
-void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const std::string &p_variable) {
+void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const std::string &p_variable, VarDataSetFunc p_set_func, VarDataGetFunc p_get_func) {
 	NS_ENSURE(p_id != ObjectLocalId::NONE);
 	NS_ENSURE(!p_variable.empty());
+	NS_ENSURE(p_set_func);
+	NS_ENSURE(p_get_func);
 
 	NS::ObjectData *object_data = get_object_data(p_id);
 	NS_ENSURE(object_data);
@@ -452,18 +454,20 @@ void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const std::str
 	VarId var_id = object_data->find_variable_id(p_variable);
 	if (var_id == VarId::NONE) {
 		// The variable is not yet registered.
-		bool valid = false;
 		VarData old_val;
-		valid = synchronizer_manager->get_variable(object_data->app_object_handle, p_variable.data(), old_val);
-		if (valid == false) {
-			SceneSynchronizerDebugger::singleton()->print(ERROR, "The variable `" + p_variable + "` on the node `" + object_data->object_name + "` was not found, make sure the variable exist.", network_interface->get_owner_name());
-		}
+		p_get_func(
+				*synchronizer_manager,
+				object_data->app_object_handle,
+				p_variable.data(),
+				old_val);
 		var_id = VarId{ { uint32_t(object_data->vars.size()) } };
 		object_data->vars.push_back(
 				NS::VarDescriptor(
 						var_id,
 						p_variable,
 						std::move(old_val),
+						p_set_func,
+						p_get_func,
 						false,
 						true));
 	} else {
@@ -1669,7 +1673,8 @@ void SceneSynchronizerBase::pull_object_changes(NS::ObjectData &p_object_data) {
 		VarData new_val;
 		{
 			NS_PROFILE_NAMED("get_variable")
-			synchronizer_manager->get_variable(
+			var_desc.get_func(
+					*synchronizer_manager,
 					p_object_data.app_object_handle,
 					var_desc.var.name.c_str(),
 					new_val);
@@ -2326,7 +2331,8 @@ void ServerSynchronizer::generate_snapshot_object_data(
 		if (scene_synchronizer->pedantic_checks) {
 			// Make sure the value read from `var.var.value` equals to the one set on the scene.
 			VarData current_val;
-			scene_synchronizer->get_synchronizer_manager().get_variable(
+			var.get_func(
+					scene_synchronizer->get_synchronizer_manager(),
 					p_object_data->app_object_handle,
 					var.var.name.c_str(),
 					current_val);
@@ -3891,15 +3897,17 @@ void ClientSynchronizer::apply_snapshot(
 			const std::string &variable_name = snap_object_vars[v.id].name;
 			const VarData &snap_value = snap_object_vars[v.id].value;
 			VarData current_val;
-			const bool get_var_success = scene_synchronizer->synchronizer_manager->get_variable(
+			object_data->vars[v.id].get_func(
+					*scene_synchronizer->synchronizer_manager,
 					object_data->app_object_handle,
 					variable_name.c_str(),
 					current_val);
 
-			if (!get_var_success || !SceneSynchronizerBase::var_data_compare(current_val, snap_value)) {
+			if (!SceneSynchronizerBase::var_data_compare(current_val, snap_value)) {
 				object_data->vars[v.id].var.value.copy(snap_value);
 
-				scene_synchronizer->synchronizer_manager->set_variable(
+				object_data->vars[v.id].set_func(
+						*scene_synchronizer->synchronizer_manager,
 						object_data->app_object_handle,
 						variable_name.c_str(),
 						snap_value);
@@ -3912,7 +3920,8 @@ void ClientSynchronizer::apply_snapshot(
 #ifdef NS_DEBUG_ENABLED
 				if (scene_synchronizer->pedantic_checks) {
 					// Make sure the set value matches the one just set.
-					scene_synchronizer->synchronizer_manager->get_variable(
+					object_data->vars[v.id].get_func(
+							*scene_synchronizer->synchronizer_manager,
 							object_data->app_object_handle,
 							variable_name.c_str(),
 							current_val);

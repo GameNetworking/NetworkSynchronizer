@@ -116,27 +116,6 @@ void LocalSceneSynchronizer::setup_synchronizer_for(ObjectHandle p_app_object_ha
 	from_handle(p_app_object_handle)->setup_synchronizer(*get_scene()->scene_sync, p_id);
 }
 
-void LocalSceneSynchronizer::set_variable(ObjectHandle p_app_object_handle, const char *p_var_name, const VarData &p_val) {
-	LocalSceneObject *lso = from_handle(p_app_object_handle);
-	auto element = lso->variables.find(std::string(p_var_name));
-	if (element != lso->variables.end()) {
-		element->second.copy(p_val);
-	}
-}
-
-bool LocalSceneSynchronizer::get_variable(const ObjectHandle p_app_object_handle, const char *p_var_name, VarData &r_val) const {
-	const LocalSceneObject *lso = from_handle(p_app_object_handle);
-	auto element = lso->variables.find(std::string(p_var_name));
-	if (element != lso->variables.end()) {
-		r_val.copy(element->second);
-		return true;
-	} else {
-		// For convenience, this never fails.
-		r_val = VarData();
-		return true;
-	}
-}
-
 LocalScene *LocalSceneObject::get_scene() const {
 	return scene_owner;
 }

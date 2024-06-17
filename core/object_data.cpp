@@ -29,12 +29,23 @@ NameAndVar NameAndVar::make_copy(const NameAndVar &p_other) {
 	return named_var;
 }
 
-VarDescriptor::VarDescriptor(VarId p_id, const std::string &p_name, VarData &&p_val, bool p_skip_rewinding, bool p_enabled) :
+VarDescriptor::VarDescriptor(
+		VarId p_id,
+		const std::string &p_name,
+		VarData &&p_val,
+		VarDataSetFunc p_set_func,
+		VarDataGetFunc p_get_func,
+		bool p_skip_rewinding,
+		bool p_enabled) :
 		id(p_id),
+		set_func(p_set_func),
+		get_func(p_get_func),
 		skip_rewinding(p_skip_rewinding),
 		enabled(p_enabled) {
 	var.name = p_name;
 	var.value = std::move(p_val);
+	ASSERT_COND_MSG(set_func, "Please ensure that all the functions have a valid set function.");
+	ASSERT_COND_MSG(get_func, "Please ensure that all the functions have a valid get function.");
 }
 
 bool VarDescriptor::operator<(const VarDescriptor &p_other) const {

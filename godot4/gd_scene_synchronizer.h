@@ -87,8 +87,6 @@ public: // ---------------------------------------- Scene Synchronizer Interface
 	virtual uint64_t get_object_id(NS::ObjectHandle p_app_object_handle) const override;
 	virtual std::string get_object_name(NS::ObjectHandle p_app_object_handle) const override;
 	virtual void setup_synchronizer_for(NS::ObjectHandle p_app_object_handle, NS::ObjectLocalId p_id) override;
-	virtual void set_variable(NS::ObjectHandle p_app_object_handle, const char *p_name, const NS::VarData &p_val) override;
-	virtual bool get_variable(NS::ObjectHandle p_app_object_handle, const char *p_name, NS::VarData &p_val) const override;
 
 public: // ------------------------------------------------------- RPC Interface
 	// This funtion is used to sync data betweend the server and the client.

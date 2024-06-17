@@ -19,6 +19,8 @@ const float delta = 1.0f / 60.0f;
 class MagnetSceneObject : public NS::LocalSceneObject {
 public:
 	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
+	float weight = 1.0;
+	Vec3 position;
 
 	virtual void on_scene_entry() override {
 		set_weight(1.0);
@@ -29,8 +31,23 @@ public:
 
 	virtual void setup_synchronizer(NS::LocalSceneSynchronizer &p_scene_sync, NS::ObjectLocalId p_id) override {
 		local_id = p_id;
-		p_scene_sync.register_variable(p_id, "weight");
-		p_scene_sync.register_variable(p_id, "position");
+		p_scene_sync.register_variable(
+				p_id, "weight",
+				[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const char *p_var_name, const NS::VarData &p_value) {
+					static_cast<MagnetSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->weight = p_value.data.f32;
+				},
+				[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const char *p_var_name, NS::VarData &r_value) {
+					r_value.data.f32 = static_cast<const MagnetSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->weight;
+				});
+
+		p_scene_sync.register_variable(
+				p_id, "position",
+				[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const char *p_var_name, const NS::VarData &p_value) {
+					static_cast<MagnetSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->position = Vec3::from(p_value);
+				},
+				[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const char *p_var_name, NS::VarData &r_value) {
+					r_value = static_cast<const MagnetSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->position;
+				});
 	}
 
 	virtual void on_scene_exit() override {
@@ -38,40 +55,27 @@ public:
 	}
 
 	void set_weight(float w) {
-		NS::VarData vd;
-		vd.type = 1;
-		vd.data.f32 = w;
-		NS::MapFunc::assign(variables, std::string("weight"), std::move(vd));
+		weight = w;
 	}
 
 	float get_weight() const {
-		const NS::VarData *vd = NS::MapFunc::get_or_null(variables, std::string("weight"));
-		if (vd) {
-			return vd->data.f32;
-		} else {
-			return 1.0;
-		}
+		return weight;
 	}
 
 	void set_position(const Vec3 &p_pos) {
-		NS::VarData vd = p_pos;
-		vd.type = 2;
-		NS::MapFunc::assign(variables, std::string("position"), std::move(vd));
+		position = p_pos;
 	}
 
 	Vec3 get_position() const {
-		const NS::VarData *vd = NS::MapFunc::get_or_null(variables, std::string("position"));
-		if (vd) {
-			return Vec3::from(*vd);
-		} else {
-			return Vec3();
-		}
+		return position;
 	}
 };
 
 class TSLocalNetworkedController : public NS::LocalSceneObject {
 public:
 	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
+	float weight = 1.0;
+	Vec3 position;
 
 	TSLocalNetworkedController() = default;
 
@@ -97,39 +101,39 @@ public:
 				[this](NS::DataBuffer &p_buffer_A, NS::DataBuffer &p_buffer_b) -> bool { return are_inputs_different(p_buffer_A, p_buffer_b); },
 				[this](float p_delta, NS::DataBuffer &p_buffer) -> void { controller_process(p_delta, p_buffer); });
 
-		p_scene_sync.register_variable(p_id, "weight");
-		p_scene_sync.register_variable(p_id, "position");
+		p_scene_sync.register_variable(
+				p_id, "weight",
+				[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const char *p_var_name, const NS::VarData &p_value) {
+					static_cast<TSLocalNetworkedController *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->weight = p_value.data.f32;
+				},
+				[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const char *p_var_name, NS::VarData &r_value) {
+					r_value.data.f32 = static_cast<const TSLocalNetworkedController *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->weight;
+				});
+
+		p_scene_sync.register_variable(
+				p_id, "position",
+				[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const char *p_var_name, const NS::VarData &p_value) {
+					static_cast<TSLocalNetworkedController *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->position = Vec3::from(p_value);
+				},
+				[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const char *p_var_name, NS::VarData &r_value) {
+					r_value = static_cast<const TSLocalNetworkedController *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->position;
+				});
 	}
 
 	void set_weight(float w) {
-		NS::VarData vd;
-		vd.data.f32 = w;
-		vd.type = 1;
-		NS::MapFunc::assign(variables, std::string("weight"), std::move(vd));
+		weight = w;
 	}
 
 	float get_weight() const {
-		const NS::VarData *vd = NS::MapFunc::get_or_null(variables, std::string("weight"));
-		if (vd) {
-			return vd->data.f32;
-		} else {
-			return 1.0;
-		}
+		return weight;
 	}
 
 	void set_position(const Vec3 &p_pos) {
-		NS::VarData vd = p_pos;
-		vd.type = 2;
-		NS::MapFunc::assign(variables, std::string("position"), std::move(vd));
+		position = p_pos;
 	}
 
 	Vec3 get_position() const {
-		const NS::VarData *vd = NS::MapFunc::get_or_null(variables, std::string("position"));
-		if (vd) {
-			return Vec3::from(*vd);
-		} else {
-			return Vec3();
-		}
+		return position;
 	}
 
 	// ------------------------------------------------- NetController interface

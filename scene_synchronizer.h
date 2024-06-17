@@ -39,8 +39,6 @@ public:
 	virtual uint64_t get_object_id(ObjectHandle p_app_object_handle) const = 0;
 	virtual std::string get_object_name(ObjectHandle p_app_object_handle) const = 0;
 	virtual void setup_synchronizer_for(ObjectHandle p_app_object_handle, ObjectLocalId p_id) = 0;
-	virtual void set_variable(ObjectHandle p_app_object_handle, const char *p_var_name, const VarData &p_val) = 0;
-	virtual bool get_variable(ObjectHandle p_app_object_handle, const char *p_var_name, VarData &p_val) const = 0;
 };
 
 struct LagCompensationSettings {
@@ -413,7 +411,7 @@ public: // ---------------------------------------------------------------- APIs
 			std::function<int(DataBuffer & /*p_data_buffer*/)> p_count_input_size_func,
 			std::function<bool(DataBuffer & /*p_data_buffer_A*/, DataBuffer & /*p_data_buffer_B*/)> p_are_inputs_different_func,
 			std::function<void(float /*delta*/, DataBuffer & /*p_data_buffer*/)> p_process_func);
-	void register_variable(ObjectLocalId p_id, const std::string &p_variable);
+	void register_variable(ObjectLocalId p_id, const std::string &p_variable, VarDataSetFunc p_set_func, VarDataGetFunc p_get_func);
 	void unregister_variable(ObjectLocalId p_id, const std::string &p_variable);
 
 	ObjectNetId get_app_object_net_id(ObjectLocalId p_local_id) const;

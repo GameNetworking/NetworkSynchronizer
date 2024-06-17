@@ -413,28 +413,6 @@ void GdSceneSynchronizer::setup_synchronizer_for(NS::ObjectHandle p_app_object_h
 	}
 }
 
-void GdSceneSynchronizer::set_variable(NS::ObjectHandle p_app_object_handle, const char *p_name, const NS::VarData &p_val) {
-	Node *node = scene_synchronizer.from_handle(p_app_object_handle);
-	Variant v;
-	GdSceneSynchronizer::convert(v, p_val);
-	node->set(StringName(p_name), v);
-}
-
-bool GdSceneSynchronizer::get_variable(NS::ObjectHandle p_app_object_handle, const char *p_name, NS::VarData &r_val) const {
-#ifdef NS_PROFILING_ENABLED
-	std::string info = std::string("Var name: ") + p_name;
-	NS_PROFILE_WITH_INFO(info);
-#endif
-
-	const Node *node = scene_synchronizer.from_handle(p_app_object_handle);
-	bool valid = false;
-	Variant val = node->get(StringName(p_name), &valid);
-	if (valid) {
-		GdSceneSynchronizer::convert(r_val, val);
-	}
-	return valid;
-}
-
 void GdSceneSynchronizer::set_netstats_update_interval_sec(float p_delay) {
 	scene_synchronizer.set_netstats_update_interval_sec(p_delay);
 }
@@ -595,7 +573,29 @@ const Node *GdSceneSynchronizer::get_node_from_id_const(uint32_t p_id, bool p_ex
 }
 
 void GdSceneSynchronizer::register_variable(Node *p_node, const StringName &p_variable) {
-	scene_synchronizer.register_variable(scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node)), std::string(String(p_variable).utf8()));
+	scene_synchronizer.register_variable(
+			scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node)),
+			std::string(String(p_variable).utf8()),
+			[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const char *p_var_name, const NS::VarData &p_value) {
+				Node *node = GdSceneSynchronizer::SyncClass::from_handle(p_handle);
+				Variant v;
+				GdSceneSynchronizer::convert(v, p_value);
+				node->set(StringName(p_var_name), v);
+			},
+			[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const char *p_var_name, NS::VarData &r_value) {
+#ifdef NS_PROFILING_ENABLED
+				std::string info = std::string("Var name: ") + p_name;
+				NS_PROFILE_WITH_INFO(info);
+#endif
+
+				const Node *node = GdSceneSynchronizer::SyncClass::from_handle(p_handle);
+				bool valid = false;
+				Variant val = node->get(StringName(p_var_name), &valid);
+				if (valid) {
+					GdSceneSynchronizer::convert(r_value, val);
+				}
+				return valid;
+			});
 }
 
 void GdSceneSynchronizer::unregister_variable(Node *p_node, const StringName &p_variable) {
