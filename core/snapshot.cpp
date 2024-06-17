@@ -29,7 +29,7 @@ bool compare_vars(
 	const NS::NameAndVar *s_vars = p_server_vars.data();
 	const NS::NameAndVar *c_vars = p_client_vars.data();
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	bool is_equal = true;
 #endif
 
@@ -84,7 +84,7 @@ bool compare_vars(
 							"[Server name: `" + s_vars[var_index].name + "` " +
 							"Client name: `" + c_vars[var_index].name + "`].");
 				}
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 				is_equal = false;
 #else
 				return false;
@@ -93,7 +93,7 @@ bool compare_vars(
 		}
 	}
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	return is_equal;
 #else
 	return true;
@@ -136,12 +136,12 @@ bool NS::Snapshot::compare(
 		const int p_skip_objects_not_controlled_by_peer,
 		Snapshot *r_no_rewind_recover,
 		std::vector<std::string> *r_differences_info
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 		,
 		std::vector<ObjectNetId> *r_different_node_data
 #endif
 ) {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	bool is_equal = true;
 #endif
 
@@ -150,7 +150,7 @@ bool NS::Snapshot::compare(
 		if (r_differences_info) {
 			r_differences_info->push_back("Difference detected: simulated_object count is different snapA: " + std::to_string(p_snap_A.simulated_objects.size()) + " snapB: " + std::to_string(p_snap_B.simulated_objects.size()) + ".");
 		}
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 		is_equal = false;
 #else
 		return false;
@@ -161,7 +161,7 @@ bool NS::Snapshot::compare(
 				if (r_differences_info) {
 					r_differences_info->push_back("Difference detected: simulated object index `" + std::to_string(i) + "` value is snapA `" + std::to_string(p_snap_A.simulated_objects[i].id) + "` snapB `" + std::to_string(p_snap_B.simulated_objects[i].id) + "`.");
 				}
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 				is_equal = false;
 #else
 				return false;
@@ -174,7 +174,7 @@ bool NS::Snapshot::compare(
 		if (r_differences_info) {
 			r_differences_info->push_back("Difference detected: custom_data is not set on both snapshots.");
 		}
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 		is_equal = false;
 #else
 		return false;
@@ -185,7 +185,7 @@ bool NS::Snapshot::compare(
 		if (r_differences_info) {
 			r_differences_info->push_back("Difference detected: custom_data is different.");
 		}
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 		is_equal = false;
 #else
 		return false;
@@ -216,7 +216,7 @@ bool NS::Snapshot::compare(
 			if (r_differences_info) {
 				r_differences_info->push_back("Difference detected: The B snapshot doesn't contain this node: " + rew_object_data->object_name);
 			}
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 			is_equal = false;
 #else
 			return false;
@@ -234,7 +234,7 @@ bool NS::Snapshot::compare(
 				if (r_differences_info) {
 					r_differences_info->push_back("Difference detected: The node status on snapshot B is different. NODE: " + rew_object_data->object_name);
 				}
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 				is_equal = false;
 #else
 				return false;
@@ -242,14 +242,14 @@ bool NS::Snapshot::compare(
 			}
 		}
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 		if (are_nodes_different && r_different_node_data) {
 			r_different_node_data->push_back(net_object_id);
 		}
 #endif
 	}
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	return is_equal;
 #else
 	return true;

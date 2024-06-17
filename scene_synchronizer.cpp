@@ -24,7 +24,7 @@ void (*SceneSynchronizerBase::print_code_message_func)(const char *p_function, c
 void (*SceneSynchronizerBase::print_flush_stdout_func)() = nullptr;
 
 SceneSynchronizerBase::SceneSynchronizerBase(NetworkInterface *p_network_interface, bool p_pedantic_checks) :
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 		pedantic_checks(p_pedantic_checks),
 #endif
 		network_interface(p_network_interface),
@@ -156,7 +156,7 @@ void SceneSynchronizerBase::process(float p_delta) {
 		settings_changed = false;
 	}
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	ASSERT_COND_MSG(synchronizer, "Never execute this function unless this synchronizer is ready.");
 
 	synchronizer_manager->debug_only_validate_objects();
@@ -377,7 +377,7 @@ void SceneSynchronizerBase::register_app_object(ObjectHandle p_app_object_handle
 		od->app_object_handle = p_app_object_handle;
 
 		if (generate_id) {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 			// When generate_id is true, the id must always be undefined.
 			ASSERT_COND(od->get_net_id() == ObjectNetId::NONE);
 #endif
@@ -471,7 +471,7 @@ void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const std::str
 		object_data->vars[var_id.id].enabled = true;
 	}
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	for (VarId v = VarId{ { 0 } }; v < VarId{ { uint32_t(object_data->vars.size()) } }; v += 1) {
 		// This can't happen, because the IDs are always consecutive, or NONE.
 		ASSERT_COND(object_data->vars[v.id].id == v);
@@ -1012,7 +1012,7 @@ void SceneSynchronizerBase::on_peer_disconnected(int p_peer) {
 	// Clear the process function to make sure the peer process functions are removed.
 	process_functions__clear();
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	ASSERT_COND_MSG(peer_data.count(p_peer) <= 0, "The peer was just removed. This can't be triggered.");
 #endif
 
@@ -1233,7 +1233,7 @@ void SceneSynchronizerBase::rpc_notify_netstats(DataBuffer &p_data) {
 		client_sync->acceleration_fps_timer = 0.0;
 	}
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	if (debug_server_speedup) {
 		SceneSynchronizerDebugger::singleton()->print(
 				INFO,
@@ -1307,7 +1307,7 @@ void SceneSynchronizerBase::detect_and_signal_changed_variables(int p_flags) {
 void SceneSynchronizerBase::change_events_begin(int p_flag) {
 	NS_PROFILE
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	// This can't happen because at the end these are reset.
 	ASSERT_COND(!recover_in_progress);
 	ASSERT_COND(!reset_in_progress);
@@ -1799,7 +1799,7 @@ void ServerSynchronizer::process(float p_delta) {
 
 	SceneSynchronizerDebugger::singleton()->scene_sync_process_end(scene_synchronizer);
 
-#if DEBUG_ENABLED
+#if NS_DEBUG_ENABLED
 	// Write the debug dump for each peer.
 	for (auto &peer_it : scene_synchronizer->peer_data) {
 		if make_unlikely (!peer_it.second.get_controller()) {
@@ -1826,7 +1826,7 @@ void ServerSynchronizer::on_peer_disconnected(int p_peer_id) {
 }
 
 void ServerSynchronizer::on_object_data_added(NS::ObjectData &p_object_data) {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	// Can't happen on server
 	ASSERT_COND(!scene_synchronizer->is_recovered());
 	// On server the ID is always known.
@@ -1862,7 +1862,7 @@ void ServerSynchronizer::on_object_data_controller_changed(NS::ObjectData *p_obj
 }
 
 void ServerSynchronizer::on_variable_added(NS::ObjectData *p_object_data, const std::string &p_var_name) {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	// Can't happen on server
 	ASSERT_COND(!scene_synchronizer->is_recovered());
 	// On server the ID is always known.
@@ -1875,7 +1875,7 @@ void ServerSynchronizer::on_variable_added(NS::ObjectData *p_object_data, const 
 }
 
 void ServerSynchronizer::on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	// Can't happen on server
 	ASSERT_COND(!scene_synchronizer->is_recovered());
 	// On server the ID is always known.
@@ -2320,7 +2320,7 @@ void ServerSynchronizer::generate_snapshot_object_data(
 			var_has_value = false;
 		}
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 		if (scene_synchronizer->pedantic_checks) {
 			// Make sure the value read from `var.var.value` equals to the one set on the scene.
 			VarData current_val;
@@ -2373,13 +2373,13 @@ void ServerSynchronizer::process_trickled_sync(float p_delta) {
 			}
 
 			if (send) {
-				// TODO use `DEBUG_ENABLED` here?
+				// TODO use `NS_DEBUG_ENABLED` here?
 				if (object_info.od->get_net_id().id > UINT16_MAX) {
 					SceneSynchronizerDebugger::singleton()->print(ERROR, "[FATAL] The `process_trickled_sync` found a node with ID `" + object_info.od->get_net_id() + "::" + object_info.od->object_name + "` that exceedes the max ID this function can network at the moment. Please report this, we will consider improving this function.", scene_synchronizer->get_network_interface().get_owner_name());
 					continue;
 				}
 
-				// TODO use `DEBUG_ENABLED` here?
+				// TODO use `NS_DEBUG_ENABLED` here?
 				if (!object_info.od->func_trickled_collect) {
 					SceneSynchronizerDebugger::singleton()->print(ERROR, "The `process_trickled_sync` found a node `" + object_info.od->get_net_id() + "::" + object_info.od->object_name + "` with an invalid function `func_trickled_collect`. Please use `setup_deferred_sync` to correctly initialize this node for deferred sync.", scene_synchronizer->get_network_interface().get_owner_name());
 					continue;
@@ -2436,7 +2436,7 @@ void ServerSynchronizer::update_peers_net_statistics(float p_delta) {
 			// There is no controller, nothing to do.
 			continue;
 		}
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 		ASSERT_COND(peer_data.get_controller()->is_server_controller());
 #endif
 
@@ -2536,7 +2536,7 @@ void ClientSynchronizer::process(float p_delta) {
 
 	SceneSynchronizerDebugger::singleton()->print(VERBOSE, "ClientSynchronizer::process", scene_synchronizer->get_network_interface().get_owner_name());
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	if make_unlikely (p_delta > (scene_synchronizer->get_fixed_frame_delta() + (scene_synchronizer->get_fixed_frame_delta() * 0.2))) {
 		SceneSynchronizerDebugger::singleton()->print(WARNING, "Current FPS is " + std::to_string(p_delta > 0.0001 ? 1.0 / p_delta : 0.0) + ", but the minimum required FPS is " + std::to_string(scene_synchronizer->get_frames_per_seconds()) + ", the client is unable to generate enough inputs for the server.", scene_synchronizer->get_network_interface().get_owner_name());
 	}
@@ -2546,7 +2546,7 @@ void ClientSynchronizer::process(float p_delta) {
 	process_simulation(p_delta);
 	process_trickled_sync(p_delta);
 
-#if DEBUG_ENABLED
+#if NS_DEBUG_ENABLED
 	if (player_controller && player_controller->can_simulate()) {
 		const int client_peer = scene_synchronizer->network_interface->get_local_peer_id();
 		SceneSynchronizerDebugger::singleton()->write_dump(client_peer, player_controller->get_current_frame_index().id);
@@ -2657,7 +2657,7 @@ const std::vector<ObjectData *> &ClientSynchronizer::get_active_objects() const 
 void ClientSynchronizer::store_snapshot() {
 	NS_PROFILE
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	if make_unlikely (client_snapshots.size() > 0 && player_controller->get_current_frame_index() <= client_snapshots.back().input_id) {
 		ASSERT_NO_ENTRY_MSG("During snapshot creation, for controller " + std::to_string(player_controller->get_authority_peer()) + ", was found an ID for an older snapshots. New input ID: " + std::string(player_controller->get_current_frame_index()) + " Last saved snapshot input ID: " + std::string(client_snapshots.back().input_id) + ".");
 	}
@@ -2723,7 +2723,7 @@ void ClientSynchronizer::process_received_server_state() {
 
 	PlayerController *inner_player_controller = player_controller->get_player_controller();
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	if (client_snapshots.empty() == false) {
 		// The SceneSynchronizer and the PlayerController are always in sync.
 		ASSERT_COND_MSG(client_snapshots.back().input_id == inner_player_controller->last_known_frame_index(), "This should not be possible: snapshot input: " + std::string(client_snapshots.back().input_id) + " last_know_input: " + std::string(inner_player_controller->last_known_frame_index()));
@@ -2747,7 +2747,7 @@ void ClientSynchronizer::process_received_server_state() {
 		client_snapshots.pop_front();
 	}
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	// This can't be triggered because this case is already handled above,
 	// by checking last_received_server_snapshot->input_id == FrameIndex::NONE.
 	ASSERT_COND(last_checked_input != FrameIndex::NONE);
@@ -2838,7 +2838,7 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 	NS_PROFILE
 	std::vector<std::string> differences_info;
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	std::vector<ObjectNetId> different_node_data;
 #endif
 
@@ -2849,7 +2849,7 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 			scene_synchronizer->network_interface->get_local_peer_id(),
 			&r_no_rewind_recover,
 			scene_synchronizer->debug_rewindings_enabled ? &differences_info : nullptr
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 			,
 			&different_node_data
 #endif
@@ -2864,7 +2864,7 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 						p_rewind_frame_count,
 						&r_no_rewind_recover,
 						scene_synchronizer->debug_rewindings_enabled ? &differences_info : nullptr
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 						,
 						&different_node_data
 #endif
@@ -2879,7 +2879,7 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 		}
 	}
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	// Emit the de-sync detected signal.
 	if (!is_equal) {
 		std::vector<std::string> variable_names;
@@ -2972,14 +2972,14 @@ void ClientSynchronizer::__pcr__rewind(
 	// calculated in a different way. This is just a sanity check.
 	ASSERT_COND(frames_to_rewind == p_rewind_frame_count);
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	// Unreachable because the SceneSynchronizer and the PlayerController
 	// have the same stored data at this point: thanks to the `event_state_validated`
 	// the NetController clears its stored frames.
 	ASSERT_COND_MSG(client_snapshots.size() == size_t(frames_to_rewind), "Beware that `client_snapshots.size()` (" + std::to_string(client_snapshots.size()) + ") and `remaining_inputs` (" + std::to_string(frames_to_rewind) + ") should be the same.");
 #endif
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	// Used to double check all the instants have been processed.
 	bool has_next = false;
 #endif
@@ -2995,7 +2995,7 @@ void ClientSynchronizer::__pcr__rewind(
 		// Step 1 -- Notify the local controller about the instant to process
 		//           on the next process.
 		scene_synchronizer->event_rewind_frame_begin.broadcast(frame_id_to_process, i, frames_to_rewind);
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 		has_next = p_local_controller->has_another_instant_to_process_after(i);
 		SceneSynchronizerDebugger::singleton()->print(
 				INFO,
@@ -3023,7 +3023,7 @@ void ClientSynchronizer::__pcr__rewind(
 		}
 	}
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	// Unreachable because the above loop consume all instants, so the last
 	// process will set this to false.
 	ASSERT_COND(!has_next);
@@ -3067,7 +3067,7 @@ void ClientSynchronizer::__pcr__no_rewind(
 void ClientSynchronizer::process_paused_controller_recovery() {
 	NS_PROFILE
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	ASSERT_COND(last_received_server_snapshot);
 	ASSERT_COND(client_snapshots.empty());
 #endif
@@ -3187,7 +3187,7 @@ void ClientSynchronizer::process_simulation(float p_delta) {
 		sub_ticks -= 1;
 		SceneSynchronizerDebugger::singleton()->scene_sync_process_end(scene_synchronizer);
 
-#if DEBUG_ENABLED
+#if NS_DEBUG_ENABLED
 		if (sub_ticks > 0) {
 			// This is an intermediate sub tick, so store the dumlatency.
 			// The last sub frame is not dumped, untile the end of the frame, so we can capture any subsequent message.
@@ -3346,7 +3346,7 @@ bool ClientSynchronizer::parse_sync_data(
 		const bool skip_object = synchronizer_object_data == nullptr;
 
 		if (!skip_object) {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 			// At this point the ID is never ObjectNetId::NONE thanks to the above
 			// mechanism.
 			ASSERT_COND(synchronizer_object_data->get_net_id() != ObjectNetId::NONE);
@@ -3508,7 +3508,7 @@ void ClientSynchronizer::receive_trickled_sync_data(const std::vector<std::uint8
 			trickled_sync_array.push_back(TrickledSyncInterpolationData(od));
 		}
 		TrickledSyncInterpolationData &stream = trickled_sync_array[index];
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 		ASSERT_COND(stream.od == od);
 #endif
 		stream.future_epoch_buffer.copy(future_buffer_data);
@@ -3567,7 +3567,7 @@ void ClientSynchronizer::process_trickled_sync(float p_delta) {
 			continue;
 		}
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 		if (!od->func_trickled_apply) {
 			SceneSynchronizerDebugger::singleton()->print(ERROR, "The function `process_received_trickled_sync_data` skip the node `" + od->object_name + "` has an invalid apply epoch function named `trickled_apply`. Remotely you used the function `setup_trickled_sync` properly, while locally you didn't. Fix it.", scene_synchronizer->get_network_interface().get_owner_name());
 			continue;
@@ -3638,7 +3638,7 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 			[](void *p_user_pointer, NS::ObjectData *p_object_data) {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 				// This function should never receive undefined IDs.
 				ASSERT_COND(p_object_data->get_net_id() != ObjectNetId::NONE);
 #endif
@@ -3750,7 +3750,7 @@ void ClientSynchronizer::update_client_snapshot(NS::Snapshot &r_snapshot) {
 		// Make sure this ID is valid.
 		ENSURE_MSG(od->get_net_id() != ObjectNetId::NONE, "[BUG] It's not expected that the client has an uninitialized NetNodeId into the `organized_node_data` ");
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 		ASSERT_COND_MSG(od->get_net_id().id < uint32_t(r_snapshot.object_vars.size()), "This array was resized above, this can't be triggered.");
 #endif
 
@@ -3846,7 +3846,7 @@ void ClientSynchronizer::apply_snapshot(
 			continue;
 		}
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 		if (!p_skip_simulated_objects_update) {
 			// This can't trigger because the `update_simulated_objects_list` make sure to set this.
 			ASSERT_COND(object_data->realtime_sync_enabled_on_client);
@@ -3878,7 +3878,7 @@ void ClientSynchronizer::apply_snapshot(
 				continue;
 			}
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 			ASSERT_COND_MSG(snap_object_vars[v.id].name == object_data->vars[v.id].var.name, "The variable name, on both snapshot and client scene_sync, are supposed to be exactly the same at this point. Snapshot `" + snap_object_vars[v.id].name + "` ClientSceneSync `" + object_data->vars[v.id].var.name + "`");
 #endif
 
@@ -3903,7 +3903,7 @@ void ClientSynchronizer::apply_snapshot(
 						v,
 						current_val);
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 				if (scene_synchronizer->pedantic_checks) {
 					// Make sure the set value matches the one just set.
 					scene_synchronizer->synchronizer_manager->get_variable(

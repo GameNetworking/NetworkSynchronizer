@@ -43,7 +43,7 @@
 #include "godot4/gd_network_interface.h"
 #include "godot4/gd_scene_synchronizer.h"
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 #include "tests/tests.h"
 #endif
 
@@ -83,7 +83,7 @@ void initialize_network_synchronizer_module(ModuleInitializationLevel p_level) {
 		GLOBAL_DEF("NetworkSynchronizer/debugger/dump_enabled", false);
 		GLOBAL_DEF("NetworkSynchronizer/debugger/dump_classes", Array());
 	} else if (p_level == MODULE_INITIALIZATION_LEVEL_EDITOR) {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 		List<String> args = OS::get_singleton()->get_cmdline_args();
 		if (args.find("--unit-test-netsync")) {
 			NS_GD_Test::test_var_data_conversin();

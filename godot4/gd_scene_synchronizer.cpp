@@ -355,7 +355,7 @@ void GdSceneSynchronizer::on_add_object_data(NS::ObjectData &p_object_data) {
 	//SceneSynchronizerDebugger::singleton()->register_class_for_node_to_dump(SyncClass::from_handle(p_object_data.app_object_handle));
 }
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 void GdSceneSynchronizer::debug_only_validate_objects() {
 	LocalVector<NS::ObjectHandle> null_objects;
 	null_objects.reserve(scene_synchronizer.get_all_object_data().size());

@@ -18,7 +18,7 @@ public:
 	virtual void on_init_synchronizer(bool p_was_generating_ids) {}
 	virtual void on_uninit_synchronizer() {}
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	virtual void debug_only_validate_objects() {}
 #endif
 
@@ -153,7 +153,7 @@ protected:
 	static void (*print_code_message_func)(const char *p_function, const char *p_file, int p_line, const std::string &p_error, const std::string &p_message, NS::PrintMessageType p_type);
 	static void (*print_flush_stdout_func)();
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	const bool pedantic_checks = false;
 #endif
 

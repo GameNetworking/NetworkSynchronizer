@@ -3,7 +3,7 @@
 #include "json.hpp"
 
 struct SceneSynchronizerDebuggerJsonStorage {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	nlohmann::json::object_t frame_dump__begin_state;
 
 	// JSON of dictionary containing nodes info.

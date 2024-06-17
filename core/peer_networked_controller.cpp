@@ -552,7 +552,7 @@ bool RemotelyControlledController::fetch_next_input(float p_delta) {
 		}
 	}
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	if (frames_input.empty() == false && current_input_buffer_id != FrameIndex::NONE) {
 		// At this point is guaranteed that the current_input_buffer_id is never
 		// greater than the first item contained by `snapshots`.
@@ -571,7 +571,7 @@ void RemotelyControlledController::set_frame_input(const FrameInput &p_frame_sna
 }
 
 void RemotelyControlledController::process(float p_delta) {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	const bool is_new_input =
 #endif
 	fetch_next_input(p_delta);
@@ -582,7 +582,7 @@ void RemotelyControlledController::process(float p_delta) {
 		return;
 	}
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	if (!is_new_input) {
 		peer_controller->event_input_missed.broadcast(current_input_buffer_id + 1);
 	}
@@ -646,7 +646,7 @@ bool RemotelyControlledController::receive_inputs(const std::vector<std::uint8_t
 				}
 			});
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	if (frames_input.empty() == false && current_input_buffer_id != FrameIndex::NONE) {
 		// At this point is guaranteed that the current_input_buffer_id is never
 		// greater than the first item contained by `snapshots`.
@@ -793,7 +793,7 @@ void PlayerController::notify_frame_checked(FrameIndex p_frame_index) {
 		frames_input.pop_front();
 	}
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	// Unreachable, because the next frame have always the next `p_frame_index` or empty.
 	ASSERT_COND(frames_input.empty() || (p_frame_index + 1) == frames_input.front().id);
 #endif
@@ -857,7 +857,7 @@ void PlayerController::on_rewind_frame_begin(FrameIndex p_frame_index, int p_rew
 
 	if (p_rewinding_index >= 0 && p_rewinding_index < int(frames_input.size())) {
 		queued_instant_to_process = p_rewinding_index;
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 		// IMPOSSIBLE to trigger - without bugs.
 		ASSERT_COND(frames_input[p_rewinding_index].id == p_frame_index);
 #endif
@@ -1429,7 +1429,7 @@ void DollController::on_received_server_snapshot(const Snapshot &p_snapshot) {
 }
 
 void DollController::on_snapshot_update_finished(const Snapshot &p_snapshot) {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	// The SceneSync set the correct input, and here it checks it.
 	const FrameIndex doll_executed_input = MapFunc::at(p_snapshot.peers_frames_index, peer_controller->get_authority_peer(), FrameIndex::NONE);
 	ASSERT_COND(doll_executed_input == current_input_buffer_id);
@@ -1540,7 +1540,7 @@ bool DollController::__pcr__fetch_recovery_info(
 		const int p_frame_count_to_rewind,
 		Snapshot *r_no_rewind_recover,
 		std::vector<std::string> *r_differences_info
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 		,
 		std::vector<ObjectNetId> *r_different_node_data
 #endif
@@ -1581,7 +1581,7 @@ bool DollController::__pcr__fetch_recovery_info(
 			peer_controller->get_authority_peer(),
 			r_no_rewind_recover,
 			r_differences_info
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 			,
 			r_different_node_data
 #endif
@@ -1593,7 +1593,7 @@ bool DollController::__pcr__fetch_recovery_info(
 void DollController::on_snapshot_applied(
 		const Snapshot &p_global_server_snapshot,
 		const int p_frame_count_to_rewind) {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	// The `DollController` is never created on the server, and the below
 	// assertion is always satisfied.
 	ASSERT_COND(peer_controller->scene_synchronizer->is_client());

@@ -40,7 +40,7 @@ public:
 private:
 	NS::PrintMessageType log_level = NS::PrintMessageType::ERROR;
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	bool dump_enabled = false;
 	bool setup_done = false;
 
@@ -67,7 +67,7 @@ public:
 
 	void set_file_system(NS::FileSystem *p_file_system);
 	NS::FileSystem *get_file_system() const {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 		return file_system;
 #else
 		return nullptr;

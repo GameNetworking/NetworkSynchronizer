@@ -43,7 +43,7 @@ public:
 			const int p_skip_objects_not_controlled_by_peer,
 			Snapshot *r_no_rewind_recover,
 			std::vector<std::string> *r_differences_info
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 			,
 			std::vector<ObjectNetId> *r_different_node_data);
 #else

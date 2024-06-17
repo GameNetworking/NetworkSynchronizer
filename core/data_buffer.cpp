@@ -20,7 +20,7 @@
 #define NS__UINT32_MAX 0xffffffffui32
 #define NS__UINT64_MAX 0xffffffffffffffffui64
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 #define DEBUG_DATA_BUFFER
 
 #ifdef DISABLE_DEBUG_DATA_BUFFER
@@ -256,7 +256,7 @@ bool DataBuffer::add_bool(bool p_input) {
 	}
 	bit_offset += bits;
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	// Can't never happen because the buffer size is correctly handled.
 	ASSERT_COND((metadata_size + bit_size) <= buffer.size_in_bits() && bit_offset <= buffer.size_in_bits());
 #endif
@@ -311,7 +311,7 @@ int64_t DataBuffer::add_int(int64_t p_input, CompressionLevel p_compression_leve
 	}
 	bit_offset += bits;
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	// Can't never happen because the buffer size is correctly handled.
 	ASSERT_COND((metadata_size + bit_size) <= buffer.size_in_bits() && bit_offset <= buffer.size_in_bits());
 #endif
@@ -376,7 +376,7 @@ std::uint64_t DataBuffer::add_uint(std::uint64_t p_input, CompressionLevel p_com
 	}
 	bit_offset += bits;
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	// Can't never happen because the buffer size is correctly handled.
 	ASSERT_COND((metadata_size + bit_size) <= buffer.size_in_bits() && bit_offset <= buffer.size_in_bits());
 #endif
@@ -499,7 +499,7 @@ void DataBuffer::read_real(float &r_value, CompressionLevel p_compression_level)
 float DataBuffer::add_positive_unit_real(float p_input, CompressionLevel p_compression_level) {
 	ENSURE_V(!is_reading, p_input);
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	ENSURE_V_MSG(p_input >= 0.0f && p_input <= 1.0f, p_input, "Value must be between zero and one.");
 #endif
 
@@ -515,7 +515,7 @@ float DataBuffer::add_positive_unit_real(float p_input, CompressionLevel p_compr
 	}
 	bit_offset += bits;
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	// Can't never happen because the buffer size is correctly handled.
 	ASSERT_COND((metadata_size + bit_size) <= buffer.size_in_bits() && bit_offset <= buffer.size_in_bits());
 #endif
@@ -559,7 +559,7 @@ float DataBuffer::add_unit_real(float p_input, CompressionLevel p_compression_le
 	}
 	bit_offset += bits_for_sign;
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	// Can't never happen because the buffer size is correctly handled.
 	ASSERT_COND((metadata_size + bit_size) <= buffer.size_in_bits() && bit_offset <= buffer.size_in_bits());
 #endif
@@ -651,7 +651,7 @@ void DataBuffer::add_normalized_vector2(T x, T y, CompressionLevel p_compression
 
 	const std::uint64_t is_not_zero = MathFunc::is_zero_approx(x) && MathFunc::is_zero_approx(y) ? 0 : 1;
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	if (is_not_zero) {
 		ENSURE_MSG(MathFunc::vec2_is_normalized(x, y), "[FATAL] The encoding failed because this function expects a normalized vector.");
 	}
@@ -676,7 +676,7 @@ void DataBuffer::add_normalized_vector2(T x, T y, CompressionLevel p_compression
 	}
 	bit_offset += bits;
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	// Can't never happen because the buffer size is correctly handled.
 	ASSERT_COND((metadata_size + bit_size) <= buffer.size_in_bits() && bit_offset <= buffer.size_in_bits());
 #endif
@@ -779,7 +779,7 @@ template <typename T>
 void DataBuffer::add_normalized_vector3(T x, T y, T z, CompressionLevel p_compression_level) {
 	ENSURE(!is_reading);
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	if (!MathFunc::is_zero_approx(x) || !MathFunc::is_zero_approx(y) || !MathFunc::is_zero_approx(z)) {
 		ENSURE_MSG(MathFunc::vec3_is_normalized(x, y, z), "[FATAL] This function expects a normalized vector.");
 	}

@@ -75,7 +75,7 @@ public: // ---------------------------------------- Scene Synchronizer Interface
 	virtual void on_init_synchronizer(bool p_was_generating_ids) override;
 	virtual void on_uninit_synchronizer() override;
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	virtual void debug_only_validate_objects() override;
 #endif
 

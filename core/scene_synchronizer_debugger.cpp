@@ -1,6 +1,6 @@
 #include "scene_synchronizer_debugger.h"
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 
 // At the moment this debugger is disabled. We need an easier solution to write the UI debugger.
 #ifdef UI_DEBUGGER_ENABLED
@@ -25,7 +25,7 @@ SceneSynchronizerDebugger::SceneSynchronizerDebugger() {
 	if (the_singleton == nullptr) {
 		the_singleton = this;
 	}
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	frame_dump_storage = new SceneSynchronizerDebuggerJsonStorage;
 #endif
 }
@@ -35,14 +35,14 @@ SceneSynchronizerDebugger::~SceneSynchronizerDebugger() {
 		the_singleton = nullptr;
 	}
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	delete frame_dump_storage;
 	frame_dump_storage = nullptr;
 #endif
 }
 
 void SceneSynchronizerDebugger::set_file_system(NS::FileSystem *p_file_system) {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	file_system = p_file_system;
 #endif
 }
@@ -56,13 +56,13 @@ NS::PrintMessageType SceneSynchronizerDebugger::get_log_level() const {
 }
 
 void SceneSynchronizerDebugger::set_dump_enabled(bool p_dump_enabled) {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	dump_enabled = p_dump_enabled;
 #endif
 }
 
 bool SceneSynchronizerDebugger::get_dump_enabled() const {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	return dump_enabled;
 #else
 	return false;
@@ -70,7 +70,7 @@ bool SceneSynchronizerDebugger::get_dump_enabled() const {
 }
 
 void SceneSynchronizerDebugger::setup_debugger(const std::string &p_dump_name, int p_peer) {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	if (setup_done == false) {
 		setup_done = true;
 	}
@@ -87,7 +87,7 @@ void SceneSynchronizerDebugger::setup_debugger(const std::string &p_dump_name, i
 }
 
 void SceneSynchronizerDebugger::prepare_dumping(int p_peer) {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	if (!dump_enabled) {
 		// Dumping is disabled, nothing to do.
 		return;
@@ -119,7 +119,7 @@ void SceneSynchronizerDebugger::prepare_dumping(int p_peer) {
 
 void SceneSynchronizerDebugger::setup_debugger_python_ui() {
 #ifdef UI_DEBUGGER_ENABLED
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	ASSERT_COND_MSG(!file_system, "Please set the FileSystem using the function set_file_system().");
 
 	// Verify if file exists.
@@ -137,7 +137,7 @@ void SceneSynchronizerDebugger::setup_debugger_python_ui() {
 }
 
 void SceneSynchronizerDebugger::write_dump(int p_peer, uint32_t p_frame_index) {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	if (!dump_enabled) {
 		return;
 	}
@@ -188,7 +188,7 @@ void SceneSynchronizerDebugger::write_dump(int p_peer, uint32_t p_frame_index) {
 }
 
 void SceneSynchronizerDebugger::start_new_frame() {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	frame_dump_storage->frame_dump__node_log.clear();
 	frame_dump__frame_events = FrameEvent::EMPTY;
 	frame_dump_storage->frame_dump__has_warnings = false;
@@ -200,7 +200,7 @@ void SceneSynchronizerDebugger::start_new_frame() {
 #endif
 }
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 /*
 std::string type_to_string(Variant::Type p_type) {
 	switch (p_type) {
@@ -334,7 +334,7 @@ std::string compression_level_to_string(uint32_t p_type) {
 }
 #endif
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 void dump_tracked_objects(const NS::SceneSynchronizerBase *p_scene_sync, nlohmann::json::object_t &p_dump) {
 	p_dump.clear();
 
@@ -362,7 +362,7 @@ void dump_tracked_objects(const NS::SceneSynchronizerBase *p_scene_sync, nlohman
 #endif
 
 void SceneSynchronizerDebugger::scene_sync_process_start(const NS::SceneSynchronizerBase *p_scene_sync) {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	if (!dump_enabled) {
 		return;
 	}
@@ -372,7 +372,7 @@ void SceneSynchronizerDebugger::scene_sync_process_start(const NS::SceneSynchron
 }
 
 void SceneSynchronizerDebugger::scene_sync_process_end(const NS::SceneSynchronizerBase *p_scene_sync) {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	if (!dump_enabled) {
 		return;
 	}
@@ -382,7 +382,7 @@ void SceneSynchronizerDebugger::scene_sync_process_end(const NS::SceneSynchroniz
 }
 
 void SceneSynchronizerDebugger::databuffer_operation_begin_record(int p_peer, DataBufferDumpMode p_mode) {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	if (!dump_enabled) {
 		return;
 	}
@@ -399,7 +399,7 @@ void SceneSynchronizerDebugger::databuffer_operation_begin_record(int p_peer, Da
 }
 
 void SceneSynchronizerDebugger::databuffer_operation_end_record() {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	if (!dump_enabled) {
 		return;
 	}
@@ -416,7 +416,7 @@ void SceneSynchronizerDebugger::databuffer_operation_end_record() {
 }
 
 void SceneSynchronizerDebugger::databuffer_write(uint32_t p_data_type, uint32_t p_compression_level, int p_new_bit_offset, const char *val_string) {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	if (!dump_enabled) {
 		return;
 	}
@@ -434,7 +434,7 @@ void SceneSynchronizerDebugger::databuffer_write(uint32_t p_data_type, uint32_t 
 }
 
 void SceneSynchronizerDebugger::databuffer_read(uint32_t p_data_type, uint32_t p_compression_level, int p_new_bit_offset, const char *val_string) {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	if (!dump_enabled) {
 		return;
 	}
@@ -452,7 +452,7 @@ void SceneSynchronizerDebugger::databuffer_read(uint32_t p_data_type, uint32_t p
 }
 
 void SceneSynchronizerDebugger::notify_input_sent_to_server(int p_peer, uint32_t p_frame_index, uint32_t p_input_index) {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	print(NS::INFO, "The client sent to server the input `" + std::to_string(p_input_index) + "` for frame:`" + std::to_string(p_frame_index) + "`.", "CONTROLLER-" + std::to_string(p_peer));
 #endif
 }
@@ -461,7 +461,7 @@ void SceneSynchronizerDebugger::notify_are_inputs_different_result(
 		int p_peer,
 		uint32_t p_other_frame_index,
 		bool p_is_similar) {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	if (p_is_similar) {
 		print(NS::INFO, "This frame input is SIMILAR to `" + std::to_string(p_other_frame_index) + "`", "CONTROLLER-" + std::to_string(p_peer));
 	} else {
@@ -472,7 +472,7 @@ void SceneSynchronizerDebugger::notify_are_inputs_different_result(
 }
 
 void SceneSynchronizerDebugger::print(NS::PrintMessageType p_level, const std::string &p_message, const std::string &p_object_name, bool p_force_print_to_log) {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 
 	if (NS::PrintMessageType::WARNING & p_level) {
 		frame_dump_storage->frame_dump__has_warnings = true;
@@ -498,7 +498,7 @@ void SceneSynchronizerDebugger::print(NS::PrintMessageType p_level, const std::s
 }
 
 void SceneSynchronizerDebugger::notify_event(FrameEvent p_event) {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	if (!dump_enabled) {
 		return;
 	}
@@ -508,7 +508,7 @@ void SceneSynchronizerDebugger::notify_event(FrameEvent p_event) {
 }
 
 void SceneSynchronizerDebugger::__add_message(const std::string &p_message, const std::string &p_object_name) {
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	if (!dump_enabled) {
 		return;
 	}

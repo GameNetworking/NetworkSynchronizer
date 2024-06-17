@@ -98,7 +98,7 @@ target_include_directories(NetworkSynchronizer PUBLIC ${REPO_ROOT})
 
 # Setting enable asserts flag
 if (ENABLE_DEBUG)
-	target_compile_definitions(NetworkSynchronizer PUBLIC DEBUG_ENABLED)
+	target_compile_definitions(NetworkSynchronizer PUBLIC NS_DEBUG_ENABLED)
 endif()
 
 if (ENABLE_DEBUG_DATA_BUFFER)

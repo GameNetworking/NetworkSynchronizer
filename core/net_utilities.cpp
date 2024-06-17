@@ -179,7 +179,7 @@ void replace_nodes_impl(
 			// Then, make sure not to add again:
 			NS::VecFunc::remove_at_unordered(p_nodes_to_add, nta_index);
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 			// Make sure there are no duplicates:
 			ASSERT_COND_MSG(!NS::VecFunc::has(p_nodes_to_add, r_sync_group_nodes[i].od), "The function `replace_nodes` must receive unique nodes on each array. Make sure not to add duplicates.");
 #endif
@@ -190,7 +190,7 @@ void replace_nodes_impl(
 	for (int i = 0; i < int(p_nodes_to_add.size()); i++) {
 		NS::ObjectData *od = p_nodes_to_add[i].od;
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 		ASSERT_COND_MSG(!NS::VecFunc::has(r_sync_group_nodes, T(od)), "[FATAL] This is impossible to trigger, because the above loop cleaned this.");
 #endif
 

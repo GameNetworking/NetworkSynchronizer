@@ -13,7 +13,7 @@
 #include <utility>
 #include <vector>
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 #define DEBUG_DATA_BUFFER
 
 #ifdef DISABLE_DEBUG_DATA_BUFFER
@@ -277,7 +277,7 @@ Variant GdDataBuffer::add_variant(const Variant &p_input) {
 	variant_db.make_room_pad_to_next_byte();
 	variant_db.make_room_in_bits(len * 8);
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	// This condition is always false thanks to the `make_room_pad_to_next_byte`.
 	// so it's safe to assume we are starting from the begin of the byte.
 	CRASH_COND((variant_db.get_bit_offset() % 8) != 0);
@@ -335,7 +335,7 @@ Variant GdDataBuffer::read_variant() {
 	variant_db.read(len);
 	variant_db.pad_to_next_byte();
 
-#ifdef DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	// This condition is always false thanks to the `pad_to_next_byte`; So is
 	// safe to assume we are starting from the begin of the byte.
 	CRASH_COND((variant_db.get_bit_offset() % 8) != 0);
