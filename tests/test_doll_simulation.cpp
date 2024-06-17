@@ -15,8 +15,7 @@
 #include <thread>
 
 namespace NS_Test {
-
-const float delta = 1.0 / 60.0;
+const float delta = 1.0f / 60.0f;
 
 class TDSControlledObject : public NS::LocalSceneObject {
 public:
@@ -47,7 +46,7 @@ public:
 		p_scene_sync.register_variable(p_id, "xy");
 	}
 
-	void set_xy(float x, float y) {
+	void set_xy(double x, double y) {
 		NS::VarData vd;
 		vd.data.vec.x = x;
 		vd.data.vec.y = y;
@@ -60,12 +59,13 @@ public:
 		if (vd) {
 			return NS::VarData::make_copy(*vd);
 		} else {
-			return NS::VarData(0, 0);
+			return NS::VarData(0., 0.);
 		}
 	}
 
 	// ------------------------------------------------- NetController interface
 	bool previous_input = true;
+
 	void collect_inputs(float p_delta, NS::DataBuffer &r_buffer) {
 		// Write true or false alternating each other.
 		r_buffer.add(!previous_input);
@@ -84,10 +84,10 @@ public:
 		NS::VarData current = get_xy();
 		if (advance_or_turn) {
 			// Advance
-			set_xy(current.data.vec.x + 1, current.data.vec.y);
+			set_xy(current.data.vec.x + 1.0, current.data.vec.y);
 		} else {
 			// Turn
-			set_xy(current.data.vec.x, current.data.vec.y + 1);
+			set_xy(current.data.vec.x, current.data.vec.y + 1.0);
 		}
 	}
 
@@ -122,18 +122,30 @@ struct TestDollSimulationBase {
 	TDSControlledObject *controlled_2_peer1 = nullptr;
 	TDSControlledObject *controlled_2_peer2 = nullptr;
 
-	float frame_confirmation_timespan = 1. / 60.;
+	float frame_confirmation_timespan = 1.f / 60.f;
 
 private:
-	virtual void on_scenes_initialized() {}
-	virtual void on_server_process(float p_delta) {}
-	virtual void on_client_1_process(float p_delta) {}
-	virtual void on_client_2_process(float p_delta) {}
-	virtual void on_scenes_processed(float p_delta) {}
+	virtual void on_scenes_initialized() {
+	}
+
+	virtual void on_server_process(float p_delta) {
+	}
+
+	virtual void on_client_1_process(float p_delta) {
+	}
+
+	virtual void on_client_2_process(float p_delta) {
+	}
+
+	virtual void on_scenes_processed(float p_delta) {
+	}
 
 public:
-	TestDollSimulationBase() {}
-	virtual ~TestDollSimulationBase() {}
+	TestDollSimulationBase() {
+	}
+
+	virtual ~TestDollSimulationBase() {
+	}
 
 	void init_test() {
 		server_scene.get_network().network_properties = &network_properties;
@@ -208,8 +220,8 @@ public:
 	void do_test(const int p_frames_count, bool p_wait_for_time_pass = false, bool p_process_server = true, bool p_process_peer1 = true, bool p_process_peer2 = true) {
 		for (int i = 0; i < p_frames_count; i++) {
 			float sim_delta = delta;
-			while (sim_delta > 0.0) {
-				const float rand_delta = rand_range(0.005, sim_delta);
+			while (sim_delta > 0.0f) {
+				const float rand_delta = rand_range(0.005f, sim_delta);
 				sim_delta -= std::min(rand_delta, sim_delta);
 
 				if (p_process_server) {
@@ -225,7 +237,7 @@ public:
 
 			on_scenes_processed(delta);
 			if (p_wait_for_time_pass) {
-				const int ms = delta * 1000.0;
+				const int ms = int(delta * 1000.0);
 				std::this_thread::sleep_for(std::chrono::milliseconds(ms));
 			}
 		}
@@ -481,7 +493,7 @@ void test_simulation_with_hiccups(TestDollSimulationStorePositions &test) {
 
 void test_simulation_with_latency() {
 	TestDollSimulationStorePositions test;
-	test.frame_confirmation_timespan = 1.0 / 10.0;
+	test.frame_confirmation_timespan = 1.0f / 10.0f;
 	test.init_test();
 
 	const NS::PeerNetworkedController *doll_controller_1 = test.peer_1_scene.scene_sync->get_controller_for_peer(test.peer_2_scene.get_peer());
@@ -497,7 +509,7 @@ void test_simulation_with_latency() {
 	test.assert_positions(NS::FrameIndex{ { 0 } }, NS::FrameIndex{ { 0 } });
 
 	// 2. Introduce some latency
-	test.network_properties.rtt_seconds = 0.2;
+	test.network_properties.rtt_seconds = 0.2f;
 
 	test.do_test(600);
 
@@ -578,7 +590,7 @@ void test_simulation_with_latency() {
 
 void test_simulation_with_hiccups() {
 	TestDollSimulationStorePositions test;
-	test.frame_confirmation_timespan = 1.0 / 10.0;
+	test.frame_confirmation_timespan = 1.0f / 10.0f;
 	test.init_test();
 
 	test_simulation_with_hiccups(test);
@@ -588,14 +600,14 @@ void test_latency() {
 	TestDollSimulationBase test;
 	test.init_test();
 
-	test.server_scene.scene_sync->set_frame_confirmation_timespan(0.0);
-	test.server_scene.scene_sync->set_latency_update_rate(0.05);
+	test.server_scene.scene_sync->set_frame_confirmation_timespan(0.0f);
+	test.server_scene.scene_sync->set_latency_update_rate(0.05f);
 
 	const int peer1 = test.peer_1_scene.get_peer();
 	const int peer2 = test.peer_2_scene.get_peer();
 
 	// TEST 1 with 0 latency
-	test.network_properties.rtt_seconds = 0.;
+	test.network_properties.rtt_seconds = 0.f;
 
 	test.do_test(10, true);
 
@@ -610,7 +622,7 @@ void test_latency() {
 	ASSERT_COND(test.server_scene.scene_sync->get_peer_latency_ms(peer2) <= 5);
 
 	// TEST 2 with 100 latency
-	test.network_properties.rtt_seconds = 0.1;
+	test.network_properties.rtt_seconds = 0.1f;
 
 	test.do_test(20, true);
 
@@ -627,7 +639,7 @@ void test_latency() {
 
 void test_simulation_with_wrong_input() {
 	TestDollSimulationStorePositions test;
-	test.frame_confirmation_timespan = 1.0 / 10.0;
+	test.frame_confirmation_timespan = 1.0f / 10.0f;
 	test.init_test();
 
 	const NS::PeerNetworkedController *server_controller_1 = test.server_scene.scene_sync->get_controller_for_peer(test.peer_1_scene.get_peer());
@@ -665,23 +677,22 @@ void test_simulation_with_wrong_input() {
 		}
 
 		if (test_count % 2 == 0) {
-			test.network_properties.rtt_seconds = 0.1;
+			test.network_properties.rtt_seconds = 0.1f;
 		} else {
-			test.network_properties.rtt_seconds = 0.0;
+			test.network_properties.rtt_seconds = 0.0f;
 		}
 	}
 }
 
 void test_doll_simulation() {
-	test_simulation_without_reconciliation(0.0);
-	test_simulation_without_reconciliation(1. / 30.);
-	test_simulation_reconciliation(0.0);
-	test_simulation_reconciliation(1.0 / 10.0);
+	test_simulation_without_reconciliation(0.0f);
+	test_simulation_without_reconciliation(1.f / 30.f);
+	test_simulation_reconciliation(0.0f);
+	test_simulation_reconciliation(1.0f / 10.0f);
 	test_simulation_with_latency();
 	test_simulation_with_hiccups();
 	test_simulation_with_wrong_input();
 	// TODO test with great latency and lag compensation.
 	test_latency();
 }
-
 }; //namespace NS_Test

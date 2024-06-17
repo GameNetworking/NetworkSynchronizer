@@ -179,7 +179,7 @@ bool LocalNetworkInterface::is_local_peer_server() const {
 }
 
 void LocalNetworkInterface::rpc_send(int p_peer_recipient, bool p_reliable, NS::DataBuffer &&p_data_buffer) {
-	ENSURE(network);
+	NS_ENSURE(network);
 	network->rpc_send(get_owner_name(), p_peer_recipient, p_reliable, std::move(p_data_buffer));
 }
 

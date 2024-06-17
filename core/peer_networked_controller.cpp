@@ -83,12 +83,12 @@ int PeerNetworkedController::get_max_redundant_inputs() const {
 }
 
 FrameIndex PeerNetworkedController::get_current_frame_index() const {
-	ENSURE_V(controller, FrameIndex::NONE);
+	NS_ENSURE_V(controller, FrameIndex::NONE);
 	return controller->get_current_frame_index();
 }
 
 void PeerNetworkedController::server_set_peer_simulating_this_controller(int p_peer, bool p_simulating) {
-	ENSURE_MSG(is_server_controller(), "This function can be called only on the server.");
+	NS_ENSURE_MSG(is_server_controller(), "This function can be called only on the server.");
 	if (p_simulating) {
 		VecFunc::insert_unique(get_server_controller()->peers_simulating_this_controller, p_peer);
 	} else {
@@ -97,12 +97,12 @@ void PeerNetworkedController::server_set_peer_simulating_this_controller(int p_p
 }
 
 bool PeerNetworkedController::server_is_peer_simulating_this_controller(int p_peer) const {
-	ENSURE_V_MSG(is_server_controller(), false, "This function can be called only on the server.");
+	NS_ENSURE_V_MSG(is_server_controller(), false, "This function can be called only on the server.");
 	return VecFunc::has(get_server_controller()->peers_simulating_this_controller, p_peer);
 }
 
 bool PeerNetworkedController::has_another_instant_to_process_after(int p_i) const {
-	ENSURE_V_MSG(is_player_controller(), false, "Can be executed only on player controllers.");
+	NS_ENSURE_V_MSG(is_player_controller(), false, "Can be executed only on player controllers.");
 	return static_cast<PlayerController *>(controller)->has_another_instant_to_process_after(p_i);
 }
 
@@ -115,12 +115,12 @@ void PeerNetworkedController::process(float p_delta) {
 }
 
 ServerController *PeerNetworkedController::get_server_controller() {
-	ENSURE_V_MSG(is_server_controller(), nullptr, "This controller is not a server controller.");
+	NS_ENSURE_V_MSG(is_server_controller(), nullptr, "This controller is not a server controller.");
 	return static_cast<ServerController *>(controller);
 }
 
 const ServerController *PeerNetworkedController::get_server_controller() const {
-	ENSURE_V_MSG(is_server_controller(), nullptr, "This controller is not a server controller.");
+	NS_ENSURE_V_MSG(is_server_controller(), nullptr, "This controller is not a server controller.");
 	return static_cast<const ServerController *>(controller);
 }
 
@@ -133,32 +133,32 @@ const ServerController *PeerNetworkedController::get_server_controller_unchecked
 }
 
 PlayerController *PeerNetworkedController::get_player_controller() {
-	ENSURE_V_MSG(is_player_controller(), nullptr, "This controller is not a player controller.");
+	NS_ENSURE_V_MSG(is_player_controller(), nullptr, "This controller is not a player controller.");
 	return static_cast<PlayerController *>(controller);
 }
 
 const PlayerController *PeerNetworkedController::get_player_controller() const {
-	ENSURE_V_MSG(is_player_controller(), nullptr, "This controller is not a player controller.");
+	NS_ENSURE_V_MSG(is_player_controller(), nullptr, "This controller is not a player controller.");
 	return static_cast<const PlayerController *>(controller);
 }
 
 DollController *PeerNetworkedController::get_doll_controller() {
-	ENSURE_V_MSG(is_doll_controller(), nullptr, "This controller is not a doll controller.");
+	NS_ENSURE_V_MSG(is_doll_controller(), nullptr, "This controller is not a doll controller.");
 	return static_cast<DollController *>(controller);
 }
 
 const DollController *PeerNetworkedController::get_doll_controller() const {
-	ENSURE_V_MSG(is_doll_controller(), nullptr, "This controller is not a doll controller.");
+	NS_ENSURE_V_MSG(is_doll_controller(), nullptr, "This controller is not a doll controller.");
 	return static_cast<const DollController *>(controller);
 }
 
 NoNetController *PeerNetworkedController::get_nonet_controller() {
-	ENSURE_V_MSG(is_nonet_controller(), nullptr, "This controller is not a no net controller.");
+	NS_ENSURE_V_MSG(is_nonet_controller(), nullptr, "This controller is not a no net controller.");
 	return static_cast<NoNetController *>(controller);
 }
 
 const NoNetController *PeerNetworkedController::get_nonet_controller() const {
-	ENSURE_V_MSG(is_nonet_controller(), nullptr, "This controller is not a no net controller.");
+	NS_ENSURE_V_MSG(is_nonet_controller(), nullptr, "This controller is not a no net controller.");
 	return static_cast<const NoNetController *>(controller);
 }
 
@@ -188,7 +188,7 @@ void PeerNetworkedController::set_inputs_buffer(const BitArray &p_new_buffer, ui
 }
 
 void PeerNetworkedController::setup_synchronizer(NS::SceneSynchronizerBase &p_synchronizer, int p_peer) {
-	ENSURE_MSG(scene_synchronizer == nullptr, "Cannot register with a new `SceneSynchronizer` because this controller is already registered with one. This is a bug, one controller should not be registered with two `SceneSynchronizer`s.");
+	NS_ENSURE_MSG(scene_synchronizer == nullptr, "Cannot register with a new `SceneSynchronizer` because this controller is already registered with one. This is a bug, one controller should not be registered with two `SceneSynchronizer`s.");
 	scene_synchronizer = &p_synchronizer;
 	authority_peer = p_peer;
 
@@ -311,7 +311,7 @@ bool PeerNetworkedController::__input_data_parse(
 
 	int ofs = 0;
 
-	ENSURE_V(data_len >= 4, false);
+	NS_ENSURE_V(data_len >= 4, false);
 	const FrameIndex first_input_id = FrameIndex{ { ns_decode_uint32(p_data.data() + ofs) } };
 	ofs += 4;
 
@@ -324,7 +324,7 @@ bool PeerNetworkedController::__input_data_parse(
 	pir.begin_read();
 
 	while (ofs < data_len) {
-		ENSURE_V_MSG(ofs + 1 <= data_len, false, "The arrived packet size doesn't meet the expected size.");
+		NS_ENSURE_V_MSG(ofs + 1 <= data_len, false, "The arrived packet size doesn't meet the expected size.");
 		// First byte is used for the duplication count.
 		const uint8_t duplication = p_data[ofs];
 		ofs += 1;
@@ -341,7 +341,7 @@ bool PeerNetworkedController::__input_data_parse(
 		// Pad to 8 bits.
 		const int input_size_padded =
 				int(std::ceil(static_cast<float>(input_size_in_bits) / 8.0f));
-		ENSURE_V_MSG(ofs + input_size_padded <= data_len, false, "The arrived packet size doesn't meet the expected size.");
+		NS_ENSURE_V_MSG(ofs + input_size_padded <= data_len, false, "The arrived packet size doesn't meet the expected size.");
 
 		// Extract the data and copy into a BitArray.
 		BitArray bit_array;
@@ -363,7 +363,7 @@ bool PeerNetworkedController::__input_data_parse(
 		ofs += input_size_padded;
 	}
 
-	ENSURE_V_MSG(ofs == data_len, false, "At the end was detected that the arrived packet has an unexpected size.");
+	NS_ENSURE_V_MSG(ofs == data_len, false, "At the end was detected that the arrived packet has an unexpected size.");
 	return true;
 }
 
@@ -1500,7 +1500,7 @@ void DollController::copy_controlled_objects_snapshot(
 		}
 
 		const std::vector<NameAndVar> *vars = p_snapshot.get_object_vars(object_data->get_net_id());
-		ENSURE_CONTINUE_MSG(vars, "[FATAL] The snapshot didn't contain the object: " + object_data->get_net_id() + ". If this error spams for a long period (1/2 seconds) or never recover, it's a bug since.");
+		NS_ENSURE_CONTINUE_MSG(vars, "[FATAL] The snapshot didn't contain the object: " + object_data->get_net_id() + ". If this error spams for a long period (1/2 seconds) or never recover, it's a bug since.");
 
 		snap->data.simulated_objects.push_back(object_data->get_net_id());
 

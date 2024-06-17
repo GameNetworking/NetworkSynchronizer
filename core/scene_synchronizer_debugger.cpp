@@ -98,7 +98,7 @@ void SceneSynchronizerDebugger::prepare_dumping(int p_peer) {
 	// Prepare the dir.
 	{
 		std::string path = main_dump_directory_path + "/" + dump_name;
-		ENSURE(file_system->make_dir_recursive(path, true));
+		NS_ENSURE(file_system->make_dir_recursive(path, true));
 	}
 
 	// Store generic info about this dump.
@@ -109,7 +109,7 @@ void SceneSynchronizerDebugger::prepare_dumping(int p_peer) {
 		d["date"] = file_system->get_date();
 		d["time"] = file_system->get_time();
 
-		ENSURE(file_system->store_file_string(
+		NS_ENSURE(file_system->store_file_string(
 			main_dump_directory_path + "/" + "dump-info-" + dump_name + /*"-" + std::to_string(p_peer) +*/ ".json",
 			d.dump()));
 	}
@@ -131,7 +131,7 @@ void SceneSynchronizerDebugger::setup_debugger_python_ui() {
 	}
 
 	// Copy the python UI into the directory.
-	ENSURE(file_system->store_file_buffer(path, (std::uint8_t *)__debugger_ui_code, __debugger_ui_code_size));
+	NS_ENSURE(file_system->store_file_buffer(path, (std::uint8_t *)__debugger_ui_code, __debugger_ui_code_size));
 #endif
 #endif
 }
@@ -183,7 +183,7 @@ void SceneSynchronizerDebugger::write_dump(int p_peer, uint32_t p_frame_index) {
 	d["data_buffer_reads"] = frame_dump_storage->frame_dump__data_buffer_reads;
 	d["are_inputs_different_results"] = frame_dump_storage->frame_dump__are_inputs_different_results;
 
-	ENSURE(file_system->store_file_string(file_path, d.dump()));
+	NS_ENSURE(file_system->store_file_string(file_path, d.dump()));
 #endif
 }
 

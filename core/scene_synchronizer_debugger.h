@@ -8,6 +8,7 @@ class NetworkInterface;
 
 class FileSystem {
 public:
+	virtual ~FileSystem() {}
 	virtual std::string get_base_dir() const = 0;
 	virtual std::string get_date() const = 0;
 	virtual std::string get_time() const = 0;

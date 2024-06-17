@@ -34,7 +34,7 @@ void test_ids() {
 	ASSERT_COND(var_id_3.id == 3);
 }
 
-const float delta = 1.0 / 60.0;
+const float delta = 1.0f / 60.0f;
 
 class LocalNetworkedController : public NS::LocalSceneObject {
 public:

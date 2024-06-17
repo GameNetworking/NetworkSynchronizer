@@ -109,7 +109,7 @@ ObjectLocalId ObjectDataStorage::find_object_local_id(ObjectHandle p_handle) con
 
 NS::ObjectData *ObjectDataStorage::get_object_data(ObjectNetId p_net_id, bool p_expected) {
 	if (p_expected) {
-		ENSURE_V(p_net_id.id < objects_data_organized_by_netid.size(), nullptr);
+		NS_ENSURE_V(p_net_id.id < objects_data_organized_by_netid.size(), nullptr);
 	} else {
 		if (objects_data_organized_by_netid.size() <= p_net_id.id) {
 			return nullptr;
@@ -121,7 +121,7 @@ NS::ObjectData *ObjectDataStorage::get_object_data(ObjectNetId p_net_id, bool p_
 
 const NS::ObjectData *ObjectDataStorage::get_object_data(ObjectNetId p_net_id, bool p_expected) const {
 	if (p_expected) {
-		ENSURE_V(p_net_id.id < objects_data_organized_by_netid.size(), nullptr);
+		NS_ENSURE_V(p_net_id.id < objects_data_organized_by_netid.size(), nullptr);
 	} else {
 		if (objects_data_organized_by_netid.size() <= p_net_id.id) {
 			return nullptr;
@@ -133,7 +133,7 @@ const NS::ObjectData *ObjectDataStorage::get_object_data(ObjectNetId p_net_id, b
 
 NS::ObjectData *ObjectDataStorage::get_object_data(ObjectLocalId p_handle, bool p_expected) {
 	if (p_expected) {
-		ENSURE_V(p_handle.id < objects_data.size(), nullptr);
+		NS_ENSURE_V(p_handle.id < objects_data.size(), nullptr);
 	} else {
 		if (p_handle.id < 0 || objects_data.size() <= p_handle.id) {
 			return nullptr;
@@ -145,7 +145,7 @@ NS::ObjectData *ObjectDataStorage::get_object_data(ObjectLocalId p_handle, bool 
 
 const NS::ObjectData *ObjectDataStorage::get_object_data(ObjectLocalId p_handle, bool p_expected) const {
 	if (p_expected) {
-		ENSURE_V(p_handle.id < objects_data.size(), nullptr);
+		NS_ENSURE_V(p_handle.id < objects_data.size(), nullptr);
 	} else {
 		if (p_handle.id < 0 || objects_data.size() <= p_handle.id) {
 			return nullptr;

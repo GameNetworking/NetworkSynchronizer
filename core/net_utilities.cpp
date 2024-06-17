@@ -242,7 +242,7 @@ void NS::SyncGroup::notify_variable_changed(ObjectData *p_object_data, const std
 
 void NS::SyncGroup::set_trickled_update_rate(NS::ObjectData *p_object_data, float p_update_rate) {
 	const std::size_t index = find_trickled(*p_object_data);
-	ENSURE(index != VecFunc::index_none());
+	NS_ENSURE(index != VecFunc::index_none());
 	trickled_sync_objects[index].update_rate = p_update_rate;
 }
 

@@ -86,10 +86,10 @@ void ObjectData::set_controlled_by_peer(
 	storage.notify_set_controlled_by_peer(old_peer, *this);
 
 	if (controlled_by_peer != -1) {
-		ENSURE_MSG(p_collect_input_func, "The function collect_input_func is not valid.");
-		ENSURE_MSG(p_count_input_size_func, "The function count_input_size is not valid.");
-		ENSURE_MSG(p_are_inputs_different_func, "The function are_inputs_different is not valid.");
-		ENSURE_MSG(p_process_func, "The function process is not valid.");
+		NS_ENSURE_MSG(p_collect_input_func, "The function collect_input_func is not valid.");
+		NS_ENSURE_MSG(p_count_input_size_func, "The function count_input_size is not valid.");
+		NS_ENSURE_MSG(p_are_inputs_different_func, "The function are_inputs_different is not valid.");
+		NS_ENSURE_MSG(p_process_func, "The function process is not valid.");
 	}
 
 	controller_funcs.collect_input = p_collect_input_func;

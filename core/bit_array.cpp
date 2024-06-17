@@ -14,7 +14,7 @@ BitArray::BitArray(const std::vector<std::uint8_t> &p_bytes) :
 }
 
 bool BitArray::resize_in_bytes(int p_bytes_count) {
-	ENSURE_V_MSG(p_bytes_count >= 0, false, "Bytes count can't be negative");
+	NS_ENSURE_V_MSG(p_bytes_count >= 0, false, "Bytes count can't be negative");
 	bytes.resize(p_bytes_count);
 	return true;
 }
@@ -24,7 +24,7 @@ int BitArray::size_in_bytes() const {
 }
 
 bool BitArray::resize_in_bits(int p_bits_count) {
-	ENSURE_V_MSG(p_bits_count >= 0, false, "Bits count can't be negative");
+	NS_ENSURE_V_MSG(p_bits_count >= 0, false, "Bits count can't be negative");
 	const int min_size = int(std::ceil((static_cast<float>(p_bits_count)) / 8.0f));
 	bytes.resize(min_size);
 	return true;
@@ -35,9 +35,9 @@ int BitArray::size_in_bits() const {
 }
 
 bool BitArray::store_bits(int p_bit_offset, std::uint64_t p_value, int p_bits) {
-	ENSURE_V_MSG(p_bit_offset >= 0, false, "Offset can't be negative");
-	ENSURE_V_MSG(p_bits > 0, false, "The number of bits should be more than 0");
-	ENSURE_V_MSG((p_bit_offset + p_bits - 1) < size_in_bits(), false, "The bit array size is `" + std::to_string(size_in_bits()) + "` while you are trying to write `" + std::to_string(p_bits) + "` starting from `" + std::to_string(p_bit_offset) + "`.");
+	NS_ENSURE_V_MSG(p_bit_offset >= 0, false, "Offset can't be negative");
+	NS_ENSURE_V_MSG(p_bits > 0, false, "The number of bits should be more than 0");
+	NS_ENSURE_V_MSG((p_bit_offset + p_bits - 1) < size_in_bits(), false, "The bit array size is `" + std::to_string(size_in_bits()) + "` while you are trying to write `" + std::to_string(p_bits) + "` starting from `" + std::to_string(p_bit_offset) + "`.");
 
 	int bits = p_bits;
 	int bit_offset = p_bit_offset;
@@ -69,8 +69,8 @@ bool BitArray::store_bits(int p_bit_offset, std::uint64_t p_value, int p_bits) {
 }
 
 bool BitArray::read_bits(int p_bit_offset, int p_bits, std::uint64_t &r_out) const {
-	ENSURE_V_MSG(p_bits > 0, false, "The number of bits should be more than 0");
-	ENSURE_V_MSG((p_bit_offset + p_bits - 1) < size_in_bits(), false, "The bit array size is `" + std::to_string(size_in_bits()) + "` while you are trying to read `" + std::to_string(p_bits) + "` starting from `" + std::to_string(p_bit_offset) + "`.");
+	NS_ENSURE_V_MSG(p_bits > 0, false, "The number of bits should be more than 0");
+	NS_ENSURE_V_MSG((p_bit_offset + p_bits - 1) < size_in_bits(), false, "The bit array size is `" + std::to_string(size_in_bits()) + "` while you are trying to read `" + std::to_string(p_bits) + "` starting from `" + std::to_string(p_bit_offset) + "`.");
 
 	int bits = p_bits;
 	int bit_offset = p_bit_offset;

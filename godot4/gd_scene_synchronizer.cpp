@@ -70,7 +70,7 @@ bool GdFileSystem::store_file_string(const std::string &p_path, const std::strin
 
 bool GdFileSystem::store_file_buffer(const std::string &p_path, const std::uint8_t *p_src, uint64_t p_length) const {
 	Ref<FileAccess> f = FileAccess::open(p_path.c_str(), FileAccess::WRITE);
-	ENSURE_V_MSG(!f.is_null(), false, "Can't create the `" + p_path + "` file.");
+	NS_ENSURE_V_MSG(!f.is_null(), false, "Can't create the `" + p_path + "` file.");
 	f->store_buffer(p_src, p_length);
 	return true;
 }
@@ -743,7 +743,7 @@ bool GdSceneSynchronizer::client_is_object_simulating(NS::ObjectLocalId p_id) co
 
 bool GdSceneSynchronizer::client_is_object_simulating(NS::ObjectNetId p_id) const {
 	const NS::ObjectData *od = scene_synchronizer.get_object_data(p_id);
-	ENSURE_V(od, false);
+	NS_ENSURE_V(od, false);
 	return client_is_object_simulating(od->get_net_id());
 }
 

@@ -110,14 +110,14 @@ void DataBuffer::dry() {
 }
 
 void DataBuffer::seek(int p_bits) {
-	ENSURE(p_bits < metadata_size + bit_size + 1 && p_bits >= 0);
+	NS_ENSURE(p_bits < metadata_size + bit_size + 1 && p_bits >= 0);
 	bit_offset = p_bits;
 }
 
 void DataBuffer::shrink_to(int p_metadata_bit_size, int p_bit_size) {
 	ASSERT_COND_MSG(p_metadata_bit_size >= 0, "Metadata size can't be negative");
-	ENSURE_MSG(p_bit_size >= 0, "Bit size can't be negative");
-	ENSURE_MSG(buffer.size_in_bits() >= (p_metadata_bit_size + p_bit_size), "The buffer is smaller than the new given size.");
+	NS_ENSURE_MSG(p_bit_size >= 0, "Bit size can't be negative");
+	NS_ENSURE_MSG(buffer.size_in_bits() >= (p_metadata_bit_size + p_bit_size), "The buffer is smaller than the new given size.");
 	metadata_size = p_metadata_bit_size;
 	bit_size = p_bit_size;
 }
@@ -139,7 +139,7 @@ int DataBuffer::get_bit_offset() const {
 }
 
 void DataBuffer::skip(int p_bits) {
-	ENSURE((metadata_size + bit_size) >= (bit_offset + p_bits));
+	NS_ENSURE((metadata_size + bit_size) >= (bit_offset + p_bits));
 	bit_offset += p_bits;
 }
 
@@ -246,7 +246,7 @@ void DataBuffer::read(DataBuffer &r_db) {
 }
 
 bool DataBuffer::add_bool(bool p_input) {
-	ENSURE_V(!is_reading, p_input);
+	NS_ENSURE_V(!is_reading, p_input);
 
 	const int bits = get_bit_taken(DATA_TYPE_BOOL, COMPRESSION_LEVEL_0);
 
@@ -267,7 +267,7 @@ bool DataBuffer::add_bool(bool p_input) {
 }
 
 bool DataBuffer::read_bool() {
-	ENSURE_V(is_reading, false);
+	NS_ENSURE_V(is_reading, false);
 
 	const int bits = get_bit_taken(DATA_TYPE_BOOL, COMPRESSION_LEVEL_0);
 	std::uint64_t d;
@@ -283,7 +283,7 @@ bool DataBuffer::read_bool() {
 }
 
 int64_t DataBuffer::add_int(int64_t p_input, CompressionLevel p_compression_level) {
-	ENSURE_V(!is_reading, p_input);
+	NS_ENSURE_V(!is_reading, p_input);
 
 	const int bits = get_bit_taken(DATA_TYPE_INT, p_compression_level);
 
@@ -322,7 +322,7 @@ int64_t DataBuffer::add_int(int64_t p_input, CompressionLevel p_compression_leve
 }
 
 int64_t DataBuffer::read_int(CompressionLevel p_compression_level) {
-	ENSURE_V(is_reading, 0);
+	NS_ENSURE_V(is_reading, 0);
 
 	const int bits = get_bit_taken(DATA_TYPE_INT, p_compression_level);
 
@@ -352,7 +352,7 @@ int64_t DataBuffer::read_int(CompressionLevel p_compression_level) {
 }
 
 std::uint64_t DataBuffer::add_uint(std::uint64_t p_input, CompressionLevel p_compression_level) {
-	ENSURE_V(!is_reading, p_input);
+	NS_ENSURE_V(!is_reading, p_input);
 
 	const int bits = get_bit_taken(DATA_TYPE_UINT, p_compression_level);
 
@@ -387,7 +387,7 @@ std::uint64_t DataBuffer::add_uint(std::uint64_t p_input, CompressionLevel p_com
 }
 
 std::uint64_t DataBuffer::read_uint(CompressionLevel p_compression_level) {
-	ENSURE_V(is_reading, 0);
+	NS_ENSURE_V(is_reading, 0);
 
 	const int bits = get_bit_taken(DATA_TYPE_UINT, p_compression_level);
 
@@ -497,10 +497,10 @@ void DataBuffer::read_real(float &r_value, CompressionLevel p_compression_level)
 }
 
 float DataBuffer::add_positive_unit_real(float p_input, CompressionLevel p_compression_level) {
-	ENSURE_V(!is_reading, p_input);
+	NS_ENSURE_V(!is_reading, p_input);
 
 #ifdef NS_DEBUG_ENABLED
-	ENSURE_V_MSG(p_input >= 0.0f && p_input <= 1.0f, p_input, "Value must be between zero and one.");
+	NS_ENSURE_V_MSG(p_input >= 0.0f && p_input <= 1.0f, p_input, "Value must be between zero and one.");
 #endif
 
 	const int bits = get_bit_taken(DATA_TYPE_POSITIVE_UNIT_REAL, p_compression_level);
@@ -526,7 +526,7 @@ float DataBuffer::add_positive_unit_real(float p_input, CompressionLevel p_compr
 }
 
 float DataBuffer::read_positive_unit_real(CompressionLevel p_compression_level) {
-	ENSURE_V(is_reading, 0.0);
+	NS_ENSURE_V(is_reading, 0.0);
 
 	const int bits = get_bit_taken(DATA_TYPE_POSITIVE_UNIT_REAL, p_compression_level);
 
@@ -547,7 +547,7 @@ float DataBuffer::read_positive_unit_real(CompressionLevel p_compression_level) 
 }
 
 float DataBuffer::add_unit_real(float p_input, CompressionLevel p_compression_level) {
-	ENSURE_V(!is_reading, p_input);
+	NS_ENSURE_V(!is_reading, p_input);
 
 	const float added_real = add_positive_unit_real(std::abs(p_input), p_compression_level);
 
@@ -571,7 +571,7 @@ float DataBuffer::add_unit_real(float p_input, CompressionLevel p_compression_le
 }
 
 float DataBuffer::read_unit_real(CompressionLevel p_compression_level) {
-	ENSURE_V(is_reading, 0.0);
+	NS_ENSURE_V(is_reading, 0.0);
 
 	const float value = read_positive_unit_real(p_compression_level);
 
@@ -591,7 +591,7 @@ float DataBuffer::read_unit_real(CompressionLevel p_compression_level) {
 }
 
 void DataBuffer::add_vector2(double x, double y, CompressionLevel p_compression_level) {
-	ENSURE(!is_reading);
+	NS_ENSURE(!is_reading);
 
 	DEB_DISABLE
 
@@ -604,7 +604,7 @@ void DataBuffer::add_vector2(double x, double y, CompressionLevel p_compression_
 }
 
 void DataBuffer::add_vector2(float x, float y, CompressionLevel p_compression_level) {
-	ENSURE(!is_reading);
+	NS_ENSURE(!is_reading);
 
 	DEB_DISABLE
 
@@ -617,7 +617,7 @@ void DataBuffer::add_vector2(float x, float y, CompressionLevel p_compression_le
 }
 
 void DataBuffer::read_vector2(double &x, double &y, CompressionLevel p_compression_level) {
-	ENSURE(is_reading);
+	NS_ENSURE(is_reading);
 
 	DEB_DISABLE
 
@@ -630,7 +630,7 @@ void DataBuffer::read_vector2(double &x, double &y, CompressionLevel p_compressi
 }
 
 void DataBuffer::read_vector2(float &x, float &y, CompressionLevel p_compression_level) {
-	ENSURE(is_reading);
+	NS_ENSURE(is_reading);
 
 	DEB_DISABLE
 
@@ -647,13 +647,13 @@ template void DataBuffer::add_normalized_vector2<double>(double, double, DataBuf
 
 template <typename T>
 void DataBuffer::add_normalized_vector2(T x, T y, CompressionLevel p_compression_level) {
-	ENSURE(!is_reading);
+	NS_ENSURE(!is_reading);
 
 	const std::uint64_t is_not_zero = MathFunc::is_zero_approx(x) && MathFunc::is_zero_approx(y) ? 0 : 1;
 
 #ifdef NS_DEBUG_ENABLED
 	if (is_not_zero) {
-		ENSURE_MSG(MathFunc::vec2_is_normalized(x, y), "[FATAL] The encoding failed because this function expects a normalized vector.");
+		NS_ENSURE_MSG(MathFunc::vec2_is_normalized(x, y), "[FATAL] The encoding failed because this function expects a normalized vector.");
 	}
 #endif
 
@@ -689,7 +689,7 @@ template void DataBuffer::read_normalized_vector2<double>(double &, double &, Da
 
 template <typename T>
 void DataBuffer::read_normalized_vector2(T &x, T &y, CompressionLevel p_compression_level) {
-	ENSURE(is_reading);
+	NS_ENSURE(is_reading);
 
 	const int bits = get_bit_taken(DATA_TYPE_NORMALIZED_VECTOR2, p_compression_level);
 	const int bits_for_the_angle = bits - 1;
@@ -717,7 +717,7 @@ void DataBuffer::read_normalized_vector2(T &x, T &y, CompressionLevel p_compress
 }
 
 void DataBuffer::add_vector3(double x, double y, double z, CompressionLevel p_compression_level) {
-	ENSURE(!is_reading);
+	NS_ENSURE(!is_reading);
 
 	DEB_DISABLE
 
@@ -731,7 +731,7 @@ void DataBuffer::add_vector3(double x, double y, double z, CompressionLevel p_co
 }
 
 void DataBuffer::add_vector3(float x, float y, float z, CompressionLevel p_compression_level) {
-	ENSURE(!is_reading);
+	NS_ENSURE(!is_reading);
 
 	DEB_DISABLE
 
@@ -745,7 +745,7 @@ void DataBuffer::add_vector3(float x, float y, float z, CompressionLevel p_compr
 }
 
 void DataBuffer::read_vector3(double &x, double &y, double &z, CompressionLevel p_compression_level) {
-	ENSURE(is_reading);
+	NS_ENSURE(is_reading);
 
 	DEB_DISABLE
 
@@ -759,7 +759,7 @@ void DataBuffer::read_vector3(double &x, double &y, double &z, CompressionLevel 
 }
 
 void DataBuffer::read_vector3(float &x, float &y, float &z, CompressionLevel p_compression_level) {
-	ENSURE(is_reading);
+	NS_ENSURE(is_reading);
 
 	DEB_DISABLE
 
@@ -777,11 +777,11 @@ template void DataBuffer::add_normalized_vector3<float>(float x, float y, float 
 
 template <typename T>
 void DataBuffer::add_normalized_vector3(T x, T y, T z, CompressionLevel p_compression_level) {
-	ENSURE(!is_reading);
+	NS_ENSURE(!is_reading);
 
 #ifdef NS_DEBUG_ENABLED
 	if (!MathFunc::is_zero_approx(x) || !MathFunc::is_zero_approx(y) || !MathFunc::is_zero_approx(z)) {
-		ENSURE_MSG(MathFunc::vec3_is_normalized(x, y, z), "[FATAL] This function expects a normalized vector.");
+		NS_ENSURE_MSG(MathFunc::vec3_is_normalized(x, y, z), "[FATAL] This function expects a normalized vector.");
 	}
 #endif
 
@@ -801,7 +801,7 @@ template void DataBuffer::read_normalized_vector3<float>(float &x, float &y, flo
 
 template <typename T>
 void DataBuffer::read_normalized_vector3(T &x, T &y, T &z, CompressionLevel p_compression_level) {
-	ENSURE(is_reading);
+	NS_ENSURE(is_reading);
 
 	DEB_DISABLE
 
@@ -828,12 +828,12 @@ void DataBuffer::add_data_buffer(const DataBuffer &p_db) {
 }
 
 void DataBuffer::read_data_buffer(DataBuffer &r_db) {
-	ENSURE(is_reading);
+	NS_ENSURE(is_reading);
 	ASSERT_COND(!r_db.is_reading);
 
 	bool using_compression_lvl_2 = false;
 	read(using_compression_lvl_2);
-	ENSURE(!is_buffer_failed());
+	NS_ENSURE(!is_buffer_failed());
 	const int other_db_bit_size = int(read_uint(using_compression_lvl_2 ? COMPRESSION_LEVEL_2 : COMPRESSION_LEVEL_1));
 
 	pad_to_next_byte();
@@ -843,7 +843,7 @@ void DataBuffer::read_data_buffer(DataBuffer &r_db) {
 }
 
 void DataBuffer::add_bits(const uint8_t *p_data, int p_bit_count) {
-	ENSURE(!is_reading);
+	NS_ENSURE(!is_reading);
 	const int initial_bit_count = p_bit_count;
 
 	make_room_in_bits(p_bit_count);
@@ -863,7 +863,7 @@ void DataBuffer::add_bits(const uint8_t *p_data, int p_bit_count) {
 }
 
 void DataBuffer::read_bits(uint8_t *r_data, int p_bit_count) {
-	ENSURE(is_reading);
+	NS_ENSURE(is_reading);
 
 	const int initial_bit_count = p_bit_count;
 
@@ -1046,7 +1046,7 @@ int DataBuffer::read_normalized_vector3_size(CompressionLevel p_compression) {
 int DataBuffer::read_buffer_size() {
 	bool using_compression_lvl_2;
 	read(using_compression_lvl_2);
-	ENSURE_V(!is_buffer_failed(), 0);
+	NS_ENSURE_V(!is_buffer_failed(), 0);
 
 	const int other_db_bit_size = int(read_uint(using_compression_lvl_2 ? COMPRESSION_LEVEL_2 : COMPRESSION_LEVEL_1));
 
@@ -1155,10 +1155,10 @@ int DataBuffer::get_bit_taken(DataType p_data_type, CompressionLevel p_compressi
 		}
 		break;
 		case DATA_TYPE_BITS: {
-			ENSURE_V_MSG(false, 0, "The bits size specified by the user and is not determined according to the compression level.");
+			NS_ENSURE_V_MSG(false, 0, "The bits size specified by the user and is not determined according to the compression level.");
 		}
 		case DATA_TYPE_DATABUFFER: {
-			ENSURE_V_MSG(false, 0, "The variant size is dynamic and can't be know at compile time.");
+			NS_ENSURE_V_MSG(false, 0, "The variant size is dynamic and can't be know at compile time.");
 		}
 		default:
 			// Unreachable
@@ -1273,7 +1273,7 @@ void DataBuffer::make_room_pad_to_next_byte() {
 
 bool DataBuffer::pad_to_next_byte(int *p_bits_to_next_byte) {
 	const int bits_to_next_byte = ((bit_offset + 7) & ~7) - bit_offset;
-	ENSURE_V(
+	NS_ENSURE_V(
 			(bit_offset + bits_to_next_byte) <= buffer.size_in_bits(),
 			false);
 	bit_offset += bits_to_next_byte;

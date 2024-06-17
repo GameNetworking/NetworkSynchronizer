@@ -357,7 +357,7 @@ const Settings &SceneSynchronizerBase::get_settings() const {
 }
 
 void SceneSynchronizerBase::register_app_object(ObjectHandle p_app_object_handle, ObjectLocalId *out_id) {
-	ENSURE(p_app_object_handle != ObjectHandle::NONE);
+	NS_ENSURE(p_app_object_handle != ObjectHandle::NONE);
 
 	ObjectLocalId id = objects_data_storage.find_object_local_id(p_app_object_handle);
 	if (out_id) {
@@ -424,10 +424,10 @@ void SceneSynchronizerBase::setup_controller(
 		std::function<int(DataBuffer & /*p_data_buffer*/)> p_count_input_size_func,
 		std::function<bool(DataBuffer & /*p_data_buffer_A*/, DataBuffer & /*p_data_buffer_B*/)> p_are_inputs_different_func,
 		std::function<void(float /*delta*/, DataBuffer & /*p_data_buffer*/)> p_process_func) {
-	ENSURE_MSG(p_id != ObjectLocalId::NONE, "The passed object_id is not valid.");
+	NS_ENSURE_MSG(p_id != ObjectLocalId::NONE, "The passed object_id is not valid.");
 
 	NS::ObjectData *object_data = get_object_data(p_id);
-	ENSURE(object_data != nullptr);
+	NS_ENSURE(object_data != nullptr);
 
 	const int previous_controlling_peer = object_data->get_controlled_by_peer();
 	object_data->set_controlled_by_peer(p_peer, p_collect_input_func, p_count_input_size_func, p_are_inputs_different_func, p_process_func);
@@ -443,11 +443,11 @@ void SceneSynchronizerBase::setup_controller(
 }
 
 void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const std::string &p_variable) {
-	ENSURE(p_id != ObjectLocalId::NONE);
-	ENSURE(!p_variable.empty());
+	NS_ENSURE(p_id != ObjectLocalId::NONE);
+	NS_ENSURE(!p_variable.empty());
 
 	NS::ObjectData *object_data = get_object_data(p_id);
-	ENSURE(object_data);
+	NS_ENSURE(object_data);
 
 	VarId var_id = object_data->find_variable_id(p_variable);
 	if (var_id == VarId::NONE) {
@@ -484,14 +484,14 @@ void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const std::str
 }
 
 void SceneSynchronizerBase::unregister_variable(ObjectLocalId p_id, const std::string &p_variable) {
-	ENSURE(p_id != ObjectLocalId::NONE);
-	ENSURE(!p_variable.empty());
+	NS_ENSURE(p_id != ObjectLocalId::NONE);
+	NS_ENSURE(!p_variable.empty());
 
 	NS::ObjectData *od = objects_data_storage.get_object_data(p_id);
-	ENSURE(od);
+	NS_ENSURE(od);
 
 	const VarId var_id = od->find_variable_id(p_variable);
-	ENSURE(var_id != VarId::NONE);
+	NS_ENSURE(var_id != VarId::NONE);
 
 	// Never remove the variable values, because the order of the vars matters.
 	od->vars[var_id.id].enabled = false;
@@ -527,7 +527,7 @@ ObjectNetId SceneSynchronizerBase::get_app_object_net_id(ObjectHandle p_app_obje
 ObjectHandle SceneSynchronizerBase::get_app_object_from_id(ObjectNetId p_id, bool p_expected) {
 	NS::ObjectData *object_data = get_object_data(p_id, p_expected);
 	if (p_expected) {
-		ENSURE_V_MSG(object_data, ObjectHandle::NONE, "The ID " + p_id + " is not assigned to any node.");
+		NS_ENSURE_V_MSG(object_data, ObjectHandle::NONE, "The ID " + p_id + " is not assigned to any node.");
 		return object_data->app_object_handle;
 	} else {
 		return object_data ? object_data->app_object_handle : ObjectHandle::NONE;
@@ -537,7 +537,7 @@ ObjectHandle SceneSynchronizerBase::get_app_object_from_id(ObjectNetId p_id, boo
 ObjectHandle SceneSynchronizerBase::get_app_object_from_id_const(ObjectNetId p_id, bool p_expected) const {
 	const NS::ObjectData *object_data = get_object_data(p_id, p_expected);
 	if (p_expected) {
-		ENSURE_V_MSG(object_data, ObjectHandle::NONE, "The ID " + p_id + " is not assigned to any node.");
+		NS_ENSURE_V_MSG(object_data, ObjectHandle::NONE, "The ID " + p_id + " is not assigned to any node.");
 		return object_data->app_object_handle;
 	} else {
 		return object_data ? object_data->app_object_handle : ObjectHandle::NONE;
@@ -557,20 +557,20 @@ const std::vector<ObjectData *> *SceneSynchronizerBase::get_peer_controlled_obje
 }
 
 VarId SceneSynchronizerBase::get_variable_id(ObjectLocalId p_id, const std::string &p_variable) {
-	ENSURE_V(p_variable != "", VarId::NONE);
+	NS_ENSURE_V(p_variable != "", VarId::NONE);
 
 	NS::ObjectData *od = get_object_data(p_id);
-	ENSURE_V_MSG(od, VarId::NONE, "This node " + od->object_name + "is not registered.");
+	NS_ENSURE_V_MSG(od, VarId::NONE, "This node " + od->object_name + "is not registered.");
 
 	return od->find_variable_id(p_variable);
 }
 
 void SceneSynchronizerBase::set_skip_rewinding(ObjectLocalId p_id, const std::string &p_variable, bool p_skip_rewinding) {
 	NS::ObjectData *od = get_object_data(p_id);
-	ENSURE(od);
+	NS_ENSURE(od);
 
 	const VarId id = od->find_variable_id(p_variable);
-	ENSURE(id != VarId::NONE);
+	NS_ENSURE(id != VarId::NONE);
 
 	od->vars[id.id].skip_rewinding = p_skip_rewinding;
 }
@@ -592,9 +592,9 @@ ListenerHandle SceneSynchronizerBase::track_variables_changes(
 		const std::vector<std::string> &p_variables,
 		std::function<void(const std::vector<VarData> &p_old_values)> p_listener_func,
 		NetEventFlag p_flags) {
-	ENSURE_V_MSG(p_object_ids.size() == p_variables.size(), nulllistenerhandle, "object_ids and variables should have the exact same size.");
-	ENSURE_V_MSG(p_object_ids.size() != 0, nulllistenerhandle, "object_ids can't be of size 0");
-	ENSURE_V_MSG(p_variables.size() != 0, nulllistenerhandle, "object_ids can't be of size 0");
+	NS_ENSURE_V_MSG(p_object_ids.size() == p_variables.size(), nulllistenerhandle, "object_ids and variables should have the exact same size.");
+	NS_ENSURE_V_MSG(p_object_ids.size() != 0, nulllistenerhandle, "object_ids can't be of size 0");
+	NS_ENSURE_V_MSG(p_variables.size() != 0, nulllistenerhandle, "object_ids can't be of size 0");
 
 	bool is_valid = true;
 
@@ -674,11 +674,11 @@ void SceneSynchronizerBase::untrack_variable_changes(ListenerHandle p_handle) {
 }
 
 NS::PHandler SceneSynchronizerBase::register_process(ObjectLocalId p_id, ProcessPhase p_phase, std::function<void(float)> p_func) {
-	ENSURE_V(p_id != NS::ObjectLocalId::NONE, NS::NullPHandler);
-	ENSURE_V(p_func, NS::NullPHandler);
+	NS_ENSURE_V(p_id != NS::ObjectLocalId::NONE, NS::NullPHandler);
+	NS_ENSURE_V(p_func, NS::NullPHandler);
 
 	ObjectData *od = get_object_data(p_id);
-	ENSURE_V(od, NS::NullPHandler);
+	NS_ENSURE_V(od, NS::NullPHandler);
 
 	const NS::PHandler EFH = od->functions[p_phase].bind(p_func);
 
@@ -688,7 +688,7 @@ NS::PHandler SceneSynchronizerBase::register_process(ObjectLocalId p_id, Process
 }
 
 void SceneSynchronizerBase::unregister_process(ObjectLocalId p_id, ProcessPhase p_phase, NS::PHandler p_func_handler) {
-	ENSURE(p_id != NS::ObjectLocalId::NONE);
+	NS_ENSURE(p_id != NS::ObjectLocalId::NONE);
 
 	ObjectData *od = get_object_data(p_id);
 	if (od) {
@@ -701,10 +701,10 @@ void SceneSynchronizerBase::setup_trickled_sync(
 		ObjectLocalId p_id,
 		std::function<void(DataBuffer & /*out_buffer*/, float /*update_rate*/)> p_func_trickled_collect,
 		std::function<void(float /*delta*/, float /*interpolation_alpha*/, DataBuffer & /*past_buffer*/, DataBuffer & /*future_buffer*/)> p_func_trickled_apply) {
-	ENSURE(p_id != ObjectLocalId::NONE);
+	NS_ENSURE(p_id != ObjectLocalId::NONE);
 
 	NS::ObjectData *od = get_object_data(p_id);
-	ENSURE(od);
+	NS_ENSURE(od);
 
 	od->func_trickled_collect = p_func_trickled_collect;
 	od->func_trickled_apply = p_func_trickled_apply;
@@ -739,14 +739,14 @@ float SceneSynchronizerBase::get_peer_packet_loss_percentage(int p_peer) const {
 }
 
 SyncGroupId SceneSynchronizerBase::sync_group_create() {
-	ENSURE_V_MSG(is_server(), SyncGroupId::NONE, "This function CAN be used only on the server.");
+	NS_ENSURE_V_MSG(is_server(), SyncGroupId::NONE, "This function CAN be used only on the server.");
 	const SyncGroupId id = static_cast<ServerSynchronizer *>(synchronizer)->sync_group_create();
 	synchronizer_manager->on_sync_group_created(id);
 	return id;
 }
 
 const NS::SyncGroup *SceneSynchronizerBase::sync_group_get(SyncGroupId p_group_id) const {
-	ENSURE_V_MSG(is_server(), nullptr, "This function CAN be used only on the server.");
+	NS_ENSURE_V_MSG(is_server(), nullptr, "This function CAN be used only on the server.");
 	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get(p_group_id);
 }
 
@@ -761,7 +761,7 @@ void SceneSynchronizerBase::sync_group_add_object(ObjectNetId p_id, SyncGroupId 
 }
 
 void SceneSynchronizerBase::sync_group_add_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime) {
-	ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
+	NS_ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
 	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_add_object(p_object_data, p_group_id, p_realtime);
 }
 
@@ -776,7 +776,7 @@ void SceneSynchronizerBase::sync_group_remove_object(ObjectNetId p_id, SyncGroup
 }
 
 void SceneSynchronizerBase::sync_group_remove_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id) {
-	ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
+	NS_ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
 	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_remove_object(p_object_data, p_group_id);
 }
 
@@ -791,25 +791,25 @@ void SceneSynchronizerBase::sync_group_fetch_object_grups(NS::ObjectNetId p_id, 
 }
 
 void SceneSynchronizerBase::sync_group_fetch_object_grups(const NS::ObjectData *p_object_data, std::vector<SyncGroupId> &r_simulated_groups, std::vector<SyncGroupId> &r_trickled_groups) const {
-	ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
+	NS_ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
 	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_fetch_object_grups(p_object_data, r_simulated_groups, r_trickled_groups);
 }
 
 void SceneSynchronizerBase::sync_group_replace_objects(SyncGroupId p_group_id, std::vector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, std::vector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes) {
-	ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
+	NS_ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
 	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_replace_object(p_group_id, std::move(p_new_realtime_nodes), std::move(p_new_trickled_nodes));
 }
 
 void SceneSynchronizerBase::sync_group_remove_all_objects(SyncGroupId p_group_id) {
-	ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
+	NS_ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
 	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_remove_all_objects(p_group_id);
 }
 
 void SceneSynchronizerBase::sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id) {
-	ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
+	NS_ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
 
 	PeerData *pd = MapFunc::get_or_null(peer_data, p_peer_id);
-	ENSURE(pd);
+	NS_ENSURE(pd);
 	if (pd->authority_data.sync_group_id == p_group_id) {
 		// Nothing to do.
 		return;
@@ -821,7 +821,7 @@ void SceneSynchronizerBase::sync_group_move_peer_to(int p_peer_id, SyncGroupId p
 }
 
 SyncGroupId SceneSynchronizerBase::sync_group_get_peer_group(int p_peer_id) const {
-	ENSURE_V_MSG(is_server(), SyncGroupId::NONE, "This function CAN be used only on the server.");
+	NS_ENSURE_V_MSG(is_server(), SyncGroupId::NONE, "This function CAN be used only on the server.");
 
 	// Update the sync group id
 	const NS::PeerData *pd = MapFunc::get_or_null(peer_data, p_peer_id);
@@ -833,46 +833,46 @@ SyncGroupId SceneSynchronizerBase::sync_group_get_peer_group(int p_peer_id) cons
 }
 
 const std::vector<int> *SceneSynchronizerBase::sync_group_get_listening_peers(SyncGroupId p_group_id) const {
-	ENSURE_V_MSG(is_server(), nullptr, "This function CAN be used only on the server.");
+	NS_ENSURE_V_MSG(is_server(), nullptr, "This function CAN be used only on the server.");
 	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get_listening_peers(p_group_id);
 }
 
 const std::vector<int> *SceneSynchronizerBase::sync_group_get_simulating_peers(SyncGroupId p_group_id) const {
-	ENSURE_V_MSG(is_server(), nullptr, "This function CAN be used only on the server.");
+	NS_ENSURE_V_MSG(is_server(), nullptr, "This function CAN be used only on the server.");
 	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get_simulating_peers(p_group_id);
 }
 
 void SceneSynchronizerBase::sync_group_set_trickled_update_rate(ObjectLocalId p_node_id, SyncGroupId p_group_id, float p_update_rate) {
 	NS::ObjectData *od = get_object_data(p_node_id);
-	ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
+	NS_ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
 	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_set_trickled_update_rate(od, p_group_id, p_update_rate);
 }
 
 void SceneSynchronizerBase::sync_group_set_trickled_update_rate(ObjectNetId p_node_id, SyncGroupId p_group_id, float p_update_rate) {
 	NS::ObjectData *od = get_object_data(p_node_id);
-	ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
+	NS_ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
 	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_set_trickled_update_rate(od, p_group_id, p_update_rate);
 }
 
 float SceneSynchronizerBase::sync_group_get_trickled_update_rate(ObjectLocalId p_id, SyncGroupId p_group_id) const {
 	const NS::ObjectData *od = get_object_data(p_id);
-	ENSURE_V_MSG(is_server(), 0.0, "This function CAN be used only on the server.");
+	NS_ENSURE_V_MSG(is_server(), 0.0, "This function CAN be used only on the server.");
 	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get_trickled_update_rate(od, p_group_id);
 }
 
 float SceneSynchronizerBase::sync_group_get_trickled_update_rate(ObjectNetId p_id, SyncGroupId p_group_id) const {
 	const NS::ObjectData *od = get_object_data(p_id);
-	ENSURE_V_MSG(is_server(), 0.0, "This function CAN be used only on the server.");
+	NS_ENSURE_V_MSG(is_server(), 0.0, "This function CAN be used only on the server.");
 	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get_trickled_update_rate(od, p_group_id);
 }
 
 void SceneSynchronizerBase::sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_data) {
-	ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
+	NS_ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
 	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_set_user_data(p_group_id, p_user_data);
 }
 
 uint64_t SceneSynchronizerBase::sync_group_get_user_data(SyncGroupId p_group_id) const {
-	ENSURE_V_MSG(is_server(), 0, "This function CAN be used only on the server.");
+	NS_ENSURE_V_MSG(is_server(), 0, "This function CAN be used only on the server.");
 	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get_user_data(p_group_id);
 }
 
@@ -898,16 +898,16 @@ std::size_t SceneSynchronizerBase::get_client_max_frames_storage_size() const {
 }
 
 void SceneSynchronizerBase::force_state_notify(SyncGroupId p_sync_group_id) {
-	ENSURE(is_server());
+	NS_ENSURE(is_server());
 	ServerSynchronizer *r = static_cast<ServerSynchronizer *>(synchronizer);
 	// + 1.0 is just a ridiculous high number to be sure to avoid float
 	// precision error.
-	ENSURE_MSG(p_sync_group_id.id < r->sync_groups.size(), "The group id `" + p_sync_group_id + "` doesn't exist.");
+	NS_ENSURE_MSG(p_sync_group_id.id < r->sync_groups.size(), "The group id `" + p_sync_group_id + "` doesn't exist.");
 	r->sync_groups[p_sync_group_id.id].state_notifier_timer = get_frame_confirmation_timespan() + 1.0f;
 }
 
 void SceneSynchronizerBase::force_state_notify_all() {
-	ENSURE(is_server());
+	NS_ENSURE(is_server());
 	ServerSynchronizer *r = static_cast<ServerSynchronizer *>(synchronizer);
 
 	for (NS::SyncGroup &group : r->sync_groups) {
@@ -918,7 +918,7 @@ void SceneSynchronizerBase::force_state_notify_all() {
 }
 
 void SceneSynchronizerBase::set_enabled(bool p_enable) {
-	ENSURE_MSG(synchronizer_type != SYNCHRONIZER_TYPE_SERVER, "The server is always enabled.");
+	NS_ENSURE_MSG(synchronizer_type != SYNCHRONIZER_TYPE_SERVER, "The server is always enabled.");
 	if (synchronizer_type == SYNCHRONIZER_TYPE_CLIENT) {
 		rpc_handler_set_network_enabled.rpc(*network_interface, network_interface->get_server_peer(), p_enable);
 		if (p_enable == false) {
@@ -934,7 +934,7 @@ void SceneSynchronizerBase::set_enabled(bool p_enable) {
 }
 
 bool SceneSynchronizerBase::is_enabled() const {
-	ENSURE_V_MSG(synchronizer_type != SYNCHRONIZER_TYPE_SERVER, false, "The server is always enabled.");
+	NS_ENSURE_V_MSG(synchronizer_type != SYNCHRONIZER_TYPE_SERVER, false, "The server is always enabled.");
 	if make_likely (synchronizer_type == SYNCHRONIZER_TYPE_CLIENT) {
 		return static_cast<ClientSynchronizer *>(synchronizer)->enabled;
 	} else if (synchronizer_type == SYNCHRONIZER_TYPE_NONETWORK) {
@@ -946,14 +946,14 @@ bool SceneSynchronizerBase::is_enabled() const {
 
 void SceneSynchronizerBase::set_peer_networking_enable(int p_peer, bool p_enable) {
 	if (synchronizer_type == SYNCHRONIZER_TYPE_SERVER) {
-		ENSURE_MSG(p_peer != 1, "Disable the server is not possible.");
+		NS_ENSURE_MSG(p_peer != 1, "Disable the server is not possible.");
 
 		static_cast<ServerSynchronizer *>(synchronizer)->set_peer_networking_enable(p_peer, p_enable);
 
 		// Just notify the peer status.
 		rpc_handler_notify_peer_status.rpc(*network_interface, p_peer, p_enable);
 	} else {
-		ENSURE_MSG(synchronizer_type == SYNCHRONIZER_TYPE_NONETWORK, "At this point no network is expected.");
+		NS_ENSURE_MSG(synchronizer_type == SYNCHRONIZER_TYPE_NONETWORK, "At this point no network is expected.");
 		static_cast<NoNetSynchronizer *>(synchronizer)->set_enabled(p_enable);
 	}
 }
@@ -972,7 +972,7 @@ bool SceneSynchronizerBase::is_peer_networking_enabled(int p_peer) const {
 			return false;
 		}
 	} else {
-		ENSURE_V_MSG(synchronizer_type == SYNCHRONIZER_TYPE_NONETWORK, false, "At this point no network is expected.");
+		NS_ENSURE_V_MSG(synchronizer_type == SYNCHRONIZER_TYPE_NONETWORK, false, "At this point no network is expected.");
 		return static_cast<NoNetSynchronizer *>(synchronizer)->is_enabled();
 	}
 }
@@ -1133,59 +1133,59 @@ void SceneSynchronizerBase::clear() {
 }
 
 void SceneSynchronizerBase::rpc_receive_state(DataBuffer &p_snapshot) {
-	ENSURE_MSG(is_client(), "Only clients are suposed to receive the server snapshot.");
+	NS_ENSURE_MSG(is_client(), "Only clients are suposed to receive the server snapshot.");
 	static_cast<ClientSynchronizer *>(synchronizer)->receive_snapshot(p_snapshot);
 }
 
 void SceneSynchronizerBase::rpc__notify_need_full_snapshot() {
-	ENSURE_MSG(is_server(), "Only the server can receive the request to send a full snapshot.");
+	NS_ENSURE_MSG(is_server(), "Only the server can receive the request to send a full snapshot.");
 
 	const int peer = network_interface->rpc_get_sender();
 	static_cast<ServerSynchronizer *>(synchronizer)->notify_need_full_snapshot(peer, false);
 }
 
 void SceneSynchronizerBase::rpc_set_network_enabled(bool p_enabled) {
-	ENSURE_MSG(is_server(), "The peer status is supposed to be received by the server.");
+	NS_ENSURE_MSG(is_server(), "The peer status is supposed to be received by the server.");
 	set_peer_networking_enable(
 			network_interface->rpc_get_sender(),
 			p_enabled);
 }
 
 void SceneSynchronizerBase::rpc_notify_peer_status(bool p_enabled) {
-	ENSURE_MSG(is_client(), "The peer status is supposed to be received by the client.");
+	NS_ENSURE_MSG(is_client(), "The peer status is supposed to be received by the client.");
 	static_cast<ClientSynchronizer *>(synchronizer)->set_enabled(p_enabled);
 }
 
 void SceneSynchronizerBase::rpc_trickled_sync_data(const std::vector<std::uint8_t> &p_data) {
-	ENSURE_MSG(is_client(), "Only clients are supposed to receive this function call.");
-	ENSURE_MSG(p_data.size() > 0, "It's not supposed to receive a 0 size data.");
+	NS_ENSURE_MSG(is_client(), "Only clients are supposed to receive this function call.");
+	NS_ENSURE_MSG(p_data.size() > 0, "It's not supposed to receive a 0 size data.");
 
 	static_cast<ClientSynchronizer *>(synchronizer)->receive_trickled_sync_data(p_data);
 }
 
 void SceneSynchronizerBase::rpc_notify_netstats(DataBuffer &p_data) {
-	ENSURE(is_client());
+	NS_ENSURE(is_client());
 	p_data.begin_read();
 
 	std::uint8_t compressed_latency;
 	p_data.read(compressed_latency);
-	ENSURE_MSG(!p_data.is_buffer_failed(), "Failed to read the compressed latency.");
+	NS_ENSURE_MSG(!p_data.is_buffer_failed(), "Failed to read the compressed latency.");
 
 	const float packet_loss = p_data.read_positive_unit_real(DataBuffer::COMPRESSION_LEVEL_0);
-	ENSURE_MSG(!p_data.is_buffer_failed(), "Failed to read the packet loss.");
+	NS_ENSURE_MSG(!p_data.is_buffer_failed(), "Failed to read the packet loss.");
 
 	std::uint8_t compressed_jitter;
 	p_data.read(compressed_jitter);
-	ENSURE_MSG(!p_data.is_buffer_failed(), "Failed to read compressed jitter.");
+	NS_ENSURE_MSG(!p_data.is_buffer_failed(), "Failed to read compressed jitter.");
 
 	std::uint8_t compressed_input_count;
 	p_data.read(compressed_input_count);
-	ENSURE_MSG(!p_data.is_buffer_failed(), "Failed to read compressed input count.");
+	NS_ENSURE_MSG(!p_data.is_buffer_failed(), "Failed to read compressed input count.");
 
 	// 1. Updates the peer network statistics
 	const int local_peer = network_interface->get_local_peer_id();
 	PeerData *local_peer_data = NS::MapFunc::get_or_null(peer_data, local_peer);
-	ENSURE_MSG(local_peer_data, "The local peer was not found. This is a bug. PeerID: " + std::to_string(local_peer))
+	NS_ENSURE_MSG(local_peer_data, "The local peer was not found. This is a bug. PeerID: " + std::to_string(local_peer))
 	local_peer_data->set_compressed_latency(compressed_latency);
 	local_peer_data->set_out_packet_loss_percentage(packet_loss);
 	local_peer_data->set_latency_jitter_ms(compressed_jitter);
@@ -1388,14 +1388,14 @@ void SceneSynchronizerBase::change_events_flush() {
 }
 
 const std::vector<ObjectNetId> *SceneSynchronizerBase::client_get_simulated_objects() const {
-	ENSURE_V_MSG(is_client(), nullptr, "This function CAN be used only on the client.");
+	NS_ENSURE_V_MSG(is_client(), nullptr, "This function CAN be used only on the client.");
 	return &(static_cast<ClientSynchronizer *>(synchronizer)->simulated_objects);
 }
 
 bool SceneSynchronizerBase::client_is_simulated_object(ObjectLocalId p_id) const {
-	ENSURE_V_MSG(is_client(), false, "This function CAN be used only on the client.");
+	NS_ENSURE_V_MSG(is_client(), false, "This function CAN be used only on the client.");
 	const ObjectData *od = get_object_data(p_id, true);
-	ENSURE_V(od, false);
+	NS_ENSURE_V(od, false);
 	return od->realtime_sync_enabled_on_client;
 }
 
@@ -1442,7 +1442,7 @@ void SceneSynchronizerBase::notify_object_data_net_id_changed(ObjectData &p_obje
 }
 
 FrameIndex SceneSynchronizerBase::client_get_last_checked_frame_index() const {
-	ENSURE_V_MSG(is_client(), FrameIndex::NONE, "This function can be called only on client scene synchronizer.");
+	NS_ENSURE_V_MSG(is_client(), FrameIndex::NONE, "This function can be called only on client scene synchronizer.");
 	return static_cast<ClientSynchronizer *>(synchronizer)->last_checked_input;
 }
 
@@ -1552,7 +1552,7 @@ const ObjectData *SceneSynchronizerBase::get_object_data(ObjectNetId p_id, bool 
 PeerNetworkedController *SceneSynchronizerBase::get_controller_for_peer(int p_peer, bool p_expected) {
 	NS::PeerData *pd = MapFunc::get_or_null(peer_data, p_peer);
 	if (p_expected) {
-		ENSURE_V_MSG(pd, nullptr, "The peer is unknown `" + std::to_string(p_peer) + "`.");
+		NS_ENSURE_V_MSG(pd, nullptr, "The peer is unknown `" + std::to_string(p_peer) + "`.");
 		return pd->get_controller();
 	} else {
 		if (pd) {
@@ -1566,7 +1566,7 @@ PeerNetworkedController *SceneSynchronizerBase::get_controller_for_peer(int p_pe
 const PeerNetworkedController *SceneSynchronizerBase::get_controller_for_peer(int p_peer, bool p_expected) const {
 	const NS::PeerData *pd = MapFunc::get_or_null(peer_data, p_peer);
 	if (p_expected) {
-		ENSURE_V_MSG(pd, nullptr, "The peer is unknown `" + std::to_string(p_peer) + "`.");
+		NS_ENSURE_V_MSG(pd, nullptr, "The peer is unknown `" + std::to_string(p_peer) + "`.");
 		return pd->get_controller();
 	} else {
 		if (pd) {
@@ -1588,7 +1588,7 @@ std::map<int, NS::PeerData> &SceneSynchronizerBase::get_peers() {
 NS::PeerData *SceneSynchronizerBase::get_peer_data_for_controller(const PeerNetworkedController &p_controller, bool p_expected) {
 	NS::PeerData *pd = MapFunc::get_or_null(peer_data, p_controller.get_authority_peer());
 	if (p_expected) {
-		ENSURE_V_MSG(pd, nullptr, "The controller was not associated to a peer.");
+		NS_ENSURE_V_MSG(pd, nullptr, "The controller was not associated to a peer.");
 	}
 	return pd;
 }
@@ -1596,7 +1596,7 @@ NS::PeerData *SceneSynchronizerBase::get_peer_data_for_controller(const PeerNetw
 const NS::PeerData *SceneSynchronizerBase::get_peer_data_for_controller(const PeerNetworkedController &p_controller, bool p_expected) const {
 	const NS::PeerData *pd = MapFunc::get_or_null(peer_data, p_controller.get_authority_peer());
 	if (p_expected) {
-		ENSURE_V_MSG(pd, nullptr, "The controller was not associated to a peer.");
+		NS_ENSURE_V_MSG(pd, nullptr, "The controller was not associated to a peer.");
 	}
 	return pd;
 }
@@ -1889,7 +1889,7 @@ void ServerSynchronizer::on_variable_changed(NS::ObjectData *p_object_data, VarI
 
 void ServerSynchronizer::notify_need_full_snapshot(int p_peer, bool p_notify_ASAP) {
 	NS::PeerServerData *psd = MapFunc::get_or_null(peers_data, p_peer);
-	ENSURE(psd);
+	NS_ENSURE(psd);
 	psd->need_full_snapshot = true;
 	if (p_notify_ASAP) {
 		psd->force_notify_snapshot = true;
@@ -1906,26 +1906,26 @@ SyncGroupId ServerSynchronizer::sync_group_create() {
 }
 
 const NS::SyncGroup *ServerSynchronizer::sync_group_get(SyncGroupId p_group_id) const {
-	ENSURE_V_MSG(p_group_id.id < sync_groups.size(), nullptr, "The group id `" + p_group_id + "` doesn't exist.");
+	NS_ENSURE_V_MSG(p_group_id.id < sync_groups.size(), nullptr, "The group id `" + p_group_id + "` doesn't exist.");
 	return &sync_groups[p_group_id.id];
 }
 
 void ServerSynchronizer::sync_group_add_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime) {
-	ENSURE(p_object_data);
-	ENSURE_MSG(p_group_id.id < sync_groups.size(), "The group id `" + p_group_id + "` doesn't exist.");
-	ENSURE_MSG(p_group_id != SyncGroupId::GLOBAL, "You can't change this SyncGroup in any way. Create a new one.");
+	NS_ENSURE(p_object_data);
+	NS_ENSURE_MSG(p_group_id.id < sync_groups.size(), "The group id `" + p_group_id + "` doesn't exist.");
+	NS_ENSURE_MSG(p_group_id != SyncGroupId::GLOBAL, "You can't change this SyncGroup in any way. Create a new one.");
 	sync_groups[p_group_id.id].add_new_sync_object(p_object_data, p_realtime);
 }
 
 void ServerSynchronizer::sync_group_remove_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id) {
-	ENSURE_MSG(p_group_id.id < sync_groups.size(), "The group id `" + (p_group_id) + "` doesn't exist.");
-	ENSURE(p_object_data);
-	ENSURE_MSG(p_group_id != SyncGroupId::GLOBAL, "You can't change this SyncGroup in any way. Create a new one.");
+	NS_ENSURE_MSG(p_group_id.id < sync_groups.size(), "The group id `" + (p_group_id) + "` doesn't exist.");
+	NS_ENSURE(p_object_data);
+	NS_ENSURE_MSG(p_group_id != SyncGroupId::GLOBAL, "You can't change this SyncGroup in any way. Create a new one.");
 	sync_groups[p_group_id.id].remove_sync_object(*p_object_data);
 }
 
 void ServerSynchronizer::sync_group_fetch_object_grups(const ObjectData *p_object_data, std::vector<SyncGroupId> &r_simulated_groups, std::vector<SyncGroupId> &r_trickled_groups) const {
-	ENSURE(p_object_data);
+	NS_ENSURE(p_object_data);
 
 	r_simulated_groups.clear();
 	r_trickled_groups.clear();
@@ -1945,14 +1945,14 @@ void ServerSynchronizer::sync_group_fetch_object_grups(const ObjectData *p_objec
 }
 
 void ServerSynchronizer::sync_group_replace_object(SyncGroupId p_group_id, std::vector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, std::vector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes) {
-	ENSURE_MSG(p_group_id.id < sync_groups.size(), "The group id `" + p_group_id + "` doesn't exist.");
-	ENSURE_MSG(p_group_id != SyncGroupId::GLOBAL, "You can't change this SyncGroup in any way. Create a new one.");
+	NS_ENSURE_MSG(p_group_id.id < sync_groups.size(), "The group id `" + p_group_id + "` doesn't exist.");
+	NS_ENSURE_MSG(p_group_id != SyncGroupId::GLOBAL, "You can't change this SyncGroup in any way. Create a new one.");
 	sync_groups[p_group_id.id].replace_objects(std::move(p_new_realtime_nodes), std::move(p_new_trickled_nodes));
 }
 
 void ServerSynchronizer::sync_group_remove_all_objects(SyncGroupId p_group_id) {
-	ENSURE_MSG(p_group_id.id < sync_groups.size(), "The group id `" + p_group_id + "` doesn't exist.");
-	ENSURE_MSG(p_group_id != SyncGroupId::GLOBAL, "You can't change this SyncGroup in any way. Create a new one.");
+	NS_ENSURE_MSG(p_group_id.id < sync_groups.size(), "The group id `" + p_group_id + "` doesn't exist.");
+	NS_ENSURE_MSG(p_group_id != SyncGroupId::GLOBAL, "You can't change this SyncGroup in any way. Create a new one.");
 	sync_groups[p_group_id.id].remove_all_nodes();
 }
 
@@ -1977,7 +1977,7 @@ void ServerSynchronizer::sync_group_update(int p_peer_id) {
 		return;
 	}
 
-	ENSURE_MSG(pd->authority_data.sync_group_id.id < sync_groups.size(), "The group id `" + pd->authority_data.sync_group_id + "` doesn't exist.");
+	NS_ENSURE_MSG(pd->authority_data.sync_group_id.id < sync_groups.size(), "The group id `" + pd->authority_data.sync_group_id + "` doesn't exist.");
 	sync_groups[pd->authority_data.sync_group_id.id].add_listening_peer(p_peer_id);
 
 	// Also mark the peer as need full snapshot, as it's into a new group now.
@@ -1986,18 +1986,18 @@ void ServerSynchronizer::sync_group_update(int p_peer_id) {
 }
 
 const std::vector<int> *ServerSynchronizer::sync_group_get_listening_peers(SyncGroupId p_group_id) const {
-	ENSURE_V_MSG(p_group_id.id < sync_groups.size(), nullptr, "The group id `" + std::string(p_group_id) + "` doesn't exist.");
+	NS_ENSURE_V_MSG(p_group_id.id < sync_groups.size(), nullptr, "The group id `" + std::string(p_group_id) + "` doesn't exist.");
 	return &sync_groups[p_group_id.id].get_listening_peers();
 }
 
 const std::vector<int> *ServerSynchronizer::sync_group_get_simulating_peers(SyncGroupId p_group_id) const {
-	ENSURE_V_MSG(p_group_id.id < sync_groups.size(), nullptr, "The group id `" + std::string(p_group_id) + "` doesn't exist.");
+	NS_ENSURE_V_MSG(p_group_id.id < sync_groups.size(), nullptr, "The group id `" + std::string(p_group_id) + "` doesn't exist.");
 	return &sync_groups[p_group_id.id].get_simulating_peers();
 }
 
 void ServerSynchronizer::set_peer_networking_enable(int p_peer, bool p_enable) {
 	PeerData *pd = MapFunc::get_or_null(scene_synchronizer->peer_data, p_peer);
-	ENSURE(pd);
+	NS_ENSURE(pd);
 
 	if (pd->authority_data.enabled == p_enable) {
 		// Nothing to do.
@@ -2010,26 +2010,26 @@ void ServerSynchronizer::set_peer_networking_enable(int p_peer, bool p_enable) {
 }
 
 void ServerSynchronizer::sync_group_set_trickled_update_rate(NS::ObjectData *p_object_data, SyncGroupId p_group_id, float p_update_rate) {
-	ENSURE(p_object_data);
-	ENSURE_MSG(p_group_id.id < sync_groups.size(), "The group id `" + (p_group_id) + "` doesn't exist.");
-	ENSURE_MSG(p_group_id != SyncGroupId::GLOBAL, "You can't change this SyncGroup in any way. Create a new one.");
+	NS_ENSURE(p_object_data);
+	NS_ENSURE_MSG(p_group_id.id < sync_groups.size(), "The group id `" + (p_group_id) + "` doesn't exist.");
+	NS_ENSURE_MSG(p_group_id != SyncGroupId::GLOBAL, "You can't change this SyncGroup in any way. Create a new one.");
 	sync_groups[p_group_id.id].set_trickled_update_rate(p_object_data, p_update_rate);
 }
 
 float ServerSynchronizer::sync_group_get_trickled_update_rate(const NS::ObjectData *p_object_data, SyncGroupId p_group_id) const {
-	ENSURE_V(p_object_data, 0.0);
-	ENSURE_V_MSG(p_group_id.id < sync_groups.size(), 0.0, "The group id `" + (p_group_id) + "` doesn't exist.");
-	ENSURE_V_MSG(p_group_id != SyncGroupId::GLOBAL, 0.0, "You can't change this SyncGroup in any way. Create a new one.");
+	NS_ENSURE_V(p_object_data, 0.0);
+	NS_ENSURE_V_MSG(p_group_id.id < sync_groups.size(), 0.0, "The group id `" + (p_group_id) + "` doesn't exist.");
+	NS_ENSURE_V_MSG(p_group_id != SyncGroupId::GLOBAL, 0.0, "You can't change this SyncGroup in any way. Create a new one.");
 	return sync_groups[p_group_id.id].get_trickled_update_rate(p_object_data);
 }
 
 void ServerSynchronizer::sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_data) {
-	ENSURE_MSG(p_group_id.id < sync_groups.size(), "The group id `" + (p_group_id) + "` doesn't exist.");
+	NS_ENSURE_MSG(p_group_id.id < sync_groups.size(), "The group id `" + (p_group_id) + "` doesn't exist.");
 	sync_groups[p_group_id.id].user_data = p_user_data;
 }
 
 uint64_t ServerSynchronizer::sync_group_get_user_data(SyncGroupId p_group_id) const {
-	ENSURE_V_MSG(p_group_id.id < sync_groups.size(), 0, "The group id `" + (p_group_id) + "` doesn't exist.");
+	NS_ENSURE_V_MSG(p_group_id.id < sync_groups.size(), 0, "The group id `" + (p_group_id) + "` doesn't exist.");
 	return sync_groups[p_group_id.id].user_data;
 }
 
@@ -2682,7 +2682,7 @@ void ClientSynchronizer::store_controllers_snapshot(
 		last_received_server_snapshot_index = p_snapshot.input_id;
 	} else {
 		SceneSynchronizerDebugger::singleton()->print(VERBOSE, "The Client received the server snapshot: " + p_snapshot.input_id, scene_synchronizer->get_network_interface().get_owner_name());
-		ENSURE_MSG(
+		NS_ENSURE_MSG(
 				last_received_server_snapshot_index == FrameIndex::NONE ||
 						last_received_server_snapshot_index <= p_snapshot.input_id,
 				"The client received a too old snapshot. If this happens back to back for a long period it's a bug, otherwise can be ignored. last_received_server_snapshot_index: " + std::to_string(last_received_server_snapshot_index.id) + " p_snapshot.input_id: " + std::to_string(p_snapshot.input_id.id));
@@ -2719,7 +2719,7 @@ void ClientSynchronizer::process_received_server_state() {
 		return;
 	}
 
-	ENSURE_MSG(player_controller && player_controller->can_simulate(), "There is no player controller and the only allowed snapshot are the one with `FrameIndex` set to NONE. The current one is set to " + last_received_server_snapshot->input_id + " so it's ignored.");
+	NS_ENSURE_MSG(player_controller && player_controller->can_simulate(), "There is no player controller and the only allowed snapshot are the one with `FrameIndex` set to NONE. The current one is set to " + last_received_server_snapshot->input_id + " so it's ignored.");
 
 	PlayerController *inner_player_controller = player_controller->get_player_controller();
 
@@ -3118,7 +3118,7 @@ int ClientSynchronizer::calculates_sub_ticks(const float p_delta) {
 		time_bank = 0.0f;
 	}
 
-	ENSURE_V_MSG(
+	NS_ENSURE_V_MSG(
 			sub_ticks <= scene_synchronizer->get_max_sub_process_per_frame(),
 			scene_synchronizer->get_max_sub_process_per_frame(),
 			"This client generated a sub tick count of `" + std::to_string(sub_ticks) + "` that is higher than the `max_sub_process_per_frame` specified of `" + std::to_string(scene_synchronizer->get_max_sub_process_per_frame()) + "`. If the number is way too high (like 100 or 1k) it's a bug in the algorithm that you should notify, if it's just above the threshould you set, make sure the threshold is correctly set or ignore it if the client perfs are too poor." +
@@ -3223,7 +3223,7 @@ bool ClientSynchronizer::parse_sync_data(
 		// Fetch `active_node_list_byte_array`.
 		bool has_active_list_array;
 		p_snapshot.read(has_active_list_array);
-		ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as the `has_active_list_array` boolean expected is not set.");
+		NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as the `has_active_list_array` boolean expected is not set.");
 		if (has_active_list_array) {
 			std::vector<ObjectNetId> sd_simulated_objects;
 			sd_simulated_objects.reserve(scene_synchronizer->get_all_object_data().size());
@@ -3232,7 +3232,7 @@ bool ClientSynchronizer::parse_sync_data(
 			while (true) {
 				ObjectNetId id;
 				p_snapshot.read(id.id);
-				ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `ObjectNetId` failed.");
+				NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `ObjectNetId` failed.");
 
 				if (id == ObjectNetId::NONE) {
 					// The end.
@@ -3250,14 +3250,14 @@ bool ClientSynchronizer::parse_sync_data(
 		while (true) {
 			bool has_next_latency = false;
 			p_snapshot.read(has_next_latency);
-			ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `has_next_latency` failed.");
+			NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `has_next_latency` failed.");
 			if (has_next_latency) {
 				int peer;
 				p_snapshot.read(peer);
-				ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `peer` failed.");
+				NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `peer` failed.");
 				std::uint8_t compressed_latency;
 				p_snapshot.read(compressed_latency);
-				ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `compressed_latency` failed.");
+				NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `compressed_latency` failed.");
 				std::map<int, PeerData>::iterator peer_data_it = NS::MapFunc::insert_if_new(scene_synchronizer->peer_data, peer, PeerData());
 				peer_data_it->second.set_compressed_latency(compressed_latency);
 			} else {
@@ -3282,7 +3282,7 @@ bool ClientSynchronizer::parse_sync_data(
 		{
 			ObjectNetId net_id = ObjectNetId::NONE;
 			p_snapshot.read(net_id.id);
-			ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The NetId was expected at this point.");
+			NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The NetId was expected at this point.");
 
 			if (net_id == ObjectNetId::NONE) {
 				// All the Objects fetched.
@@ -3291,13 +3291,13 @@ bool ClientSynchronizer::parse_sync_data(
 
 			bool has_object_name = false;
 			p_snapshot.read(has_object_name);
-			ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `has_object_name` was expected at this point.");
+			NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `has_object_name` was expected at this point.");
 
 			std::string object_name;
 			if (has_object_name) {
 				// Extract the object name
 				p_snapshot.read(object_name);
-				ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `object_name` was expected at this point.");
+				NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `object_name` was expected at this point.");
 
 				// Associate the ID with the path.
 				objects_names.insert(std::pair(net_id, object_name));
@@ -3360,10 +3360,10 @@ bool ClientSynchronizer::parse_sync_data(
 			FrameIndex frame_index = FrameIndex::NONE;
 			bool has_frame_index = false;
 			p_snapshot.read(has_frame_index);
-			ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `has_frame_index` was expected at this point.");
+			NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `has_frame_index` was expected at this point.");
 			if (has_frame_index) {
 				p_snapshot.read(frame_index.id);
-				ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `frame_index` was expected at this point.");
+				NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `frame_index` was expected at this point.");
 			}
 
 			if (!skip_object) {
@@ -3376,7 +3376,7 @@ bool ClientSynchronizer::parse_sync_data(
 		// Now it's time to fetch the variables.
 		std::uint8_t vars_count;
 		p_snapshot.read(vars_count);
-		ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `vars_count` was expected here.");
+		NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `vars_count` was expected here.");
 
 		if (skip_object) {
 			// Skip all the variables for this object.
@@ -3386,19 +3386,19 @@ bool ClientSynchronizer::parse_sync_data(
 				if (var_has_value) {
 					VarData value;
 					SceneSynchronizerBase::var_data_decode(value, p_snapshot);
-					ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `variable value` was expected at this point. Object: `" + synchronizer_object_data->object_name + "` Var: `NOT AVAILABLE BECOUSE THE OBJECT IS UNKNOWN AT THIS MOMENT.`");
+					NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `variable value` was expected at this point. Object: `" + synchronizer_object_data->object_name + "` Var: `NOT AVAILABLE BECOUSE THE OBJECT IS UNKNOWN AT THIS MOMENT.`");
 				}
 			}
 		} else {
 			for (auto &var_desc : synchronizer_object_data->vars) {
 				bool var_has_value = false;
 				p_snapshot.read(var_has_value);
-				ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `var_has_value` was expected at this point. Object: `" + synchronizer_object_data->object_name + "` Var: `" + var_desc.var.name + "`");
+				NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `var_has_value` was expected at this point. Object: `" + synchronizer_object_data->object_name + "` Var: `" + var_desc.var.name + "`");
 
 				if (var_has_value) {
 					VarData value;
 					SceneSynchronizerBase::var_data_decode(value, p_snapshot);
-					ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `variable value` was expected at this point. Object: `" + synchronizer_object_data->object_name + "` Var: `" + var_desc.var.name + "`");
+					NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `variable value` was expected at this point. Object: `" + synchronizer_object_data->object_name + "` Var: `" + var_desc.var.name + "`");
 
 					// Variable fetched, now parse this variable.
 					p_variable_parse(
@@ -3411,7 +3411,7 @@ bool ClientSynchronizer::parse_sync_data(
 		}
 	}
 
-	ENSURE_V_MSG(p_peers_frame_index_parse(p_user_pointer, std::move(frames_index)), false, "This snapshot is corrupted as the frame index parsing failed.");
+	NS_ENSURE_V_MSG(p_peers_frame_index_parse(p_user_pointer, std::move(frames_index)), false, "This snapshot is corrupted as the frame index parsing failed.");
 
 	return true;
 }
@@ -3748,7 +3748,7 @@ void ClientSynchronizer::update_client_snapshot(NS::Snapshot &r_snapshot) {
 #endif
 
 		// Make sure this ID is valid.
-		ENSURE_MSG(od->get_net_id() != ObjectNetId::NONE, "[BUG] It's not expected that the client has an uninitialized NetNodeId into the `organized_node_data` ");
+		NS_ENSURE_MSG(od->get_net_id() != ObjectNetId::NONE, "[BUG] It's not expected that the client has an uninitialized NetNodeId into the `organized_node_data` ");
 
 #ifdef NS_DEBUG_ENABLED
 		ASSERT_COND_MSG(od->get_net_id().id < uint32_t(r_snapshot.object_vars.size()), "This array was resized above, this can't be triggered.");

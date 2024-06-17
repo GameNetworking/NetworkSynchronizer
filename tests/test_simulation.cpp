@@ -14,7 +14,7 @@
 
 namespace NS_Test {
 
-const float delta = 1.0 / 60.0;
+const float delta = 1.0f / 60.0f;
 
 class MagnetSceneObject : public NS::LocalSceneObject {
 public:
@@ -165,11 +165,8 @@ public:
 	void controller_process(float p_delta, NS::DataBuffer &p_buffer) {
 		ASSERT_COND(p_delta == delta);
 		const float speed = 1.0;
-		double x;
-		double y;
-		double z;
-		p_buffer.read_normalized_vector3(x, y, z, NS::DataBuffer::COMPRESSION_LEVEL_3);
-		const Vec3 input(x, y, z);
+		Vec3 input;
+		p_buffer.read_normalized_vector3(input.x, input.y, input.z, NS::DataBuffer::COMPRESSION_LEVEL_3);
 		set_position(get_position() + (input * speed * p_delta));
 	}
 
@@ -336,7 +333,7 @@ public:
 		while (true) {
 			// Use a random delta, to make sure the NetSync can be processed
 			// by a normal process loop with dynamic `delta_time`.
-			const float rand_delta = rand_range(0.005, delta);
+			const float rand_delta = rand_range(0.005f, delta);
 			server_scene.process(rand_delta);
 			peer_1_scene.process(rand_delta);
 

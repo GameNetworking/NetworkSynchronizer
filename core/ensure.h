@@ -41,7 +41,7 @@ void _ns_print_flush_stdout();
 
 /// Ensures `m_cond` is true.
 /// If `m_cond` is false the current function returns.
-#define ENSURE(m_cond)                                                                                                                         \
+#define NS_ENSURE(m_cond)                                                                                                                         \
 	if make_likely (m_cond) {                                                                                                                  \
 	} else {                                                                                                                                   \
 		_ns_print_code_message(FUNCTION_STR, __FILE__, __LINE__, "Condition \"" _STR(m_cond) "\" is false.", "", NS::PrintMessageType::ERROR); \
@@ -50,7 +50,7 @@ void _ns_print_flush_stdout();
 
 /// Ensures `m_cond` is true.
 /// If `m_cond` is false, prints `m_msg` and the current function returns.
-#define ENSURE_MSG(m_cond, m_msg)                                                                                                                                            \
+#define NS_ENSURE_MSG(m_cond, m_msg)                                                                                                                                            \
 	if make_likely (m_cond) {                                                                                                                                                \
 	} else {                                                                                                                                                                 \
 		_ns_print_code_message(FUNCTION_STR, __FILE__, __LINE__, "Condition \"" _STR(m_cond) "\" is false. Returning: " _STR(m_retval), m_msg, NS::PrintMessageType::ERROR); \
@@ -59,7 +59,7 @@ void _ns_print_flush_stdout();
 
 /// Ensures `m_cond` is true.
 /// If `m_cond` is false, the current function returns `m_retval`.
-#define ENSURE_V(m_cond, m_retval)                                                                                                                                        \
+#define NS_ENSURE_V(m_cond, m_retval)                                                                                                                                        \
 	if make_likely (m_cond) {                                                                                                                                             \
 	} else {                                                                                                                                                              \
 		_ns_print_code_message(FUNCTION_STR, __FILE__, __LINE__, "Condition \"" _STR(m_cond) "\" is false. Returning: " _STR(m_retval), "", NS::PrintMessageType::ERROR); \
@@ -68,7 +68,7 @@ void _ns_print_flush_stdout();
 
 /// Ensures `m_cond` is true.
 /// If `m_cond` is false, prints `m_msg` and the current function returns `m_retval`.
-#define ENSURE_V_MSG(m_cond, m_retval, m_msg)                                                                                                                                \
+#define NS_ENSURE_V_MSG(m_cond, m_retval, m_msg)                                                                                                                                \
 	if make_likely (m_cond) {                                                                                                                                                \
 	} else {                                                                                                                                                                 \
 		_ns_print_code_message(FUNCTION_STR, __FILE__, __LINE__, "Condition \"" _STR(m_cond) "\" is false. Returning: " _STR(m_retval), m_msg, NS::PrintMessageType::ERROR); \
@@ -77,7 +77,7 @@ void _ns_print_flush_stdout();
 
 /// Ensures `m_cond` is true.
 /// If `m_cond` is false the current function returns.
-#define ENSURE_CONTINUE(m_cond)                                                                                                                \
+#define NS_ENSURE_CONTINUE(m_cond)                                                                                                                \
 	if make_likely (m_cond) {                                                                                                                  \
 	} else {                                                                                                                                   \
 		_ns_print_code_message(FUNCTION_STR, __FILE__, __LINE__, "Condition \"" _STR(m_cond) "\" is false.", "", NS::PrintMessageType::ERROR); \
@@ -86,7 +86,7 @@ void _ns_print_flush_stdout();
 
 /// Ensures `m_cond` is true.
 /// If `m_cond` is false the current function returns.
-#define ENSURE_CONTINUE_MSG(m_cond, m_msg)                                                                                                        \
+#define NS_ENSURE_CONTINUE_MSG(m_cond, m_msg)                                                                                                        \
 	if make_likely (m_cond) {                                                                                                                     \
 	} else {                                                                                                                                      \
 		_ns_print_code_message(FUNCTION_STR, __FILE__, __LINE__, "Condition \"" _STR(m_cond) "\" is false.", m_msg, NS::PrintMessageType::ERROR); \
