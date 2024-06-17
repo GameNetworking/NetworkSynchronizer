@@ -6,27 +6,6 @@
 #include "peer_networked_controller.h"
 #include "scene_synchronizer_debugger.h"
 
-NS::PeerData::~PeerData() {
-	if (controller) {
-		delete controller;
-		controller = nullptr;
-	}
-}
-
-void NS::PeerData::set_latency(float p_latency) {
-	compressed_latency = (std::uint8_t)std::round(std::clamp(p_latency, 0.f, 1000.0f) / 4.0f);
-}
-
-float NS::PeerData::get_latency() const {
-	return compressed_latency * 4.0f;
-}
-
-void NS::PeerData::make_controller() {
-	if (!controller) {
-		controller = new PeerNetworkedController;
-	}
-}
-
 bool NS::SyncGroup::is_realtime_node_list_changed() const {
 	return simulated_sync_objects_list_changed;
 }

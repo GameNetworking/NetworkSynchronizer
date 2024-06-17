@@ -5,6 +5,7 @@
 #include "ensure.h"
 #include "net_utilities.h"
 #include "network_codec.h"
+#include "peer_data.h"
 #include <functional>
 #include <vector>
 

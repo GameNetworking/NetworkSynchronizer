@@ -97,10 +97,7 @@ typename std::map<K, V>::iterator insert_if_new(std::map<K, V> &p_map, const K &
 /// Insert `p_val` only if `p_key` doesn't exists. With move.
 template <class K, class V>
 typename std::map<K, V>::iterator insert_if_new(std::map<K, V> &p_map, const K &p_key, V &&p_val) {
-	auto res = p_map.insert(std::make_pair(p_key, std::move(p_val)));
-	auto it = res.first;
-	//const bool inserted = res.second;
-	return it;
+	return p_map.insert(std::make_pair(p_key, std::move(p_val))).first;
 }
 }; //namespace MapFunc
 
@@ -258,64 +255,6 @@ struct ListenerHandle {
 	}
 };
 inline static const ListenerHandle nulllistenerhandle = { 0 };
-
-// These data are used by the server and are never synchronized.
-struct PeerAuthorityData {
-	// Used to know if the peer is enabled.
-	bool enabled = true;
-
-	// The Sync group this peer is in.
-	SyncGroupId sync_group_id = SyncGroupId::GLOBAL;
-};
-
-struct PeerData {
-	class PeerNetworkedController* controller = nullptr;
-
-public:
-	~PeerData();
-	
-	PeerAuthorityData authority_data;
-
-private:
-	/// Get latency (ping): The round trip time a packet takes to go and return back.
-	std::uint8_t compressed_latency = 0;
-
-	/// Get OUT packetloss in %
-	float out_packet_loss_percentage = 0.0f;
-
-	/// Current jitter for this connection in milliseconds.
-	/// Jitter represents the average time divergence of all sent packets.
-	/// Ex:
-	/// - If the time between the sending and the reception of packets is always
-	///   100ms; the jitter will be 0.
-	/// - If the time difference is either 150ms or 100ms, the jitter will tend
-	///   towards 50ms.
-	float latency_jitter_ms = 0.0f;
-
-public:
-	// In ms
-	void set_latency(float p_ping);
-
-	// In ms
-	float get_latency() const;
-
-	void set_compressed_latency(std::uint8_t p_compressed_latency) { compressed_latency = p_compressed_latency; }
-	std::uint8_t get_compressed_latency() const { return compressed_latency; }
-
-	void set_out_packet_loss_percentage(float p_packet_loss) { out_packet_loss_percentage = std::clamp(p_packet_loss, 0.0f, 1.0f); }
-	float get_out_packet_loss_percentage() const { return out_packet_loss_percentage; }
-
-	void set_latency_jitter_ms(float p_jitter_ms) { latency_jitter_ms = p_jitter_ms; }
-	float get_latency_jitter_ms() const { return latency_jitter_ms; }
-
-	void make_controller();
-	PeerNetworkedController *get_controller() {
-		return controller;
-	}
-	const PeerNetworkedController *get_controller() const {
-		return controller;
-	}
-};
 
 struct PeerServerData {
 	// For new peers notify the state as soon as possible.
