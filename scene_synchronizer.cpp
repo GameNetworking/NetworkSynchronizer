@@ -2304,6 +2304,7 @@ void ServerSynchronizer::generate_snapshot_object_data(
 	std::uint16_t vars_size_bits = 0;
 	r_snapshot_db.add(vars_size_bits);
 
+	std::uint32_t vars_size_bits_count = 0;
 	// This is assuming the client and the server have the same vars registered
 	// with the same order.
 	for (uint32_t i = 0; i < p_object_data->vars.size(); i += 1) {
@@ -2334,18 +2335,20 @@ void ServerSynchronizer::generate_snapshot_object_data(
 #endif
 
 		r_snapshot_db.add(var_has_value);
-		vars_size_bits += 1;
+		vars_size_bits_count += 1;
 		if (var_has_value) {
 			const int pre_write = r_snapshot_db.get_bit_offset();
 			SceneSynchronizerBase::var_data_encode(r_snapshot_db, var.var.value);
 			const int post_write = r_snapshot_db.get_bit_offset();
-			vars_size_bits += post_write - pre_write;
+			vars_size_bits_count += post_write - pre_write;
 		}
 	}
 
 	// Now write the buffer size in bits.
 	const int buffer_offset_after_vars = r_snapshot_db.get_bit_offset();
 	r_snapshot_db.seek(buffer_offset_for_vars_size_bits);
+	NS_ENSURE_MSG(vars_size_bits_count <= std::numeric_limits<std::uint16_t>::max(), "The variables size excede the allows max size. Please report this issue ASAP.")
+	vars_size_bits = vars_size_bits_count;
 	r_snapshot_db.add(vars_size_bits);
 	r_snapshot_db.seek(buffer_offset_after_vars);
 }
