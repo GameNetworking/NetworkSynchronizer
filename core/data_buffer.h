@@ -363,7 +363,8 @@ public:
 	int read_buffer_size();
 
 	static int get_bit_taken(DataType p_data_type, CompressionLevel p_compression);
-	static double get_real_epsilon(DataType p_data_type, CompressionLevel p_compression);
+	template <typename T>
+	static T get_real_epsilon(DataType p_data_type, CompressionLevel p_compression);
 
 public: // ---------------------------------------------------------------- Internal
 	template <typename T>

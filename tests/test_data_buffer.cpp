@@ -18,19 +18,23 @@ inline std::vector<std::int64_t> int_values(NS::DataBuffer::CompressionLevel p_c
 		case NS::DataBuffer::COMPRESSION_LEVEL_3: {
 			values.push_back(127);
 			values.push_back(-128);
-		} break;
+		}
+		break;
 		case NS::DataBuffer::COMPRESSION_LEVEL_2: {
 			values.push_back(32767);
 			values.push_back(-32768);
-		} break;
+		}
+		break;
 		case NS::DataBuffer::COMPRESSION_LEVEL_1: {
 			values.push_back(2147483647);
 			values.push_back(-2147483648LL);
-		} break;
+		}
+		break;
 		case NS::DataBuffer::COMPRESSION_LEVEL_0: {
 			values.push_back(2147483647);
 			values.push_back(-9223372036854775807LL);
-		} break;
+		}
+		break;
 	}
 
 	return values;
@@ -59,19 +63,23 @@ inline std::vector<std::uint64_t> uint_values(NS::DataBuffer::CompressionLevel p
 
 	switch (p_compression_level) {
 		case NS::DataBuffer::COMPRESSION_LEVEL_3: {
-		} break;
+		}
+		break;
 		case NS::DataBuffer::COMPRESSION_LEVEL_2: {
 			values.push_back(32767);
-		} break;
+		}
+		break;
 		case NS::DataBuffer::COMPRESSION_LEVEL_1: {
 			values.push_back(32767);
 			values.push_back(std::numeric_limits<uint32_t>::max());
-		} break;
+		}
+		break;
 		case NS::DataBuffer::COMPRESSION_LEVEL_0: {
 			values.push_back(32767);
 			values.push_back(std::numeric_limits<uint32_t>::max());
 			values.push_back(std::numeric_limits<uint64_t>::max());
-		} break;
+		}
+		break;
 	}
 
 	return values;
@@ -80,67 +88,71 @@ inline std::vector<std::uint64_t> uint_values(NS::DataBuffer::CompressionLevel p
 template <typename T>
 inline std::vector<T> real_values(NS::DataBuffer::CompressionLevel p_compression_level) {
 	std::vector<T> values;
-	values.push_back(M_PI);
-	values.push_back(0.0);
-	values.push_back(-3.04);
-	values.push_back(3.04);
-	values.push_back(0.5);
-	values.push_back(-0.5);
-	values.push_back(1);
-	values.push_back(-1);
-	values.push_back(0.9);
-	values.push_back(-0.9);
-	values.push_back(3.9);
-	values.push_back(-3.9);
-	values.push_back(8);
-	values.push_back(0.00001);
-	values.push_back(-0.00001);
-	values.push_back(0.0001);
-	values.push_back(-0.0001);
-	values.push_back(0.001);
-	values.push_back(-0.001);
-	values.push_back(0.01);
-	values.push_back(-0.01);
-	values.push_back(0.1);
-	values.push_back(-0.1);
+	values.push_back(T(M_PI));
+	values.push_back(T(0.0));
+	values.push_back(T(-3.04));
+	values.push_back(T(3.04));
+	values.push_back(T(0.5));
+	values.push_back(T(-0.5));
+	values.push_back(T(1));
+	values.push_back(T(-1));
+	values.push_back(T(0.9));
+	values.push_back(T(-0.9));
+	values.push_back(T(3.9));
+	values.push_back(T(-3.9));
+	values.push_back(T(8));
+	values.push_back(T(0.00001));
+	values.push_back(T(-0.00001));
+	values.push_back(T(0.0001));
+	values.push_back(T(-0.0001));
+	values.push_back(T(0.001));
+	values.push_back(T(-0.001));
+	values.push_back(T(0.01));
+	values.push_back(T(-0.01));
+	values.push_back(T(0.1));
+	values.push_back(T(-0.1));
 
 	switch (p_compression_level) {
 		case NS::DataBuffer::COMPRESSION_LEVEL_3: {
-			values.push_back(-15'360 / 2.);
-			values.push_back(15'360 / 2.);
-			values.push_back(-15'360);
-			values.push_back(15'360);
-		} break;
+			values.push_back(T(-15'360 / 2.));
+			values.push_back(T(15'360 / 2.));
+			values.push_back(T(-15'360));
+			values.push_back(T(15'360));
+		}
+		break;
 		case NS::DataBuffer::COMPRESSION_LEVEL_2: {
 			// https://en.wikipedia.org/wiki/Half-precision_floating-point_format#Half_precision_examples
-			values.push_back(-65'504);
-			values.push_back(65'504);
-			values.push_back(std::pow(2.0, -14) / 1024);
-			values.push_back(std::pow(2.0, -14) * 1023 / 1024);
-			values.push_back(std::pow(2.0, -1) * (1 + 1023.0 / 1024));
-			values.push_back((1 + 1.0 / 1024));
-		} break;
+			values.push_back(T(-65'504));
+			values.push_back(T(65'504));
+			values.push_back(T(std::pow(2.0, -14) / 1024));
+			values.push_back(T(std::pow(2.0, -14) * 1023 / 1024));
+			values.push_back(T(std::pow(2.0, -1) * (1 + 1023.0 / 1024)));
+			values.push_back(T((1 + 1.0 / 1024)));
+		}
+		break;
 		case NS::DataBuffer::COMPRESSION_LEVEL_1: {
 			// https://en.wikipedia.org/wiki/Single-precision_floating-point_format#Single-precision_examples
-			values.push_back(std::numeric_limits<float>::min());
-			values.push_back(std::numeric_limits<float>::max());
-			values.push_back(-std::numeric_limits<float>::max());
-			values.push_back(std::pow(2.0, -149));
-			values.push_back(std::pow(2.0, -126) * (1.0 - std::pow(2.0, -23)));
-			values.push_back(1.0 - std::pow(2.0, -24));
-			values.push_back(1.0 + std::pow(2.0, -23));
-		} break;
+			values.push_back(T(std::numeric_limits<float>::min()));
+			values.push_back(T(std::numeric_limits<float>::max()));
+			values.push_back(T(-std::numeric_limits<float>::max()));
+			values.push_back(T(std::pow(2.0, -149)));
+			values.push_back(T(std::pow(2.0, -126) * (1.0 - std::pow(2.0, -23))));
+			values.push_back(T(1.0 - std::pow(2.0, -24)));
+			values.push_back(T(1.0 + std::pow(2.0, -23)));
+		}
+		break;
 		case NS::DataBuffer::COMPRESSION_LEVEL_0: {
 			// https://en.wikipedia.org/wiki/Double-precision_floating-point_format#Double-precision_examples
 			if constexpr (std::is_same<T, double>::value) {
-				values.push_back(std::numeric_limits<double>::min());
-				values.push_back(std::numeric_limits<double>::max());
-				values.push_back(-std::numeric_limits<double>::max());
+				values.push_back(T(std::numeric_limits<double>::min()));
+				values.push_back(T(std::numeric_limits<double>::max()));
+				values.push_back(T(-std::numeric_limits<double>::max()));
 			}
-			values.push_back(1.0000000000000002);
-			values.push_back(4.9406564584124654 * std::pow(10.0, -324.0));
-			values.push_back(2.2250738585072009 * std::pow(10.0, -308.0));
-		} break;
+			values.push_back(T(1.0000000000000002));
+			values.push_back(T(4.9406564584124654 * std::pow(10.0, -324.0)));
+			values.push_back(T(2.2250738585072009 * std::pow(10.0, -308.0)));
+		}
+		break;
 	}
 
 	return values;
@@ -149,53 +161,53 @@ inline std::vector<T> real_values(NS::DataBuffer::CompressionLevel p_compression
 template <typename T>
 inline std::vector<T> unit_real_values(NS::DataBuffer::CompressionLevel p_compression_level) {
 	std::vector<T> values;
-	values.push_back(0.0);
-	values.push_back(0.1);
-	values.push_back(0.2);
-	values.push_back(0.3);
-	values.push_back(0.4);
-	values.push_back(0.5);
-	values.push_back(0.6);
-	values.push_back(0.7);
-	values.push_back(0.7);
-	values.push_back(0.8);
-	values.push_back(0.9);
-	values.push_back(0.05);
-	values.push_back(0.15);
-	values.push_back(0.25);
-	values.push_back(0.35);
-	values.push_back(0.45);
-	values.push_back(0.55);
-	values.push_back(0.65);
-	values.push_back(0.75);
-	values.push_back(0.85);
-	values.push_back(0.95);
-	values.push_back(1.0);
+	values.push_back(T(0.0));
+	values.push_back(T(0.1));
+	values.push_back(T(0.2));
+	values.push_back(T(0.3));
+	values.push_back(T(0.4));
+	values.push_back(T(0.5));
+	values.push_back(T(0.6));
+	values.push_back(T(0.7));
+	values.push_back(T(0.7));
+	values.push_back(T(0.8));
+	values.push_back(T(0.9));
+	values.push_back(T(0.05));
+	values.push_back(T(0.15));
+	values.push_back(T(0.25));
+	values.push_back(T(0.35));
+	values.push_back(T(0.45));
+	values.push_back(T(0.55));
+	values.push_back(T(0.65));
+	values.push_back(T(0.75));
+	values.push_back(T(0.85));
+	values.push_back(T(0.95));
+	values.push_back(T(1.0));
 	return values;
 }
 
 template <typename T>
 inline std::vector<std::pair<T, T>> vector_2_values(NS::DataBuffer::CompressionLevel p_compression_level) {
 	std::vector<std::pair<T, T>> values;
-	values.push_back(std::make_pair(0.0, 0.0));
-	values.push_back(std::make_pair(1.0, 1.0));
-	values.push_back(std::make_pair(-1.0, -1.0));
-	values.push_back(std::make_pair(-1.0, 1.0));
-	values.push_back(std::make_pair(1.0, -1.0));
+	values.push_back(std::make_pair(T(0.0), T(0.0)));
+	values.push_back(std::make_pair(T(1.0), T(1.0)));
+	values.push_back(std::make_pair(T(-1.0), T(-1.0)));
+	values.push_back(std::make_pair(T(-1.0), T(1.0)));
+	values.push_back(std::make_pair(T(1.0), T(-1.0)));
 
-	values.push_back(std::make_pair(100.0, -1.0));
-	values.push_back(std::make_pair(-1.0, 100.0));
-	values.push_back(std::make_pair(-100.0, 1.0));
-	values.push_back(std::make_pair(-1802.0, -100.0));
-	values.push_back(std::make_pair(-1102.0, 1290.0));
+	values.push_back(std::make_pair(T(100.0), T(-1.0)));
+	values.push_back(std::make_pair(T(-1.0), T(100.0)));
+	values.push_back(std::make_pair(T(-100.0), T(1.0)));
+	values.push_back(std::make_pair(T(-1802.0), T(-100.0)));
+	values.push_back(std::make_pair(T(-1102.0), T(1290.0)));
 
-	const T epsilon = NS::DataBuffer::get_real_epsilon(NS::DataBuffer::DATA_TYPE_REAL, p_compression_level);
+	const T epsilon = NS::DataBuffer::get_real_epsilon<T>(NS::DataBuffer::DATA_TYPE_REAL, p_compression_level);
 	values.push_back(std::make_pair(epsilon, epsilon));
-	values.push_back(std::make_pair(0.0, epsilon));
-	values.push_back(std::make_pair(epsilon, 0.0));
+	values.push_back(std::make_pair(T(0.0), epsilon));
+	values.push_back(std::make_pair(epsilon, T(0.0)));
 	values.push_back(std::make_pair(-epsilon, -epsilon));
-	values.push_back(std::make_pair(0.0, -epsilon));
-	values.push_back(std::make_pair(-epsilon, 0.0));
+	values.push_back(std::make_pair(T(0.0), -epsilon));
+	values.push_back(std::make_pair(-epsilon, T(0.0)));
 	values.push_back(std::make_pair(epsilon, -epsilon));
 	values.push_back(std::make_pair(-epsilon, epsilon));
 
@@ -205,21 +217,21 @@ inline std::vector<std::pair<T, T>> vector_2_values(NS::DataBuffer::CompressionL
 template <typename T>
 inline std::vector<std::pair<T, T>> normalized_vector_2_values(NS::DataBuffer::CompressionLevel p_compression_level) {
 	std::vector<std::pair<T, T>> values;
-	values.push_back(std::make_pair(0.0, 0.0));
-	values.push_back(std::make_pair(1.0, 0.0));
-	values.push_back(std::make_pair(-1.0, 0.0));
-	values.push_back(std::make_pair(0.0, 1.0));
-	values.push_back(std::make_pair(0.0, -1.0));
-	values.push_back(std::make_pair(0.5, 0.5));
-	values.push_back(std::make_pair(-0.5, -0.5));
-	values.push_back(std::make_pair(0.5, -0.5));
-	values.push_back(std::make_pair(-0.5, 0.5));
-	values.push_back(std::make_pair(-0.7, 0.5));
-	values.push_back(std::make_pair(0.7, 0.2));
-	values.push_back(std::make_pair(0.7, -0.2));
-	values.push_back(std::make_pair(0.99, -0.2));
-	values.push_back(std::make_pair(-0.99, -0.99));
-	values.push_back(std::make_pair(0.22, -0.33));
+	values.push_back(std::make_pair(T(0.0), T(0.0)));
+	values.push_back(std::make_pair(T(1.0), T(0.0)));
+	values.push_back(std::make_pair(T(-1.0), T(0.0)));
+	values.push_back(std::make_pair(T(0.0), T(1.0)));
+	values.push_back(std::make_pair(T(0.0), T(-1.0)));
+	values.push_back(std::make_pair(T(0.5), T(0.5)));
+	values.push_back(std::make_pair(T(-0.5), T(-0.5)));
+	values.push_back(std::make_pair(T(0.5), T(-0.5)));
+	values.push_back(std::make_pair(T(-0.5), T(0.5)));
+	values.push_back(std::make_pair(T(-0.7), T(0.5)));
+	values.push_back(std::make_pair(T(0.7), T(0.2)));
+	values.push_back(std::make_pair(T(0.7), T(-0.2)));
+	values.push_back(std::make_pair(T(0.99), T(-0.2)));
+	values.push_back(std::make_pair(T(-0.99), T(-0.99)));
+	values.push_back(std::make_pair(T(0.22), T(-0.33)));
 
 	for (auto &value : values) {
 		NS::MathFunc::vec2_normalize<T>(value.first, value.second);
@@ -231,33 +243,33 @@ inline std::vector<std::pair<T, T>> normalized_vector_2_values(NS::DataBuffer::C
 template <typename T>
 inline std::vector<std::tuple<T, T, T>> normalized_vector_3_values(NS::DataBuffer::CompressionLevel p_compression_level) {
 	std::vector<std::tuple<T, T, T>> values;
-	values.push_back(std::make_tuple(0.0, 0.0, 0.0));
-	values.push_back(std::make_tuple(1.0, 0.0, 0.0));
-	values.push_back(std::make_tuple(-1.0, 0.0, 0.0));
-	values.push_back(std::make_tuple(0.0, 1.0, 0.0));
-	values.push_back(std::make_tuple(0.0, -1.0, 0.0));
-	values.push_back(std::make_tuple(0.5, 0.5, 0.0));
-	values.push_back(std::make_tuple(-0.5, -0.5, 0.0));
-	values.push_back(std::make_tuple(0.5, -0.5, 0.0));
-	values.push_back(std::make_tuple(-0.5, 0.5, 0.0));
-	values.push_back(std::make_tuple(-0.7, 0.5, 0.0));
-	values.push_back(std::make_tuple(0.7, 0.2, 0.0));
-	values.push_back(std::make_tuple(0.7, -0.2, 0.0));
-	values.push_back(std::make_tuple(0.99, -0.2, 0.0));
-	values.push_back(std::make_tuple(-0.99, -0.99, 0.0));
-	values.push_back(std::make_tuple(0.22, -0.33, 0.0));
-	values.push_back(std::make_tuple(-0.5, -0.5, 1.0));
-	values.push_back(std::make_tuple(0.5, -0.5, 1.0));
-	values.push_back(std::make_tuple(-0.5, 0.5, -1.0));
-	values.push_back(std::make_tuple(-0.7, 0.5, -1.0));
-	values.push_back(std::make_tuple(0.7, 0.2, -1.0));
-	values.push_back(std::make_tuple(0.7, -0.2, -0.2));
-	values.push_back(std::make_tuple(0.99, -0.2, 0.3));
-	values.push_back(std::make_tuple(-0.99, -0.99, 0.8));
-	values.push_back(std::make_tuple(-0.5, -0.5, -0.3));
-	values.push_back(std::make_tuple(0.5, -0.5, -0.9));
-	values.push_back(std::make_tuple(-0.5, 0.5, -0.2));
-	values.push_back(std::make_tuple(-0.7, 0.5, -0.4));
+	values.push_back(std::make_tuple(T(0.0), T(0.0), T(0.0)));
+	values.push_back(std::make_tuple(T(1.0), T(0.0), T(0.0)));
+	values.push_back(std::make_tuple(T(-1.0), T(0.0), T(0.0)));
+	values.push_back(std::make_tuple(T(0.0), T(1.0), T(0.0)));
+	values.push_back(std::make_tuple(T(0.0), T(-1.0), T(0.0)));
+	values.push_back(std::make_tuple(T(0.5), T(0.5), T(0.0)));
+	values.push_back(std::make_tuple(T(-0.5), T(-0.5), T(0.0)));
+	values.push_back(std::make_tuple(T(0.5), T(-0.5), T(0.0)));
+	values.push_back(std::make_tuple(T(-0.5), T(0.5), T(0.0)));
+	values.push_back(std::make_tuple(T(-0.7), T(0.5), T(0.0)));
+	values.push_back(std::make_tuple(T(0.7), T(0.2), T(0.0)));
+	values.push_back(std::make_tuple(T(0.7), T(-0.2), T(0.0)));
+	values.push_back(std::make_tuple(T(0.99), T(-0.2), T(0.0)));
+	values.push_back(std::make_tuple(T(-0.99), T(-0.99), T(0.0)));
+	values.push_back(std::make_tuple(T(0.22), T(-0.33), T(0.0)));
+	values.push_back(std::make_tuple(T(-0.5), T(-0.5), T(1.0)));
+	values.push_back(std::make_tuple(T(0.5), T(-0.5), T(1.0)));
+	values.push_back(std::make_tuple(T(-0.5), T(0.5), T(-1.0)));
+	values.push_back(std::make_tuple(T(-0.7), T(0.5), T(-1.0)));
+	values.push_back(std::make_tuple(T(0.7), T(0.2), T(-1.0)));
+	values.push_back(std::make_tuple(T(0.7), T(-0.2), T(-0.2)));
+	values.push_back(std::make_tuple(T(0.99), T(-0.2), T(0.3)));
+	values.push_back(std::make_tuple(T(-0.99), T(-0.99), T(0.8)));
+	values.push_back(std::make_tuple(T(-0.5), T(-0.5), T(-0.3)));
+	values.push_back(std::make_tuple(T(0.5), T(-0.5), T(-0.9)));
+	values.push_back(std::make_tuple(T(-0.5), T(0.5), T(-0.2)));
+	values.push_back(std::make_tuple(T(-0.7), T(0.5), T(-0.4)));
 
 	for (auto &value : values) {
 		NS::MathFunc::vec3_normalize<T>(std::get<0>(value), std::get<1>(value), std::get<2>(value));
@@ -269,25 +281,25 @@ inline std::vector<std::tuple<T, T, T>> normalized_vector_3_values(NS::DataBuffe
 template <typename T>
 inline std::vector<std::tuple<T, T, T>> vector_3_values(NS::DataBuffer::CompressionLevel p_compression_level) {
 	std::vector<std::tuple<T, T, T>> values;
-	values.push_back(std::make_tuple(0.0, 0.0, 0.0));
-	values.push_back(std::make_tuple(1.0, 1.0, 1.0));
-	values.push_back(std::make_tuple(-1.0, -1.0, -1.0));
-	values.push_back(std::make_tuple(-1.0, 1.0, 0.0));
-	values.push_back(std::make_tuple(1.0, -1.0, 1.0));
+	values.push_back(std::make_tuple(T(0.0), T(0.0), T(0.0)));
+	values.push_back(std::make_tuple(T(1.0), T(1.0), T(1.0)));
+	values.push_back(std::make_tuple(T(-1.0), T(-1.0), T(-1.0)));
+	values.push_back(std::make_tuple(T(-1.0), T(1.0), T(0.0)));
+	values.push_back(std::make_tuple(T(1.0), T(-1.0), T(1.0)));
 
-	values.push_back(std::make_tuple(100.0, -1.0, 200.0));
-	values.push_back(std::make_tuple(-1.0, 100.0, 300.0));
-	values.push_back(std::make_tuple(-100.0, 1.0, 211.0));
-	values.push_back(std::make_tuple(-1802.0, -100.0, 811.0));
-	values.push_back(std::make_tuple(-1102.0, 1290.0, -1000.0));
+	values.push_back(std::make_tuple(T(100.0), T(-1.0), T(200.0)));
+	values.push_back(std::make_tuple(T(-1.0), T(100.0), T(300.0)));
+	values.push_back(std::make_tuple(T(-100.0), T(1.0), T(211.0)));
+	values.push_back(std::make_tuple(T(-1802.0), T(-100.0), T(811.0)));
+	values.push_back(std::make_tuple(T(-1102.0), T(1290.0), T(-1000.0)));
 
-	const T epsilon = NS::DataBuffer::get_real_epsilon(NS::DataBuffer::DATA_TYPE_REAL, p_compression_level);
+	const T epsilon = NS::DataBuffer::get_real_epsilon<T>(NS::DataBuffer::DATA_TYPE_REAL, p_compression_level);
 	values.push_back(std::make_tuple(epsilon, epsilon, epsilon));
-	values.push_back(std::make_tuple(0.0, epsilon, 0.0));
-	values.push_back(std::make_tuple(epsilon, 0.0, epsilon));
+	values.push_back(std::make_tuple(T(0.0), epsilon, T(0.0)));
+	values.push_back(std::make_tuple(epsilon, T(0.0), epsilon));
 	values.push_back(std::make_tuple(-epsilon, -epsilon, -epsilon));
-	values.push_back(std::make_tuple(0.0, -epsilon, epsilon));
-	values.push_back(std::make_tuple(-epsilon, 0.0, epsilon));
+	values.push_back(std::make_tuple(T(0.0), -epsilon, epsilon));
+	values.push_back(std::make_tuple(-epsilon, T(0.0), epsilon));
 	values.push_back(std::make_tuple(epsilon, -epsilon, -epsilon));
 	values.push_back(std::make_tuple(-epsilon, epsilon, -epsilon));
 
@@ -417,7 +429,7 @@ template <typename T>
 void test_data_buffer_real() {
 	for (int cl = (int)NS::DataBuffer::COMPRESSION_LEVEL_0; cl <= (int)NS::DataBuffer::COMPRESSION_LEVEL_3; cl++) {
 		const NS::DataBuffer::CompressionLevel compression_level = (NS::DataBuffer::CompressionLevel)cl;
-		const T epsilon = NS::DataBuffer::get_real_epsilon(NS::DataBuffer::DATA_TYPE_REAL, compression_level);
+		const T epsilon = NS::DataBuffer::get_real_epsilon<T>(NS::DataBuffer::DATA_TYPE_REAL, compression_level);
 
 		const std::vector<T> values = real_values<T>(compression_level);
 
@@ -450,7 +462,7 @@ template <typename T>
 void test_data_buffer_positive_unit_real() {
 	for (int cl = (int)NS::DataBuffer::COMPRESSION_LEVEL_0; cl <= (int)NS::DataBuffer::COMPRESSION_LEVEL_3; cl++) {
 		const NS::DataBuffer::CompressionLevel compression_level = (NS::DataBuffer::CompressionLevel)cl;
-		const T epsilon = NS::DataBuffer::get_real_epsilon(NS::DataBuffer::DATA_TYPE_POSITIVE_UNIT_REAL, compression_level);
+		const T epsilon = NS::DataBuffer::get_real_epsilon<T>(NS::DataBuffer::DATA_TYPE_POSITIVE_UNIT_REAL, compression_level);
 
 		const std::vector<T> values = unit_real_values<T>(compression_level);
 
@@ -477,7 +489,7 @@ template <typename T>
 void test_data_buffer_unit_real() {
 	for (int cl = (int)NS::DataBuffer::COMPRESSION_LEVEL_0; cl <= (int)NS::DataBuffer::COMPRESSION_LEVEL_3; cl++) {
 		const NS::DataBuffer::CompressionLevel compression_level = (NS::DataBuffer::CompressionLevel)cl;
-		const T epsilon = NS::DataBuffer::get_real_epsilon(NS::DataBuffer::DATA_TYPE_UNIT_REAL, compression_level);
+		const T epsilon = NS::DataBuffer::get_real_epsilon<T>(NS::DataBuffer::DATA_TYPE_UNIT_REAL, compression_level);
 
 		const std::vector<T> values = unit_real_values<T>(compression_level);
 
@@ -507,7 +519,7 @@ template <typename T>
 void test_data_buffer_vector_2() {
 	for (int cl = (int)NS::DataBuffer::COMPRESSION_LEVEL_0; cl <= (int)NS::DataBuffer::COMPRESSION_LEVEL_3; cl++) {
 		const NS::DataBuffer::CompressionLevel compression_level = (NS::DataBuffer::CompressionLevel)cl;
-		const T epsilon = NS::DataBuffer::get_real_epsilon(NS::DataBuffer::DATA_TYPE_VECTOR2, compression_level);
+		const T epsilon = NS::DataBuffer::get_real_epsilon<T>(NS::DataBuffer::DATA_TYPE_VECTOR2, compression_level);
 
 		const std::vector<std::pair<T, T>> values = vector_2_values<T>(compression_level);
 
@@ -541,7 +553,7 @@ template <typename T>
 void test_data_buffer_normalized_vector_2() {
 	for (int cl = (int)NS::DataBuffer::COMPRESSION_LEVEL_0; cl <= (int)NS::DataBuffer::COMPRESSION_LEVEL_3; cl++) {
 		const NS::DataBuffer::CompressionLevel compression_level = (NS::DataBuffer::CompressionLevel)cl;
-		const T epsilon = NS::DataBuffer::get_real_epsilon(NS::DataBuffer::DATA_TYPE_NORMALIZED_VECTOR2, compression_level);
+		const T epsilon = NS::DataBuffer::get_real_epsilon<T>(NS::DataBuffer::DATA_TYPE_NORMALIZED_VECTOR2, compression_level);
 
 		const std::vector<std::pair<T, T>> values = normalized_vector_2_values<T>(compression_level);
 
@@ -570,7 +582,7 @@ template <typename T>
 void test_data_buffer_vector_3() {
 	for (int cl = (int)NS::DataBuffer::COMPRESSION_LEVEL_0; cl <= (int)NS::DataBuffer::COMPRESSION_LEVEL_3; cl++) {
 		const NS::DataBuffer::CompressionLevel compression_level = (NS::DataBuffer::CompressionLevel)cl;
-		const T epsilon = NS::DataBuffer::get_real_epsilon(NS::DataBuffer::DATA_TYPE_VECTOR3, compression_level);
+		const T epsilon = NS::DataBuffer::get_real_epsilon<T>(NS::DataBuffer::DATA_TYPE_VECTOR3, compression_level);
 
 		const std::vector<std::tuple<T, T, T>> values = vector_3_values<T>(compression_level);
 
@@ -606,7 +618,7 @@ template <typename T>
 void test_data_buffer_normalized_vector_3() {
 	for (int cl = (int)NS::DataBuffer::COMPRESSION_LEVEL_0; cl <= (int)NS::DataBuffer::COMPRESSION_LEVEL_3; cl++) {
 		const NS::DataBuffer::CompressionLevel compression_level = (NS::DataBuffer::CompressionLevel)cl;
-		const T epsilon = NS::DataBuffer::get_real_epsilon(NS::DataBuffer::DATA_TYPE_NORMALIZED_VECTOR3, compression_level);
+		const T epsilon = NS::DataBuffer::get_real_epsilon<T>(NS::DataBuffer::DATA_TYPE_NORMALIZED_VECTOR3, compression_level);
 
 		const std::vector<std::tuple<T, T, T>> values = normalized_vector_3_values<T>(compression_level);
 
@@ -642,7 +654,7 @@ void test_data_buffer_bits() {
 	ASSERT_COND(!buffer.is_buffer_failed());
 
 	const std::vector<uint8_t> bytes = byte_values();
-	buffer.add_bits(bytes.data(), bytes.size() * 8);
+	buffer.add_bits(bytes.data(), int(bytes.size() * 8));
 	ASSERT_COND(!buffer.is_buffer_failed());
 
 	buffer.begin_read();
@@ -653,7 +665,7 @@ void test_data_buffer_bits() {
 
 	std::vector<uint8_t> read_bytes;
 	read_bytes.resize(bytes.size());
-	buffer.read_bits(read_bytes.data(), bytes.size() * 8);
+	buffer.read_bits(read_bytes.data(), int(bytes.size() * 8));
 	ASSERT_COND(!buffer.is_buffer_failed());
 
 	ASSERT_COND(std::equal(bytes.begin(), bytes.end(), read_bytes.begin()));
@@ -674,7 +686,7 @@ void test_data_buffer_data_buffer() {
 		buffer.add_bool(true);
 		ASSERT_COND(!buffer.is_buffer_failed());
 
-		buffer.add_bits(bytes.data(), bytes.size() * 8);
+		buffer.add_bits(bytes.data(), int(bytes.size() * 8));
 		ASSERT_COND(!buffer.is_buffer_failed());
 
 		main_buffer.add_data_buffer(buffer);
@@ -697,7 +709,7 @@ void test_data_buffer_data_buffer() {
 
 		std::vector<uint8_t> read_bytes;
 		read_bytes.resize(bytes.size());
-		buffer.read_bits(read_bytes.data(), bytes.size() * 8);
+		buffer.read_bits(read_bytes.data(), int(bytes.size() * 8));
 		ASSERT_COND(!buffer.is_buffer_failed());
 
 		ASSERT_COND(std::equal(bytes.begin(), bytes.end(), read_bytes.begin()));

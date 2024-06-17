@@ -73,10 +73,10 @@ void LocalNetwork::rpc_send(std::string p_object_name, int p_peer_recipient, boo
 	std::shared_ptr<PendingPacket> packet = std::make_shared<PendingPacket>();
 
 	if (network_properties) {
-		packet->delay = network_properties->rtt_seconds * 0.5;
+		packet->delay = network_properties->rtt_seconds * 0.5f;
 		if (!p_reliable && network_properties->reorder > frand()) {
-			const float reorder_delay = 0.5;
-			packet->delay += reorder_delay * ((frand() - 0.5) / 0.5);
+			const float reorder_delay = 0.5f;
+			packet->delay += reorder_delay * ((frand() - 0.5f) / 0.5f);
 		}
 	} else {
 		packet->delay = 0.0;
@@ -185,14 +185,14 @@ void LocalNetworkInterface::rpc_send(int p_peer_recipient, bool p_reliable, NS::
 
 void LocalNetworkInterface::server_update_net_stats(int p_peer, PeerData &r_peer_data) const {
 	if (!network || !network->network_properties) {
-		r_peer_data.set_latency(0);
-		r_peer_data.set_out_packet_loss_percentage(0);
-		r_peer_data.set_latency_jitter_ms(0);
+		r_peer_data.set_latency(0.f);
+		r_peer_data.set_out_packet_loss_percentage(0.f);
+		r_peer_data.set_latency_jitter_ms(0.f);
 	} else {
-		r_peer_data.set_latency(network->network_properties->rtt_seconds * 1000.0);
+		r_peer_data.set_latency(network->network_properties->rtt_seconds * 1000.0f);
 		r_peer_data.set_out_packet_loss_percentage(network->network_properties->packet_loss);
 		// There are no statistic about this, assuming 10% of rtt.
-		r_peer_data.set_latency_jitter_ms(r_peer_data.get_latency() * 0.1);
+		r_peer_data.set_latency_jitter_ms(r_peer_data.get_latency() * 0.1f);
 	}
 }
 
@@ -332,12 +332,12 @@ void NS_Test::test_local_network() {
 	vec.push_back(2);
 	vec.push_back(3);
 
-	rpc_handle_server.rpc(peer_1_obj_1, peer_1_obj_1.get_server_peer(), true, 22, 44.0, NS::VarData(1, 2, 3), vec);
+	rpc_handle_server.rpc(peer_1_obj_1, peer_1_obj_1.get_server_peer(), true, 22, 44.0f, NS::VarData(1.f, 2.f, 3.f), vec);
 
 	// Make sure the rpc are not yet received.
 	ASSERT_COND(server_rpc_executed_by.empty());
 
-	const float delta = 1.0 / 60.0;
+	const float delta = 1.0f / 60.0f;
 	server.process(delta);
 	peer_1.process(delta);
 	peer_2.process(delta);

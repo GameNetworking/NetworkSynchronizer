@@ -1170,7 +1170,11 @@ int DataBuffer::get_bit_taken(DataType p_data_type, CompressionLevel p_compressi
 	return 0; // Useless, but MS CI is too noisy.
 }
 
-double DataBuffer::get_real_epsilon(DataType p_data_type, CompressionLevel p_compression) {
+template double DataBuffer::get_real_epsilon<double>(DataType p_data_type, CompressionLevel p_compression);
+template float DataBuffer::get_real_epsilon<float>(DataType p_data_type, CompressionLevel p_compression);
+
+template <typename T>
+T DataBuffer::get_real_epsilon(DataType p_data_type, CompressionLevel p_compression) {
 	switch (p_data_type) {
 		case DATA_TYPE_VECTOR2:
 		case DATA_TYPE_VECTOR3:
@@ -1179,21 +1183,21 @@ double DataBuffer::get_real_epsilon(DataType p_data_type, CompressionLevel p_com
 			// To get the exact precision for the stored number, you need to find the lower power of two relative to the number and divide it by 2^mantissa_bits.
 			// To get the mantissa or exponent bits for a specific compression level, you can use the get_mantissa_bits and get_exponent_bits functions.
 
-			float mantissa_bits;
+			T mantissa_bits;
 			switch (p_compression) {
 				case CompressionLevel::COMPRESSION_LEVEL_0:
-					mantissa_bits = 53; // Binary64 format
+					mantissa_bits = T(53); // Binary64 format
 					break;
 				case CompressionLevel::COMPRESSION_LEVEL_1:
-					mantissa_bits = 24; // Binary32 format
+					mantissa_bits = T(24); // Binary32 format
 					break;
 				case CompressionLevel::COMPRESSION_LEVEL_2:
 				case CompressionLevel::COMPRESSION_LEVEL_3:
-					mantissa_bits = 11; // Binary16 format
+					mantissa_bits = T(11); // Binary16 format
 					break;
 			}
 
-			return std::pow(2.0, -(mantissa_bits - 1.0));
+			return std::pow(T(2.0), -(mantissa_bits - T(1.0)));
 		}
 		case DATA_TYPE_NORMALIZED_VECTOR3:
 		case DATA_TYPE_UNIT_REAL:
@@ -1204,30 +1208,30 @@ double DataBuffer::get_real_epsilon(DataType p_data_type, CompressionLevel p_com
 			/// COMPRESSION_LEVEL_3: 4 bits are used - Max loss ~3.333%
 			switch (p_compression) {
 				case CompressionLevel::COMPRESSION_LEVEL_0:
-					return 0.0005;
+					return T(0.0005);
 				case CompressionLevel::COMPRESSION_LEVEL_1:
-					return 0.002;
+					return T(0.002);
 				case CompressionLevel::COMPRESSION_LEVEL_2:
-					return 0.008;
+					return T(0.008);
 				case CompressionLevel::COMPRESSION_LEVEL_3:
-					return 0.35;
+					return T(0.35);
 			}
 		}
 		case DATA_TYPE_NORMALIZED_VECTOR2: {
 			switch (p_compression) {
 				case CompressionLevel::COMPRESSION_LEVEL_0:
-					return 0.002;
+					return T(0.002);
 				case CompressionLevel::COMPRESSION_LEVEL_1:
-					return 0.007;
+					return T(0.007);
 				case CompressionLevel::COMPRESSION_LEVEL_2:
-					return 0.01;
+					return T(0.01);
 				case CompressionLevel::COMPRESSION_LEVEL_3:
-					return 0.02;
+					return T(0.02);
 			}
 		}
 
 		default:
-			return 0.0;
+			return T(0.0);
 	}
 }
 

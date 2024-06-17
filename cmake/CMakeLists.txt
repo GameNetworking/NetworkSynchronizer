@@ -86,6 +86,26 @@ set(NS_SRC_FILES
 	${NS_ROOT}/core/snapshot.cpp
 	${NS_ROOT}/core/var_data.h
 	${NS_ROOT}/core/var_data.cpp
+	
+	# Test
+	${NS_ROOT}/tests/local_network.cpp
+	${NS_ROOT}/tests/local_network.h
+	${NS_ROOT}/tests/local_scene.cpp
+	${NS_ROOT}/tests/local_scene.h
+	${NS_ROOT}/tests/test_data_buffer.cpp
+	${NS_ROOT}/tests/test_data_buffer.h
+	${NS_ROOT}/tests/test_doll_simulation.cpp
+	${NS_ROOT}/tests/test_doll_simulation.h
+	${NS_ROOT}/tests/test_math_lib.cpp
+	${NS_ROOT}/tests/test_math_lib.h
+	${NS_ROOT}/tests/test_processor.cpp
+	${NS_ROOT}/tests/test_processor.h
+	${NS_ROOT}/tests/test_scene_synchronizer.cpp
+	${NS_ROOT}/tests/test_scene_synchronizer.h
+	${NS_ROOT}/tests/test_simulation.cpp
+	${NS_ROOT}/tests/test_simulation.h
+	${NS_ROOT}/tests/tests.cpp
+	${NS_ROOT}/tests/tests.h
 )
 	
 # Group source files
