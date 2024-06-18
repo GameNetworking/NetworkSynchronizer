@@ -5,7 +5,6 @@
 #include <memory>
 
 NS_NAMESPACE_BEGIN
-
 // VarData is a struct that olds the value of a variable.
 struct VarData {
 	/// The type of the data, defined by the user.
@@ -22,6 +21,13 @@ struct VarData {
 		double f64;
 
 		struct {
+			float x;
+			float y;
+			float z;
+			float w;
+		} vec_f32;
+
+		struct {
 			double x;
 			double y;
 			double z;
@@ -36,11 +42,25 @@ struct VarData {
 		} ivec;
 
 		struct {
+			float x;
+			float y;
+			float z;
+			float w;
+		} columns_f32[4];
+
+		struct {
 			double x;
 			double y;
 			double z;
 			double w;
 		} columns[4];
+
+		struct {
+			float x;
+			float y;
+			float z;
+			float w;
+		} rows_f32[4];
 
 		struct {
 			double x;
@@ -55,6 +75,7 @@ struct VarData {
 
 public:
 	VarData();
+	VarData(float x, float y = 0.0f, float z = 0.0f, float w = 0.0f);
 	VarData(double x, double y = 0.0, double z = 0.0, double w = 0.0);
 
 	VarData(const VarData &p_other) = delete;

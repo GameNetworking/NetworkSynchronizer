@@ -3,13 +3,21 @@
 #include <string.h> // Needed to include `memset` in linux.
 
 NS_NAMESPACE_BEGIN
-
 VarData::VarData() {
+	type = 0;
 	memset(&data, 0, sizeof(data));
 }
 
+VarData::VarData(float x, float y, float z, float w) :
+	VarData() {
+	data.vec_f32.x = x;
+	data.vec_f32.y = y;
+	data.vec_f32.z = z;
+	data.vec_f32.w = w;
+}
+
 VarData::VarData(double x, double y, double z, double w) :
-		VarData() {
+	VarData() {
 	data.vec.x = x;
 	data.vec.y = y;
 	data.vec.z = z;
@@ -17,9 +25,10 @@ VarData::VarData(double x, double y, double z, double w) :
 }
 
 VarData::VarData(VarData &&p_other) :
-		type(std::move(p_other.type)),
-		data(std::move(p_other.data)),
-		shared_buffer(std::move(p_other.shared_buffer)) {}
+	type(std::move(p_other.type)),
+	data(std::move(p_other.data)),
+	shared_buffer(std::move(p_other.shared_buffer)) {
+}
 
 VarData &VarData::operator=(VarData &&p_other) {
 	type = std::move(p_other.type);

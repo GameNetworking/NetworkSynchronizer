@@ -48,7 +48,7 @@ public:
 				p_id,
 				"xy",
 				[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const char *p_var_name, const NS::VarData &p_value) {
-					static_cast<TDSControlledObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->xy.copy(p_value);
+					static_cast<TDSControlledObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->set_xy(p_value.data.vec.x, p_value.data.vec.y);
 				},
 				[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const char *p_var_name, NS::VarData &r_value) {
 					r_value.copy(static_cast<const TDSControlledObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->xy);
@@ -249,13 +249,13 @@ public:
 struct TestDollSimulationWithPositionCheck : public TestDollSimulationBase {
 	virtual void on_scenes_initialized() override {
 		// Ensure the controllers are at their initial location as defined by the doll simulation class.
-		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_1_serv->get_xy(), NS::VarData(100, 0)));
-		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_1_peer1->get_xy(), NS::VarData(100, 0)));
-		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_1_peer2->get_xy(), NS::VarData(100, 0)));
+		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_1_serv->get_xy(), NS::VarData(100., 0.)));
+		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_1_peer1->get_xy(), NS::VarData(100., 0.)));
+		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_1_peer2->get_xy(), NS::VarData(100., 0.)));
 
-		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_2_serv->get_xy(), NS::VarData(0, 0)));
-		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_2_peer2->get_xy(), NS::VarData(0, 0)));
-		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_2_peer1->get_xy(), NS::VarData(0, 0)));
+		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_2_serv->get_xy(), NS::VarData(0., 0.)));
+		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_2_peer2->get_xy(), NS::VarData(0., 0.)));
+		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_2_peer1->get_xy(), NS::VarData(0., 0.)));
 	}
 
 	std::vector<NS::VarData> controlled_1_player_position;
@@ -313,13 +313,13 @@ void test_simulation_without_reconciliation(float p_frame_confirmation_timespan)
 struct TestDollSimulationStorePositions : public TestDollSimulationBase {
 	virtual void on_scenes_initialized() override {
 		// Ensure the controllers are at their initial location as defined by the doll simulation class.
-		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_1_serv->get_xy(), NS::VarData(100, 0)));
-		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_1_peer1->get_xy(), NS::VarData(100, 0)));
-		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_1_peer2->get_xy(), NS::VarData(100, 0)));
+		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_1_serv->get_xy(), NS::VarData(100., 0.)));
+		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_1_peer1->get_xy(), NS::VarData(100., 0.)));
+		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_1_peer2->get_xy(), NS::VarData(100., 0.)));
 
-		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_2_serv->get_xy(), NS::VarData(0, 0)));
-		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_2_peer2->get_xy(), NS::VarData(0, 0)));
-		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_2_peer1->get_xy(), NS::VarData(0, 0)));
+		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_2_serv->get_xy(), NS::VarData(0., 0.)));
+		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_2_peer2->get_xy(), NS::VarData(0., 0.)));
+		ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(controlled_2_peer1->get_xy(), NS::VarData(0., 0.)));
 	}
 
 	// Used to introduce a desync by changing the input on the server.

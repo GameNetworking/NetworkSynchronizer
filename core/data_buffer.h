@@ -121,7 +121,7 @@ private:
 
 	bool buffer_failed = false;
 
-#if NS_DEBUG_ENABLED
+#ifdef NS_DEBUG_ENABLED
 	bool debug_enabled = true;
 #endif
 
