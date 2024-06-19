@@ -420,11 +420,6 @@ struct TestDollSimulationStorePositions : public TestDollSimulationBase {
 			if (i > assert_after) {
 				ASSERT_COND(player_position);
 				ASSERT_COND(doll_position);
-			} else {
-				continue;
-			}
-
-			if (i >= assert_after) {
 				ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(*player_position, *doll_position));
 			}
 		}
@@ -528,7 +523,9 @@ void test_simulation_with_hiccups(TestDollSimulationStorePositions &test) {
 void test_simulation_with_latency() {
 	TestDollSimulationStorePositions test;
 	test.frame_confirmation_timespan = 1.0f / 10.0f;
-	test.init_test();
+	// NOTICE: Disabling sub ticks because these cause some additional and
+	//         difficult to control desync that invalidate this test.
+	test.init_test(true);
 
 	const NS::PeerNetworkedController *doll_controller_1 = test.peer_1_scene.scene_sync->get_controller_for_peer(test.peer_2_scene.get_peer());
 	const NS::PeerNetworkedController *doll_controller_2 = test.peer_2_scene.scene_sync->get_controller_for_peer(test.peer_1_scene.get_peer());
@@ -625,7 +622,9 @@ void test_simulation_with_latency() {
 void test_simulation_with_hiccups() {
 	TestDollSimulationStorePositions test;
 	test.frame_confirmation_timespan = 1.0f / 10.0f;
-	test.init_test();
+	// NOTICE: Disabling sub ticks because these cause some additional and
+	//         difficult to control desync that invalidate this test.
+	test.init_test(true);
 
 	test_simulation_with_hiccups(test);
 }
@@ -674,7 +673,9 @@ void test_latency() {
 void test_simulation_with_wrong_input() {
 	TestDollSimulationStorePositions test;
 	test.frame_confirmation_timespan = 1.0f / 10.0f;
-	test.init_test();
+	// NOTICE: Disabling sub ticks because these cause some additional and
+	//         difficult to control desync that invalidate this test.
+	test.init_test(true);
 
 	const NS::PeerNetworkedController *server_controller_1 = test.server_scene.scene_sync->get_controller_for_peer(test.peer_1_scene.get_peer());
 	const NS::PeerNetworkedController *server_controller_2 = test.server_scene.scene_sync->get_controller_for_peer(test.peer_2_scene.get_peer());
@@ -719,11 +720,10 @@ void test_simulation_with_wrong_input() {
 }
 
 void test_doll_simulation() {
-	//test_simulation_without_reconciliation(0.0f);
-	//test_simulation_without_reconciliation(1.f / 30.f);
+	test_simulation_without_reconciliation(0.0f);
+	test_simulation_without_reconciliation(1.f / 30.f);
 	test_simulation_reconciliation(0.0f);
 	test_simulation_reconciliation(1.0f / 10.0f);
-	return;
 	test_simulation_with_latency();
 	test_simulation_with_hiccups();
 	test_simulation_with_wrong_input();
