@@ -111,7 +111,7 @@ struct TestDollSimulationBase {
 
 	NS::LocalNetworkProps network_properties;
 
-	/// Turn this to true to ensure the sub_ticks doesn't cause de-syncs.
+	/// Set this to true to ensure the sub_ticks doesn't cause de-syncs.
 	bool disable_sub_ticks = false;
 	
 	NS::LocalScene server_scene;
