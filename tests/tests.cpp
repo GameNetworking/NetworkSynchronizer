@@ -10,11 +10,11 @@
 void NS_Test::test_all() {
 	NS::LocalSceneSynchronizer::install_local_scene_sync();
 
-	//test_data_buffer();
-	//test_processor();
-	//test_local_network();
-	//test_scene_synchronizer();
-	//test_simulation();
+	test_data_buffer();
+	test_processor();
+	test_local_network();
+	test_scene_synchronizer();
+	test_simulation();
 	test_doll_simulation();
 
 	NS::LocalSceneSynchronizer::uninstall_local_scene_sync();
