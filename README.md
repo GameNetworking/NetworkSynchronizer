@@ -5,8 +5,8 @@ Godot 3.x and 4.0 module to create realtime multiplayer games. It uses Predictio
 
 # Contributors
 
-<a href="https://github.com/GodotNetworking/network_synchronizer/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=GodotNetworking/network_synchronizer" />
+<a href="https://contrib.rocks/image?repo=GameNetworking/NetworkSynchronizer">
+  <img src="https://contrib.rocks/image?repo=GameNetworking/NetworkSynchronizer" />
 </a>
 
 Made with [contrib.rocks](https://contrib.rocks).
