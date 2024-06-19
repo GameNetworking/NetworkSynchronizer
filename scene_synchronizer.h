@@ -154,6 +154,9 @@ protected:
 
 #ifdef NS_DEBUG_ENABLED
 	const bool pedantic_checks = false;
+	/// This is turned on by the integration tests to ensure no desync are
+	/// triggered by `ClientSynchronizer::calculates_sub_ticks` returning > 1.
+	const bool disable_client_sub_ticks = false;
 #endif
 
 	class NetworkInterface *network_interface = nullptr;
@@ -277,7 +280,7 @@ public: // -------------------------------------------------------------- Events
 private:
 	// This is private so this class can be created only from
 	// `SceneSynchronizer<BaseClass>` and the user is forced to define a base class.
-	SceneSynchronizerBase(NetworkInterface *p_network_interface, bool p_pedantic_checks);
+	SceneSynchronizerBase(NetworkInterface *p_network_interface, bool p_pedantic_checks, bool p_disable_client_sub_ticks);
 
 public:
 	~SceneSynchronizerBase();
@@ -928,8 +931,8 @@ public:
 	// Note: Pedantic checks is meant to be used with unit tests (mainly).
 	// It does a bunch of extra checks that ensure write/read.
 	// Eventually can be turned on to also verify everything works in game too.
-	SceneSynchronizer(bool p_pedantic_checks = false) :
-			SceneSynchronizerBase(&custom_network_interface, p_pedantic_checks) {}
+	SceneSynchronizer(bool p_pedantic_checks = false, bool p_disable_client_sub_ticks = false) :
+			SceneSynchronizerBase(&custom_network_interface, p_pedantic_checks, p_disable_client_sub_ticks) {}
 
 	NetInterfaceClass &get_network_interface() {
 		return custom_network_interface;

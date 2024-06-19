@@ -19,8 +19,8 @@ NS::ObjectLocalId LocalSceneObject::find_local_id() const {
 	return NS::ObjectLocalId::NONE;
 }
 
-LocalSceneSynchronizer::LocalSceneSynchronizer() :
-		SceneSynchronizer<LocalSceneObject, LocalNetworkInterface>(true) {
+LocalSceneSynchronizer::LocalSceneSynchronizer(bool p_disable_sub_ticking) :
+		SceneSynchronizer<LocalSceneObject, LocalNetworkInterface>(true, p_disable_sub_ticking) {
 }
 
 LocalSceneSynchronizer::~LocalSceneSynchronizer() {}

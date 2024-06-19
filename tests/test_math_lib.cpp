@@ -6,18 +6,18 @@ namespace NS_Test {
 
 Vec3::operator NS::VarData() const {
 	NS::VarData vd;
-	vd.data.vec.x = x;
-	vd.data.vec.y = y;
-	vd.data.vec.z = z;
+	vd.data.vec_f32.x = x;
+	vd.data.vec_f32.y = y;
+	vd.data.vec_f32.z = z;
 	return vd;
 }
 
 
 Vec3 Vec3::from(const NS::VarData &p_vd) {
 	Vec3 v;
-	v.x = p_vd.data.vec.x;
-	v.y = p_vd.data.vec.y;
-	v.z = p_vd.data.vec.z;
+	v.x = p_vd.data.vec_f32.x;
+	v.y = p_vd.data.vec_f32.y;
+	v.z = p_vd.data.vec_f32.z;
 	return v;
 }
 
@@ -125,5 +125,4 @@ float Vec3::distance_to(const Vec3 &p_v) const {
 	v -= p_v;
 	return v.length();
 }
-
 }; //namespace NS_Test

@@ -32,7 +32,7 @@ public:
 
 class LocalSceneSynchronizer : public SceneSynchronizer<LocalSceneObject, LocalNetworkInterface>, public SynchronizerManager, public LocalSceneObject {
 public:
-	LocalSceneSynchronizer();
+	LocalSceneSynchronizer(bool p_disable_sub_ticking = false);
 	virtual ~LocalSceneSynchronizer();
 
 	static void install_local_scene_sync();
@@ -51,6 +51,11 @@ public:
 	virtual void setup_synchronizer_for(ObjectHandle p_app_object_handle, ObjectLocalId p_id) override;
 };
 
+class LocalSceneSynchronizerNoSubTicks : public LocalSceneSynchronizer {
+public:
+	LocalSceneSynchronizerNoSubTicks() : LocalSceneSynchronizer(true) {}
+};
+	
 class LocalScene {
 	LocalNetwork network;
 	std::map<std::string, std::shared_ptr<LocalSceneObject>> objects;

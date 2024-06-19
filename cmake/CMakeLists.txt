@@ -17,6 +17,9 @@ option(ENABLE_DEBUG_DATA_BUFFER "Enable debug data buffer." OFF)
 option(OVERRIDE_CXX_FLAGS "Enable this to override the flags used for release and debug. `CMAKE_CXX_FLAGS_DEBUG` `CMAKE_CXX_FLAGS_RELEASE`" OFF)
 
 if (MSVC)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fp:precise") # Ensure floating point is not fast to make math operations deterministic.
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /fp:precise") # Ensure floating point is not fast to make math operations deterministic.
+    
 	# Optionally generate debug symbols
 	if (GENERATE_DEBUG_SYMBOLS)
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zi")
