@@ -23,9 +23,10 @@ void (*SceneSynchronizerBase::print_line_func)(const std::string &p_str) = nullp
 void (*SceneSynchronizerBase::print_code_message_func)(const char *p_function, const char *p_file, int p_line, const std::string &p_error, const std::string &p_message, NS::PrintMessageType p_type) = nullptr;
 void (*SceneSynchronizerBase::print_flush_stdout_func)() = nullptr;
 
-SceneSynchronizerBase::SceneSynchronizerBase(NetworkInterface *p_network_interface, bool p_pedantic_checks) :
+SceneSynchronizerBase::SceneSynchronizerBase(NetworkInterface *p_network_interface, bool p_pedantic_checks, bool p_disable_client_sub_ticks) :
 #ifdef NS_DEBUG_ENABLED
 		pedantic_checks(p_pedantic_checks),
+		disable_client_sub_ticks(p_disable_client_sub_ticks),
 #endif
 		network_interface(p_network_interface),
 		objects_data_storage(*this) {
@@ -1539,7 +1540,6 @@ void SceneSynchronizerBase::process_functions__execute() {
 	}
 
 	SceneSynchronizerDebugger::singleton()->print(INFO, "Process functions START");
-
 	// Pre process phase
 	for (int process_phase = PROCESS_PHASE_EARLY; process_phase < PROCESS_PHASE_COUNT; ++process_phase) {
 		const std::string phase_info = "process phase: " + std::to_string(process_phase);
@@ -3137,7 +3137,7 @@ int ClientSynchronizer::calculates_sub_ticks(const float p_delta) {
 	// 3. Avoids overshots by taking the smallest value between `acceleration_delta` and the `remaining timer`.
 	const float frame_acceleration_delta = std::max(0.0f, std::min(acceleration_delta, acceleration_fps_timer));
 
-	// Updates the timer by removing the extra accelration.
+	// Updates the timer by removing the extra acceleration.
 	acceleration_fps_timer = std::max(acceleration_fps_timer - frame_acceleration_delta, 0.0f);
 
 	// Calculates the pretended delta.
@@ -3153,6 +3153,14 @@ int ClientSynchronizer::calculates_sub_ticks(const float p_delta) {
 		time_bank = 0.0f;
 	}
 
+#ifdef NS_DEBUG_ENABLED
+	if (scene_synchronizer->disable_client_sub_ticks) {
+		if (sub_ticks > 1) {
+			return 1;
+		}
+	}
+#endif
+	
 	NS_ENSURE_V_MSG(
 			sub_ticks <= scene_synchronizer->get_max_sub_process_per_frame(),
 			scene_synchronizer->get_max_sub_process_per_frame(),
@@ -3201,7 +3209,7 @@ void ClientSynchronizer::process_simulation(float p_delta) {
 	if (sub_ticks == 0) {
 		SceneSynchronizerDebugger::singleton()->print(VERBOSE, "No sub ticks: this is not bu a bug; it's the lag compensation algorithm.", scene_synchronizer->get_network_interface().get_owner_name());
 	}
-
+	
 	while (sub_ticks > 0) {
 #ifdef NS_PROFILING_ENABLED
 		std::string sub_perf_info = "Fixed delta: " + std::to_string(scene_synchronizer->get_fixed_frame_delta()) + " remaining ticks: " + std::to_string(sub_ticks);

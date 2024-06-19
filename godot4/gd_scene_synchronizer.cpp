@@ -193,7 +193,7 @@ void GdSceneSynchronizer::_bind_methods() {
 
 GdSceneSynchronizer::GdSceneSynchronizer() :
 		Node(),
-		scene_synchronizer(false) {
+		scene_synchronizer(false, false) {
 	rpc_id(1, "");
 
 	Dictionary rpc_config_reliable;

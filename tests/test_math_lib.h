@@ -5,9 +5,9 @@
 namespace NS_Test {
 
 struct Vec3 {
-	float x = 0;
-	float y = 0;
-	float z = 0;
+	float x = 0.f;
+	float y = 0.f;
+	float z = 0.f;
 
 	Vec3() = default;
 	Vec3(float px, float py, float pz) :

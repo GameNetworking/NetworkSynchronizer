@@ -19,11 +19,11 @@ const float delta = 1.0f / 60.0f;
 class MagnetSceneObject : public NS::LocalSceneObject {
 public:
 	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
-	float weight = 1.0;
+	float weight = 1.0f;
 	Vec3 position;
 
 	virtual void on_scene_entry() override {
-		set_weight(1.0);
+		set_weight(1.0f);
 		set_position(Vec3());
 
 		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
@@ -138,26 +138,26 @@ public:
 
 	// ------------------------------------------------- NetController interface
 	const Vec3 inputs[20] = {
-		Vec3(1.0, 0.0, 0.0),
-		Vec3(0.0, 1.0, 0.0),
-		Vec3(0.0, 0.0, 1.0),
-		Vec3(0.0, 1.0, 0.0),
-		Vec3(1.0, 0.0, 0.0),
-		Vec3(1.0, 0.0, 0.0),
-		Vec3(1.0, 0.0, 0.0),
-		Vec3(0.0, 0.0, 1.0),
-		Vec3(0.0, 0.0, 1.0),
-		Vec3(0.0, 0.0, 1.0),
-		Vec3(0.0, 1.0, 0.0),
-		Vec3(1.0, 0.0, 0.0),
-		Vec3(0.0, 0.0, 1.0),
-		Vec3(1.0, 0.0, 0.0),
-		Vec3(1.0, 0.0, 0.0),
-		Vec3(1.0, 0.0, 0.0),
-		Vec3(1.0, 0.0, 0.0),
-		Vec3(1.0, 0.0, 0.0),
-		Vec3(1.0, 0.0, 0.0),
-		Vec3(0.0, 1.0, 0.0)
+		Vec3(1.0f, 0.0f, 0.0f),
+		Vec3(0.0f, 1.0f, 0.0f),
+		Vec3(0.0f, 0.0f, 1.0f),
+		Vec3(0.0f, 1.0f, 0.0f),
+		Vec3(1.0f, 0.0f, 0.0f),
+		Vec3(1.0f, 0.0f, 0.0f),
+		Vec3(1.0f, 0.0f, 0.0f),
+		Vec3(0.0f, 0.0f, 1.0f),
+		Vec3(0.0f, 0.0f, 1.0f),
+		Vec3(0.0f, 0.0f, 1.0f),
+		Vec3(0.0f, 1.0f, 0.0f),
+		Vec3(1.0f, 0.0f, 0.0f),
+		Vec3(0.0f, 0.0f, 1.0f),
+		Vec3(1.0f, 0.0f, 0.0f),
+		Vec3(1.0f, 0.0f, 0.0f),
+		Vec3(1.0f, 0.0f, 0.0f),
+		Vec3(1.0f, 0.0f, 0.0f),
+		Vec3(1.0f, 0.0f, 0.0f),
+		Vec3(1.0f, 0.0f, 0.0f),
+		Vec3(0.0f, 1.0f, 0.0f)
 	};
 
 	void collect_inputs(float p_delta, NS::DataBuffer &r_buffer) {
@@ -191,7 +191,7 @@ public:
 	}
 
 	uint32_t count_input_size(NS::DataBuffer &p_buffer) {
-		return p_buffer.get_normalized_vector2_size(NS::DataBuffer::COMPRESSION_LEVEL_3);
+		return p_buffer.get_normalized_vector3_size(NS::DataBuffer::COMPRESSION_LEVEL_3);
 	}
 };
 
@@ -443,7 +443,7 @@ public:
 
 void test_simulation() {
 	TestSimulationBase().do_test();
-	TestSimulationWithRewind(0.0).do_test();
-	TestSimulationWithRewind(1.0).do_test();
+	TestSimulationWithRewind(0.0f).do_test();
+	TestSimulationWithRewind(1.0f).do_test();
 }
 }; //namespace NS_Test
