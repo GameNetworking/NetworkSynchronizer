@@ -299,7 +299,6 @@ struct TestDollSimulationWithPositionCheck : public TestDollSimulationBase {
 	}
 
 	virtual void on_scenes_processed(float p_delta) override {
-		return;
 		ASSERT_COND(peer1_desync_detected.size() == 0);
 		ASSERT_COND(peer2_desync_detected.size() == 0);
 
@@ -735,8 +734,8 @@ void test_simulation_with_wrong_input() {
 void test_doll_simulation() {
 	test_simulation_without_reconciliation(0.0f);
 	test_simulation_without_reconciliation(1.f / 30.f);
+	//test_simulation_reconciliation(0.0f);
 	return;
-	test_simulation_reconciliation(0.0f);
 	test_simulation_reconciliation(1.0f / 10.0f);
 	test_simulation_with_latency();
 	test_simulation_with_hiccups();
