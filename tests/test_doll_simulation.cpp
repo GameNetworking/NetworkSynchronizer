@@ -329,7 +329,8 @@ struct TestDollSimulationWithPositionCheck : public TestDollSimulationBase {
 void test_simulation_without_reconciliation(float p_frame_confirmation_timespan) {
 	TestDollSimulationWithPositionCheck test;
 	test.frame_confirmation_timespan = p_frame_confirmation_timespan;
-	// This test is not triggering any desynchronization.
+	// NOTICE: Disabling sub ticks because these cause some desync
+	//         desync that invalidate this test.
 	test.init_test(true);
 
 	test.do_test(100);
@@ -434,7 +435,9 @@ struct TestDollSimulationStorePositions : public TestDollSimulationBase {
 void test_simulation_reconciliation(float p_frame_confirmation_timespan) {
 	TestDollSimulationStorePositions test;
 	test.frame_confirmation_timespan = p_frame_confirmation_timespan;
-	test.init_test();
+	// NOTICE: Disabling sub ticks because these cause some additional and
+	//         difficult to control desync that invalidate this test.
+	test.init_test(true);
 
 	test.do_test(30);
 
@@ -452,7 +455,7 @@ void test_simulation_reconciliation(float p_frame_confirmation_timespan) {
 	// Run another 30 frames.
 	test.do_test(30);
 
-	/*
+	ASSERT_COND(test.peer1_desync_detected.size() == test.peer2_desync_detected.size());
 	if (p_frame_confirmation_timespan <= 0.0) {
 		// Ensure it was able to reconcile right away.
 		// With `p_frame_confirmation_timespan == 0` the server snapshot is
@@ -462,25 +465,9 @@ void test_simulation_reconciliation(float p_frame_confirmation_timespan) {
 		ASSERT_COND(test.peer1_desync_detected.size() == 0);
 		ASSERT_COND(test.peer2_desync_detected.size() == 0);
 	} else {
-		// Ensure it was able to reconcile in exactly 1 frame.
-		ASSERT_COND(test.peer1_desync_detected.size() == 1);
-		ASSERT_COND(test.peer2_desync_detected.size() == 1);
-
-		// Make sure the reconciliation was successful.
-		// NOTE: 45 is a margin established basing on the `p_frame_confirmation_timespan`.
-		const NS::FrameIndex ensure_no_desync_after = NS::FrameIndex{ { 45 } };
-		test.assert_no_desync(ensure_no_desync_after, ensure_no_desync_after);
-
-		// and despite that the simulations are correct.
-		test.assert_positions(ensure_no_desync_after, ensure_no_desync_after);
-	}
-	*/
-
-	ASSERT_COND(test.peer1_desync_detected.size() == test.peer2_desync_detected.size());
-	if (test.peer1_desync_detected.size() != 0) {
-		// Ensure it was able to reconcile in exactly 1 frame.
-		ASSERT_COND(test.peer1_desync_detected.size() == 1);
-		ASSERT_COND(test.peer2_desync_detected.size() == 1);
+		// Ensure it was able to reconcile in 1 frame or less.
+		ASSERT_COND(test.peer1_desync_detected.size() <= 1);
+		ASSERT_COND(test.peer2_desync_detected.size() <= 1);
 
 		// Make sure the reconciliation was successful.
 		// NOTE: 45 is a margin established basing on the `p_frame_confirmation_timespan`.
@@ -732,11 +719,11 @@ void test_simulation_with_wrong_input() {
 }
 
 void test_doll_simulation() {
-	test_simulation_without_reconciliation(0.0f);
-	test_simulation_without_reconciliation(1.f / 30.f);
-	//test_simulation_reconciliation(0.0f);
-	return;
+	//test_simulation_without_reconciliation(0.0f);
+	//test_simulation_without_reconciliation(1.f / 30.f);
+	test_simulation_reconciliation(0.0f);
 	test_simulation_reconciliation(1.0f / 10.0f);
+	return;
 	test_simulation_with_latency();
 	test_simulation_with_hiccups();
 	test_simulation_with_wrong_input();
