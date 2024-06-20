@@ -38,11 +38,14 @@ public:
 
 		p_scene_sync.setup_controller(
 				p_id,
-				authoritative_peer_id,
 				std::bind(&TDSControlledObject::collect_inputs, this, std::placeholders::_1, std::placeholders::_2),
 				std::bind(&TDSControlledObject::count_input_size, this, std::placeholders::_1),
 				std::bind(&TDSControlledObject::are_inputs_different, this, std::placeholders::_1, std::placeholders::_2),
 				std::bind(&TDSControlledObject::controller_process, this, std::placeholders::_1, std::placeholders::_2));
+				
+		p_scene_sync.set_controlled_by_peer(
+				p_id,
+				authoritative_peer_id);
 
 		p_scene_sync.register_variable(
 				p_id,

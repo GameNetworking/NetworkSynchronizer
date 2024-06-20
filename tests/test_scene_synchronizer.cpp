@@ -56,11 +56,14 @@ public:
 
 		p_scene_sync.setup_controller(
 				p_id,
-				authoritative_peer_id,
 				std::bind(&LocalNetworkedController::collect_inputs, this, std::placeholders::_1, std::placeholders::_2),
 				std::bind(&LocalNetworkedController::count_input_size, this, std::placeholders::_1),
 				std::bind(&LocalNetworkedController::are_inputs_different, this, std::placeholders::_1, std::placeholders::_2),
 				std::bind(&LocalNetworkedController::controller_process, this, std::placeholders::_1, std::placeholders::_2));
+		
+		p_scene_sync.set_controlled_by_peer(
+				p_id,
+				authoritative_peer_id);
 
 		p_scene_sync.register_variable(
 				p_id,

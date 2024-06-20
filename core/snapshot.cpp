@@ -157,9 +157,9 @@ bool NS::Snapshot::compare(
 #endif
 	} else {
 		for (size_t i = 0; i < p_snap_A.simulated_objects.size(); i++) {
-			if (p_snap_A.simulated_objects[i] != p_snap_B.simulated_objects[i]) {
+			if (p_snap_A.simulated_objects[i].net_id != p_snap_B.simulated_objects[i].net_id || p_snap_A.simulated_objects[i].controlled_by_peer != p_snap_B.simulated_objects[i].controlled_by_peer) {
 				if (r_differences_info) {
-					r_differences_info->push_back("Difference detected: simulated object index `" + std::to_string(i) + "` value is snapA `" + std::to_string(p_snap_A.simulated_objects[i].id) + "` snapB `" + std::to_string(p_snap_B.simulated_objects[i].id) + "`.");
+					r_differences_info->push_back("Difference detected: simulated object index `" + std::to_string(i) + "` value is snapA `" + std::to_string(p_snap_A.simulated_objects[i].net_id.id) + "` snapB `" + std::to_string(p_snap_B.simulated_objects[i].net_id.id) + "`.");
 				}
 #ifdef NS_DEBUG_ENABLED
 				is_equal = false;

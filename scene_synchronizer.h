@@ -411,11 +411,13 @@ public: // ---------------------------------------------------------------- APIs
 	void unregister_app_object(ObjectLocalId p_id);
 	void setup_controller(
 			ObjectLocalId p_id,
-			int p_peer,
 			std::function<void(float /*delta*/, DataBuffer & /*r_data_buffer*/)> p_collect_input_func,
 			std::function<int(DataBuffer & /*p_data_buffer*/)> p_count_input_size_func,
 			std::function<bool(DataBuffer & /*p_data_buffer_A*/, DataBuffer & /*p_data_buffer_B*/)> p_are_inputs_different_func,
 			std::function<void(float /*delta*/, DataBuffer & /*p_data_buffer*/)> p_process_func);
+	void set_controlled_by_peer(
+			ObjectLocalId p_id,
+			int p_peer);
 	void register_variable(ObjectLocalId p_id, const std::string &p_variable_name, VarDataSetFunc p_set_func, VarDataGetFunc p_get_func);
 	void unregister_variable(ObjectLocalId p_id, const std::string &p_variable);
 
@@ -542,7 +544,7 @@ public: // ---------------------------------------------------------------- APIs
 	void change_event_add(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old);
 	void change_events_flush();
 
-	const std::vector<ObjectNetId> *client_get_simulated_objects() const;
+	const std::vector<SimulatedObjectInfo> *client_get_simulated_objects() const;
 	bool client_is_simulated_object(ObjectLocalId p_id) const;
 
 public: // ------------------------------------------------------------ INTERNAL
@@ -732,7 +734,7 @@ public:
 	float acceleration_fps_timer = 0.0;
 	float pretended_delta = 1.0;
 
-	std::vector<ObjectNetId> simulated_objects;
+	std::vector<SimulatedObjectInfo> simulated_objects;
 	std::vector<ObjectData *> active_objects;
 	PeerNetworkedController *player_controller = nullptr;
 	std::map<ObjectNetId, std::string> objects_names;
@@ -853,7 +855,7 @@ public:
 			void (*p_object_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
 			bool (*p_peers_frame_index_parse)(void *p_user_pointer, std::map<int, FrameIndex> &&p_frames_index),
 			void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, VarData &&p_value),
-			void (*p_simulated_objects_parse)(void *p_user_pointer, std::vector<ObjectNetId> &&p_simulated_objects));
+			void (*p_simulated_objects_parse)(void *p_user_pointer, std::vector<SimulatedObjectInfo> &&p_simulated_objects));
 
 	void set_enabled(bool p_enabled);
 
@@ -906,7 +908,7 @@ private:
 	void notify_server_full_snapshot_is_needed();
 
 	void update_client_snapshot(Snapshot &p_snapshot);
-	void update_simulated_objects_list(const std::vector<ObjectNetId> &p_simulated_objects);
+	void update_simulated_objects_list(const std::vector<SimulatedObjectInfo> &p_simulated_objects);
 
 public:
 	void apply_snapshot(

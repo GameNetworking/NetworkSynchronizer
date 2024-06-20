@@ -426,7 +426,6 @@ void SceneSynchronizerBase::unregister_app_object(ObjectLocalId p_id) {
 
 void SceneSynchronizerBase::setup_controller(
 		ObjectLocalId p_id,
-		int p_peer,
 		std::function<void(float /*delta*/, DataBuffer & /*r_data_buffer*/)> p_collect_input_func,
 		std::function<int(DataBuffer & /*p_data_buffer*/)> p_count_input_size_func,
 		std::function<bool(DataBuffer & /*p_data_buffer_A*/, DataBuffer & /*p_data_buffer_B*/)> p_are_inputs_different_func,
@@ -436,12 +435,34 @@ void SceneSynchronizerBase::setup_controller(
 	NS::ObjectData *object_data = get_object_data(p_id);
 	NS_ENSURE(object_data != nullptr);
 
-	const int previous_controlling_peer = object_data->get_controlled_by_peer();
-	object_data->set_controlled_by_peer(p_peer, p_collect_input_func, p_count_input_size_func, p_are_inputs_different_func, p_process_func);
+	object_data->setup_controller(p_collect_input_func, p_count_input_size_func, p_are_inputs_different_func, p_process_func);
+}
 
-	PeerNetworkedController *controller = get_controller_for_peer(p_peer);
-	if (controller) {
-		controller->notify_controllable_objects_changed();
+void SceneSynchronizerBase::set_controlled_by_peer(
+		ObjectLocalId p_id,
+		int p_peer) {
+	NS_ENSURE_MSG(p_id != ObjectLocalId::NONE, "The passed object_id is not valid.");
+
+	ObjectData *object_data = get_object_data(p_id);
+	NS_ENSURE(object_data != nullptr);
+	
+	const int previous_controlling_peer = object_data->get_controlled_by_peer();
+	if(!object_data->set_controlled_by_peer(p_peer)) {
+		return;
+	}
+
+	{
+		PeerNetworkedController *prev_controller = get_controller_for_peer(previous_controlling_peer);
+		if (prev_controller) {
+			prev_controller->notify_controllable_objects_changed();
+		}
+	}
+
+	{
+		PeerNetworkedController *controller = get_controller_for_peer(p_peer);
+		if (controller) {
+			controller->notify_controllable_objects_changed();
+		}
 	}
 
 	if (synchronizer) {
@@ -1414,7 +1435,7 @@ void SceneSynchronizerBase::change_events_flush() {
 	end_sync = false;
 }
 
-const std::vector<ObjectNetId> *SceneSynchronizerBase::client_get_simulated_objects() const {
+const std::vector<SimulatedObjectInfo> *SceneSynchronizerBase::client_get_simulated_objects() const {
 	NS_ENSURE_V_MSG(is_client(), nullptr, "This function CAN be used only on the client.");
 	return &(static_cast<ClientSynchronizer *>(synchronizer)->simulated_objects);
 }
@@ -2191,9 +2212,9 @@ void ServerSynchronizer::process_snapshot_notificator() {
 
 void ServerSynchronizer::generate_snapshot(
 		bool p_force_full_snapshot,
-		const NS::SyncGroup &p_group,
+		const SyncGroup &p_group,
 		DataBuffer &r_snapshot_db) const {
-	const std::vector<NS::SyncGroup::SimulatedObjectInfo> &relevant_node_data = p_group.get_simulated_sync_objects();
+	const std::vector<SyncGroup::SimulatedObjectInfo> &relevant_node_data = p_group.get_simulated_sync_objects();
 
 	// First insert the list of ALL simulated ObjectData, if changed.
 	if (p_group.is_realtime_node_list_changed() || p_force_full_snapshot) {
@@ -2204,6 +2225,7 @@ void ServerSynchronizer::generate_snapshot(
 			ASSERT_COND(od->get_net_id() != ObjectNetId::NONE);
 			ASSERT_COND(od->get_net_id().id <= std::numeric_limits<uint16_t>::max());
 			r_snapshot_db.add(od->get_net_id().id);
+			r_snapshot_db.add(od->get_controlled_by_peer());
 		}
 
 		// Add `uint16_max to signal its end.
@@ -3256,7 +3278,7 @@ bool ClientSynchronizer::parse_sync_data(
 		void (*p_object_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
 		bool (*p_peers_frame_index_parse)(void *p_user_pointer, std::map<int, FrameIndex> &&p_frames_index),
 		void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, VarData &&p_value),
-		void (*p_simulated_objects_parse)(void *p_user_pointer, std::vector<ObjectNetId> &&p_simulated_objects)) {
+		void (*p_simulated_objects_parse)(void *p_user_pointer, std::vector<SimulatedObjectInfo> &&p_simulated_objects)) {
 	NS_PROFILE
 
 	// The snapshot is a DataBuffer that contains the scene informations.
@@ -3275,7 +3297,7 @@ bool ClientSynchronizer::parse_sync_data(
 		p_snapshot.read(has_active_list_array);
 		NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as the `has_active_list_array` boolean expected is not set.");
 		if (has_active_list_array) {
-			std::vector<ObjectNetId> sd_simulated_objects;
+			std::vector<SimulatedObjectInfo> sd_simulated_objects;
 			sd_simulated_objects.reserve(scene_synchronizer->get_all_object_data().size());
 
 			// Fetch the array.
@@ -3283,12 +3305,16 @@ bool ClientSynchronizer::parse_sync_data(
 				ObjectNetId id;
 				p_snapshot.read(id.id);
 				NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `ObjectNetId` failed.");
+				
+				int controlled_by_peer;
+				p_snapshot.read(controlled_by_peer);
+				NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `ObjectNetId` failed.");
 
 				if (id == ObjectNetId::NONE) {
 					// The end.
 					break;
 				}
-				sd_simulated_objects.push_back(id);
+				sd_simulated_objects.push_back(SimulatedObjectInfo(id, controlled_by_peer));
 			}
 
 			p_simulated_objects_parse(p_user_pointer, std::move(sd_simulated_objects));
@@ -3721,7 +3747,7 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 			},
 
 			// Parse node activation:
-			[](void *p_user_pointer, std::vector<ObjectNetId> &&p_simulated_objects) {
+			[](void *p_user_pointer, std::vector<SimulatedObjectInfo> &&p_simulated_objects) {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
 				pd->snapshot.simulated_objects = std::move(p_simulated_objects);
 			});
@@ -3818,7 +3844,7 @@ void ClientSynchronizer::update_client_snapshot(NS::Snapshot &r_snapshot) {
 	scene_synchronizer->event_snapshot_update_finished.broadcast(r_snapshot);
 }
 
-void ClientSynchronizer::update_simulated_objects_list(const std::vector<ObjectNetId> &p_simulated_objects) {
+void ClientSynchronizer::update_simulated_objects_list(const std::vector<SimulatedObjectInfo> &p_simulated_objects) {
 	NS_PROFILE
 
 	// Reset the simulated object first.
@@ -3826,7 +3852,8 @@ void ClientSynchronizer::update_simulated_objects_list(const std::vector<ObjectN
 		if (!od) {
 			continue;
 		}
-		const bool is_simulating = NS::VecFunc::has(p_simulated_objects, od->get_net_id());
+		auto simulated_object_info = VecFunc::find(p_simulated_objects, od->get_net_id());
+		const bool is_simulating = simulated_object_info != p_simulated_objects.end();
 		if (od->realtime_sync_enabled_on_client != is_simulating) {
 			od->realtime_sync_enabled_on_client = is_simulating;
 
@@ -3846,12 +3873,18 @@ void ClientSynchronizer::update_simulated_objects_list(const std::vector<ObjectN
 				}
 			}
 		}
+
+		if(is_simulating) {
+			od->set_controlled_by_peer(simulated_object_info->controlled_by_peer);
+		}else {
+			od->set_controlled_by_peer(-1);
+		}
 	}
 
 	simulated_objects = p_simulated_objects;
 	active_objects.clear();
-	for (ObjectNetId id : simulated_objects) {
-		active_objects.push_back(scene_synchronizer->get_object_data(id));
+	for (const SimulatedObjectInfo& info : simulated_objects) {
+		active_objects.push_back(scene_synchronizer->get_object_data(info.net_id));
 	}
 }
 
@@ -3878,8 +3911,8 @@ void ClientSynchronizer::apply_snapshot(
 		update_simulated_objects_list(p_snapshot.simulated_objects);
 	}
 
-	for (ObjectNetId net_node_id : p_snapshot.simulated_objects) {
-		NS::ObjectData *object_data = scene_synchronizer->get_object_data(net_node_id);
+	for (const SimulatedObjectInfo& info: p_snapshot.simulated_objects) {
+		NS::ObjectData *object_data = scene_synchronizer->get_object_data(info.net_id);
 
 		if (object_data == nullptr) {
 			// This can happen, and it's totally expected, because the server
@@ -3906,7 +3939,7 @@ void ClientSynchronizer::apply_snapshot(
 			continue;
 		}
 
-		const std::vector<NS::NameAndVar> &snap_object_vars = snap_objects_vars[net_node_id.id];
+		const std::vector<NameAndVar> &snap_object_vars = snap_objects_vars[info.net_id.id];
 
 		if (r_applied_data_info) {
 			r_applied_data_info->push_back("Applied snapshot on the object: " + object_data->object_name);

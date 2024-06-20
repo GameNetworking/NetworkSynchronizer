@@ -95,11 +95,12 @@ public:
 
 		p_scene_sync.setup_controller(
 				p_id,
-				authoritative_peer_id,
 				[this](float p_delta, NS::DataBuffer &r_buffer) -> void { collect_inputs(p_delta, r_buffer); },
 				[this](NS::DataBuffer &p_buffer) -> int { return count_input_size(p_buffer); },
 				[this](NS::DataBuffer &p_buffer_A, NS::DataBuffer &p_buffer_b) -> bool { return are_inputs_different(p_buffer_A, p_buffer_b); },
 				[this](float p_delta, NS::DataBuffer &p_buffer) -> void { controller_process(p_delta, p_buffer); });
+
+		p_scene_sync.set_controlled_by_peer(p_id, authoritative_peer_id);
 
 		p_scene_sync.register_variable(
 				p_id, "weight",

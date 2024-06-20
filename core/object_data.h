@@ -66,6 +66,7 @@ private:
 	/// ID used to reference this ObjectData locally. This id is always set.
 	ObjectLocalId local_id = ObjectLocalId::NONE;
 
+	// TODO consider uint8 or uint16
 	int controlled_by_peer = -1;
 
 public:
@@ -103,12 +104,12 @@ public:
 	bool has_registered_process_functions() const;
 	bool can_trickled_sync() const;
 
-	void set_controlled_by_peer(
-			int p_peer,
+	bool setup_controller(
 			std::function<void(float /*delta*/, DataBuffer & /*r_data_buffer*/)> p_collect_input_func = nullptr,
 			std::function<int(DataBuffer & /*p_data_buffer*/)> p_count_input_size_func = nullptr,
 			std::function<bool(DataBuffer & /*p_data_buffer_A*/, DataBuffer & /*p_data_buffer_B*/)> p_are_inputs_different_func = nullptr,
 			std::function<void(float /*delta*/, DataBuffer & /*p_data_buffer*/)> p_process_func = nullptr);
+	bool set_controlled_by_peer(int p_peer);
 	int get_controlled_by_peer() const;
 
 	VarId find_variable_id(const std::string &p_var_name) const;
