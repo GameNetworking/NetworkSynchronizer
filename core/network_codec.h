@@ -23,9 +23,6 @@ void decode_variable(std::vector<std::uint8_t> &val, DataBuffer &p_buffer);
 void encode_variable(const DataBuffer &val, DataBuffer &r_buffer);
 void decode_variable(DataBuffer &val, DataBuffer &p_buffer);
 
-void encode_variable(const struct VarData &val, DataBuffer &r_buffer);
-void decode_variable(VarData &val, DataBuffer &p_buffer);
-
 template <int Index>
 void encode_variables(DataBuffer &r_buffer) {}
 

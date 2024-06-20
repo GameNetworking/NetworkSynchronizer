@@ -35,6 +35,7 @@ public:
 	virtual void update_objects_relevancy() {}
 
 	virtual bool snapshot_get_custom_data(const SyncGroup *p_group, struct VarData &r_custom_data) { return false; }
+	virtual std::uint8_t snapshot_get_custom_data_type() const { return 0; }
 	virtual void snapshot_set_custom_data(const VarData &r_custom_data) {}
 
 	virtual ObjectHandle fetch_app_object(const std::string &p_object_name) = 0;
@@ -144,7 +145,7 @@ public:
 
 protected:
 	static void (*var_data_encode_func)(class DataBuffer &r_buffer, const NS::VarData &p_val);
-	static void (*var_data_decode_func)(NS::VarData &r_val, DataBuffer &p_buffer);
+	static void (*var_data_decode_func)(NS::VarData &r_val, DataBuffer &p_buffer, std::uint8_t p_var_type);
 	static bool (*var_data_compare_func)(const VarData &p_A, const VarData &p_B);
 	static std::string (*var_data_stringify_func)(const VarData &p_var_data, bool p_verbose);
 
@@ -288,7 +289,7 @@ public:
 public: // -------------------------------------------------------- Manager APIs
 	static void install_synchronizer(
 			void (*p_var_data_encode_func)(DataBuffer &r_buffer, const NS::VarData &p_val),
-			void (*p_var_data_decode_func)(NS::VarData &r_val, DataBuffer &p_buffer),
+			void (*p_var_data_decode_func)(NS::VarData &r_val, DataBuffer &p_buffer, std::uint8_t p_variable_type),
 			bool (*p_var_data_compare_func)(const VarData &p_A, const VarData &p_B),
 			std::string (*p_var_data_stringify_func)(const VarData &p_var_data, bool p_verbose),
 			void (*p_print_line_func)(const std::string &p_str),
@@ -308,8 +309,8 @@ public: // -------------------------------------------------------- Manager APIs
 	void on_app_object_removed(ObjectHandle p_app_object_handle);
 
 public:
-	static void var_data_encode(DataBuffer &r_buffer, const NS::VarData &p_val);
-	static void var_data_decode(NS::VarData &r_val, DataBuffer &p_buffer);
+	static void var_data_encode(DataBuffer &r_buffer, const NS::VarData &p_val, std::uint8_t p_variable_type);
+	static void var_data_decode(NS::VarData &r_val, DataBuffer &p_buffer, std::uint8_t p_variable_type);
 	static bool var_data_compare(const VarData &p_A, const VarData &p_B);
 	static std::string var_data_stringify(const VarData &p_var_data, bool p_verbose = false);
 	static void __print_line(const std::string &p_str);
@@ -415,7 +416,7 @@ public: // ---------------------------------------------------------------- APIs
 			std::function<int(DataBuffer & /*p_data_buffer*/)> p_count_input_size_func,
 			std::function<bool(DataBuffer & /*p_data_buffer_A*/, DataBuffer & /*p_data_buffer_B*/)> p_are_inputs_different_func,
 			std::function<void(float /*delta*/, DataBuffer & /*p_data_buffer*/)> p_process_func);
-	void register_variable(ObjectLocalId p_id, const std::string &p_variable, VarDataSetFunc p_set_func, VarDataGetFunc p_get_func);
+	void register_variable(ObjectLocalId p_id, const std::string &p_variable_name, VarDataSetFunc p_set_func, VarDataGetFunc p_get_func);
 	void unregister_variable(ObjectLocalId p_id, const std::string &p_variable);
 
 	ObjectNetId get_app_object_net_id(ObjectLocalId p_local_id) const;
