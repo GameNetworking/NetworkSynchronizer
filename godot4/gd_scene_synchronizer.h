@@ -209,7 +209,7 @@ public: // ---------------------------------------------------------------- APIs
 	bool is_networked() const;
 
 	static void encode(NS::DataBuffer &r_buffer, const NS::VarData &p_val);
-	static void decode(NS::VarData &r_val, NS::DataBuffer &p_buffer);
+	static void decode(NS::VarData &r_val, NS::DataBuffer &p_buffer, std::uint8_t p_variable_type);
 
 	static void convert(Variant &r_variant, const NS::VarData &p_vd);
 	static void convert(NS::VarData &r_vd, const Variant &p_variant);
