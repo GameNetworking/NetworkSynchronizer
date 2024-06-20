@@ -9,7 +9,6 @@
 #include <vector>
 
 NS_NAMESPACE_BEGIN
-
 struct NameAndVar {
 	std::string name;
 	VarData value;
@@ -29,6 +28,8 @@ struct NameAndVar {
 struct VarDescriptor {
 	VarId id = VarId::NONE;
 	NameAndVar var;
+	/// The variable type.
+	std::uint8_t type = 0;
 	VarDataSetFunc set_func = nullptr;
 	VarDataGetFunc get_func = nullptr;
 	bool skip_rewinding = false;
@@ -36,7 +37,15 @@ struct VarDescriptor {
 	std::vector<struct ChangesListener *> changes_listeners;
 
 	VarDescriptor() = default;
-	VarDescriptor(VarId p_id, const std::string &p_name, VarData &&p_val, VarDataSetFunc p_set_func, VarDataGetFunc p_get_func, bool p_skip_rewinding, bool p_enabled);
+	VarDescriptor(
+			VarId p_id,
+			const std::string &p_name,
+			std::uint8_t p_type,
+			VarData &&p_val,
+			VarDataSetFunc p_set_func,
+			VarDataGetFunc p_get_func,
+			bool p_skip_rewinding,
+			bool p_enabled);
 
 	bool operator<(const VarDescriptor &p_other) const;
 };

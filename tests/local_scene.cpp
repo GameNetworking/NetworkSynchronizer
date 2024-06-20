@@ -26,7 +26,7 @@ LocalSceneSynchronizer::LocalSceneSynchronizer(bool p_disable_sub_ticking) :
 LocalSceneSynchronizer::~LocalSceneSynchronizer() {}
 
 void (*prev_var_data_encode_func)(NS::DataBuffer &r_buffer, const NS::VarData &p_val) = nullptr;
-void (*prev_var_data_decode_func)(NS::VarData &r_val, NS::DataBuffer &p_buffer) = nullptr;
+void (*prev_var_data_decode_func)(NS::VarData &r_val, NS::DataBuffer &p_buffer, std::uint8_t p_variable_type) = nullptr;
 bool (*prev_var_data_compare_func)(const VarData &p_A, const VarData &p_B) = nullptr;
 std::string (*prev_var_data_stringify_func)(const VarData &p_var_data, bool p_verbose) = nullptr;
 
@@ -44,7 +44,7 @@ void LocalSceneSynchronizer::install_local_scene_sync() {
 				// Not supported right now.
 				ASSERT_COND(!p_val.shared_buffer);
 			},
-			[](NS::VarData &r_val, NS::DataBuffer &p_buffer) {
+			[](NS::VarData &r_val, NS::DataBuffer &p_buffer, std::uint8_t p_variable_type) {
 				p_buffer.read(r_val.type);
 				p_buffer.read_bits(reinterpret_cast<uint8_t *>(&r_val.data), sizeof(r_val.data) * 8);
 			},

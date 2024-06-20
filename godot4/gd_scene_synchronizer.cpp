@@ -881,7 +881,7 @@ void GdSceneSynchronizer::encode(NS::DataBuffer &r_buffer, const NS::VarData &p_
 	memdelete(gd_db);
 }
 
-void GdSceneSynchronizer::decode(NS::VarData &r_val, NS::DataBuffer &p_buffer) {
+void GdSceneSynchronizer::decode(NS::VarData &r_val, NS::DataBuffer &p_buffer, std::uint8_t p_variable_type) {
 	GdDataBuffer *gd_db = memnew(GdDataBuffer);
 	gd_db->data_buffer = &p_buffer;
 

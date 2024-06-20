@@ -66,12 +66,4 @@ void decode_variable(DataBuffer &val, DataBuffer &p_buffer) {
 	p_buffer.read(val);
 }
 
-void encode_variable(const VarData &val, DataBuffer &r_buffer) {
-	SceneSynchronizerBase::var_data_encode(r_buffer, val);
-}
-
-void decode_variable(VarData &val, DataBuffer &p_buffer) {
-	SceneSynchronizerBase::var_data_decode(val, p_buffer);
-}
-
 NS_NAMESPACE_END

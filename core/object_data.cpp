@@ -32,12 +32,14 @@ NameAndVar NameAndVar::make_copy(const NameAndVar &p_other) {
 VarDescriptor::VarDescriptor(
 		VarId p_id,
 		const std::string &p_name,
+		std::uint8_t p_type,
 		VarData &&p_val,
 		VarDataSetFunc p_set_func,
 		VarDataGetFunc p_get_func,
 		bool p_skip_rewinding,
 		bool p_enabled) :
 		id(p_id),
+		type(p_type),
 		set_func(p_set_func),
 		get_func(p_get_func),
 		skip_rewinding(p_skip_rewinding),

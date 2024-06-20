@@ -16,7 +16,7 @@
 
 NS_NAMESPACE_BEGIN
 void (*SceneSynchronizerBase::var_data_encode_func)(DataBuffer &r_buffer, const NS::VarData &p_val) = nullptr;
-void (*SceneSynchronizerBase::var_data_decode_func)(NS::VarData &r_val, DataBuffer &p_buffer) = nullptr;
+void (*SceneSynchronizerBase::var_data_decode_func)(NS::VarData &r_val, DataBuffer &p_buffer, std::uint8_t p_variable_type) = nullptr;
 bool (*SceneSynchronizerBase::var_data_compare_func)(const VarData &p_A, const VarData &p_B) = nullptr;
 std::string (*SceneSynchronizerBase::var_data_stringify_func)(const VarData &p_var_data, bool p_verbose) = nullptr;
 void (*SceneSynchronizerBase::print_line_func)(const std::string &p_str) = nullptr;
@@ -42,7 +42,7 @@ SceneSynchronizerBase::~SceneSynchronizerBase() {
 
 void SceneSynchronizerBase::install_synchronizer(
 		void (*p_var_data_encode_func)(DataBuffer &r_buffer, const NS::VarData &p_val),
-		void (*p_var_data_decode_func)(NS::VarData &r_val, DataBuffer &p_buffer),
+		void (*p_var_data_decode_func)(NS::VarData &r_val, DataBuffer &p_buffer, std::uint8_t p_variable_type),
 		bool (*p_var_data_compare_func)(const VarData &p_A, const VarData &p_B),
 		std::string (*p_var_data_stringify_func)(const VarData &p_var_data, bool p_verbose),
 		void (*p_print_line_func)(const std::string &p_str),
@@ -170,14 +170,20 @@ void SceneSynchronizerBase::on_app_object_removed(ObjectHandle p_app_object_hand
 	unregister_app_object(find_object_local_id(p_app_object_handle));
 }
 
-void SceneSynchronizerBase::var_data_encode(DataBuffer &r_buffer, const NS::VarData &p_val) {
+void SceneSynchronizerBase::var_data_encode(DataBuffer &r_buffer, const NS::VarData &p_val, std::uint8_t p_variable_type) {
 	NS_PROFILE
+#ifdef NS_DEBUG_ENABLED
+	ASSERT_COND_MSG(p_variable_type == p_val.type, "The variable_type differ from the VarData type passed during the encoding. This cause major problems. Please ensure your encoding and decoding properly set the variable type.");
+#endif
 	var_data_encode_func(r_buffer, p_val);
 }
 
-void SceneSynchronizerBase::var_data_decode(NS::VarData &r_val, DataBuffer &p_buffer) {
+void SceneSynchronizerBase::var_data_decode(NS::VarData &r_val, DataBuffer &p_buffer, std::uint8_t p_variable_type) {
 	NS_PROFILE
-	var_data_decode_func(r_val, p_buffer);
+	var_data_decode_func(r_val, p_buffer, p_variable_type);
+#ifdef NS_DEBUG_ENABLED
+	ASSERT_COND_MSG(p_variable_type == r_val.type, "The variable_type differ from the VarData type passed during the decoding. This cause major problems. Please ensure your encoding and decoding properly set the variable type.");
+#endif
 }
 
 bool SceneSynchronizerBase::var_data_compare(const VarData &p_A, const VarData &p_B) {
@@ -443,29 +449,30 @@ void SceneSynchronizerBase::setup_controller(
 	}
 }
 
-void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const std::string &p_variable, VarDataSetFunc p_set_func, VarDataGetFunc p_get_func) {
+void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const std::string &p_variable_name, VarDataSetFunc p_set_func, VarDataGetFunc p_get_func) {
 	NS_ENSURE(p_id != ObjectLocalId::NONE);
-	NS_ENSURE(!p_variable.empty());
+	NS_ENSURE(!p_variable_name.empty());
 	NS_ENSURE(p_set_func);
 	NS_ENSURE(p_get_func);
 
 	NS::ObjectData *object_data = get_object_data(p_id);
 	NS_ENSURE(object_data);
 
-	VarId var_id = object_data->find_variable_id(p_variable);
+	VarId var_id = object_data->find_variable_id(p_variable_name);
 	if (var_id == VarId::NONE) {
 		// The variable is not yet registered.
 		VarData old_val;
 		p_get_func(
 				*synchronizer_manager,
 				object_data->app_object_handle,
-				p_variable.data(),
+				p_variable_name.data(),
 				old_val);
 		var_id = VarId{ { uint32_t(object_data->vars.size()) } };
 		object_data->vars.push_back(
 				NS::VarDescriptor(
 						var_id,
-						p_variable,
+						p_variable_name,
+						old_val.type,
 						std::move(old_val),
 						p_set_func,
 						p_get_func,
@@ -484,7 +491,7 @@ void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const std::str
 #endif
 
 	if (synchronizer) {
-		synchronizer->on_variable_added(object_data, p_variable);
+		synchronizer->on_variable_added(object_data, p_variable_name);
 	}
 }
 
@@ -2221,7 +2228,7 @@ void ServerSynchronizer::generate_snapshot(
 	NS::VarData vd;
 	if (scene_synchronizer->synchronizer_manager->snapshot_get_custom_data(&p_group, vd)) {
 		r_snapshot_db.add(true);
-		SceneSynchronizerBase::var_data_encode(r_snapshot_db, vd);
+		SceneSynchronizerBase::var_data_encode(r_snapshot_db, vd, scene_synchronizer->synchronizer_manager->snapshot_get_custom_data_type());
 	} else {
 		r_snapshot_db.add(false);
 	}
@@ -2359,7 +2366,7 @@ void ServerSynchronizer::generate_snapshot_object_data(
 		vars_size_bits_count += 1;
 		if (var_has_value) {
 			const int pre_write = r_snapshot_db.get_bit_offset();
-			SceneSynchronizerBase::var_data_encode(r_snapshot_db, var.var.value);
+			SceneSynchronizerBase::var_data_encode(r_snapshot_db, var.var.value, var.type);
 			const int post_write = r_snapshot_db.get_bit_offset();
 			vars_size_bits_count += post_write - pre_write;
 		}
@@ -3314,7 +3321,7 @@ bool ClientSynchronizer::parse_sync_data(
 		p_snapshot.read(has_custom_data);
 		if (has_custom_data) {
 			VarData vd;
-			SceneSynchronizerBase::var_data_decode(vd, p_snapshot);
+			SceneSynchronizerBase::var_data_decode(vd, p_snapshot, scene_synchronizer->get_synchronizer_manager().snapshot_get_custom_data_type());
 			p_custom_data_parse(p_user_pointer, std::move(vd));
 		}
 	}
@@ -3432,7 +3439,7 @@ bool ClientSynchronizer::parse_sync_data(
 
 				if (var_has_value) {
 					VarData value;
-					SceneSynchronizerBase::var_data_decode(value, p_snapshot);
+					SceneSynchronizerBase::var_data_decode(value, p_snapshot, var_desc.type);
 					NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `variable value` was expected at this point. Object: `" + synchronizer_object_data->object_name + "` Var: `" + var_desc.var.name + "`");
 
 					// Variable fetched, now parse this variable.
