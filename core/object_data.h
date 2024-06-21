@@ -109,7 +109,7 @@ public:
 			std::function<int(DataBuffer & /*p_data_buffer*/)> p_count_input_size_func = nullptr,
 			std::function<bool(DataBuffer & /*p_data_buffer_A*/, DataBuffer & /*p_data_buffer_B*/)> p_are_inputs_different_func = nullptr,
 			std::function<void(float /*delta*/, DataBuffer & /*p_data_buffer*/)> p_process_func = nullptr);
-	bool set_controlled_by_peer(int p_peer);
+	bool set_controlled_by_peer(class SceneSynchronizerBase& Synchronizer, int p_peer);
 	int get_controlled_by_peer() const;
 
 	VarId find_variable_id(const std::string &p_var_name) const;

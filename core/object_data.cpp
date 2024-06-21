@@ -3,12 +3,13 @@
 #include "core.h"
 #include "ensure.h"
 #include "object_data_storage.h"
+#include "peer_networked_controller.h"
+#include "../scene_synchronizer.h"
 
 NS_NAMESPACE_BEGIN
-
 NameAndVar::NameAndVar(NameAndVar &&p_other) :
-		name(std::move(p_other.name)),
-		value(std::move(p_other.value)) {
+	name(std::move(p_other.name)),
+	value(std::move(p_other.value)) {
 }
 
 NameAndVar &NameAndVar::operator=(NameAndVar &&p_other) {
@@ -38,12 +39,12 @@ VarDescriptor::VarDescriptor(
 		VarDataGetFunc p_get_func,
 		bool p_skip_rewinding,
 		bool p_enabled) :
-		id(p_id),
-		type(p_type),
-		set_func(p_set_func),
-		get_func(p_get_func),
-		skip_rewinding(p_skip_rewinding),
-		enabled(p_enabled) {
+	id(p_id),
+	type(p_type),
+	set_func(p_set_func),
+	get_func(p_get_func),
+	skip_rewinding(p_skip_rewinding),
+	enabled(p_enabled) {
 	var.name = p_name;
 	var.value = std::move(p_val);
 	ASSERT_COND_MSG(set_func, "Please ensure that all the functions have a valid set function.");
@@ -55,7 +56,7 @@ bool VarDescriptor::operator<(const VarDescriptor &p_other) const {
 }
 
 ObjectData::ObjectData(ObjectDataStorage &p_storage) :
-		storage(p_storage) {
+	storage(p_storage) {
 }
 
 void ObjectData::set_net_id(ObjectNetId p_id) {
@@ -88,22 +89,39 @@ void ObjectData::setup_controller(
 		std::function<int(DataBuffer & /*p_data_buffer*/)> p_count_input_size_func,
 		std::function<bool(DataBuffer & /*p_data_buffer_A*/, DataBuffer & /*p_data_buffer_B*/)> p_are_inputs_different_func,
 		std::function<void(float /*delta*/, DataBuffer & /*p_data_buffer*/)> p_process_func) {
-
 	controller_funcs.collect_input = p_collect_input_func;
 	controller_funcs.count_input_size = p_count_input_size_func;
 	controller_funcs.are_inputs_different = p_are_inputs_different_func;
 	controller_funcs.process = p_process_func;
 }
 
-bool ObjectData::set_controlled_by_peer(int p_peer) {
+bool ObjectData::set_controlled_by_peer(class SceneSynchronizerBase &synchronizer, int p_peer) {
 	if (p_peer == controlled_by_peer) {
 		return false;
 	}
-	
+
 	const int old_peer = controlled_by_peer;
 	controlled_by_peer = p_peer;
 	storage.notify_set_controlled_by_peer(old_peer, *this);
-	
+
+	if (old_peer > 0) {
+		PeerNetworkedController *prev_controller = synchronizer.get_controller_for_peer(old_peer);
+		if (prev_controller) {
+			prev_controller->notify_controllable_objects_changed();
+		}
+	}
+
+	if (p_peer > 0) {
+		PeerNetworkedController *controller = synchronizer.get_controller_for_peer(p_peer);
+		if (controller) {
+			controller->notify_controllable_objects_changed();
+		}
+	}
+
+	if (synchronizer.get_synchronizer_internal()) {
+		synchronizer.get_synchronizer_internal()->on_object_data_controller_changed(this, old_peer);
+	}
+
 	return true;
 }
 

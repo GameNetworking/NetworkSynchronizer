@@ -25,11 +25,11 @@ void (*SceneSynchronizerBase::print_flush_stdout_func)() = nullptr;
 
 SceneSynchronizerBase::SceneSynchronizerBase(NetworkInterface *p_network_interface, bool p_pedantic_checks, bool p_disable_client_sub_ticks) :
 #ifdef NS_DEBUG_ENABLED
-		pedantic_checks(p_pedantic_checks),
-		disable_client_sub_ticks(p_disable_client_sub_ticks),
+	pedantic_checks(p_pedantic_checks),
+	disable_client_sub_ticks(p_disable_client_sub_ticks),
 #endif
-		network_interface(p_network_interface),
-		objects_data_storage(*this) {
+	network_interface(p_network_interface),
+	objects_data_storage(*this) {
 	// Avoid too much useless re-allocations.
 	changes_listeners.reserve(100);
 }
@@ -445,29 +445,8 @@ void SceneSynchronizerBase::set_controlled_by_peer(
 
 	ObjectData *object_data = get_object_data(p_id);
 	NS_ENSURE(object_data != nullptr);
-	
-	const int previous_controlling_peer = object_data->get_controlled_by_peer();
-	if(!object_data->set_controlled_by_peer(p_peer)) {
-		return;
-	}
 
-	{
-		PeerNetworkedController *prev_controller = get_controller_for_peer(previous_controlling_peer);
-		if (prev_controller) {
-			prev_controller->notify_controllable_objects_changed();
-		}
-	}
-
-	{
-		PeerNetworkedController *controller = get_controller_for_peer(p_peer);
-		if (controller) {
-			controller->notify_controllable_objects_changed();
-		}
-	}
-
-	if (synchronizer) {
-		synchronizer->on_object_data_controller_changed(object_data, previous_controlling_peer);
-	}
+	object_data->set_controlled_by_peer(*this, p_peer);
 }
 
 void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const std::string &p_variable_name, VarDataSetFunc p_set_func, VarDataGetFunc p_get_func) {
@@ -968,7 +947,7 @@ void SceneSynchronizerBase::set_enabled(bool p_enable) {
 
 bool SceneSynchronizerBase::is_enabled() const {
 	NS_ENSURE_V_MSG(synchronizer_type != SYNCHRONIZER_TYPE_SERVER, false, "The server is always enabled.");
-	if make_likely (synchronizer_type == SYNCHRONIZER_TYPE_CLIENT) {
+	if make_likely(synchronizer_type == SYNCHRONIZER_TYPE_CLIENT) {
 		return static_cast<ClientSynchronizer *>(synchronizer)->enabled;
 	} else if (synchronizer_type == SYNCHRONIZER_TYPE_NONETWORK) {
 		return static_cast<NoNetSynchronizer *>(synchronizer)->enabled;
@@ -1286,14 +1265,14 @@ void SceneSynchronizerBase::rpc_notify_netstats(DataBuffer &p_data) {
 		SceneSynchronizerDebugger::singleton()->print(
 				INFO,
 				std::string() +
-						"Client network statistics" +
-						"\n  Latency (ms): `" + std::to_string(local_peer_data->get_latency()) + "`" +
-						"\n  Packet Loss (%): `" + std::to_string(local_peer_data->get_out_packet_loss_percentage()) + "`" +
-						"\n  Average jitter (ms): `" + std::to_string(local_peer_data->get_latency_jitter_ms()) + "`" +
-						"\n  Optimal frame count on server: `" + std::to_string(optimal_frame_distance) + "`" +
-						"\n  Frame count on server: `" + std::to_string(compressed_input_count) + "`" +
-						"\n  Acceleration fps: `" + std::to_string(client_sync->acceleration_fps_speed) + "`" +
-						"\n  Acceleration time: `" + std::to_string(client_sync->acceleration_fps_timer) + "`",
+				"Client network statistics" +
+				"\n  Latency (ms): `" + std::to_string(local_peer_data->get_latency()) + "`" +
+				"\n  Packet Loss (%): `" + std::to_string(local_peer_data->get_out_packet_loss_percentage()) + "`" +
+				"\n  Average jitter (ms): `" + std::to_string(local_peer_data->get_latency_jitter_ms()) + "`" +
+				"\n  Optimal frame count on server: `" + std::to_string(optimal_frame_distance) + "`" +
+				"\n  Frame count on server: `" + std::to_string(compressed_input_count) + "`" +
+				"\n  Acceleration fps: `" + std::to_string(client_sync->acceleration_fps_speed) + "`" +
+				"\n  Acceleration time: `" + std::to_string(client_sync->acceleration_fps_timer) + "`",
 				get_network_interface().get_owner_name(),
 				true);
 	}
@@ -1597,7 +1576,7 @@ const ObjectData *SceneSynchronizerBase::get_object_data(ObjectNetId p_id, bool 
 }
 
 PeerNetworkedController *SceneSynchronizerBase::get_controller_for_peer(int p_peer, bool p_expected) {
-	NS::PeerData *pd = MapFunc::get_or_null(peer_data, p_peer);
+	PeerData *pd = MapFunc::get_or_null(peer_data, p_peer);
 	if (p_expected) {
 		NS_ENSURE_V_MSG(pd, nullptr, "The peer is unknown `" + std::to_string(p_peer) + "`.");
 		return pd->get_controller();
@@ -1734,11 +1713,11 @@ void SceneSynchronizerBase::pull_object_changes(NS::ObjectData &p_object_data) {
 }
 
 Synchronizer::Synchronizer(SceneSynchronizerBase *p_node) :
-		scene_synchronizer(p_node) {
+	scene_synchronizer(p_node) {
 }
 
 NoNetSynchronizer::NoNetSynchronizer(SceneSynchronizerBase *p_node) :
-		Synchronizer(p_node) {
+	Synchronizer(p_node) {
 }
 
 void NoNetSynchronizer::clear() {
@@ -1748,7 +1727,7 @@ void NoNetSynchronizer::clear() {
 }
 
 void NoNetSynchronizer::process(float p_delta) {
-	if make_unlikely (enabled == false) {
+	if make_unlikely(enabled == false) {
 		return;
 	}
 
@@ -1808,7 +1787,7 @@ int NoNetSynchronizer::fetch_sub_processes_count(float p_delta) {
 }
 
 ServerSynchronizer::ServerSynchronizer(SceneSynchronizerBase *p_node) :
-		Synchronizer(p_node) {
+	Synchronizer(p_node) {
 	ASSERT_COND(NS::SyncGroupId::GLOBAL == sync_group_create());
 }
 
@@ -1850,7 +1829,7 @@ void ServerSynchronizer::process(float p_delta) {
 #if NS_DEBUG_ENABLED
 	// Write the debug dump for each peer.
 	for (auto &peer_it : scene_synchronizer->peer_data) {
-		if make_unlikely (!peer_it.second.get_controller()) {
+		if make_unlikely(!peer_it.second.get_controller()) {
 			continue;
 		}
 
@@ -2511,7 +2490,7 @@ void ServerSynchronizer::update_peers_net_statistics(float p_delta) {
 		const bool requires_latency_update = peer_server_data_it->second.latency_update_via_snapshot_sec >= scene_synchronizer->latency_update_rate;
 		const bool requires_netstats_update = peer_server_data_it->second.netstats_peer_update_sec >= scene_synchronizer->get_netstats_update_interval_sec();
 
-		if make_likely (!requires_latency_update && !requires_netstats_update) {
+		if make_likely(!requires_latency_update && !requires_netstats_update) {
 			// No need to update the peer network statistics for now.
 			continue;
 		}
@@ -2576,7 +2555,7 @@ int ServerSynchronizer::fetch_sub_processes_count(float p_delta) {
 }
 
 ClientSynchronizer::ClientSynchronizer(SceneSynchronizerBase *p_node) :
-		Synchronizer(p_node) {
+	Synchronizer(p_node) {
 	clear();
 
 	notify_server_full_snapshot_is_needed();
@@ -2601,7 +2580,7 @@ void ClientSynchronizer::process(float p_delta) {
 	SceneSynchronizerDebugger::singleton()->print(VERBOSE, "ClientSynchronizer::process", scene_synchronizer->get_network_interface().get_owner_name());
 
 #ifdef NS_DEBUG_ENABLED
-	if make_unlikely (p_delta > (scene_synchronizer->get_fixed_frame_delta() + (scene_synchronizer->get_fixed_frame_delta() * 0.2))) {
+	if make_unlikely(p_delta > (scene_synchronizer->get_fixed_frame_delta() + (scene_synchronizer->get_fixed_frame_delta() * 0.2))) {
 		SceneSynchronizerDebugger::singleton()->print(WARNING, "Current FPS is " + std::to_string(p_delta > 0.0001 ? 1.0 / p_delta : 0.0) + ", but the minimum required FPS is " + std::to_string(scene_synchronizer->get_frames_per_seconds()) + ", the client is unable to generate enough inputs for the server.", scene_synchronizer->get_network_interface().get_owner_name());
 	}
 #endif
@@ -2680,8 +2659,8 @@ void ClientSynchronizer::signal_end_sync_changed_variables_events() {
 		// Check if the values between the variables before the sync and the
 		// current one are different.
 		if (SceneSynchronizerBase::var_data_compare(
-					e.object_data->vars[e.var_id.id].var.value,
-					e.old_value) == false) {
+				e.object_data->vars[e.var_id.id].var.value,
+				e.old_value) == false) {
 			// Are different so we need to emit the `END_SYNC`.
 			scene_synchronizer->change_event_add(
 					e.object_data,
@@ -2709,7 +2688,7 @@ void ClientSynchronizer::on_controller_reset(PeerNetworkedController &p_controll
 }
 
 const std::vector<ObjectData *> &ClientSynchronizer::get_active_objects() const {
-	if make_likely (player_controller && player_controller->can_simulate() && enabled) {
+	if make_likely(player_controller && player_controller->can_simulate() && enabled) {
 		return active_objects;
 	} else {
 		// Since there is no player controller or the sync is disabled, this
@@ -2722,7 +2701,7 @@ void ClientSynchronizer::store_snapshot() {
 	NS_PROFILE
 
 #ifdef NS_DEBUG_ENABLED
-	if make_unlikely (client_snapshots.size() > 0 && player_controller->get_current_frame_index() <= client_snapshots.back().input_id) {
+	if make_unlikely(client_snapshots.size() > 0 && player_controller->get_current_frame_index() <= client_snapshots.back().input_id) {
 		ASSERT_NO_ENTRY_MSG("During snapshot creation, for controller " + std::to_string(player_controller->get_authority_peer()) + ", was found an ID for an older snapshots. New input ID: " + std::string(player_controller->get_current_frame_index()) + " Last saved snapshot input ID: " + std::string(client_snapshots.back().input_id) + ".");
 	}
 #endif
@@ -2748,7 +2727,7 @@ void ClientSynchronizer::store_controllers_snapshot(
 		SceneSynchronizerDebugger::singleton()->print(VERBOSE, "The Client received the server snapshot: " + p_snapshot.input_id, scene_synchronizer->get_network_interface().get_owner_name());
 		NS_ENSURE_MSG(
 				last_received_server_snapshot_index == FrameIndex::NONE ||
-						last_received_server_snapshot_index <= p_snapshot.input_id,
+				last_received_server_snapshot_index <= p_snapshot.input_id,
 				"The client received a too old snapshot. If this happens back to back for a long period it's a bug, otherwise can be ignored. last_received_server_snapshot_index: " + std::to_string(last_received_server_snapshot_index.id) + " p_snapshot.input_id: " + std::to_string(p_snapshot.input_id.id));
 		last_received_server_snapshot.emplace(Snapshot::make_copy(p_snapshot));
 		last_received_server_snapshot_index = p_snapshot.input_id;
@@ -2829,7 +2808,7 @@ void ClientSynchronizer::process_received_server_state() {
 
 	bool need_rewind;
 	NS::Snapshot no_rewind_recover;
-	if make_likely (!client_snapshots.empty() && client_snapshots.front().input_id == last_checked_input) {
+	if make_likely(!client_snapshots.empty() && client_snapshots.front().input_id == last_checked_input) {
 		// In this case the client is checking the frame for the first time, and
 		// this is the most common case.
 
@@ -2917,7 +2896,7 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 			,
 			&different_node_data
 #endif
-	);
+			);
 
 	if (is_equal) {
 		// The snapshots are equals, make sure the dolls doesn't need to be reconciled.
@@ -2932,7 +2911,7 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 						,
 						&different_node_data
 #endif
-				);
+						);
 
 				if (!is_doll_state_valid) {
 					// This doll needs a reconciliation.
@@ -2951,9 +2930,9 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 		std::vector<VarData> client_values;
 
 		for (
-				int i = 0;
-				i < int(different_node_data.size());
-				i += 1) {
+			int i = 0;
+			i < int(different_node_data.size());
+			i += 1) {
 			const ObjectNetId net_node_id = different_node_data[i];
 			NS::ObjectData *rew_node_data = scene_synchronizer->get_object_data(net_node_id);
 
@@ -3178,7 +3157,7 @@ int ClientSynchronizer::calculates_sub_ticks(const float p_delta) {
 	const int sub_ticks = (int)std::floor(time_bank * static_cast<float>(scene_synchronizer->get_frames_per_seconds()));
 
 	time_bank -= static_cast<float>(sub_ticks) / static_cast<float>(scene_synchronizer->get_frames_per_seconds());
-	if make_unlikely (time_bank < 0.0f) {
+	if make_unlikely(time_bank < 0.0f) {
 		time_bank = 0.0f;
 	}
 
@@ -3189,21 +3168,21 @@ int ClientSynchronizer::calculates_sub_ticks(const float p_delta) {
 		}
 	}
 #endif
-	
+
 	NS_ENSURE_V_MSG(
 			sub_ticks <= scene_synchronizer->get_max_sub_process_per_frame(),
 			scene_synchronizer->get_max_sub_process_per_frame(),
 			"This client generated a sub tick count of `" + std::to_string(sub_ticks) + "` that is higher than the `max_sub_process_per_frame` specified of `" + std::to_string(scene_synchronizer->get_max_sub_process_per_frame()) + "`. If the number is way too high (like 100 or 1k) it's a bug in the algorithm that you should notify, if it's just above the threshould you set, make sure the threshold is correctly set or ignore it if the client perfs are too poor." +
-					" (in delta: " + std::to_string(p_delta) +
-					" iteration per seconds: " + std::to_string(scene_synchronizer->get_frames_per_seconds()) +
-					" fully_accelerated_delta: " + std::to_string(fully_accelerated_delta) +
-					" acceleration_delta: " + std::to_string(acceleration_delta) +
-					" frame_acceleration_delta: " + std::to_string(frame_acceleration_delta) +
-					" acceleration_fps_speed: " + std::to_string(acceleration_fps_speed) +
-					" acceleration_fps_timer: " + std::to_string(acceleration_fps_timer) +
-					" pretended_delta: " + std::to_string(pretended_delta) +
-					" time_bank: " + std::to_string(time_bank) +
-					")");
+			" (in delta: " + std::to_string(p_delta) +
+			" iteration per seconds: " + std::to_string(scene_synchronizer->get_frames_per_seconds()) +
+			" fully_accelerated_delta: " + std::to_string(fully_accelerated_delta) +
+			" acceleration_delta: " + std::to_string(acceleration_delta) +
+			" frame_acceleration_delta: " + std::to_string(frame_acceleration_delta) +
+			" acceleration_fps_speed: " + std::to_string(acceleration_fps_speed) +
+			" acceleration_fps_timer: " + std::to_string(acceleration_fps_timer) +
+			" pretended_delta: " + std::to_string(pretended_delta) +
+			" time_bank: " + std::to_string(time_bank) +
+			")");
 
 	return sub_ticks;
 }
@@ -3211,7 +3190,7 @@ int ClientSynchronizer::calculates_sub_ticks(const float p_delta) {
 void ClientSynchronizer::process_simulation(float p_delta) {
 	NS_PROFILE
 
-	if make_unlikely (player_controller == nullptr || enabled == false || !player_controller->can_simulate()) {
+	if make_unlikely(player_controller == nullptr || enabled == false || !player_controller->can_simulate()) {
 		// No player controller so can't process the simulation.
 		// TODO Remove this constraint?
 
@@ -3238,7 +3217,7 @@ void ClientSynchronizer::process_simulation(float p_delta) {
 	if (sub_ticks == 0) {
 		SceneSynchronizerDebugger::singleton()->print(VERBOSE, "No sub ticks: this is not bu a bug; it's the lag compensation algorithm.", scene_synchronizer->get_network_interface().get_owner_name());
 	}
-	
+
 	while (sub_ticks > 0) {
 #ifdef NS_PROFILING_ENABLED
 		std::string sub_perf_info = "Fixed delta: " + std::to_string(scene_synchronizer->get_fixed_frame_delta()) + " remaining ticks: " + std::to_string(sub_ticks);
@@ -3305,16 +3284,16 @@ bool ClientSynchronizer::parse_sync_data(
 				ObjectNetId id;
 				p_snapshot.read(id.id);
 				NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `ObjectNetId` failed.");
-				
+
 				if (id == ObjectNetId::NONE) {
 					// The end.
 					break;
 				}
-				
+
 				int controlled_by_peer;
 				p_snapshot.read(controlled_by_peer);
 				NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `controlled_by_peer` failed.");
-				
+
 				sd_simulated_objects.push_back(SimulatedObjectInfo(id, controlled_by_peer));
 			}
 
@@ -3758,7 +3737,7 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 		return false;
 	}
 
-	if make_unlikely (received_snapshot.input_id == FrameIndex::NONE && player_controller && player_controller->can_simulate()) {
+	if make_unlikely(received_snapshot.input_id == FrameIndex::NONE && player_controller && player_controller->can_simulate()) {
 		// We espect that the player_controller is updated by this new snapshot,
 		// so make sure it's done so.
 		SceneSynchronizerDebugger::singleton()->print(ERROR, "The player controller (" + std::to_string(player_controller->get_authority_peer()) + ") was not part of the received snapshot, this happens when the server destroys the peer controller.");
@@ -3875,16 +3854,16 @@ void ClientSynchronizer::update_simulated_objects_list(const std::vector<Simulat
 			}
 		}
 
-		if(is_simulating) {
-			od->set_controlled_by_peer(simulated_object_info->controlled_by_peer);
-		}else {
-			od->set_controlled_by_peer(-1);
+		if (is_simulating) {
+			od->set_controlled_by_peer(*scene_synchronizer, simulated_object_info->controlled_by_peer);
+		} else {
+			od->set_controlled_by_peer(*scene_synchronizer, -1);
 		}
 	}
 
 	simulated_objects = p_simulated_objects;
 	active_objects.clear();
-	for (const SimulatedObjectInfo& info : simulated_objects) {
+	for (const SimulatedObjectInfo &info : simulated_objects) {
 		active_objects.push_back(scene_synchronizer->get_object_data(info.net_id));
 	}
 }
@@ -3912,7 +3891,7 @@ void ClientSynchronizer::apply_snapshot(
 		update_simulated_objects_list(p_snapshot.simulated_objects);
 	}
 
-	for (const SimulatedObjectInfo& info: p_snapshot.simulated_objects) {
+	for (const SimulatedObjectInfo &info : p_snapshot.simulated_objects) {
 		NS::ObjectData *object_data = scene_synchronizer->get_object_data(info.net_id);
 
 		if (object_data == nullptr) {
@@ -3930,9 +3909,9 @@ void ClientSynchronizer::apply_snapshot(
 #endif
 
 		if (
-				!p_disable_apply_non_doll_controlled_only &&
-				object_data->get_controlled_by_peer() > 0 &&
-				object_data->get_controlled_by_peer() != this_peer) {
+			!p_disable_apply_non_doll_controlled_only &&
+			object_data->get_controlled_by_peer() > 0 &&
+			object_data->get_controlled_by_peer() != this_peer) {
 			// This object is controlled by a doll, which simulation / reconcilation
 			// is mostly doll-controller driven.
 			// The dolls are notified at the end of this loop, when the event
