@@ -231,7 +231,11 @@ void PeerNetworkedController::controllable_collect_input(float p_delta, DataBuff
 	for (ObjectData *object_data : sorted_controllable_objects) {
 		object_data->controller_funcs.collect_input(p_delta, r_data_buffer);
 #ifdef NS_DEBUG_ENABLED
-		ASSERT_COND_MSG(!r_data_buffer.is_buffer_failed(), "[NetID: " + std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The collecte_input failed adding data into the DataBuffer. This should never happen!");
+		if (scene_synchronizer->pedantic_checks) {
+			ASSERT_COND_MSG(!r_data_buffer.is_buffer_failed(), "[NetID: " + std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The collecte_input failed adding data into the DataBuffer. This should never happen!");
+		} else {
+			NS_ENSURE_MSG(!r_data_buffer.is_buffer_failed(), "[FATAL] [NetID: " + std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The collecte_input failed adding data into the DataBuffer. This should never happen!");
+		}
 #endif
 	}
 }
@@ -241,8 +245,13 @@ bool PeerNetworkedController::controllable_are_inputs_different(DataBuffer &p_da
 	for (ObjectData *object_data : sorted_controllable_objects) {
 		const bool are_inputs_different = object_data->controller_funcs.are_inputs_different(p_data_buffer_A, p_data_buffer_B);
 #ifdef NS_DEBUG_ENABLED
-		ASSERT_COND_MSG(!p_data_buffer_A.is_buffer_failed(), "[NetID: " + std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The are_inputs_different failed reading from the DataBufferA. This should never happen!");
-		ASSERT_COND_MSG(!p_data_buffer_B.is_buffer_failed(), "[NetID: " + std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The are_inputs_different failed reading from the DataBufferB. This should never happen!");
+		if (scene_synchronizer->pedantic_checks) {
+			ASSERT_COND_MSG(!p_data_buffer_A.is_buffer_failed(), "[NetID: " + std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The are_inputs_different failed reading from the DataBufferA. This should never happen!");
+			ASSERT_COND_MSG(!p_data_buffer_B.is_buffer_failed(), "[NetID: " + std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The are_inputs_different failed reading from the DataBufferB. This should never happen!");
+		} else {
+			NS_ENSURE_V_MSG(!p_data_buffer_A.is_buffer_failed(), true, "[FATAL] [NetID: " + std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The are_inputs_different failed reading from the DataBufferA. This should never happen!");
+			NS_ENSURE_V_MSG(!p_data_buffer_B.is_buffer_failed(), true, "[FATAL] [NetID: " + std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The are_inputs_different failed reading from the DataBufferB. This should never happen!");
+		}
 #endif
 		if (are_inputs_different) {
 			return true;
@@ -256,7 +265,11 @@ void PeerNetworkedController::controllable_process(float p_delta, DataBuffer &p_
 	for (ObjectData *object_data : sorted_controllable_objects) {
 		object_data->controller_funcs.process(p_delta, p_data_buffer);
 #ifdef NS_DEBUG_ENABLED
-		ASSERT_COND_MSG(!p_data_buffer.is_buffer_failed(), "[NetID: " + std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The process failed reading from the DataBuffer. This should never happen!");
+		if (scene_synchronizer->pedantic_checks) {
+			ASSERT_COND_MSG(!p_data_buffer.is_buffer_failed(), "[NetID: " + std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The process failed reading from the DataBuffer. This should never happen!");
+		} else {
+			NS_ENSURE_MSG(!p_data_buffer.is_buffer_failed(), "[FATAL] [NetID: " + std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The process failed reading from the DataBuffer. This should never happen!");
+		}
 #endif
 	}
 }
