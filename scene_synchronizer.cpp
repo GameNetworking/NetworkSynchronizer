@@ -3306,14 +3306,15 @@ bool ClientSynchronizer::parse_sync_data(
 				p_snapshot.read(id.id);
 				NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `ObjectNetId` failed.");
 				
-				int controlled_by_peer;
-				p_snapshot.read(controlled_by_peer);
-				NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `ObjectNetId` failed.");
-
 				if (id == ObjectNetId::NONE) {
 					// The end.
 					break;
 				}
+				
+				int controlled_by_peer;
+				p_snapshot.read(controlled_by_peer);
+				NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `ObjectNetId` failed.");
+				
 				sd_simulated_objects.push_back(SimulatedObjectInfo(id, controlled_by_peer));
 			}
 

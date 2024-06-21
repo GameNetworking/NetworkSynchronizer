@@ -104,7 +104,7 @@ public:
 	bool has_registered_process_functions() const;
 	bool can_trickled_sync() const;
 
-	bool setup_controller(
+	void setup_controller(
 			std::function<void(float /*delta*/, DataBuffer & /*r_data_buffer*/)> p_collect_input_func = nullptr,
 			std::function<int(DataBuffer & /*p_data_buffer*/)> p_count_input_size_func = nullptr,
 			std::function<bool(DataBuffer & /*p_data_buffer_A*/, DataBuffer & /*p_data_buffer_B*/)> p_are_inputs_different_func = nullptr,
