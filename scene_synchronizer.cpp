@@ -2356,8 +2356,8 @@ void ServerSynchronizer::generate_snapshot_object_data(
 	std::uint32_t vars_size_bits_count = 0;
 	// This is assuming the client and the server have the same vars registered
 	// with the same order.
-	for (uint32_t i = 0; i < p_object_data->vars.size(); i += 1) {
-		const NS::VarDescriptor &var = p_object_data->vars[i];
+	for (VarId::IdType i = 0; i < p_object_data->vars.size(); i += 1) {
+		const VarDescriptor &var = p_object_data->vars[i];
 
 		bool var_has_value = allow_vars;
 
