@@ -96,7 +96,6 @@ public:
 		p_scene_sync.setup_controller(
 				p_id,
 				[this](float p_delta, NS::DataBuffer &r_buffer) -> void { collect_inputs(p_delta, r_buffer); },
-				[this](NS::DataBuffer &p_buffer) -> int { return count_input_size(p_buffer); },
 				[this](NS::DataBuffer &p_buffer_A, NS::DataBuffer &p_buffer_b) -> bool { return are_inputs_different(p_buffer_A, p_buffer_b); },
 				[this](float p_delta, NS::DataBuffer &p_buffer) -> void { controller_process(p_delta, p_buffer); });
 
@@ -189,10 +188,6 @@ public:
 		return !(NS::MathFunc::is_equal_approx(x1, x2) &&
 				NS::MathFunc::is_equal_approx(y1, y2) &&
 				NS::MathFunc::is_equal_approx(z1, z2));
-	}
-
-	uint32_t count_input_size(NS::DataBuffer &p_buffer) {
-		return p_buffer.get_normalized_vector3_size(NS::DataBuffer::COMPRESSION_LEVEL_3);
 	}
 };
 

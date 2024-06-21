@@ -39,10 +39,9 @@ public:
 		p_scene_sync.setup_controller(
 				p_id,
 				std::bind(&TDSControlledObject::collect_inputs, this, std::placeholders::_1, std::placeholders::_2),
-				std::bind(&TDSControlledObject::count_input_size, this, std::placeholders::_1),
 				std::bind(&TDSControlledObject::are_inputs_different, this, std::placeholders::_1, std::placeholders::_2),
 				std::bind(&TDSControlledObject::controller_process, this, std::placeholders::_1, std::placeholders::_2));
-				
+
 		p_scene_sync.set_controlled_by_peer(
 				p_id,
 				authoritative_peer_id);
@@ -99,10 +98,6 @@ public:
 		const bool v2 = p_buffer_B.read_bool();
 		return v1 != v2;
 	}
-
-	uint32_t count_input_size(NS::DataBuffer &p_buffer) {
-		return p_buffer.get_bool_size();
-	}
 };
 
 /// This class is responsible to verify the doll simulation.
@@ -116,7 +111,7 @@ struct TestDollSimulationBase {
 
 	/// Set this to true to ensure the sub_ticks doesn't cause de-syncs.
 	bool disable_sub_ticks = false;
-	
+
 	NS::LocalScene server_scene;
 	NS::LocalScene peer_1_scene;
 	NS::LocalScene peer_2_scene;
@@ -155,7 +150,7 @@ public:
 
 	void init_test(bool p_no_sub_ticks = false) {
 		disable_sub_ticks = p_no_sub_ticks;
-		
+
 		server_scene.get_network().network_properties = &network_properties;
 		peer_1_scene.get_network().network_properties = &network_properties;
 		peer_2_scene.get_network().network_properties = &network_properties;

@@ -146,7 +146,6 @@ public:
 	void on_peer_status_updated(int p_peer_id, bool p_connected, bool p_enabled);
 
 	void controllable_collect_input(float p_delta, DataBuffer &r_data_buffer);
-	int controllable_count_input_size(DataBuffer &p_data_buffer);
 	bool controllable_are_inputs_different(DataBuffer &p_data_buffer_A, DataBuffer &p_data_buffer_B);
 	void controllable_process(float p_delta, DataBuffer &p_data_buffer);
 
@@ -167,13 +166,13 @@ public:
 	bool __input_data_parse(
 			const std::vector<std::uint8_t> &p_data,
 			void *p_user_pointer,
-			void (*p_input_parse)(void *p_user_pointer, FrameIndex p_input_id, int p_input_size_in_bits, const BitArray &p_input));
+			void (*p_input_parse)(void *p_user_pointer, FrameIndex p_input_id, std::uint16_t p_input_size_in_bits, const BitArray &p_input));
 };
 
 struct FrameInput {
 	FrameIndex id = FrameIndex::NONE;
 	BitArray inputs_buffer;
-	uint32_t buffer_size_bit = 0;
+	std::uint16_t buffer_size_bit = 0;
 	FrameIndex similarity = FrameIndex::NONE;
 
 	bool operator==(const FrameInput &p_other) const {

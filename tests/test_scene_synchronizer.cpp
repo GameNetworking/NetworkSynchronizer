@@ -57,7 +57,6 @@ public:
 		p_scene_sync.setup_controller(
 				p_id,
 				std::bind(&LocalNetworkedController::collect_inputs, this, std::placeholders::_1, std::placeholders::_2),
-				std::bind(&LocalNetworkedController::count_input_size, this, std::placeholders::_1),
 				std::bind(&LocalNetworkedController::are_inputs_different, this, std::placeholders::_1, std::placeholders::_2),
 				std::bind(&LocalNetworkedController::controller_process, this, std::placeholders::_1, std::placeholders::_2));
 		
@@ -89,10 +88,6 @@ public:
 
 	bool are_inputs_different(NS::DataBuffer &p_buffer_A, NS::DataBuffer &p_buffer_B) {
 		return p_buffer_A.read_bool() != p_buffer_B.read_bool();
-	}
-
-	uint32_t count_input_size(NS::DataBuffer &p_buffer) {
-		return p_buffer.get_bool_size();
 	}
 };
 

@@ -86,11 +86,9 @@ bool ObjectData::can_trickled_sync() const {
 
 void ObjectData::setup_controller(
 		std::function<void(float /*delta*/, DataBuffer & /*r_data_buffer*/)> p_collect_input_func,
-		std::function<int(DataBuffer & /*p_data_buffer*/)> p_count_input_size_func,
 		std::function<bool(DataBuffer & /*p_data_buffer_A*/, DataBuffer & /*p_data_buffer_B*/)> p_are_inputs_different_func,
 		std::function<void(float /*delta*/, DataBuffer & /*p_data_buffer*/)> p_process_func) {
 	controller_funcs.collect_input = p_collect_input_func;
-	controller_funcs.count_input_size = p_count_input_size_func;
 	controller_funcs.are_inputs_different = p_are_inputs_different_func;
 	controller_funcs.process = p_process_func;
 }

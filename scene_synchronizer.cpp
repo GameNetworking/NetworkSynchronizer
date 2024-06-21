@@ -427,7 +427,6 @@ void SceneSynchronizerBase::unregister_app_object(ObjectLocalId p_id) {
 void SceneSynchronizerBase::setup_controller(
 		ObjectLocalId p_id,
 		std::function<void(float /*delta*/, DataBuffer & /*r_data_buffer*/)> p_collect_input_func,
-		std::function<int(DataBuffer & /*p_data_buffer*/)> p_count_input_size_func,
 		std::function<bool(DataBuffer & /*p_data_buffer_A*/, DataBuffer & /*p_data_buffer_B*/)> p_are_inputs_different_func,
 		std::function<void(float /*delta*/, DataBuffer & /*p_data_buffer*/)> p_process_func) {
 	NS_ENSURE_MSG(p_id != ObjectLocalId::NONE, "The passed object_id is not valid.");
@@ -435,7 +434,7 @@ void SceneSynchronizerBase::setup_controller(
 	NS::ObjectData *object_data = get_object_data(p_id);
 	NS_ENSURE(object_data != nullptr);
 
-	object_data->setup_controller(p_collect_input_func, p_count_input_size_func, p_are_inputs_different_func, p_process_func);
+	object_data->setup_controller(p_collect_input_func, p_are_inputs_different_func, p_process_func);
 }
 
 void SceneSynchronizerBase::set_controlled_by_peer(

@@ -6,7 +6,8 @@
 #include <algorithm>
 #include <string>
 
-#define METADATA_SIZE 1
+// The INPUT METADATA stores the input buffer size uint16_t.
+#define METADATA_SIZE (16)
 
 NS_NAMESPACE_BEGIN
 static inline unsigned int ns_encode_uint32(std::uint32_t p_uint, std::uint8_t *p_arr) {
@@ -230,21 +231,9 @@ void PeerNetworkedController::controllable_collect_input(float p_delta, DataBuff
 	for (ObjectData *object_data : sorted_controllable_objects) {
 		object_data->controller_funcs.collect_input(p_delta, r_data_buffer);
 #ifdef NS_DEBUG_ENABLED
-		ASSERT_COND_MSG(!r_data_buffer.is_buffer_failed(), "[NetID: " +  std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The collecte_input failed adding data into the DataBuffer. This should never happen!");
+		ASSERT_COND_MSG(!r_data_buffer.is_buffer_failed(), "[NetID: " + std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The collecte_input failed adding data into the DataBuffer. This should never happen!");
 #endif
 	}
-}
-
-int PeerNetworkedController::controllable_count_input_size(DataBuffer &p_data_buffer) {
-	int size = 0;
-	const std::vector<ObjectData *> &sorted_controllable_objects = get_sorted_controllable_objects();
-	for (ObjectData *object_data : sorted_controllable_objects) {
-		size += object_data->controller_funcs.count_input_size(p_data_buffer);
-#ifdef NS_DEBUG_ENABLED
-		ASSERT_COND_MSG(!p_data_buffer.is_buffer_failed(), "[NetID: " +  std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The count_input_size failed reading from the DataBuffer. This should never happen!");
-#endif
-	}
-	return size;
 }
 
 bool PeerNetworkedController::controllable_are_inputs_different(DataBuffer &p_data_buffer_A, DataBuffer &p_data_buffer_B) {
@@ -252,8 +241,8 @@ bool PeerNetworkedController::controllable_are_inputs_different(DataBuffer &p_da
 	for (ObjectData *object_data : sorted_controllable_objects) {
 		const bool are_inputs_different = object_data->controller_funcs.are_inputs_different(p_data_buffer_A, p_data_buffer_B);
 #ifdef NS_DEBUG_ENABLED
-		ASSERT_COND_MSG(!p_data_buffer_A.is_buffer_failed(), "[NetID: " +  std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The are_inputs_different failed reading from the DataBufferA. This should never happen!");
-		ASSERT_COND_MSG(!p_data_buffer_B.is_buffer_failed(), "[NetID: " +  std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The are_inputs_different failed reading from the DataBufferB. This should never happen!");
+		ASSERT_COND_MSG(!p_data_buffer_A.is_buffer_failed(), "[NetID: " + std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The are_inputs_different failed reading from the DataBufferA. This should never happen!");
+		ASSERT_COND_MSG(!p_data_buffer_B.is_buffer_failed(), "[NetID: " + std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The are_inputs_different failed reading from the DataBufferB. This should never happen!");
 #endif
 		if (are_inputs_different) {
 			return true;
@@ -267,7 +256,7 @@ void PeerNetworkedController::controllable_process(float p_delta, DataBuffer &p_
 	for (ObjectData *object_data : sorted_controllable_objects) {
 		object_data->controller_funcs.process(p_delta, p_data_buffer);
 #ifdef NS_DEBUG_ENABLED
-		ASSERT_COND_MSG(!p_data_buffer.is_buffer_failed(), "[NetID: " +  std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The process failed reading from the DataBuffer. This should never happen!");
+		ASSERT_COND_MSG(!p_data_buffer.is_buffer_failed(), "[NetID: " + std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The process failed reading from the DataBuffer. This should never happen!");
 #endif
 	}
 }
@@ -312,7 +301,7 @@ void PeerNetworkedController::notify_controller_reset() {
 bool PeerNetworkedController::__input_data_parse(
 		const std::vector<std::uint8_t> &p_data,
 		void *p_user_pointer,
-		void (*p_input_parse)(void *p_user_pointer, FrameIndex p_input_id, int p_input_size_in_bits, const BitArray &p_input)) {
+		void (*p_input_parse)(void *p_user_pointer, FrameIndex p_input_id, std::uint16_t p_input_size_in_bits, const BitArray &p_input)) {
 	// The packet is composed as follow:
 	// |- Four bytes for the first input ID.
 	// \- Array of inputs:
@@ -347,10 +336,12 @@ bool PeerNetworkedController::__input_data_parse(
 		const int input_buffer_offset_bit = ofs * 8;
 		pir.shrink_to(input_buffer_offset_bit, (data_len - ofs) * 8);
 		pir.seek(input_buffer_offset_bit);
-		// Read metadata
-		const bool has_data = pir.read_bool();
+		NS_ENSURE_V(!pir.is_buffer_failed(), false);
 
-		const int input_size_in_bits = (has_data ? int(controllable_count_input_size(pir)) : 0) + METADATA_SIZE;
+		// Read metadata
+		std::uint16_t input_size_in_bits;
+		pir.read(input_size_in_bits);
+		NS_ENSURE_V(!pir.is_buffer_failed(), false);
 
 		// Pad to 8 bits.
 		const int input_size_padded =
@@ -588,7 +579,7 @@ void RemotelyControlledController::process(float p_delta) {
 #ifdef NS_DEBUG_ENABLED
 	const bool is_new_input =
 #endif
-	fetch_next_input(p_delta);
+			fetch_next_input(p_delta);
 
 	if make_unlikely(current_input_buffer_id == FrameIndex::NONE) {
 		// Skip this until the first input arrive.
@@ -629,7 +620,7 @@ bool RemotelyControlledController::receive_inputs(const std::vector<std::uint8_t
 			&tmp,
 
 			// Parse the Input:
-			[](void *p_user_pointer, FrameIndex p_input_id, int p_input_size_in_bits, const BitArray &p_bit_array) -> void {
+			[](void *p_user_pointer, FrameIndex p_input_id, std::uint16_t p_input_size_in_bits, const BitArray &p_bit_array) -> void {
 				SCParseTmpData *pd = static_cast<SCParseTmpData *>(p_user_pointer);
 
 				if make_unlikely(pd->controller.current_input_buffer_id != FrameIndex::NONE && pd->controller.current_input_buffer_id >= p_input_id) {
@@ -922,13 +913,14 @@ void PlayerController::process(float p_delta) {
 			peer_controller->controllable_collect_input(p_delta, peer_controller->get_inputs_buffer_mut());
 			SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
 
-			// Set metadata data.
+			// Set the metadata which is used to store the buffer size.
+			const std::uint16_t buffer_size_bits = peer_controller->get_inputs_buffer().size() + METADATA_SIZE;
 			peer_controller->get_inputs_buffer_mut().seek(0);
+			peer_controller->get_inputs_buffer_mut().add(buffer_size_bits);
+
+			// Unpause streaming?
 			if (peer_controller->get_inputs_buffer().size() > 0) {
-				peer_controller->get_inputs_buffer_mut().add_bool(true);
 				streaming_paused = false;
-			} else {
-				peer_controller->get_inputs_buffer_mut().add_bool(false);
 			}
 		} else {
 			SceneSynchronizerDebugger::singleton()->print(WARNING, "It's not possible to accept new inputs. Is this lagging?", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
@@ -973,10 +965,24 @@ bool PlayerController::receive_inputs(const std::vector<std::uint8_t> &p_data) {
 }
 
 void PlayerController::store_input_buffer(FrameIndex p_frame_index) {
+	const std::uint16_t buffer_size_bits = peer_controller->get_inputs_buffer().size() + METADATA_SIZE;
+
+#ifdef NS_DEBUG_ENABLED
+	if (peer_controller->scene_synchronizer->pedantic_checks) {
+		peer_controller->get_inputs_buffer_mut().begin_read();
+		std::uint16_t from_buffer__buffer_size_bits;
+		peer_controller->get_inputs_buffer_mut().begin_read();
+		peer_controller->get_inputs_buffer_mut().read(from_buffer__buffer_size_bits);
+		ASSERT_COND_MSG(from_buffer__buffer_size_bits == buffer_size_bits, "The buffer size must be the same between the one just calculated and the one inside the buffer");
+	}
+
+	ASSERT_COND_MSG(buffer_size_bits>=METADATA_SIZE, "The buffer size can't be less than the metadata.");
+#endif
+
 	FrameInput inputs;
 	inputs.id = p_frame_index;
 	inputs.inputs_buffer = peer_controller->get_inputs_buffer().get_buffer();
-	inputs.buffer_size_bit = peer_controller->get_inputs_buffer().size() + METADATA_SIZE;
+	inputs.buffer_size_bit = buffer_size_bits;
 	inputs.similarity = FrameIndex::NONE;
 	frames_input.push_back(inputs);
 }
@@ -1175,7 +1181,7 @@ bool DollController::receive_inputs(const std::vector<uint8_t> &p_data) {
 			&tmp,
 
 			// Parse the Input:
-			[](void *p_user_pointer, FrameIndex p_frame_index, int p_input_size_in_bits, const BitArray &p_bit_array) -> void {
+			[](void *p_user_pointer, FrameIndex p_frame_index, std::uint16_t p_input_size_in_bits, const BitArray &p_bit_array) -> void {
 				SCParseTmpData *pd = static_cast<SCParseTmpData *>(p_user_pointer);
 
 				ASSERT_COND(p_frame_index != FrameIndex::NONE);

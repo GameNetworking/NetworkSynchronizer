@@ -105,7 +105,6 @@ public: // ---------------------------------------------------------------- APIs
 			Node *p_node,
 			int p_peer,
 			const Callable &p_collect_input_func,
-			const Callable &p_count_input_size_func,
 			const Callable &p_are_inputs_different_func,
 			const Callable &p_process_func);
 	void unregister_node(Node *p_node);

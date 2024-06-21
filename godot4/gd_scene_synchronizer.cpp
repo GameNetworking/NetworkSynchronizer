@@ -122,7 +122,7 @@ void GdSceneSynchronizer::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("register_node", "node"), &GdSceneSynchronizer::register_node_gdscript);
 	ClassDB::bind_method(D_METHOD("unregister_node", "node"), &GdSceneSynchronizer::unregister_node);
-	ClassDB::bind_method(D_METHOD("setup_controller", "node", "peer", "collect_input_func", "count_input_size_func", "are_inputs_different_func", "proces_func"), &GdSceneSynchronizer::setup_controller);
+	ClassDB::bind_method(D_METHOD("setup_controller", "node", "peer", "collect_input_func", "are_inputs_different_func", "proces_func"), &GdSceneSynchronizer::setup_controller);
 	ClassDB::bind_method(D_METHOD("get_node_id", "node"), &GdSceneSynchronizer::get_node_id);
 	ClassDB::bind_method(D_METHOD("get_node_from_id", "id", "expected"), &GdSceneSynchronizer::get_node_from_id, DEFVAL(true));
 
@@ -485,7 +485,6 @@ void GdSceneSynchronizer::setup_controller(
 		Node *p_node,
 		int p_peer,
 		const Callable &p_collect_input_func,
-		const Callable &p_count_input_size_func,
 		const Callable &p_are_inputs_different_func,
 		const Callable &p_process_func) {
 	scene_synchronizer.set_controlled_by_peer(
@@ -506,18 +505,6 @@ void GdSceneSynchronizer::setup_controller(
 				p_collect_input_func.callv(arguments);
 
 				memdelete(gd_db);
-			},
-			[p_count_input_size_func](NS::DataBuffer &p_collect_input) -> int {
-				Array arguments;
-
-				GdDataBuffer *gd_db = memnew(GdDataBuffer);
-				gd_db->data_buffer = &p_collect_input;
-				arguments.push_back(gd_db);
-
-				auto r = p_count_input_size_func.callv(arguments);
-
-				memdelete(gd_db);
-				return r;
 			},
 			[p_are_inputs_different_func](NS::DataBuffer &p_collect_input_A, NS::DataBuffer &p_collect_input_B) -> bool {
 				Array arguments;

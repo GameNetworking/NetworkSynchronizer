@@ -154,10 +154,12 @@ protected:
 	static void (*print_flush_stdout_func)();
 
 #ifdef NS_DEBUG_ENABLED
+public:
 	const bool pedantic_checks = false;
 	/// This is turned on by the integration tests to ensure no desync are
 	/// triggered by `ClientSynchronizer::calculates_sub_ticks` returning > 1.
 	const bool disable_client_sub_ticks = false;
+protected:
 #endif
 
 	class NetworkInterface *network_interface = nullptr;
@@ -412,7 +414,6 @@ public: // ---------------------------------------------------------------- APIs
 	void setup_controller(
 			ObjectLocalId p_id,
 			std::function<void(float /*delta*/, DataBuffer & /*r_data_buffer*/)> p_collect_input_func,
-			std::function<int(DataBuffer & /*p_data_buffer*/)> p_count_input_size_func,
 			std::function<bool(DataBuffer & /*p_data_buffer_A*/, DataBuffer & /*p_data_buffer_B*/)> p_are_inputs_different_func,
 			std::function<void(float /*delta*/, DataBuffer & /*p_data_buffer*/)> p_process_func);
 	void set_controlled_by_peer(
