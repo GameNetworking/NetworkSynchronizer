@@ -488,6 +488,10 @@ void GdSceneSynchronizer::setup_controller(
 		const Callable &p_count_input_size_func,
 		const Callable &p_are_inputs_different_func,
 		const Callable &p_process_func) {
+	scene_synchronizer.set_controlled_by_peer(
+			scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node)),
+			p_peer);
+	
 	scene_synchronizer.setup_controller(
 			scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node)),
 			p_peer,

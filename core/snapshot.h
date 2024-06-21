@@ -7,9 +7,19 @@
 namespace NS {
 class SceneSynchronizerBase;
 
+struct SimulatedObjectInfo {
+	ObjectNetId net_id;
+	int controlled_by_peer;
+	
+	SimulatedObjectInfo() = default;
+	SimulatedObjectInfo(const ObjectNetId& p_id) : net_id(p_id), controlled_by_peer(-1) {}
+	SimulatedObjectInfo(const ObjectNetId& p_id, int p_controlled_by_peer) : net_id(p_id), controlled_by_peer(p_controlled_by_peer) {}
+	bool operator==(const SimulatedObjectInfo& p_other) const { return net_id == p_other.net_id; }
+};
+
 struct Snapshot final {
 	FrameIndex input_id = FrameIndex::NONE;
-	std::vector<NS::ObjectNetId> simulated_objects;
+	std::vector<SimulatedObjectInfo> simulated_objects;
 	/// The Node variables in a particular frame. The order of this vector
 	/// matters because the index is the `ObjectNetId`.
 	/// The variable array order also matter.

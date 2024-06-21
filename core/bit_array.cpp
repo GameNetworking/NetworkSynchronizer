@@ -10,7 +10,7 @@ BitArray::BitArray(std::uint32_t p_initial_size_in_bit) {
 }
 
 BitArray::BitArray(const std::vector<std::uint8_t> &p_bytes) :
-		bytes(p_bytes) {
+	bytes(p_bytes) {
 }
 
 bool BitArray::resize_in_bytes(int p_bytes_count) {
