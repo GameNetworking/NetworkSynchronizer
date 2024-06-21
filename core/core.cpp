@@ -11,9 +11,9 @@ NS_NAMESPACE_BEGIN
 const FrameIndex FrameIndex::NONE = FrameIndex{ { std::numeric_limits<std::uint32_t>::max() } };
 const SyncGroupId SyncGroupId::NONE = SyncGroupId{ { std::numeric_limits<std::uint32_t>::max() } };
 const SyncGroupId SyncGroupId::GLOBAL = SyncGroupId{ { 0 } };
-const VarId VarId::NONE = VarId{ { std::numeric_limits<uint32_t>::max() } };
+const VarId VarId::NONE = VarId{ { std::numeric_limits<std::uint8_t>::max() } };
 const ObjectLocalId ObjectLocalId::NONE = ObjectLocalId{ { std::numeric_limits<uint32_t>::max() } };
-const ObjectNetId ObjectNetId::NONE = ObjectNetId{ { std::numeric_limits<uint32_t>::max() } };
+const ObjectNetId ObjectNetId::NONE = ObjectNetId{ { std::numeric_limits<std::uint16_t>::max() } };
 const ObjectHandle ObjectHandle::NONE = ObjectHandle{ { 0 } };
 
 static const char *ProcessPhaseName[PROCESS_PHASE_COUNT] = {

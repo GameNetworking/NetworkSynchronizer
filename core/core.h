@@ -77,9 +77,9 @@ std::string get_log_level_txt(NS::PrintMessageType p_level);
 
 template <typename T, typename TheIdType>
 struct IdMaker {
-	typedef TheIdType IdType;
+	using IdType = TheIdType;
 
-	IdType id;
+	TheIdType id;
 
 	bool operator==(const T &p_o) const { return id == p_o.id; }
 	bool operator!=(const T &p_o) const { return !(operator==(p_o)); }
@@ -88,38 +88,28 @@ struct IdMaker {
 	bool operator>=(const T &p_o) const { return (!operator<(p_o)); }
 	bool operator>(const T &p_o) const { return (!operator<(p_o)) && operator!=(p_o); }
 
-	T operator+(const T &p_o) const { return T{ { id + p_o.id } }; }
-	T operator+(int p_id) const { return T{ { id + p_id } }; }
-	T operator+(uint32_t p_id) const { return T{ { id + p_id } }; }
+	T operator+(const T &p_o) const { return T{ static_cast<TheIdType>(id + p_o.id) }; }
+	T operator+(TheIdType p_id) const { return T{ static_cast<TheIdType>(id + p_id) }; }
 	T &operator+=(const T &p_o) {
 		id += p_o.id;
 		return *static_cast<T *>(this);
 	}
-	T &operator+=(uint32_t p_id) {
-		id += p_id;
-		return *static_cast<T *>(this);
-	}
-	T &operator+=(int p_id) {
+	T &operator+=(TheIdType p_id) {
 		id += p_id;
 		return *static_cast<T *>(this);
 	}
 
-	T operator-(const T &p_o) const { return T{ { id - p_o.id } }; }
-	T operator-(int p_id) const { return T{ { id - p_id } }; }
-	T operator-(uint32_t p_id) const { return T{ { id - p_id } }; }
+	T operator-(const T &p_o) const { return T{ static_cast<TheIdType>( id - p_o.id ) }; }
+	T operator-(TheIdType p_id) const { return T{ static_cast<TheIdType>(id - p_id) }; }
 	T &operator-=(const T &p_o) {
 		id -= p_o.id;
 		return *static_cast<T *>(this);
 	}
-	T &operator-=(uint32_t p_id) {
+	T &operator-=(TheIdType p_id) {
 		id -= p_id;
 		return *static_cast<T *>(this);
 	}
-	T &operator-=(int p_id) {
-		id -= p_id;
-		return *static_cast<T *>(this);
-	}
-
+	
 	operator std::string() const {
 		return "`" + std::to_string(id) + "`";
 	}
@@ -133,10 +123,10 @@ struct SyncGroupId : public IdMaker<SyncGroupId, std::uint32_t> {
 	/// This SyncGroup contains ALL the registered ObjectData.
 	static const SyncGroupId GLOBAL;
 };
-struct VarId : public IdMaker<VarId, uint32_t> { // TODO use `uint8_t` instead?
+struct VarId : public IdMaker<VarId, std::uint8_t> {
 	static const VarId NONE;
 };
-struct ObjectNetId : public IdMaker<ObjectNetId, uint32_t> { // TODO use `uint16_t` instead.
+struct ObjectNetId : public IdMaker<ObjectNetId, std::uint16_t> {
 	static const ObjectNetId NONE;
 };
 struct ObjectLocalId : public IdMaker<ObjectLocalId, uint32_t> { // TODO use `int` instead?

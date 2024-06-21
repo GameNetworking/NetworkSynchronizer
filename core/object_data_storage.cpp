@@ -176,7 +176,7 @@ const std::vector<ObjectData *> *ObjectDataStorage::get_peer_controlled_objects_
 }
 
 ObjectNetId ObjectDataStorage::generate_net_id() const {
-	uint32_t i = 0;
+	ObjectNetId::IdType i = 0;
 	for (auto od : objects_data_organized_by_netid) {
 		if (!od) {
 			// This position is empty, can be used as NetId.
@@ -186,7 +186,7 @@ ObjectNetId ObjectDataStorage::generate_net_id() const {
 	}
 
 	// Create a new NetId.
-	return ObjectNetId{ { uint32_t(objects_data_organized_by_netid.size()) } };
+	return ObjectNetId{ { ObjectNetId::IdType(objects_data_organized_by_netid.size()) } };
 }
 
 bool ObjectDataStorage::is_empty() const {

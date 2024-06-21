@@ -488,7 +488,7 @@ void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const std::str
 				object_data->app_object_handle,
 				p_variable_name.data(),
 				old_val);
-		var_id = VarId{ { uint32_t(object_data->vars.size()) } };
+		var_id = VarId{ { VarId::IdType(object_data->vars.size()) } };
 		object_data->vars.push_back(
 				NS::VarDescriptor(
 						var_id,
@@ -505,7 +505,7 @@ void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const std::str
 	}
 
 #ifdef NS_DEBUG_ENABLED
-	for (VarId v = VarId{ { 0 } }; v < VarId{ { uint32_t(object_data->vars.size()) } }; v += 1) {
+	for (VarId v = VarId{ { 0 } }; v < VarId{ { VarId::IdType(object_data->vars.size()) } }; v += 1) {
 		// This can't happen, because the IDs are always consecutive, or NONE.
 		ASSERT_COND(object_data->vars[v.id].id == v);
 	}
@@ -545,7 +545,7 @@ void SceneSynchronizerBase::unregister_variable(ObjectLocalId p_id, const std::s
 }
 
 ObjectNetId SceneSynchronizerBase::get_app_object_net_id(ObjectLocalId p_local_id) const {
-	const NS::ObjectData *nd = objects_data_storage.get_object_data(p_local_id);
+	const ObjectData *nd = objects_data_storage.get_object_data(p_local_id);
 	if (nd) {
 		return nd->get_net_id();
 	} else {
@@ -1070,7 +1070,7 @@ void SceneSynchronizerBase::init_synchronizer(bool p_was_generating_ids) {
 
 	if (p_was_generating_ids != generate_id) {
 		objects_data_storage.reserve_net_ids((int)objects_data_storage.get_objects_data().size());
-		for (uint32_t i = 0; i < objects_data_storage.get_objects_data().size(); i += 1) {
+		for (ObjectNetId::IdType i = 0; i < objects_data_storage.get_objects_data().size(); i += 1) {
 			ObjectData *od = objects_data_storage.get_objects_data()[i];
 			if (!od) {
 				continue;
@@ -1084,9 +1084,9 @@ void SceneSynchronizerBase::init_synchronizer(bool p_was_generating_ids) {
 			}
 
 			// Handle the variables ID.
-			for (uint32_t v = 0; v < od->vars.size(); v += 1) {
+			for (VarId::IdType v = 0; v < od->vars.size(); v += 1) {
 				if (generate_id) {
-					od->vars[v].id = VarId{ { v } };
+					od->vars[v].id = VarId{ v };
 				} else {
 					od->vars[v].id = VarId::NONE;
 				}
@@ -1101,7 +1101,7 @@ void SceneSynchronizerBase::init_synchronizer(bool p_was_generating_ids) {
 		}
 
 		synchronizer->on_object_data_added(*od);
-		for (uint32_t y = 0; y < od->vars.size(); y += 1) {
+		for (VarId::IdType y = 0; y < od->vars.size(); y += 1) {
 			synchronizer->on_variable_added(od, od->vars[y].var.name);
 		}
 	}
@@ -1649,7 +1649,7 @@ const NS::PeerData *SceneSynchronizerBase::get_peer_data_for_controller(const Pe
 }
 
 ObjectNetId SceneSynchronizerBase::get_biggest_object_id() const {
-	return objects_data_storage.get_sorted_objects_data().size() == 0 ? ObjectNetId::NONE : ObjectNetId{ { uint32_t(objects_data_storage.get_sorted_objects_data().size() - 1) } };
+	return objects_data_storage.get_sorted_objects_data().size() == 0 ? ObjectNetId::NONE : ObjectNetId{ { ObjectNetId::IdType(objects_data_storage.get_sorted_objects_data().size() - 1) } };
 }
 
 void SceneSynchronizerBase::reset_controllers() {
@@ -2957,8 +2957,8 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 			const ObjectNetId net_node_id = different_node_data[i];
 			NS::ObjectData *rew_node_data = scene_synchronizer->get_object_data(net_node_id);
 
-			const std::vector<NS::NameAndVar> *server_node_vars = ObjectNetId{ { uint32_t(last_received_server_snapshot->object_vars.size()) } } <= net_node_id ? nullptr : &(last_received_server_snapshot->object_vars[net_node_id.id]);
-			const std::vector<NS::NameAndVar> *client_node_vars = ObjectNetId{ { uint32_t(client_snapshots.front().object_vars.size()) } } <= net_node_id ? nullptr : &(client_snapshots.front().object_vars[net_node_id.id]);
+			const std::vector<NS::NameAndVar> *server_node_vars = ObjectNetId{ { ObjectNetId::IdType(last_received_server_snapshot->object_vars.size()) } } <= net_node_id ? nullptr : &(last_received_server_snapshot->object_vars[net_node_id.id]);
+			const std::vector<NS::NameAndVar> *client_node_vars = ObjectNetId{ { ObjectNetId::IdType(client_snapshots.front().object_vars.size()) } } <= net_node_id ? nullptr : &(client_snapshots.front().object_vars[net_node_id.id]);
 
 			const std::size_t count = std::max(server_node_vars ? server_node_vars->size() : 0, client_node_vars ? client_node_vars->size() : 0);
 
@@ -3948,7 +3948,7 @@ void ClientSynchronizer::apply_snapshot(
 
 		// NOTE: The vars may not contain ALL the variables: it depends on how
 		//       the snapshot was captured.
-		for (VarId v = VarId{ { 0 } }; v < VarId{ { uint32_t(snap_object_vars.size()) } }; v += 1) {
+		for (VarId v = VarId{ { 0 } }; v < VarId{ { VarId::IdType(snap_object_vars.size()) } }; v += 1) {
 			if (snap_object_vars[v.id].name.empty()) {
 				// This variable was not set, skip it.
 				continue;

@@ -29,8 +29,8 @@ void test_ids() {
 
 	NS::VarId var_id_3 = var_id_0;
 	var_id_3 += var_id_1;
-	var_id_3 += int(1);
-	var_id_3 += uint32_t(1);
+	var_id_3 += 1;
+	var_id_3 += 1;
 	ASSERT_COND(var_id_3.id == 3);
 }
 
