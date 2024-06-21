@@ -13,7 +13,6 @@
 #include <string>
 
 namespace NS_Test {
-
 const float delta = 1.0f / 60.0f;
 
 class MagnetSceneObject : public NS::LocalSceneObject {
@@ -26,7 +25,9 @@ public:
 		set_weight(1.0f);
 		set_position(Vec3());
 
-		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
+		if (get_scene()->scene_sync->is_server()) {
+			get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
+		}
 	}
 
 	virtual void setup_synchronizer(NS::LocalSceneSynchronizer &p_scene_sync, NS::ObjectLocalId p_id) override {
@@ -95,9 +96,15 @@ public:
 
 		p_scene_sync.setup_controller(
 				p_id,
-				[this](float p_delta, NS::DataBuffer &r_buffer) -> void { collect_inputs(p_delta, r_buffer); },
-				[this](NS::DataBuffer &p_buffer_A, NS::DataBuffer &p_buffer_b) -> bool { return are_inputs_different(p_buffer_A, p_buffer_b); },
-				[this](float p_delta, NS::DataBuffer &p_buffer) -> void { controller_process(p_delta, p_buffer); });
+				[this](float p_delta, NS::DataBuffer &r_buffer) -> void {
+					collect_inputs(p_delta, r_buffer);
+				},
+				[this](NS::DataBuffer &p_buffer_A, NS::DataBuffer &p_buffer_b) -> bool {
+					return are_inputs_different(p_buffer_A, p_buffer_b);
+				},
+				[this](float p_delta, NS::DataBuffer &p_buffer) -> void {
+					controller_process(p_delta, p_buffer);
+				});
 
 		p_scene_sync.set_controlled_by_peer(p_id, authoritative_peer_id);
 
@@ -186,8 +193,8 @@ public:
 		p_buffer_B.read_normalized_vector3(x2, y2, z2, NS::DataBuffer::COMPRESSION_LEVEL_3);
 
 		return !(NS::MathFunc::is_equal_approx(x1, x2) &&
-				NS::MathFunc::is_equal_approx(y1, y2) &&
-				NS::MathFunc::is_equal_approx(z1, z2));
+			NS::MathFunc::is_equal_approx(y1, y2) &&
+			NS::MathFunc::is_equal_approx(z1, z2));
 	}
 };
 
@@ -248,15 +255,27 @@ struct TestSimulationBase {
 	int process_until_frame_timeout = 20;
 
 private:
-	virtual void on_scenes_initialized() {}
-	virtual void on_server_process(float p_delta) {}
-	virtual void on_client_process(float p_delta) {}
-	virtual void on_scenes_processed(float p_delta) {}
-	virtual void on_scenes_done() {}
+	virtual void on_scenes_initialized() {
+	}
+
+	virtual void on_server_process(float p_delta) {
+	}
+
+	virtual void on_client_process(float p_delta) {
+	}
+
+	virtual void on_scenes_processed(float p_delta) {
+	}
+
+	virtual void on_scenes_done() {
+	}
 
 public:
-	TestSimulationBase() {}
-	virtual ~TestSimulationBase() {}
+	TestSimulationBase() {
+	}
+
+	virtual ~TestSimulationBase() {
+	}
 
 	float rand_range(float M, float N) {
 		return M + (rand() / (RAND_MAX / (N - M)));
@@ -394,7 +413,8 @@ public:
 	NS::FrameIndex correction_snapshot_sent = NS::FrameIndex{ { 0 } };
 
 	TestSimulationWithRewind(float p_notify_state_interval) :
-			notify_state_interval(p_notify_state_interval) {}
+		notify_state_interval(p_notify_state_interval) {
+	}
 
 	virtual void on_scenes_initialized() override {
 		server_scene.scene_sync->set_frame_confirmation_timespan(notify_state_interval);

@@ -26,7 +26,9 @@ public:
 	TDSControlledObject() = default;
 
 	virtual void on_scene_entry() override {
-		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
+		if (get_scene()->scene_sync->is_server()) {
+			get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
+		}
 	}
 
 	virtual void on_scene_exit() override {
@@ -42,9 +44,11 @@ public:
 				std::bind(&TDSControlledObject::are_inputs_different, this, std::placeholders::_1, std::placeholders::_2),
 				std::bind(&TDSControlledObject::controller_process, this, std::placeholders::_1, std::placeholders::_2));
 
-		p_scene_sync.set_controlled_by_peer(
-				p_id,
-				authoritative_peer_id);
+		if (p_scene_sync.is_server()) {
+			p_scene_sync.set_controlled_by_peer(
+					p_id,
+					authoritative_peer_id);
+		}
 
 		p_scene_sync.register_variable(
 				p_id,
