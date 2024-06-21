@@ -777,9 +777,6 @@ void test_data_buffer_shrinking() {
 	buffer.shrink_to(0, original_size + 1);
 	ASSERT_COND_MSG(buffer.total_size() == original_size, "Shrinking to a larger size should fail.");
 
-	buffer.shrink_to(0, -1);
-	ASSERT_COND_MSG(buffer.total_size() == original_size, "Shrinking with a negative bits size should fail.");
-
 	buffer.shrink_to(0, original_size - 8);
 	ASSERT_COND_MSG(buffer.total_size() == original_size - 8, "Shrinking by 1 byte should succeed.");
 	ASSERT_COND_MSG(buffer.get_buffer().size_in_bits() == original_size, "Buffer size after shrinking by 1 byte should be the same.");
@@ -798,6 +795,84 @@ void test_data_buffer_skip() {
 	buffer.begin_read();
 	buffer.seek(NS::DataBuffer::get_bit_taken(NS::DataBuffer::DATA_TYPE_BOOL, NS::DataBuffer::COMPRESSION_LEVEL_0));
 	ASSERT_COND_MSG(buffer.read_bool() == value, "Should read the same value");
+}
+
+void test_data_buffer_writing_failing() {
+	{
+		NS::DataBuffer buffer;
+		buffer.begin_read();
+		ASSERT_COND(!buffer.is_buffer_failed());
+		buffer.add_bool(true);
+		ASSERT_COND(buffer.is_buffer_failed());
+	}
+	{
+		NS::DataBuffer buffer;
+		buffer.begin_read();
+		ASSERT_COND(!buffer.is_buffer_failed());
+		buffer.add_int(1, NS::DataBuffer::COMPRESSION_LEVEL_0);
+		ASSERT_COND(buffer.is_buffer_failed());
+	}
+	{
+		NS::DataBuffer buffer;
+		buffer.begin_read();
+		ASSERT_COND(!buffer.is_buffer_failed());
+		buffer.add_uint(1, NS::DataBuffer::COMPRESSION_LEVEL_0);
+		ASSERT_COND(buffer.is_buffer_failed());
+	}
+	{
+		NS::DataBuffer buffer;
+		buffer.begin_read();
+		ASSERT_COND(!buffer.is_buffer_failed());
+		buffer.add_normalized_vector2(0.f, 0.f, NS::DataBuffer::COMPRESSION_LEVEL_0);
+		ASSERT_COND(buffer.is_buffer_failed());
+	}
+	{
+		NS::DataBuffer buffer;
+		buffer.begin_read();
+		ASSERT_COND(!buffer.is_buffer_failed());
+		buffer.add_normalized_vector3(0.f, 0.f, 0.f, NS::DataBuffer::COMPRESSION_LEVEL_0);
+		ASSERT_COND(buffer.is_buffer_failed());
+	}
+}
+
+void test_data_buffer_reading_failing() {
+	{
+		NS::DataBuffer buffer;
+		buffer.begin_write(0);
+		ASSERT_COND(!buffer.is_buffer_failed());
+		buffer.read_bool();
+		ASSERT_COND(buffer.is_buffer_failed());
+	}
+	{
+		NS::DataBuffer buffer;
+		buffer.begin_write(0);
+		ASSERT_COND(!buffer.is_buffer_failed());
+		buffer.read_int(NS::DataBuffer::COMPRESSION_LEVEL_0);
+		ASSERT_COND(buffer.is_buffer_failed());
+	}
+	{
+		NS::DataBuffer buffer;
+		buffer.begin_write(0);
+		ASSERT_COND(!buffer.is_buffer_failed());
+		buffer.read_uint(NS::DataBuffer::COMPRESSION_LEVEL_0);
+		ASSERT_COND(buffer.is_buffer_failed());
+	}
+	{
+		NS::DataBuffer buffer;
+		buffer.begin_write(0);
+		ASSERT_COND(!buffer.is_buffer_failed());
+		double x, y;
+		buffer.read_normalized_vector2(x, y, NS::DataBuffer::COMPRESSION_LEVEL_0);
+		ASSERT_COND(buffer.is_buffer_failed());
+	}
+	{
+		NS::DataBuffer buffer;
+		buffer.begin_write(0);
+		ASSERT_COND(!buffer.is_buffer_failed());
+		double x, y, z;
+		buffer.read_normalized_vector3(x, y, z, NS::DataBuffer::COMPRESSION_LEVEL_0);
+		ASSERT_COND(buffer.is_buffer_failed());
+	}
 }
 
 void NS_Test::test_data_buffer() {
@@ -825,4 +900,6 @@ void NS_Test::test_data_buffer() {
 	test_data_buffer_zero();
 	test_data_buffer_shrinking();
 	test_data_buffer_skip();
+	test_data_buffer_writing_failing();
+	test_data_buffer_reading_failing();
 }

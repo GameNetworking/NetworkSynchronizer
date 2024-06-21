@@ -50,12 +50,12 @@ public:
 
 	template <typename T>
 	static bool vec2_is_normalized(T x, T y) {
-		return is_equal_approx(vec2_length_squared(x, y), T(1.0));
+		return is_equal_approx(vec2_length(x, y), T(1.0));
 	}
 
 	template <typename T>
 	static bool vec3_is_normalized(T x, T y, T z) {
-		return is_equal_approx(vec3_length_squared(x, y, z), T(1.0));
+		return is_equal_approx(vec3_length(x, y, z), T(1.0));
 	}
 
 	template <typename T>

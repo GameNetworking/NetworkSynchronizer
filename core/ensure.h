@@ -75,6 +75,26 @@ void _ns_print_flush_stdout();
 		return m_retval;                                                                                                                                                     \
 	}
 
+/// Ensures no entry
+#define NS_ENSURE_NO_ENTRY()                                                                                         \
+	_ns_print_code_message(FUNCTION_STR, __FILE__, __LINE__, "No entry triggered", "", NS::PrintMessageType::ERROR); \
+	return;                                                                                                                                
+
+/// Ensures no entry with message
+#define NS_ENSURE_NO_ENTRY_MSG(m_msg)                                                                                                     \
+	_ns_print_code_message(FUNCTION_STR, __FILE__, __LINE__, "No entry. Returning: " _STR(m_retval), m_msg, NS::PrintMessageType::ERROR); \
+	return;
+
+/// Ensures no entry with return value.
+#define NS_ENSURE_NO_ENTRY_V(m_retval)                                                                                                 \
+	_ns_print_code_message(FUNCTION_STR, __FILE__, __LINE__, "No entry. Returning: " _STR(m_retval), "", NS::PrintMessageType::ERROR); \
+	return m_retval;
+
+/// Ensures no entry with return value and with message.
+#define NS_ENSURE_NO_ENTRY_V_MSG(m_retval, m_msg)                                                                                        \
+	_ns_print_code_message(FUNCTION_STR, __FILE__, __LINE__, "No entry. Returning: " _STR(m_retval), m_msg, NS::PrintMessageType::ERROR); \
+	return m_retval;
+
 /// Ensures `m_cond` is true.
 /// If `m_cond` is false the current function returns.
 #define NS_ENSURE_CONTINUE(m_cond)                                                                                                                \

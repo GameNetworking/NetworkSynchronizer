@@ -3313,7 +3313,7 @@ bool ClientSynchronizer::parse_sync_data(
 				
 				int controlled_by_peer;
 				p_snapshot.read(controlled_by_peer);
-				NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `ObjectNetId` failed.");
+				NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `controlled_by_peer` failed.");
 				
 				sd_simulated_objects.push_back(SimulatedObjectInfo(id, controlled_by_peer));
 			}
