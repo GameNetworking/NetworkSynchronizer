@@ -293,7 +293,7 @@ bool PeerNetworkedController::can_simulate() {
 
 	const std::vector<ObjectData *> *controlled_objects = scene_synchronizer ? scene_synchronizer->get_peer_controlled_objects_data(get_authority_peer()) : nullptr;
 	if (controlled_objects) {
-		if (is_server_controller() || is_player_controller()) {
+		if (is_server_controller() || is_player_controller() || is_nonet_controller()) {
 			return controlled_objects->size() > 0;
 		} else {
 			// TODO optimize by avoiding fetching the controlled objects in this way?
