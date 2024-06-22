@@ -35,6 +35,7 @@ struct PendingPacket {
 
 class LocalNetwork {
 	bool is_server = false;
+	bool is_no_net = false;
 	int this_peer = 0;
 
 	int peer_counter = 2;
@@ -53,7 +54,16 @@ public:
 public:
 	int get_peer() const;
 
+	bool get_is_server() const {
+		return is_server;
+	}
+
+	bool get_is_no_net() const {
+		return is_no_net;
+	}
+
 	const std::map<int, LocalNetwork *> &get_connected_peers() const;
+	void start_as_no_net();
 	void start_as_server();
 
 	void start_as_client(LocalNetwork &p_server_network);
@@ -80,10 +90,17 @@ public:
 
 	void init(LocalNetwork &p_network, const std::string &p_unique_name, int p_authoritative_peer);
 
-	std::vector<RPCInfo> &get_rpcs_info() { return rpcs_info; }
-	virtual std::string get_owner_name() const override { return name; }
+	std::vector<RPCInfo> &get_rpcs_info() {
+		return rpcs_info;
+	}
 
-	virtual int get_server_peer() const override { return 1; }
+	virtual std::string get_owner_name() const override {
+		return name;
+	}
+
+	virtual int get_server_peer() const override {
+		return 1;
+	}
 
 	/// Call this function to start receiving events on peer connection / disconnection.
 	virtual void start_listening_peer_connection(

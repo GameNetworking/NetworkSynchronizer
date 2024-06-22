@@ -4,7 +4,6 @@
 #include <string>
 
 NS_NAMESPACE_BEGIN
-
 LocalSceneObject::~LocalSceneObject() {
 	const NS::ObjectLocalId id = find_local_id();
 	if (get_scene() && get_scene()->scene_sync && id != NS::ObjectLocalId::NONE) {
@@ -20,10 +19,11 @@ NS::ObjectLocalId LocalSceneObject::find_local_id() const {
 }
 
 LocalSceneSynchronizer::LocalSceneSynchronizer(bool p_disable_sub_ticking) :
-		SceneSynchronizer<LocalSceneObject, LocalNetworkInterface>(true, p_disable_sub_ticking) {
+	SceneSynchronizer<LocalSceneObject, LocalNetworkInterface>(true, p_disable_sub_ticking) {
 }
 
-LocalSceneSynchronizer::~LocalSceneSynchronizer() {}
+LocalSceneSynchronizer::~LocalSceneSynchronizer() {
+}
 
 void (*prev_var_data_encode_func)(NS::DataBuffer &r_buffer, const NS::VarData &p_val) = nullptr;
 void (*prev_var_data_decode_func)(NS::VarData &r_val, NS::DataBuffer &p_buffer, std::uint8_t p_variable_type) = nullptr;
@@ -118,6 +118,10 @@ void LocalSceneSynchronizer::setup_synchronizer_for(ObjectHandle p_app_object_ha
 
 LocalScene *LocalSceneObject::get_scene() const {
 	return scene_owner;
+}
+
+void LocalScene::start_as_no_net() {
+	network.start_as_no_net();
 }
 
 void LocalScene::start_as_server() {

@@ -19,14 +19,22 @@ const std::map<int, LocalNetwork *> &LocalNetwork::get_connected_peers() const {
 	return connected_peers;
 }
 
+void LocalNetwork::start_as_no_net() {
+	is_server = false;
+	is_no_net = true;
+	this_peer = 1;
+}
+
 void LocalNetwork::start_as_server() {
 	is_server = true;
+	is_no_net = false;
 	this_peer = 1;
 }
 
 void LocalNetwork::start_as_client(LocalNetwork &p_server_network) {
 	ASSERT_COND(p_server_network.is_server);
 	is_server = false;
+	is_no_net = false;
 
 	const int peer = p_server_network.peer_counter;
 	this_peer = peer;
@@ -171,7 +179,7 @@ void LocalNetworkInterface::fetch_connected_peers(std::vector<int> &p_connected_
 }
 
 bool LocalNetworkInterface::is_local_peer_networked() const {
-	return network->get_peer() != 0;
+	return !network->get_is_no_net();
 }
 
 bool LocalNetworkInterface::is_local_peer_server() const {

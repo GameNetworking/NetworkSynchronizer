@@ -67,6 +67,9 @@ public:
 	LocalNetwork &get_network() { return network; }
 	const LocalNetwork &get_network() const { return network; }
 
+	// Start the scene as no network.
+	void start_as_no_net();
+	
 	// Start the scene as server.
 	void start_as_server();
 

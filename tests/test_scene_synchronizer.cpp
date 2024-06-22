@@ -6,12 +6,13 @@
 #include "../core/net_utilities.h"
 #include "../core/var_data.h"
 #include "../tests/local_network.h"
+#include "../core/net_math.h"
 #include "local_scene.h"
+
 #include <functional>
 #include <vector>
 
 namespace NS_Test {
-
 void test_ids() {
 	NS::VarId var_id_0 = NS::VarId{ { 0 } };
 	NS::VarId var_id_0_2 = NS::VarId{ { 0 } };
@@ -41,7 +42,8 @@ public:
 	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
 	NS::VarData position;
 
-	LocalNetworkedController() {}
+	LocalNetworkedController() {
+	}
 
 	virtual void on_scene_entry() override {
 		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
@@ -59,7 +61,7 @@ public:
 				std::bind(&LocalNetworkedController::collect_inputs, this, std::placeholders::_1, std::placeholders::_2),
 				std::bind(&LocalNetworkedController::are_inputs_different, this, std::placeholders::_1, std::placeholders::_2),
 				std::bind(&LocalNetworkedController::controller_process, this, std::placeholders::_1, std::placeholders::_2));
-		
+
 		p_scene_sync.set_controlled_by_peer(
 				p_id,
 				authoritative_peer_id);
@@ -573,9 +575,9 @@ void test_state_notify() {
 				peer_2_scene.process(delta);
 
 				if (
-						server_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3 &&
-						peer_1_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3 &&
-						peer_2_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3) {
+					server_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3 &&
+					peer_1_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3 &&
+					peer_2_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3) {
 					break;
 				}
 			}
@@ -1022,6 +1024,32 @@ void test_streaming() {
 	// TODO implement this.
 }
 
+void test_no_network() {
+	NS::LocalScene no_net_scene;
+	no_net_scene.start_as_no_net();
+
+	// Add the scene sync
+	no_net_scene.scene_sync =
+			no_net_scene.add_object<NS::LocalSceneSynchronizer>("sync", no_net_scene.get_peer());
+
+	const LocalNetworkedController *controlled_obj_1 = no_net_scene.add_object<LocalNetworkedController>("controller_1", no_net_scene.get_peer());
+
+	// Ensure the scene started as no net.
+	ASSERT_COND(no_net_scene.scene_sync->is_no_network());
+
+	ASSERT_COND(controlled_obj_1->position.data.f32 == 0);
+
+	// Process 10 frames
+	const int frame_count = 10;
+	for (int p = 0; p < frame_count; p++) {
+		no_net_scene.process(delta);
+	}
+
+	// Ensure the character advanced exactly 10m.
+	const float one_meter = 1.0;
+	ASSERT_COND(NS::MathFunc::is_equal_approx(controlled_obj_1->position.data.f32, frame_count * delta * one_meter));
+}
+
 void test_scene_synchronizer() {
 	test_ids();
 	test_client_and_server_initialization();
@@ -1033,5 +1061,6 @@ void test_scene_synchronizer() {
 	test_variable_change_event();
 	test_controller_processing();
 	test_streaming();
+	test_no_network();
 }
 }; //namespace NS_Test
