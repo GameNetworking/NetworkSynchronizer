@@ -324,7 +324,7 @@ uint64_t ENET_PEER_PACKET_LOSS_SCALE = (1 << 16);
 
 void GdNetworkInterface::server_update_net_stats(int p_peer, NS::PeerData &r_peer_data) const {
 	// This function is always called on the server.
-	ASSERT_COND(is_local_peer_server());
+	NS_ASSERT_COND(is_local_peer_server());
 
 	ERR_FAIL_COND(!owner);
 	ERR_FAIL_COND(!owner->get_multiplayer().is_valid());

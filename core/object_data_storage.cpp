@@ -31,12 +31,12 @@ ObjectData *ObjectDataStorage::allocate_object_data() {
 	} else {
 		od->local_id.id = free_local_indices.back().id;
 		free_local_indices.pop_back();
-		ASSERT_COND(objects_data.size() > od->local_id.id);
-		ASSERT_COND(objects_data[od->local_id.id] == nullptr);
+		NS_ASSERT_COND(objects_data.size() > od->local_id.id);
+		NS_ASSERT_COND(objects_data[od->local_id.id] == nullptr);
 		objects_data[od->local_id.id] = od;
 	}
 
-	ASSERT_COND(objects_data[od->local_id.id] == od);
+	NS_ASSERT_COND(objects_data[od->local_id.id] == od);
 
 	return od;
 }
@@ -46,11 +46,11 @@ void ObjectDataStorage::deallocate_object_data(ObjectData &p_object_data) {
 	const ObjectNetId net_id = p_object_data.net_id;
 
 	// The allocate function guarantee the validity of this check.
-	ASSERT_COND(objects_data[local_id.id] == (&p_object_data));
+	NS_ASSERT_COND(objects_data[local_id.id] == (&p_object_data));
 	objects_data[local_id.id] = nullptr;
 
 	if (objects_data_organized_by_netid.size() > net_id.id) {
-		ASSERT_COND(objects_data_organized_by_netid[net_id.id] == (&p_object_data));
+		NS_ASSERT_COND(objects_data_organized_by_netid[net_id.id] == (&p_object_data));
 		objects_data_organized_by_netid[net_id.id] = nullptr;
 	}
 

@@ -18,21 +18,21 @@ void test_ids() {
 	NS::VarId var_id_0_2 = NS::VarId{ { 0 } };
 	NS::VarId var_id_1 = NS::VarId{ { 1 } };
 
-	ASSERT_COND(var_id_0 == var_id_0_2);
-	ASSERT_COND(var_id_0 != var_id_1);
-	ASSERT_COND(var_id_0 <= var_id_1);
-	ASSERT_COND(var_id_0 < var_id_1);
-	ASSERT_COND(var_id_1 >= var_id_0);
-	ASSERT_COND(var_id_1 > var_id_0);
+	NS_ASSERT_COND(var_id_0 == var_id_0_2);
+	NS_ASSERT_COND(var_id_0 != var_id_1);
+	NS_ASSERT_COND(var_id_0 <= var_id_1);
+	NS_ASSERT_COND(var_id_0 < var_id_1);
+	NS_ASSERT_COND(var_id_1 >= var_id_0);
+	NS_ASSERT_COND(var_id_1 > var_id_0);
 
 	NS::VarId var_id_2 = var_id_1 + 1;
-	ASSERT_COND(var_id_2.id == 2);
+	NS_ASSERT_COND(var_id_2.id == 2);
 
 	NS::VarId var_id_3 = var_id_0;
 	var_id_3 += var_id_1;
 	var_id_3 += 1;
 	var_id_3 += 1;
-	ASSERT_COND(var_id_3.id == 3);
+	NS_ASSERT_COND(var_id_3.id == 3);
 }
 
 const float delta = 1.0f / 60.0f;
@@ -106,54 +106,54 @@ void test_client_and_server_initialization() {
 	// Add the scene sync
 	server_scene.scene_sync =
 			server_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
-	ASSERT_COND_MSG(server_scene.scene_sync->is_server(), "This must be a server scene sync.");
+	NS_ASSERT_COND_MSG(server_scene.scene_sync->is_server(), "This must be a server scene sync.");
 
 	peer_1_scene.scene_sync =
 			peer_1_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
-	ASSERT_COND_MSG(peer_1_scene.scene_sync->is_client(), "This must be a client scene sync.");
+	NS_ASSERT_COND_MSG(peer_1_scene.scene_sync->is_client(), "This must be a client scene sync.");
 
 	peer_2_scene.scene_sync =
 			peer_2_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
-	ASSERT_COND_MSG(peer_2_scene.scene_sync->is_client(), "This must be a cliet scene sync.");
+	NS_ASSERT_COND_MSG(peer_2_scene.scene_sync->is_client(), "This must be a cliet scene sync.");
 
 	// Make sure the controller exists right away the peer are connected.
-	ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(server_scene.get_peer(), false), "This must be NON null at this point.");
-	ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(server_scene.get_peer(), false), "This must be NON null at this point.");
-	ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(server_scene.get_peer(), false), "This must be NON null at this point.");
+	NS_ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(server_scene.get_peer(), false), "This must be NON null at this point.");
+	NS_ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(server_scene.get_peer(), false), "This must be NON null at this point.");
+	NS_ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(server_scene.get_peer(), false), "This must be NON null at this point.");
 
-	ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer(), false), "This must be NON null at this point.");
-	ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer(), false), "This must be NON null at this point.");
-	ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer(), false), "This must be NON null at this point.");
+	NS_ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer(), false), "This must be NON null at this point.");
+	NS_ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer(), false), "This must be NON null at this point.");
+	NS_ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer(), false), "This must be NON null at this point.");
 
-	ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer(), false), "This must be NON null at this point.");
-	ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer(), false), "This must be NON null at this point.");
-	ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer(), false), "This must be NON null at this point.");
+	NS_ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer(), false), "This must be NON null at this point.");
+	NS_ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer(), false), "This must be NON null at this point.");
+	NS_ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer(), false), "This must be NON null at this point.");
 
 	// Make sure all the controllers are disabled.
-	ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(server_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
-	ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(server_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
-	ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(server_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
+	NS_ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(server_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
+	NS_ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(server_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
+	NS_ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(server_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
 
-	ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
-	ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
-	ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
+	NS_ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
+	NS_ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
+	NS_ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
 
-	ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
-	ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
-	ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
+	NS_ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
+	NS_ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
+	NS_ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
 
 	// Validate the controllers mode.
-	ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(server_scene.get_peer())->is_server_controller(), "This must be a ServerController on this peer.");
-	ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(server_scene.get_peer())->is_doll_controller(), "This must be a PlayerController on this peer.");
-	ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(server_scene.get_peer())->is_doll_controller(), "This must be a DollController on this peer.");
+	NS_ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(server_scene.get_peer())->is_server_controller(), "This must be a ServerController on this peer.");
+	NS_ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(server_scene.get_peer())->is_doll_controller(), "This must be a PlayerController on this peer.");
+	NS_ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(server_scene.get_peer())->is_doll_controller(), "This must be a DollController on this peer.");
 
-	ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->is_server_controller(), "This must be a ServerController on this peer.");
-	ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->is_player_controller(), "This must be a PlayerController on this peer.");
-	ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->is_doll_controller(), "This must be a DollController on this peer.");
+	NS_ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->is_server_controller(), "This must be a ServerController on this peer.");
+	NS_ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->is_player_controller(), "This must be a PlayerController on this peer.");
+	NS_ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->is_doll_controller(), "This must be a DollController on this peer.");
 
-	ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->is_server_controller(), "This must be a ServerController on this peer.");
-	ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->is_doll_controller(), "This must be a DollController on this peer.");
-	ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->is_player_controller(), "This must be a PlayerController on this peer.");
+	NS_ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->is_server_controller(), "This must be a ServerController on this peer.");
+	NS_ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->is_doll_controller(), "This must be a DollController on this peer.");
+	NS_ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->is_player_controller(), "This must be a PlayerController on this peer.");
 
 	// Spawn the object controlled by the peer 1
 	server_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
@@ -166,18 +166,18 @@ void test_client_and_server_initialization() {
 	peer_2_scene.add_object<LocalNetworkedController>("controller_2", peer_2_scene.get_peer());
 
 	// Make sure the realtime is now enabled.
-	ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->can_simulate(), "This must be enabled at this point.");
-	ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->can_simulate(), "This must be enabled at this point.");
-	ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->can_simulate() == false, "This must be disabled as the server sync never enabled at this point.");
+	NS_ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->can_simulate(), "This must be enabled at this point.");
+	NS_ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->can_simulate(), "This must be enabled at this point.");
+	NS_ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->can_simulate() == false, "This must be disabled as the server sync never enabled at this point.");
 
-	ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->can_simulate(), "This must be enabled at this point.");
-	ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->can_simulate() == false, "This must be disabled as the server sync never enabled at this point.");
-	ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->can_simulate(), "This must be enabled at this point.");
+	NS_ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->can_simulate(), "This must be enabled at this point.");
+	NS_ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->can_simulate() == false, "This must be disabled as the server sync never enabled at this point.");
+	NS_ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->can_simulate(), "This must be enabled at this point.");
 
 	// Though the server must be disabled as no objects are being controlled.
-	ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(server_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
-	ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(server_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
-	ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(server_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
+	NS_ASSERT_COND_MSG(server_scene.scene_sync->get_controller_for_peer(server_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
+	NS_ASSERT_COND_MSG(peer_1_scene.scene_sync->get_controller_for_peer(server_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
+	NS_ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(server_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
 }
 
 class TestSceneObject : public NS::LocalSceneObject {
@@ -270,44 +270,44 @@ void test_sync_groups() {
 
 		// Make sure the object is into to passed simulated sync groups but not into the trickled.
 		for (const NS::SyncGroupId id : p_expected_simulated_sync_groups) {
-			ASSERT_COND(NS::VecFunc::has(simulated_groups, id));
-			ASSERT_COND(!NS::VecFunc::has(trickled_groups, id));
+			NS_ASSERT_COND(NS::VecFunc::has(simulated_groups, id));
+			NS_ASSERT_COND(!NS::VecFunc::has(trickled_groups, id));
 		}
 
 		// Make sure the object is into to passed trickled sync groups but not into the simulated.
 		for (const NS::SyncGroupId id : p_expected_trickled_sync_groups) {
-			ASSERT_COND(NS::VecFunc::has(trickled_groups, id));
-			ASSERT_COND(!NS::VecFunc::has(simulated_groups, id));
+			NS_ASSERT_COND(NS::VecFunc::has(trickled_groups, id));
+			NS_ASSERT_COND(!NS::VecFunc::has(simulated_groups, id));
 		}
 
 		// Make sure the object is NOT into the passed not expected.
 		for (const NS::SyncGroupId id : p_not_expected_into_sync_groups) {
-			ASSERT_COND(!NS::VecFunc::has(trickled_groups, id));
-			ASSERT_COND(!NS::VecFunc::has(simulated_groups, id));
+			NS_ASSERT_COND(!NS::VecFunc::has(trickled_groups, id));
+			NS_ASSERT_COND(!NS::VecFunc::has(simulated_groups, id));
 		}
 	};
 
 	auto assert_listening = [](NS::SceneSynchronizerBase *scene_sync, NS::SyncGroupId p_id, const std::vector<int> &p_listening_peers, const std::vector<int> &p_not_listening_peers) {
 		const std::vector<int> *listening = scene_sync->sync_group_get_listening_peers(p_id);
-		ASSERT_COND(listening);
+		NS_ASSERT_COND(listening);
 
 		for (int peer : p_listening_peers) {
-			ASSERT_COND(NS::VecFunc::has(*listening, peer));
+			NS_ASSERT_COND(NS::VecFunc::has(*listening, peer));
 		}
 		for (int peer : p_not_listening_peers) {
-			ASSERT_COND(!NS::VecFunc::has(*listening, peer));
+			NS_ASSERT_COND(!NS::VecFunc::has(*listening, peer));
 		}
 	};
 
 	auto assert_simulating = [](NS::SceneSynchronizerBase *scene_sync, NS::SyncGroupId p_id, const std::vector<int> &p_simulating_peers, const std::vector<int> &p_not_simulating_peers) {
 		const std::vector<int> *simulating = scene_sync->sync_group_get_simulating_peers(p_id);
-		ASSERT_COND(simulating);
+		NS_ASSERT_COND(simulating);
 
 		for (int peer : p_simulating_peers) {
-			ASSERT_COND(NS::VecFunc::has(*simulating, peer));
+			NS_ASSERT_COND(NS::VecFunc::has(*simulating, peer));
 		}
 		for (int peer : p_not_simulating_peers) {
-			ASSERT_COND(!NS::VecFunc::has(*simulating, peer));
+			NS_ASSERT_COND(!NS::VecFunc::has(*simulating, peer));
 		}
 	};
 
@@ -315,19 +315,19 @@ void test_sync_groups() {
 		const NS::SyncGroup *sync_group = scene_sync->sync_group_get(p_id);
 
 		for (int peer : p_expected_peers) {
-			ASSERT_COND(NS::VecFunc::has(sync_group->get_networked_peers(), peer));
+			NS_ASSERT_COND(NS::VecFunc::has(sync_group->get_networked_peers(), peer));
 		}
 		for (int peer : p_not_expected_peers) {
-			ASSERT_COND(!NS::VecFunc::has(sync_group->get_networked_peers(), peer));
+			NS_ASSERT_COND(!NS::VecFunc::has(sync_group->get_networked_peers(), peer));
 		}
 	};
 
 	// ----------------------------------------------------------- TEST DEFAULTS
 
 	// Verify that by default all the peers are listening to the GLOBAL sync group.
-	ASSERT_COND(server_scene.scene_sync->sync_group_get_peer_group(server_scene.get_peer()) == NS::SyncGroupId::GLOBAL);
-	ASSERT_COND(server_scene.scene_sync->sync_group_get_peer_group(peer_1_scene.get_peer()) == NS::SyncGroupId::GLOBAL);
-	ASSERT_COND(server_scene.scene_sync->sync_group_get_peer_group(peer_2_scene.get_peer()) == NS::SyncGroupId::GLOBAL);
+	NS_ASSERT_COND(server_scene.scene_sync->sync_group_get_peer_group(server_scene.get_peer()) == NS::SyncGroupId::GLOBAL);
+	NS_ASSERT_COND(server_scene.scene_sync->sync_group_get_peer_group(peer_1_scene.get_peer()) == NS::SyncGroupId::GLOBAL);
+	NS_ASSERT_COND(server_scene.scene_sync->sync_group_get_peer_group(peer_2_scene.get_peer()) == NS::SyncGroupId::GLOBAL);
 	assert_listening(server_scene.scene_sync, NS::SyncGroupId::GLOBAL, { server_scene.get_peer(), peer_1_scene.get_peer(), peer_2_scene.get_peer() }, {});
 
 	// Verify that by default all the objects are into the global group and always as simulating.
@@ -371,9 +371,9 @@ void test_sync_groups() {
 	assert_listening(server_scene.scene_sync, group_2, { peer_1_scene.get_peer() }, { server_scene.get_peer(), peer_2_scene.get_peer() });
 	assert_listening(server_scene.scene_sync, group_3, { peer_2_scene.get_peer() }, { server_scene.get_peer(), peer_1_scene.get_peer() });
 
-	ASSERT_COND(server_scene.scene_sync->sync_group_get_peer_group(server_scene.get_peer()) == group_1);
-	ASSERT_COND(server_scene.scene_sync->sync_group_get_peer_group(peer_1_scene.get_peer()) == group_2);
-	ASSERT_COND(server_scene.scene_sync->sync_group_get_peer_group(peer_2_scene.get_peer()) == group_3);
+	NS_ASSERT_COND(server_scene.scene_sync->sync_group_get_peer_group(server_scene.get_peer()) == group_1);
+	NS_ASSERT_COND(server_scene.scene_sync->sync_group_get_peer_group(peer_1_scene.get_peer()) == group_2);
+	NS_ASSERT_COND(server_scene.scene_sync->sync_group_get_peer_group(peer_2_scene.get_peer()) == group_3);
 
 	// Verify that objects didn't change group.
 	assert_group(server_scene.scene_sync, controlled_obj_1_id, { NS::SyncGroupId::GLOBAL }, {}, { group_1, group_2, group_3 });
@@ -383,10 +383,10 @@ void test_sync_groups() {
 	assert_group(server_scene.scene_sync, obj_1_id, { NS::SyncGroupId::GLOBAL }, {}, { group_1, group_2, group_3 });
 
 	// At this point, there is nothing to listen, so any peer is simulating.
-	ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->server_is_peer_simulating_this_controller(peer_1_scene.get_peer()));
-	ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_1_scene.get_peer()));
-	ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->server_is_peer_simulating_this_controller(peer_2_scene.get_peer()));
-	ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_2_scene.get_peer()));
+	NS_ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->server_is_peer_simulating_this_controller(peer_1_scene.get_peer()));
+	NS_ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_1_scene.get_peer()));
+	NS_ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->server_is_peer_simulating_this_controller(peer_2_scene.get_peer()));
+	NS_ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_2_scene.get_peer()));
 
 	// ------------------------------------------- MOVE OBJECTS INTO SYNC GROUPs
 
@@ -431,13 +431,13 @@ void test_sync_groups() {
 	assert_simulating(server_scene.scene_sync, group_2, { peer_1_scene.get_peer(), peer_2_scene.get_peer() }, { server_scene.get_peer() });
 
 	// The peer 1 is simulating the peer 1 controller, according to the above sync group setup.
-	ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->server_is_peer_simulating_this_controller(peer_1_scene.get_peer()));
+	NS_ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->server_is_peer_simulating_this_controller(peer_1_scene.get_peer()));
 	// The peer 1 is also simulated by the peer 2 because it's listening on the SYNC GROUP 2.
-	ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_1_scene.get_peer()));
+	NS_ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_1_scene.get_peer()));
 
 	// The peer 2 is not simulating anything because it's listening on the SYNC GROUP 3.
-	ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->server_is_peer_simulating_this_controller(peer_2_scene.get_peer()));
-	ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_2_scene.get_peer()));
+	NS_ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->server_is_peer_simulating_this_controller(peer_2_scene.get_peer()));
+	NS_ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_2_scene.get_peer()));
 
 	// ------------------------------- CONTROLLER SIMULATION CHECK - MOVING PEER
 
@@ -453,32 +453,32 @@ void test_sync_groups() {
 	// Also verify the controllers have been updated.
 	// Since the objects controlled by peer 1 are on the group 2 and the peer 1
 	// is listening the group 1, no controllers are actually sending data to any peer.
-	ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->server_is_peer_simulating_this_controller(peer_1_scene.get_peer()));
-	ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_1_scene.get_peer()));
-	ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->server_is_peer_simulating_this_controller(peer_2_scene.get_peer()));
-	ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_2_scene.get_peer()));
+	NS_ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->server_is_peer_simulating_this_controller(peer_1_scene.get_peer()));
+	NS_ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_1_scene.get_peer()));
+	NS_ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->server_is_peer_simulating_this_controller(peer_2_scene.get_peer()));
+	NS_ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_2_scene.get_peer()));
 
 	// ----------------------------- CONTROLLER SIMULATION CHECK - MOVING OBJECT
 
 	// Move the peer 1 back to group 2.
 	server_scene.scene_sync->sync_group_move_peer_to(peer_1_scene.get_peer(), group_2);
 	// Verify
-	ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->server_is_peer_simulating_this_controller(peer_1_scene.get_peer()));
-	ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_1_scene.get_peer()));
+	NS_ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->server_is_peer_simulating_this_controller(peer_1_scene.get_peer()));
+	NS_ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_1_scene.get_peer()));
 
 	// Now, remove the object controlled by the peer 2 from group 2.
 	server_scene.scene_sync->sync_group_remove_object(controlled_obj_3_id, group_2);
 
 	// Make sure the peer 2 controller is not simulating on peer 1 anylonger.
-	ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_1_scene.get_peer()));
+	NS_ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_1_scene.get_peer()));
 	// Also make sure the peer 2 is not simulating on peer 2.
-	ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_2_scene.get_peer()));
+	NS_ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_2_scene.get_peer()));
 
 	// Move the peer 2 to group 1
 	server_scene.scene_sync->sync_group_move_peer_to(peer_2_scene.get_peer(), group_1);
 
 	// Make sure that the peer 2 is not yet simulating the peer 2.
-	ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_2_scene.get_peer()));
+	NS_ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_2_scene.get_peer()));
 
 	// Verify that the controlled_3 is only on the global group.
 	assert_group(server_scene.scene_sync, controlled_obj_3_id, { NS::SyncGroupId::GLOBAL }, {}, { group_1, group_2, group_3 });
@@ -487,7 +487,7 @@ void test_sync_groups() {
 	server_scene.scene_sync->sync_group_add_object(controlled_obj_3_id, group_1, true);
 
 	// Make sure that the peer 2 is now simulating on peer 2.
-	ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_2_scene.get_peer()));
+	NS_ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_2_scene.get_peer()));
 
 	// -------------------------------- MOVING OBJECT FROM SIMULATED TO TRICKLED
 
@@ -501,7 +501,7 @@ void test_sync_groups() {
 	assert_group(server_scene.scene_sync, controlled_obj_3_id, { NS::SyncGroupId::GLOBAL }, { group_1 }, { group_2, group_3 });
 
 	// So, make sure the peer 2 is not simulating anymore on peer 2.
-	ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_2_scene.get_peer()));
+	NS_ASSERT_COND(!server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->server_is_peer_simulating_this_controller(peer_2_scene.get_peer()));
 
 	// The peer 2 is still networked despite not anylonger simulating.
 	assert_networked(server_scene.scene_sync, group_1, { peer_2_scene.get_peer() }, { server_scene.get_peer(), peer_1_scene.get_peer() });
@@ -538,9 +538,9 @@ void test_state_notify() {
 			server_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 0;
 			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 1;
 			peer_2_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 2;
-			ASSERT_COND(server_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 0);
-			ASSERT_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 1);
-			ASSERT_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 2);
+			NS_ASSERT_COND(server_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 0);
+			NS_ASSERT_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 1);
+			NS_ASSERT_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 2);
 
 			// Process exactly 1 time.
 			// NOTE: Processing the controller so the server receives the input right after.
@@ -552,9 +552,9 @@ void test_state_notify() {
 			// the snapshot right away: since the server snapshot is always
 			// at least one frame behind the client, we can assume that the
 			// client has applied the server correction.
-			ASSERT_COND(server_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 0);
-			ASSERT_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 0);
-			ASSERT_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 0);
+			NS_ASSERT_COND(server_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 0);
+			NS_ASSERT_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 0);
+			NS_ASSERT_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 0);
 		}
 
 		// Test with notify interval set to 0.5 seconds.
@@ -586,10 +586,10 @@ void test_state_notify() {
 			// the snapshot after some 0.5s: since the server snapshot is always
 			// at least one frame behind the client, we can assume that the
 			// client has applied the server correction.
-			ASSERT_COND(server_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3);
-			ASSERT_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3);
-			ASSERT_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3);
-			ASSERT_COND(time < 0.5);
+			NS_ASSERT_COND(server_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3);
+			NS_ASSERT_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3);
+			NS_ASSERT_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3);
+			NS_ASSERT_COND(time < 0.5);
 		}
 
 		// Test by making sure the Scene Sync is able to sync when the variable
@@ -611,9 +611,9 @@ void test_state_notify() {
 				peer_2_scene.process(delta);
 
 				// Still the value expected is `3`.
-				ASSERT_COND(server_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3);
-				ASSERT_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3);
-				ASSERT_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3);
+				NS_ASSERT_COND(server_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3);
+				NS_ASSERT_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3);
+				NS_ASSERT_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3);
 			} else {
 				// Note: the +1 is needed because the change is recored on the snapshot
 				// the scene sync is going to created on the next "process".
@@ -640,7 +640,7 @@ void test_state_notify() {
 
 					// However, since the `peer_2` doesn't have the local controller
 					// the server snapshot is expected to be applied right away.
-					ASSERT_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3);
+					NS_ASSERT_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3);
 
 					if (change_made_on_frame == server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index()) {
 						// Break as soon as the server reaches the same snapshot.
@@ -650,10 +650,10 @@ void test_state_notify() {
 
 				// Make sure the server is indeed at the same frame on which the
 				// client made the change.
-				ASSERT_COND(change_made_on_frame == server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index());
+				NS_ASSERT_COND(change_made_on_frame == server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index());
 
 				// and now is time to check for the `peer_1`.
-				ASSERT_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3);
+				NS_ASSERT_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3);
 			}
 		}
 
@@ -670,15 +670,15 @@ void test_state_notify() {
 				peer_2_scene.process(delta);
 			}
 
-			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ { 0 } });
-			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ { 1 } });
+			NS_ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ { 0 } });
+			NS_ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ { 1 } });
 			// NOTE: No need to check the peer_2, because it's not an authoritative controller anyway.
 		} else {
 			// Make sure the controllers have been processed at this point.
-			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex{ { 0 } });
-			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex::NONE);
-			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex{ { 0 } });
-			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex::NONE);
+			NS_ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex{ { 0 } });
+			NS_ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex::NONE);
+			NS_ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex{ { 0 } });
+			NS_ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex::NONE);
 
 			// NOTE: No need to check the peer_2, because it's not an authoritative controller anyway.
 		}
@@ -725,8 +725,8 @@ void test_processing_with_late_controller_registration() {
 
 	// Make sure the client can process right away as the NetId is networked
 	// already.
-	ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ { 0 } });
-	ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ { 1 } });
+	NS_ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ { 0 } });
+	NS_ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ { 1 } });
 }
 
 void test_snapshot_generation() {
@@ -791,16 +791,16 @@ void test_variable_change_event() {
 			peer_1_scene.process(delta);
 			peer_2_scene.process(delta);
 
-			ASSERT_COND(!is_server_change_event_triggered);
-			ASSERT_COND(is_p1_change_event_triggered);
-			ASSERT_COND(is_p2_change_event_triggered);
+			NS_ASSERT_COND(!is_server_change_event_triggered);
+			NS_ASSERT_COND(is_p1_change_event_triggered);
+			NS_ASSERT_COND(is_p2_change_event_triggered);
 
 			// Now check it's triggered on the server too.
 			// NOTE: processing after the clients, so we do not trigger the
 			//       snapshot that would trigger the event.
 			server_scene.process(delta);
 
-			ASSERT_COND(is_server_change_event_triggered);
+			NS_ASSERT_COND(is_server_change_event_triggered);
 
 			// Now reset everything and process again without chaning the values
 			is_server_change_event_triggered = false;
@@ -814,9 +814,9 @@ void test_variable_change_event() {
 			}
 
 			// Make sure the events are not called.
-			ASSERT_COND(!is_server_change_event_triggered);
-			ASSERT_COND(!is_p1_change_event_triggered);
-			ASSERT_COND(!is_p2_change_event_triggered);
+			NS_ASSERT_COND(!is_server_change_event_triggered);
+			NS_ASSERT_COND(!is_p1_change_event_triggered);
+			NS_ASSERT_COND(!is_p2_change_event_triggered);
 
 			// Now unregister the listeners.
 			server_scene.scene_sync->untrack_variable_changes(server_lh);
@@ -841,9 +841,9 @@ void test_variable_change_event() {
 			}
 
 			// and make sure the events are not being called.
-			ASSERT_COND(!is_server_change_event_triggered);
-			ASSERT_COND(!is_p1_change_event_triggered);
-			ASSERT_COND(!is_p2_change_event_triggered);
+			NS_ASSERT_COND(!is_server_change_event_triggered);
+			NS_ASSERT_COND(!is_p1_change_event_triggered);
+			NS_ASSERT_COND(!is_p2_change_event_triggered);
 		}
 
 		// Test the change event is triggered for the event `SYNC_RECONVER`
@@ -893,10 +893,10 @@ void test_variable_change_event() {
 			}
 
 			// Make sure the event on the server was not triggered
-			ASSERT_COND(!is_server_change_event_triggered);
+			NS_ASSERT_COND(!is_server_change_event_triggered);
 			// But it was on the peers.
-			ASSERT_COND(is_p1_change_event_triggered);
-			ASSERT_COND(is_p2_change_event_triggered);
+			NS_ASSERT_COND(is_p1_change_event_triggered);
+			NS_ASSERT_COND(is_p2_change_event_triggered);
 
 			// Now unregister the listeners.
 			server_scene.scene_sync->untrack_variable_changes(server_lh);
@@ -926,21 +926,21 @@ void test_variable_change_event() {
 			NS::ListenerHandle server_lh = server_scene.scene_sync->track_variable_changes(
 					server_obj_1_oh, "var_1", [&is_server_change_event_triggered, &server_scene](const std::vector<NS::VarData> &p_old_values) {
 						is_server_change_event_triggered = true;
-						ASSERT_COND(server_scene.scene_sync->is_resetted());
+						NS_ASSERT_COND(server_scene.scene_sync->is_resetted());
 					},
 					NetEventFlag::SYNC_RESET);
 
 			NS::ListenerHandle p1_lh = peer_1_scene.scene_sync->track_variable_changes(
 					p1_obj_1_oh, "var_1", [&is_p1_change_event_triggered, &peer_1_scene](const std::vector<NS::VarData> &p_old_values) {
 						is_p1_change_event_triggered = true;
-						ASSERT_COND(peer_1_scene.scene_sync->is_resetted());
+						NS_ASSERT_COND(peer_1_scene.scene_sync->is_resetted());
 					},
 					NetEventFlag::SYNC_RESET);
 
 			NS::ListenerHandle p2_lh = peer_2_scene.scene_sync->track_variable_changes(
 					p2_obj_1_oh, "var_1", [&is_p2_change_event_triggered, &peer_2_scene](const std::vector<NS::VarData> &p_old_values) {
 						is_p2_change_event_triggered = true;
-						ASSERT_COND(peer_2_scene.scene_sync->is_resetted());
+						NS_ASSERT_COND(peer_2_scene.scene_sync->is_resetted());
 					},
 					NetEventFlag::SYNC_RESET);
 
@@ -960,9 +960,9 @@ void test_variable_change_event() {
 
 			// Make sure the event was not triggered on anyone since we are
 			// skipping the rewinding.
-			ASSERT_COND(!is_server_change_event_triggered);
-			ASSERT_COND(!is_p1_change_event_triggered);
-			ASSERT_COND(!is_p2_change_event_triggered);
+			NS_ASSERT_COND(!is_server_change_event_triggered);
+			NS_ASSERT_COND(!is_p1_change_event_triggered);
+			NS_ASSERT_COND(!is_p2_change_event_triggered);
 
 			// Now set the var as rewinding.
 			server_scene.scene_sync->set_skip_rewinding(server_obj_1_oh, "var_1", false);
@@ -979,8 +979,8 @@ void test_variable_change_event() {
 			}
 
 			// Make sure the event was triggered now.
-			ASSERT_COND(is_p1_change_event_triggered);
-			ASSERT_COND(is_p2_change_event_triggered);
+			NS_ASSERT_COND(is_p1_change_event_triggered);
+			NS_ASSERT_COND(is_p2_change_event_triggered);
 
 			// Now unregister the listeners.
 			server_scene.scene_sync->untrack_variable_changes(server_lh);
@@ -1001,15 +1001,15 @@ void test_variable_change_event() {
 				peer_2_scene.process(delta);
 			}
 
-			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ { 0 } });
-			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ { 1 } });
+			NS_ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ { 0 } });
+			NS_ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() == NS::FrameIndex{ { 1 } });
 			// NOTE: No need to check the peer_2, because it's not an authoritative controller anyway.
 		} else {
 			// Make sure the controllers have been processed at this point.
-			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex{ { 0 } });
-			ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex::NONE);
-			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex{ { 0 } });
-			ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex::NONE);
+			NS_ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex{ { 0 } });
+			NS_ASSERT_COND(server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex::NONE);
+			NS_ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex{ { 0 } });
+			NS_ASSERT_COND(peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index() != NS::FrameIndex::NONE);
 
 			// NOTE: No need to check the peer_2, because it's not an authoritative controller anyway.
 		}
@@ -1035,9 +1035,9 @@ void test_no_network() {
 	const LocalNetworkedController *controlled_obj_1 = no_net_scene.add_object<LocalNetworkedController>("controller_1", no_net_scene.get_peer());
 
 	// Ensure the scene started as no net.
-	ASSERT_COND(no_net_scene.scene_sync->is_no_network());
+	NS_ASSERT_COND(no_net_scene.scene_sync->is_no_network());
 
-	ASSERT_COND(controlled_obj_1->position.data.f32 == 0);
+	NS_ASSERT_COND(controlled_obj_1->position.data.f32 == 0);
 
 	// Process 10 frames
 	const int frame_count = 10;
@@ -1047,7 +1047,7 @@ void test_no_network() {
 
 	// Ensure the character advanced exactly 10m.
 	const float one_meter = 1.0;
-	ASSERT_COND(NS::MathFunc::is_equal_approx(controlled_obj_1->position.data.f32, frame_count * delta * one_meter));
+	NS_ASSERT_COND(NS::MathFunc::is_equal_approx(controlled_obj_1->position.data.f32, frame_count * delta * one_meter));
 }
 
 void test_scene_synchronizer() {

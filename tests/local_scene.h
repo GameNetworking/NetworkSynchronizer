@@ -92,7 +92,7 @@ public:
 template <class T>
 T *LocalScene::add_object(const std::string &p_object_name, int p_authoritative_peer) {
 	const std::string name = p_object_name;
-	ASSERT_COND(objects.find(name) == objects.end());
+	NS_ASSERT_COND(objects.find(name) == objects.end());
 	std::shared_ptr<T> object = std::make_shared<T>();
 	objects[name] = object;
 	object->scene_owner = this;

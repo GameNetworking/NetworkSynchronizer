@@ -317,7 +317,7 @@ void test_data_buffer_string() {
 	std::string abc_1_r;
 	db.read(abc_1_r);
 
-	ASSERT_COND(abc_1 == abc_1_r);
+	NS_ASSERT_COND(abc_1 == abc_1_r);
 }
 
 void test_data_buffer_u16string() {
@@ -344,9 +344,9 @@ void test_data_buffer_u16string() {
 		std::u16string abc_3_r;
 		db.read(abc_3_r);
 
-		ASSERT_COND(abc_1 == abc_1_r);
-		ASSERT_COND(abc_2 == abc_2_r);
-		ASSERT_COND(abc_3 == abc_3_r);
+		NS_ASSERT_COND(abc_1 == abc_1_r);
+		NS_ASSERT_COND(abc_2 == abc_2_r);
+		NS_ASSERT_COND(abc_3 == abc_3_r);
 	}
 }
 
@@ -357,10 +357,10 @@ void test_data_buffer_bool() {
 		buffer.begin_write(0);
 		buffer.add_bool(true);
 
-		ASSERT_COND(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_BOOL, NS::DataBuffer::COMPRESSION_LEVEL_0));
+		NS_ASSERT_COND(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_BOOL, NS::DataBuffer::COMPRESSION_LEVEL_0));
 
 		buffer.begin_read();
-		ASSERT_COND_MSG(buffer.read_bool() == true, "Should read the same value");
+		NS_ASSERT_COND_MSG(buffer.read_bool() == true, "Should read the same value");
 	}
 	{
 		NS::DataBuffer buffer;
@@ -368,10 +368,10 @@ void test_data_buffer_bool() {
 		buffer.begin_write(0);
 		buffer.add_bool(false);
 
-		ASSERT_COND(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_BOOL, NS::DataBuffer::COMPRESSION_LEVEL_0));
+		NS_ASSERT_COND(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_BOOL, NS::DataBuffer::COMPRESSION_LEVEL_0));
 
 		buffer.begin_read();
-		ASSERT_COND_MSG(buffer.read_bool() == false, "Should read the same value");
+		NS_ASSERT_COND_MSG(buffer.read_bool() == false, "Should read the same value");
 	}
 }
 
@@ -388,14 +388,14 @@ void test_data_buffer_int() {
 			const std::int64_t value = values[i];
 
 			buffer.add_int(value, compression_level);
-			ASSERT_COND(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_INT, compression_level));
-			ASSERT_COND(!buffer.is_buffer_failed());
+			NS_ASSERT_COND(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_INT, compression_level));
+			NS_ASSERT_COND(!buffer.is_buffer_failed());
 
 			buffer.begin_read();
 			const std::int64_t read_value = buffer.read_int(compression_level);
 			const bool is_equal = read_value == value;
-			ASSERT_COND(!buffer.is_buffer_failed());
-			ASSERT_COND_MSG(is_equal, "Should read the same value. Written(" + std::to_string(value) + ") Read(" + std::to_string(read_value) + ")");
+			NS_ASSERT_COND(!buffer.is_buffer_failed());
+			NS_ASSERT_COND_MSG(is_equal, "Should read the same value. Written(" + std::to_string(value) + ") Read(" + std::to_string(read_value) + ")");
 		}
 	}
 }
@@ -413,14 +413,14 @@ void test_data_buffer_uint() {
 			const std::uint64_t value = values[i];
 
 			buffer.add_uint(value, compression_level);
-			ASSERT_COND(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_UINT, compression_level));
-			ASSERT_COND(!buffer.is_buffer_failed());
+			NS_ASSERT_COND(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_UINT, compression_level));
+			NS_ASSERT_COND(!buffer.is_buffer_failed());
 
 			buffer.begin_read();
 			const std::uint64_t read_value = buffer.read_uint(compression_level);
 			const bool is_equal = read_value == value;
-			ASSERT_COND(!buffer.is_buffer_failed());
-			ASSERT_COND_MSG(is_equal, "Should read the same value. Written(" + std::to_string(value) + ") Read(" + std::to_string(read_value) + ")");
+			NS_ASSERT_COND(!buffer.is_buffer_failed());
+			NS_ASSERT_COND_MSG(is_equal, "Should read the same value. Written(" + std::to_string(value) + ") Read(" + std::to_string(read_value) + ")");
 		}
 	}
 }
@@ -442,18 +442,18 @@ void test_data_buffer_real() {
 			buffer.add_real(value, compression_level);
 			if (std::is_same<T, float>::value && compression_level == NS::DataBuffer::COMPRESSION_LEVEL_0) {
 				// Fallback to compression level 1
-				ASSERT_COND(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_REAL, NS::DataBuffer::COMPRESSION_LEVEL_1));
+				NS_ASSERT_COND(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_REAL, NS::DataBuffer::COMPRESSION_LEVEL_1));
 			} else {
-				ASSERT_COND(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_REAL, compression_level));
+				NS_ASSERT_COND(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_REAL, compression_level));
 			}
-			ASSERT_COND(!buffer.is_buffer_failed());
+			NS_ASSERT_COND(!buffer.is_buffer_failed());
 
 			buffer.begin_read();
 			T read_value;
 			buffer.read_real(read_value, compression_level);
 			const bool is_equal = NS::MathFunc::is_equal_approx<T>(read_value, value, epsilon);
-			ASSERT_COND(!buffer.is_buffer_failed());
-			ASSERT_COND_MSG(is_equal, "Should read the same value. Written(" + std::to_string(value) + ") Read(" + std::to_string(read_value) + ")");
+			NS_ASSERT_COND(!buffer.is_buffer_failed());
+			NS_ASSERT_COND_MSG(is_equal, "Should read the same value. Written(" + std::to_string(value) + ") Read(" + std::to_string(read_value) + ")");
 		}
 	}
 }
@@ -473,14 +473,14 @@ void test_data_buffer_positive_unit_real() {
 			const T value = values[i];
 
 			buffer.add_positive_unit_real(value, compression_level);
-			ASSERT_COND(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_POSITIVE_UNIT_REAL, compression_level));
-			ASSERT_COND(!buffer.is_buffer_failed());
+			NS_ASSERT_COND(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_POSITIVE_UNIT_REAL, compression_level));
+			NS_ASSERT_COND(!buffer.is_buffer_failed());
 
 			buffer.begin_read();
 			const T read_value = buffer.read_positive_unit_real(compression_level);
 			const bool is_equal = NS::MathFunc::is_equal_approx<T>(read_value, value, epsilon);
-			ASSERT_COND(!buffer.is_buffer_failed());
-			ASSERT_COND_MSG(is_equal, "Should read the same value. Written(" + std::to_string(value) + ") Read(" + std::to_string(read_value) + ")");
+			NS_ASSERT_COND(!buffer.is_buffer_failed());
+			NS_ASSERT_COND_MSG(is_equal, "Should read the same value. Written(" + std::to_string(value) + ") Read(" + std::to_string(read_value) + ")");
 		}
 	}
 }
@@ -502,14 +502,14 @@ void test_data_buffer_unit_real() {
 				const T value = values[i] * factor;
 
 				buffer.add_unit_real(value, compression_level);
-				ASSERT_COND(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_UNIT_REAL, compression_level));
-				ASSERT_COND(!buffer.is_buffer_failed());
+				NS_ASSERT_COND(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_UNIT_REAL, compression_level));
+				NS_ASSERT_COND(!buffer.is_buffer_failed());
 
 				buffer.begin_read();
 				const T read_value = buffer.read_unit_real(compression_level);
 				const bool is_equal = NS::MathFunc::is_equal_approx<T>(read_value, value, epsilon);
-				ASSERT_COND(!buffer.is_buffer_failed());
-				ASSERT_COND_MSG(is_equal, "Should read the same value. Written(" + std::to_string(value) + ") Read(" + std::to_string(read_value) + ")");
+				NS_ASSERT_COND(!buffer.is_buffer_failed());
+				NS_ASSERT_COND_MSG(is_equal, "Should read the same value. Written(" + std::to_string(value) + ") Read(" + std::to_string(read_value) + ")");
 			}
 		}
 	}
@@ -532,19 +532,19 @@ void test_data_buffer_vector_2() {
 			buffer.add_vector2(value.first, value.second, compression_level);
 			if (std::is_same<T, float>::value && compression_level == NS::DataBuffer::COMPRESSION_LEVEL_0) {
 				// Fallback to compression level 1
-				ASSERT_COND(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_VECTOR2, NS::DataBuffer::COMPRESSION_LEVEL_1));
+				NS_ASSERT_COND(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_VECTOR2, NS::DataBuffer::COMPRESSION_LEVEL_1));
 			} else {
-				ASSERT_COND(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_VECTOR2, compression_level));
+				NS_ASSERT_COND(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_VECTOR2, compression_level));
 			}
-			ASSERT_COND(!buffer.is_buffer_failed());
+			NS_ASSERT_COND(!buffer.is_buffer_failed());
 
 			buffer.begin_read();
 			T read_x;
 			T read_y;
 			buffer.read_vector2(read_x, read_y, compression_level);
 			const bool is_equal = NS::MathFunc::is_equal_approx<T>(read_x, value.first, epsilon) && NS::MathFunc::is_equal_approx(read_y, value.second, epsilon);
-			ASSERT_COND(!buffer.is_buffer_failed());
-			ASSERT_COND_MSG(is_equal, "Should read the same value.");
+			NS_ASSERT_COND(!buffer.is_buffer_failed());
+			NS_ASSERT_COND_MSG(is_equal, "Should read the same value.");
 		}
 	}
 }
@@ -564,16 +564,16 @@ void test_data_buffer_normalized_vector_2() {
 			const std::pair<T, T> value = values[i];
 
 			buffer.add_normalized_vector2(value.first, value.second, compression_level);
-			ASSERT_COND(!buffer.is_buffer_failed());
-			ASSERT_COND(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_NORMALIZED_VECTOR2, compression_level));
+			NS_ASSERT_COND(!buffer.is_buffer_failed());
+			NS_ASSERT_COND(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_NORMALIZED_VECTOR2, compression_level));
 
 			buffer.begin_read();
 			T read_x;
 			T read_y;
 			buffer.read_normalized_vector2(read_x, read_y, compression_level);
 			const bool is_equal = NS::MathFunc::is_equal_approx<T>(read_x, value.first, epsilon) && NS::MathFunc::is_equal_approx(read_y, value.second, epsilon);
-			ASSERT_COND(!buffer.is_buffer_failed());
-			ASSERT_COND_MSG(is_equal, "Should read the same value.");
+			NS_ASSERT_COND(!buffer.is_buffer_failed());
+			NS_ASSERT_COND_MSG(is_equal, "Should read the same value.");
 		}
 	}
 }
@@ -595,11 +595,11 @@ void test_data_buffer_vector_3() {
 			buffer.add_vector3(std::get<0>(value), std::get<1>(value), std::get<2>(value), compression_level);
 			if (std::is_same<T, float>::value && compression_level == NS::DataBuffer::COMPRESSION_LEVEL_0) {
 				// Fallback to compression level 1
-				ASSERT_COND(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_VECTOR3, NS::DataBuffer::COMPRESSION_LEVEL_1));
+				NS_ASSERT_COND(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_VECTOR3, NS::DataBuffer::COMPRESSION_LEVEL_1));
 			} else {
-				ASSERT_COND(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_VECTOR3, compression_level));
+				NS_ASSERT_COND(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_VECTOR3, compression_level));
 			}
-			ASSERT_COND(!buffer.is_buffer_failed());
+			NS_ASSERT_COND(!buffer.is_buffer_failed());
 
 			buffer.begin_read();
 			T read_x;
@@ -608,8 +608,8 @@ void test_data_buffer_vector_3() {
 			buffer.read_vector3(read_x, read_y, read_z, compression_level);
 			const bool is_equal =
 					NS::MathFunc::is_equal_approx<T>(read_x, std::get<0>(value), epsilon) && NS::MathFunc::is_equal_approx(read_y, std::get<1>(value), epsilon) && NS::MathFunc::is_equal_approx(read_z, std::get<2>(value), epsilon);
-			ASSERT_COND(!buffer.is_buffer_failed());
-			ASSERT_COND_MSG(is_equal, "Should read the same value.");
+			NS_ASSERT_COND(!buffer.is_buffer_failed());
+			NS_ASSERT_COND_MSG(is_equal, "Should read the same value.");
 		}
 	}
 }
@@ -629,8 +629,8 @@ void test_data_buffer_normalized_vector_3() {
 			const std::tuple<T, T, T> value = values[i];
 
 			buffer.add_normalized_vector3(std::get<0>(value), std::get<1>(value), std::get<2>(value), compression_level);
-			ASSERT_COND(!buffer.is_buffer_failed());
-			ASSERT_COND(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_NORMALIZED_VECTOR3, compression_level));
+			NS_ASSERT_COND(!buffer.is_buffer_failed());
+			NS_ASSERT_COND(buffer.get_bit_offset() == buffer.get_bit_taken(NS::DataBuffer::DATA_TYPE_NORMALIZED_VECTOR3, compression_level));
 
 			buffer.begin_read();
 			T read_x;
@@ -638,8 +638,8 @@ void test_data_buffer_normalized_vector_3() {
 			T read_z;
 			buffer.read_normalized_vector3(read_x, read_y, read_z, compression_level);
 			const bool is_equal = NS::MathFunc::is_equal_approx<T>(read_x, std::get<0>(value), epsilon) && NS::MathFunc::is_equal_approx(read_y, std::get<1>(value), epsilon) && NS::MathFunc::is_equal_approx(read_z, std::get<2>(value), epsilon);
-			ASSERT_COND(!buffer.is_buffer_failed());
-			ASSERT_COND_MSG(is_equal, "Should read the same value.");
+			NS_ASSERT_COND(!buffer.is_buffer_failed());
+			NS_ASSERT_COND_MSG(is_equal, "Should read the same value.");
 		}
 	}
 }
@@ -651,24 +651,24 @@ void test_data_buffer_bits() {
 	buffer.add_bool(false);
 	buffer.add_bool(true);
 	buffer.add_bool(true);
-	ASSERT_COND(!buffer.is_buffer_failed());
+	NS_ASSERT_COND(!buffer.is_buffer_failed());
 
 	const std::vector<uint8_t> bytes = byte_values();
 	buffer.add_bits(bytes.data(), int(bytes.size() * 8));
-	ASSERT_COND(!buffer.is_buffer_failed());
+	NS_ASSERT_COND(!buffer.is_buffer_failed());
 
 	buffer.begin_read();
 	buffer.read_bool();
 	buffer.read_bool();
 	buffer.read_bool();
-	ASSERT_COND(!buffer.is_buffer_failed());
+	NS_ASSERT_COND(!buffer.is_buffer_failed());
 
 	std::vector<uint8_t> read_bytes;
 	read_bytes.resize(bytes.size());
 	buffer.read_bits(read_bytes.data(), int(bytes.size() * 8));
-	ASSERT_COND(!buffer.is_buffer_failed());
+	NS_ASSERT_COND(!buffer.is_buffer_failed());
 
-	ASSERT_COND(std::equal(bytes.begin(), bytes.end(), read_bytes.begin()));
+	NS_ASSERT_COND(std::equal(bytes.begin(), bytes.end(), read_bytes.begin()));
 }
 
 void test_data_buffer_data_buffer() {
@@ -684,13 +684,13 @@ void test_data_buffer_data_buffer() {
 		buffer.add_bool(false);
 		buffer.add_bool(true);
 		buffer.add_bool(true);
-		ASSERT_COND(!buffer.is_buffer_failed());
+		NS_ASSERT_COND(!buffer.is_buffer_failed());
 
 		buffer.add_bits(bytes.data(), int(bytes.size() * 8));
-		ASSERT_COND(!buffer.is_buffer_failed());
+		NS_ASSERT_COND(!buffer.is_buffer_failed());
 
 		main_buffer.add_data_buffer(buffer);
-		ASSERT_COND(!main_buffer.is_buffer_failed());
+		NS_ASSERT_COND(!main_buffer.is_buffer_failed());
 	}
 
 	{
@@ -699,20 +699,20 @@ void test_data_buffer_data_buffer() {
 
 		main_buffer.begin_read();
 		main_buffer.read_data_buffer(buffer);
-		ASSERT_COND(!main_buffer.is_buffer_failed());
+		NS_ASSERT_COND(!main_buffer.is_buffer_failed());
 
 		buffer.begin_read();
 		buffer.read_bool();
 		buffer.read_bool();
 		buffer.read_bool();
-		ASSERT_COND(!buffer.is_buffer_failed());
+		NS_ASSERT_COND(!buffer.is_buffer_failed());
 
 		std::vector<uint8_t> read_bytes;
 		read_bytes.resize(bytes.size());
 		buffer.read_bits(read_bytes.data(), int(bytes.size() * 8));
-		ASSERT_COND(!buffer.is_buffer_failed());
+		NS_ASSERT_COND(!buffer.is_buffer_failed());
 
-		ASSERT_COND(std::equal(bytes.begin(), bytes.end(), read_bytes.begin()));
+		NS_ASSERT_COND(std::equal(bytes.begin(), bytes.end(), read_bytes.begin()));
 	}
 }
 
@@ -723,18 +723,18 @@ void test_data_buffer_seek() {
 	buffer.add_bool(false);
 
 	buffer.seek(-1);
-	ASSERT_COND_MSG(buffer.get_bit_offset() == 2, "Bit offset should fail for negative values");
+	NS_ASSERT_COND_MSG(buffer.get_bit_offset() == 2, "Bit offset should fail for negative values");
 
 	buffer.begin_read();
-	ASSERT_COND(buffer.get_bit_offset() == 0);
+	NS_ASSERT_COND(buffer.get_bit_offset() == 0);
 
 	buffer.seek(1);
-	ASSERT_COND_MSG(buffer.get_bit_offset() == 1, "Bit offset should be 1 after seek to 1");
-	ASSERT_COND_MSG(buffer.read_bool() == false, "Should read false at position 1");
+	NS_ASSERT_COND_MSG(buffer.get_bit_offset() == 1, "Bit offset should be 1 after seek to 1");
+	NS_ASSERT_COND_MSG(buffer.read_bool() == false, "Should read false at position 1");
 
 	buffer.seek(0);
-	ASSERT_COND_MSG(buffer.get_bit_offset() == 0, "Bit offset should be 0 after seek to 0");
-	ASSERT_COND_MSG(buffer.read_bool() == true, "Should read true at position 0");
+	NS_ASSERT_COND_MSG(buffer.get_bit_offset() == 0, "Bit offset should be 0 after seek to 0");
+	NS_ASSERT_COND_MSG(buffer.read_bool() == true, "Should read true at position 0");
 }
 
 void test_data_buffer_metadata() {
@@ -748,11 +748,11 @@ void test_data_buffer_metadata() {
 		buffer.add_bool(metadata[i]);
 		buffer.add_bool(value[i]);
 		buffer.begin_read();
-		ASSERT_COND_MSG(buffer.read_bool() == metadata[i], "Should return correct metadata");
-		ASSERT_COND_MSG(buffer.read_bool() == value[i], "Should return correct value after metadata");
-		ASSERT_COND_MSG(buffer.get_metadata_size() == metadata_size, "Metadata size should be equal to expected");
-		ASSERT_COND_MSG(buffer.size() == NS::DataBuffer::get_bit_taken(NS::DataBuffer::DATA_TYPE_BOOL, NS::DataBuffer::COMPRESSION_LEVEL_0), "Size should be equal to expected");
-		ASSERT_COND_MSG(buffer.total_size() == NS::DataBuffer::get_bit_taken(NS::DataBuffer::DATA_TYPE_BOOL, NS::DataBuffer::COMPRESSION_LEVEL_0) + metadata_size, "Total size should be equal to expected");
+		NS_ASSERT_COND_MSG(buffer.read_bool() == metadata[i], "Should return correct metadata");
+		NS_ASSERT_COND_MSG(buffer.read_bool() == value[i], "Should return correct value after metadata");
+		NS_ASSERT_COND_MSG(buffer.get_metadata_size() == metadata_size, "Metadata size should be equal to expected");
+		NS_ASSERT_COND_MSG(buffer.size() == NS::DataBuffer::get_bit_taken(NS::DataBuffer::DATA_TYPE_BOOL, NS::DataBuffer::COMPRESSION_LEVEL_0), "Size should be equal to expected");
+		NS_ASSERT_COND_MSG(buffer.total_size() == NS::DataBuffer::get_bit_taken(NS::DataBuffer::DATA_TYPE_BOOL, NS::DataBuffer::COMPRESSION_LEVEL_0) + metadata_size, "Total size should be equal to expected");
 	}
 }
 
@@ -763,7 +763,7 @@ void test_data_buffer_zero() {
 	buffer.add_int(-1, compression);
 	buffer.zero();
 	buffer.begin_read();
-	ASSERT_COND_MSG(buffer.read_int(compression) == 0, "Should return 0");
+	NS_ASSERT_COND_MSG(buffer.read_int(compression) == 0, "Should return 0");
 }
 
 void test_data_buffer_shrinking() {
@@ -775,14 +775,14 @@ void test_data_buffer_shrinking() {
 	const int original_size = buffer.total_size();
 
 	buffer.shrink_to(0, original_size + 1);
-	ASSERT_COND_MSG(buffer.total_size() == original_size, "Shrinking to a larger size should fail.");
+	NS_ASSERT_COND_MSG(buffer.total_size() == original_size, "Shrinking to a larger size should fail.");
 
 	buffer.shrink_to(0, original_size - 8);
-	ASSERT_COND_MSG(buffer.total_size() == original_size - 8, "Shrinking by 1 byte should succeed.");
-	ASSERT_COND_MSG(buffer.get_buffer().size_in_bits() == original_size, "Buffer size after shrinking by 1 byte should be the same.");
+	NS_ASSERT_COND_MSG(buffer.total_size() == original_size - 8, "Shrinking by 1 byte should succeed.");
+	NS_ASSERT_COND_MSG(buffer.get_buffer().size_in_bits() == original_size, "Buffer size after shrinking by 1 byte should be the same.");
 
 	buffer.dry();
-	ASSERT_COND_MSG(buffer.get_buffer().size_in_bits() == original_size - 8, "Buffer size after dry should changed to the smallest posiible.");
+	NS_ASSERT_COND_MSG(buffer.get_buffer().size_in_bits() == original_size - 8, "Buffer size after dry should changed to the smallest posiible.");
 }
 
 void test_data_buffer_skip() {
@@ -794,44 +794,44 @@ void test_data_buffer_skip() {
 
 	buffer.begin_read();
 	buffer.seek(NS::DataBuffer::get_bit_taken(NS::DataBuffer::DATA_TYPE_BOOL, NS::DataBuffer::COMPRESSION_LEVEL_0));
-	ASSERT_COND_MSG(buffer.read_bool() == value, "Should read the same value");
+	NS_ASSERT_COND_MSG(buffer.read_bool() == value, "Should read the same value");
 }
 
 void test_data_buffer_writing_failing() {
 	{
 		NS::DataBuffer buffer;
 		buffer.begin_read();
-		ASSERT_COND(!buffer.is_buffer_failed());
+		NS_ASSERT_COND(!buffer.is_buffer_failed());
 		buffer.add_bool(true);
-		ASSERT_COND(buffer.is_buffer_failed());
+		NS_ASSERT_COND(buffer.is_buffer_failed());
 	}
 	{
 		NS::DataBuffer buffer;
 		buffer.begin_read();
-		ASSERT_COND(!buffer.is_buffer_failed());
+		NS_ASSERT_COND(!buffer.is_buffer_failed());
 		buffer.add_int(1, NS::DataBuffer::COMPRESSION_LEVEL_0);
-		ASSERT_COND(buffer.is_buffer_failed());
+		NS_ASSERT_COND(buffer.is_buffer_failed());
 	}
 	{
 		NS::DataBuffer buffer;
 		buffer.begin_read();
-		ASSERT_COND(!buffer.is_buffer_failed());
+		NS_ASSERT_COND(!buffer.is_buffer_failed());
 		buffer.add_uint(1, NS::DataBuffer::COMPRESSION_LEVEL_0);
-		ASSERT_COND(buffer.is_buffer_failed());
+		NS_ASSERT_COND(buffer.is_buffer_failed());
 	}
 	{
 		NS::DataBuffer buffer;
 		buffer.begin_read();
-		ASSERT_COND(!buffer.is_buffer_failed());
+		NS_ASSERT_COND(!buffer.is_buffer_failed());
 		buffer.add_normalized_vector2(0.f, 0.f, NS::DataBuffer::COMPRESSION_LEVEL_0);
-		ASSERT_COND(buffer.is_buffer_failed());
+		NS_ASSERT_COND(buffer.is_buffer_failed());
 	}
 	{
 		NS::DataBuffer buffer;
 		buffer.begin_read();
-		ASSERT_COND(!buffer.is_buffer_failed());
+		NS_ASSERT_COND(!buffer.is_buffer_failed());
 		buffer.add_normalized_vector3(0.f, 0.f, 0.f, NS::DataBuffer::COMPRESSION_LEVEL_0);
-		ASSERT_COND(buffer.is_buffer_failed());
+		NS_ASSERT_COND(buffer.is_buffer_failed());
 	}
 }
 
@@ -839,39 +839,39 @@ void test_data_buffer_reading_failing() {
 	{
 		NS::DataBuffer buffer;
 		buffer.begin_write(0);
-		ASSERT_COND(!buffer.is_buffer_failed());
+		NS_ASSERT_COND(!buffer.is_buffer_failed());
 		buffer.read_bool();
-		ASSERT_COND(buffer.is_buffer_failed());
+		NS_ASSERT_COND(buffer.is_buffer_failed());
 	}
 	{
 		NS::DataBuffer buffer;
 		buffer.begin_write(0);
-		ASSERT_COND(!buffer.is_buffer_failed());
+		NS_ASSERT_COND(!buffer.is_buffer_failed());
 		buffer.read_int(NS::DataBuffer::COMPRESSION_LEVEL_0);
-		ASSERT_COND(buffer.is_buffer_failed());
+		NS_ASSERT_COND(buffer.is_buffer_failed());
 	}
 	{
 		NS::DataBuffer buffer;
 		buffer.begin_write(0);
-		ASSERT_COND(!buffer.is_buffer_failed());
+		NS_ASSERT_COND(!buffer.is_buffer_failed());
 		buffer.read_uint(NS::DataBuffer::COMPRESSION_LEVEL_0);
-		ASSERT_COND(buffer.is_buffer_failed());
+		NS_ASSERT_COND(buffer.is_buffer_failed());
 	}
 	{
 		NS::DataBuffer buffer;
 		buffer.begin_write(0);
-		ASSERT_COND(!buffer.is_buffer_failed());
+		NS_ASSERT_COND(!buffer.is_buffer_failed());
 		double x, y;
 		buffer.read_normalized_vector2(x, y, NS::DataBuffer::COMPRESSION_LEVEL_0);
-		ASSERT_COND(buffer.is_buffer_failed());
+		NS_ASSERT_COND(buffer.is_buffer_failed());
 	}
 	{
 		NS::DataBuffer buffer;
 		buffer.begin_write(0);
-		ASSERT_COND(!buffer.is_buffer_failed());
+		NS_ASSERT_COND(!buffer.is_buffer_failed());
 		double x, y, z;
 		buffer.read_normalized_vector3(x, y, z, NS::DataBuffer::COMPRESSION_LEVEL_0);
-		ASSERT_COND(buffer.is_buffer_failed());
+		NS_ASSERT_COND(buffer.is_buffer_failed());
 	}
 }
 

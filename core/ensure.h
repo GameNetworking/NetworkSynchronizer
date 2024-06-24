@@ -113,19 +113,19 @@ void _ns_print_flush_stdout();
 		continue;                                                                                                                                 \
 	}
 
-#define ASSERT_NO_ENTRY()                                                                                                    \
+#define NS_ASSERT_NO_ENTRY()                                                                                                    \
 	_ns_print_code_message(FUNCTION_STR, __FILE__, __LINE__, "FATAL: Ne entry triggered.", "", NS::PrintMessageType::ERROR); \
 	_ns_print_flush_stdout();                                                                                                \
 	GENERATE_TRAP();
 
-#define ASSERT_NO_ENTRY_MSG(m_msg)                                                                                              \
+#define NS_ASSERT_NO_ENTRY_MSG(m_msg)                                                                                              \
 	_ns_print_code_message(FUNCTION_STR, __FILE__, __LINE__, "FATAL: Ne entry triggered.", m_msg, NS::PrintMessageType::ERROR); \
 	_ns_print_flush_stdout();                                                                                                   \
 	GENERATE_TRAP();
 
 /// Ensures `m_cond` is true.
 /// If `m_cond` is true, the application crashes.
-#define ASSERT_COND(m_cond)                                                                                                                          \
+#define NS_ASSERT_COND(m_cond)                                                                                                                          \
 	if make_likely (m_cond) {                                                                                                                        \
 	} else {                                                                                                                                         \
 		_ns_print_code_message(FUNCTION_STR, __FILE__, __LINE__, "FATAL: Condition \"" _STR(m_cond) "\" is false", "", NS::PrintMessageType::ERROR); \
@@ -135,7 +135,7 @@ void _ns_print_flush_stdout();
 
 /// Ensures `m_cond` is true.
 /// If `m_cond` is true, prints `m_msg` and the application crashes.
-#define ASSERT_COND_MSG(m_cond, m_msg)                                                                                                                   \
+#define NS_ASSERT_COND_MSG(m_cond, m_msg)                                                                                                                   \
 	if make_likely (m_cond) {                                                                                                                            \
 	} else {                                                                                                                                             \
 		_ns_print_code_message(FUNCTION_STR, __FILE__, __LINE__, "FATAL: Condition \"" _STR(m_cond) "\" is false.", m_msg, NS::PrintMessageType::ERROR); \

@@ -47,8 +47,8 @@ VarDescriptor::VarDescriptor(
 	enabled(p_enabled) {
 	var.name = p_name;
 	var.value = std::move(p_val);
-	ASSERT_COND_MSG(set_func, "Please ensure that all the functions have a valid set function.");
-	ASSERT_COND_MSG(get_func, "Please ensure that all the functions have a valid get function.");
+	NS_ASSERT_COND_MSG(set_func, "Please ensure that all the functions have a valid set function.");
+	NS_ASSERT_COND_MSG(get_func, "Please ensure that all the functions have a valid get function.");
 }
 
 bool VarDescriptor::operator<(const VarDescriptor &p_other) const {

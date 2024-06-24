@@ -122,7 +122,7 @@ public: // ---------------------------------------------------------------- APIs
 		NS_ENSURE_MSG(rpc_id < rpcs_info.size(), "The received rpc contains a broken RPC ID: `" + std::to_string(rpc_id) + "`, the `rpcs_info` size is `" + std::to_string(rpcs_info.size()) + "`.");
 		// This can't be triggered because the rpc always points to a valid
 		// function at this point.
-		ASSERT_COND(rpcs_info[rpc_id].func);
+		NS_ASSERT_COND(rpcs_info[rpc_id].func);
 		rpcs_info[rpc_id].func(p_db);
 	}
 
@@ -160,7 +160,7 @@ private: // ------------------------------------------------------- RPC internal
 template <typename... ARGs>
 void RpcHandle<ARGs...>::rpc(NetworkInterface &p_interface, int p_peer_id, ARGs... p_args) const {
 	NS_ENSURE(p_interface.rpcs_info.size() > index);
-	ASSERT_COND_MSG(p_interface.get_local_peer_id() != p_peer_id, "Sending an rpc to self is not allowed.");
+	NS_ASSERT_COND_MSG(p_interface.get_local_peer_id() != p_peer_id, "Sending an rpc to self is not allowed.");
 
 	DataBuffer db;
 	db.begin_write(0);

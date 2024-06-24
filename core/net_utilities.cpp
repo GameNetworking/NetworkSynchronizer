@@ -181,7 +181,7 @@ void replace_nodes_impl(
 
 #ifdef NS_DEBUG_ENABLED
 			// Make sure there are no duplicates:
-			ASSERT_COND_MSG(!NS::VecFunc::has(p_nodes_to_add, r_sync_group_nodes[i].od), "The function `replace_nodes` must receive unique nodes on each array. Make sure not to add duplicates.");
+			NS_ASSERT_COND_MSG(!NS::VecFunc::has(p_nodes_to_add, r_sync_group_nodes[i].od), "The function `replace_nodes` must receive unique nodes on each array. Make sure not to add duplicates.");
 #endif
 		}
 	}
@@ -191,7 +191,7 @@ void replace_nodes_impl(
 		NS::ObjectData *od = p_nodes_to_add[i].od;
 
 #ifdef NS_DEBUG_ENABLED
-		ASSERT_COND_MSG(!NS::VecFunc::has(r_sync_group_nodes, T(od)), "[FATAL] This is impossible to trigger, because the above loop cleaned this.");
+		NS_ASSERT_COND_MSG(!NS::VecFunc::has(r_sync_group_nodes, T(od)), "[FATAL] This is impossible to trigger, because the above loop cleaned this.");
 #endif
 
 		const std::size_t index = p_sync_group.add_new_sync_object(od, p_is_simulated);

@@ -32,7 +32,7 @@ void LocalNetwork::start_as_server() {
 }
 
 void LocalNetwork::start_as_client(LocalNetwork &p_server_network) {
-	ASSERT_COND(p_server_network.is_server);
+	NS_ASSERT_COND(p_server_network.is_server);
 	is_server = false;
 	is_no_net = false;
 
@@ -62,16 +62,16 @@ void LocalNetwork::start_as_client(LocalNetwork &p_server_network) {
 }
 
 void LocalNetwork::register_object(LocalNetworkInterface &p_interface) {
-	ASSERT_COND(registered_objects.find(p_interface.get_owner_name()) == registered_objects.end());
+	NS_ASSERT_COND(registered_objects.find(p_interface.get_owner_name()) == registered_objects.end());
 	registered_objects.insert(std::make_pair(p_interface.get_owner_name(), &p_interface));
 }
 
 void LocalNetwork::rpc_send(std::string p_object_name, int p_peer_recipient, bool p_reliable, NS::DataBuffer &&p_data_buffer) {
 	auto object_map_it = registered_objects.find(p_object_name);
-	ASSERT_COND(object_map_it != registered_objects.end());
+	NS_ASSERT_COND(object_map_it != registered_objects.end());
 
 	LocalNetworkInterface *object_net_interface = object_map_it->second;
-	ASSERT_COND(object_net_interface != nullptr);
+	NS_ASSERT_COND(object_net_interface != nullptr);
 
 	if (!p_reliable && network_properties && network_properties->packet_loss > frand()) {
 		// Simulating packet loss by dropping this packet right away.
@@ -114,26 +114,26 @@ void LocalNetwork::process(float p_delta) {
 }
 
 void LocalNetwork::rpc_send_internal(const std::shared_ptr<PendingPacket> &p_packet) {
-	ASSERT_COND_MSG(p_packet->peer_recipient != get_peer(), "During the integration test was generated an RPC to self. This is a bug.");
+	NS_ASSERT_COND_MSG(p_packet->peer_recipient != get_peer(), "During the integration test was generated an RPC to self. This is a bug.");
 
 	auto recipient = connected_peers.find(p_packet->peer_recipient);
-	ASSERT_COND(recipient != connected_peers.end());
+	NS_ASSERT_COND(recipient != connected_peers.end());
 
 	auto object_map_it = registered_objects.find(p_packet->object_name);
-	ASSERT_COND(object_map_it != registered_objects.end());
+	NS_ASSERT_COND(object_map_it != registered_objects.end());
 
 	LocalNetworkInterface *object_net_interface = object_map_it->second;
-	ASSERT_COND(object_net_interface);
+	NS_ASSERT_COND(object_net_interface);
 
 	recipient->second->rpc_receive_internal(this_peer, p_packet);
 }
 
 void LocalNetwork::rpc_receive_internal(int p_peer_sender, const std::shared_ptr<PendingPacket> &p_packet) {
 	auto object_map_it = registered_objects.find(p_packet->object_name);
-	ASSERT_COND(object_map_it != registered_objects.end());
+	NS_ASSERT_COND(object_map_it != registered_objects.end());
 
 	LocalNetworkInterface *object_net_interface = object_map_it->second;
-	ASSERT_COND(object_net_interface != nullptr);
+	NS_ASSERT_COND(object_net_interface != nullptr);
 
 	object_net_interface->rpc_receive(
 			p_peer_sender,
@@ -226,13 +226,13 @@ void NS_Test::test_local_network() {
 	const auto rpc_handle_server = server_obj_1.rpc_config(
 			std::function<void(bool, int, float, const std::vector<std::uint8_t> &)>([&server_rpc_executed_by, &server_obj_1](bool a, int b, float c, const std::vector<uint8_t> &e) {
 				server_rpc_executed_by.push_back(server_obj_1.rpc_get_sender());
-				ASSERT_COND(a == true);
-				ASSERT_COND(b == 22);
-				ASSERT_COND(c == 44.0);
-				ASSERT_COND(e.size() == 3);
-				ASSERT_COND(e[0] == 1);
-				ASSERT_COND(e[1] == 2);
-				ASSERT_COND(e[2] == 3);
+				NS_ASSERT_COND(a == true);
+				NS_ASSERT_COND(b == 22);
+				NS_ASSERT_COND(c == 44.0);
+				NS_ASSERT_COND(e.size() == 3);
+				NS_ASSERT_COND(e[0] == 1);
+				NS_ASSERT_COND(e[1] == 2);
+				NS_ASSERT_COND(e[2] == 3);
 			}),
 			false,
 			false);
@@ -244,13 +244,13 @@ void NS_Test::test_local_network() {
 	const auto rpc_handle_1_obj_1 = peer_1_obj_1.rpc_config(
 			std::function<void(bool, int, float, const std::vector<std::uint8_t> &)>([&peer_1_rpc_executed_by, &peer_1_obj_1](bool a, int b, float c, const std::vector<std::uint8_t> &e) {
 				peer_1_rpc_executed_by.push_back(peer_1_obj_1.rpc_get_sender());
-				ASSERT_COND(a == true);
-				ASSERT_COND(b == 22);
-				ASSERT_COND(c == 44.0);
-				ASSERT_COND(e.size() == 3);
-				ASSERT_COND(e[0] == 1);
-				ASSERT_COND(e[1] == 2);
-				ASSERT_COND(e[2] == 3);
+				NS_ASSERT_COND(a == true);
+				NS_ASSERT_COND(b == 22);
+				NS_ASSERT_COND(c == 44.0);
+				NS_ASSERT_COND(e.size() == 3);
+				NS_ASSERT_COND(e[0] == 1);
+				NS_ASSERT_COND(e[1] == 2);
+				NS_ASSERT_COND(e[2] == 3);
 			}),
 			false,
 			false);
@@ -268,8 +268,8 @@ void NS_Test::test_local_network() {
 			false,
 			false);
 
-	ASSERT_COND(rpc_handle_server.get_index() == rpc_handle_1_obj_1.get_index());
-	ASSERT_COND(rpc_handle_2_obj_1.get_index() == rpc_handle_1_obj_1.get_index());
+	NS_ASSERT_COND(rpc_handle_server.get_index() == rpc_handle_1_obj_1.get_index());
+	NS_ASSERT_COND(rpc_handle_2_obj_1.get_index() == rpc_handle_1_obj_1.get_index());
 
 	std::vector<int> server_connection_event;
 	server_obj_1.start_listening_peer_connection(
@@ -298,35 +298,35 @@ void NS_Test::test_local_network() {
 	server.start_as_server();
 	peer_1.start_as_client(server);
 	peer_2.start_as_client(server);
-	ASSERT_COND(server.get_peer() == 1);
-	ASSERT_COND(peer_1.get_peer() != server.get_peer());
-	ASSERT_COND(peer_2.get_peer() != server.get_peer());
-	ASSERT_COND(peer_1.get_peer() != peer_2.get_peer());
-	ASSERT_COND(peer_1.get_peer() != 0);
-	ASSERT_COND(peer_2.get_peer() != 0);
+	NS_ASSERT_COND(server.get_peer() == 1);
+	NS_ASSERT_COND(peer_1.get_peer() != server.get_peer());
+	NS_ASSERT_COND(peer_2.get_peer() != server.get_peer());
+	NS_ASSERT_COND(peer_1.get_peer() != peer_2.get_peer());
+	NS_ASSERT_COND(peer_1.get_peer() != 0);
+	NS_ASSERT_COND(peer_2.get_peer() != 0);
 
 	// Check the events were executed.
-	ASSERT_COND(server_connection_event[0] == peer_1.get_peer());
-	ASSERT_COND(server_connection_event[1] == peer_2.get_peer());
-	ASSERT_COND(peer_1_connection_event[0] == server.get_peer());
-	ASSERT_COND(peer_2_connection_event[0] == server.get_peer());
+	NS_ASSERT_COND(server_connection_event[0] == peer_1.get_peer());
+	NS_ASSERT_COND(server_connection_event[1] == peer_2.get_peer());
+	NS_ASSERT_COND(peer_1_connection_event[0] == server.get_peer());
+	NS_ASSERT_COND(peer_2_connection_event[0] == server.get_peer());
 
 	// Check the connected peers list is valid
 	{
 		std::vector<int> connected_peers;
 		server_obj_1.fetch_connected_peers(connected_peers);
-		ASSERT_COND(NS::VecFunc::has(connected_peers, peer_1.get_peer()));
-		ASSERT_COND(NS::VecFunc::has(connected_peers, peer_2.get_peer()));
+		NS_ASSERT_COND(NS::VecFunc::has(connected_peers, peer_1.get_peer()));
+		NS_ASSERT_COND(NS::VecFunc::has(connected_peers, peer_2.get_peer()));
 
 		connected_peers.clear();
 		peer_1_obj_1.fetch_connected_peers(connected_peers);
-		ASSERT_COND(NS::VecFunc::has(connected_peers, server.get_peer()));
-		ASSERT_COND(NS::VecFunc::has(connected_peers, peer_2.get_peer()));
+		NS_ASSERT_COND(NS::VecFunc::has(connected_peers, server.get_peer()));
+		NS_ASSERT_COND(NS::VecFunc::has(connected_peers, peer_2.get_peer()));
 
 		connected_peers.clear();
 		peer_2_obj_1.fetch_connected_peers(connected_peers);
-		ASSERT_COND(NS::VecFunc::has(connected_peers, server.get_peer()));
-		ASSERT_COND(NS::VecFunc::has(connected_peers, peer_1.get_peer()));
+		NS_ASSERT_COND(NS::VecFunc::has(connected_peers, server.get_peer()));
+		NS_ASSERT_COND(NS::VecFunc::has(connected_peers, peer_1.get_peer()));
 	}
 
 	std::vector<std::uint8_t> vec;
@@ -337,7 +337,7 @@ void NS_Test::test_local_network() {
 	rpc_handle_server.rpc(peer_1_obj_1, peer_1_obj_1.get_server_peer(), true, 22, 44.0f, vec);
 
 	// Make sure the rpc are not yet received.
-	ASSERT_COND(server_rpc_executed_by.empty());
+	NS_ASSERT_COND(server_rpc_executed_by.empty());
 
 	const float delta = 1.0f / 60.0f;
 	server.process(delta);
@@ -345,15 +345,15 @@ void NS_Test::test_local_network() {
 	peer_2.process(delta);
 
 	// Make sure the rpc was delivered after `process`.
-	ASSERT_COND(server_rpc_executed_by[0] == peer_1.get_peer());
-	ASSERT_COND(peer_1_rpc_executed_by.empty());
-	ASSERT_COND(peer_2_rpc_executed_by.empty());
+	NS_ASSERT_COND(server_rpc_executed_by[0] == peer_1.get_peer());
+	NS_ASSERT_COND(peer_1_rpc_executed_by.empty());
+	NS_ASSERT_COND(peer_2_rpc_executed_by.empty());
 
 	// -------------------------------------------------------Now test `latency`
 	network_properties.rtt_seconds = 2.0;
 	rpc_handle_2_obj_1.rpc(peer_2_obj_1, peer_2_obj_1.get_server_peer(), true, 22, 44.0, vec);
 
-	ASSERT_COND(server_rpc_executed_by.size() == 1);
+	NS_ASSERT_COND(server_rpc_executed_by.size() == 1);
 
 	// Process for less than 1 sec and make sure the rpc is never delivered.
 	for (float t = 0.0; t < (1.0 - delta - 0.001); t += delta) {
@@ -362,7 +362,7 @@ void NS_Test::test_local_network() {
 		peer_2.process(delta);
 
 		// Make sure nothing is deliveted at this point.
-		ASSERT_COND(server_rpc_executed_by.size() == 1);
+		NS_ASSERT_COND(server_rpc_executed_by.size() == 1);
 	}
 
 	// Process twice and make sure the RPC was delivered.
@@ -372,8 +372,8 @@ void NS_Test::test_local_network() {
 		peer_2.process(delta);
 	}
 
-	ASSERT_COND(server_rpc_executed_by.size() == 2);
-	ASSERT_COND(server_rpc_executed_by[1] == peer_2.get_peer());
+	NS_ASSERT_COND(server_rpc_executed_by.size() == 2);
+	NS_ASSERT_COND(server_rpc_executed_by[1] == peer_2.get_peer());
 
 	// ------------------------------- Test packet loss with unreliable packets.
 	network_properties.rtt_seconds = 0.0;
@@ -385,10 +385,10 @@ void NS_Test::test_local_network() {
 		peer_1.process(delta);
 		peer_2.process(delta);
 
-		ASSERT_COND(server_rpc_executed_by[0] == peer_1.get_peer());
-		ASSERT_COND(server_rpc_executed_by[1] == peer_2.get_peer());
-		ASSERT_COND(peer_1_rpc_executed_by.empty());
-		ASSERT_COND(peer_2_rpc_executed_by.empty());
+		NS_ASSERT_COND(server_rpc_executed_by[0] == peer_1.get_peer());
+		NS_ASSERT_COND(server_rpc_executed_by[1] == peer_2.get_peer());
+		NS_ASSERT_COND(peer_1_rpc_executed_by.empty());
+		NS_ASSERT_COND(peer_2_rpc_executed_by.empty());
 	}
 
 	// --------------------------------- Test packet loss with reliable packets.
@@ -401,8 +401,8 @@ void NS_Test::test_local_network() {
 	peer_1.process(delta);
 	peer_2.process(delta);
 
-	ASSERT_COND(!peer_1_rpc_executed_by.empty());
-	ASSERT_COND(peer_1_rpc_executed_by[0] == peer_1_obj_1.get_server_peer());
+	NS_ASSERT_COND(!peer_1_rpc_executed_by.empty());
+	NS_ASSERT_COND(peer_1_rpc_executed_by[0] == peer_1_obj_1.get_server_peer());
 
 	// ----------------------------------- Test reliable packet doesn't reorder.
 	network_properties.rtt_seconds = 0.0;
@@ -417,14 +417,14 @@ void NS_Test::test_local_network() {
 	peer_1.process(delta);
 	peer_2.process(delta);
 
-	ASSERT_COND(peer_2_rpc_executed_by.size() == 3);
-	ASSERT_COND(peer_2_rpc_executed_by[0] == server.get_peer());
-	ASSERT_COND(peer_2_rpc_executed_by[1] == server.get_peer());
-	ASSERT_COND(peer_2_rpc_executed_by[2] == server.get_peer());
+	NS_ASSERT_COND(peer_2_rpc_executed_by.size() == 3);
+	NS_ASSERT_COND(peer_2_rpc_executed_by[0] == server.get_peer());
+	NS_ASSERT_COND(peer_2_rpc_executed_by[1] == server.get_peer());
+	NS_ASSERT_COND(peer_2_rpc_executed_by[2] == server.get_peer());
 
-	ASSERT_COND(peer_2_rpc_b_values_by_exec_order[0] == 1);
-	ASSERT_COND(peer_2_rpc_b_values_by_exec_order[1] == 2);
-	ASSERT_COND(peer_2_rpc_b_values_by_exec_order[2] == 3);
+	NS_ASSERT_COND(peer_2_rpc_b_values_by_exec_order[0] == 1);
+	NS_ASSERT_COND(peer_2_rpc_b_values_by_exec_order[1] == 2);
+	NS_ASSERT_COND(peer_2_rpc_b_values_by_exec_order[2] == 3);
 
 	// -------------------------------------------------------- Test call local.
 	server_obj_1.get_rpcs_info()[0].call_local = true;
@@ -440,6 +440,6 @@ void NS_Test::test_local_network() {
 	peer_1.process(delta);
 	peer_2.process(delta);
 
-	ASSERT_COND(server_rpc_executed_by[2] == server.get_peer()); // Make sure this was executed locally too.
-	ASSERT_COND(peer_2_rpc_executed_by[3] == server.get_peer()); // Make sure this was executed remotely.
+	NS_ASSERT_COND(server_rpc_executed_by[2] == server.get_peer()); // Make sure this was executed locally too.
+	NS_ASSERT_COND(peer_2_rpc_executed_by[3] == server.get_peer()); // Make sure this was executed remotely.
 }

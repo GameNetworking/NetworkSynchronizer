@@ -5,7 +5,6 @@
 #include <string>
 
 NS_NAMESPACE_BEGIN
-
 class DataBuffer {
 public:
 	enum DataType {
@@ -131,6 +130,7 @@ public:
 	DataBuffer(const BitArray &p_buffer);
 
 	//DataBuffer &operator=(DataBuffer &&p_other);
+	bool operator==(const DataBuffer &p_other) const;
 
 	void copy(const DataBuffer &p_other);
 	void copy(const BitArray &p_buffer);
@@ -172,7 +172,9 @@ public:
 	/// Begin read.
 	void begin_read();
 
-	bool is_buffer_failed() const { return buffer_failed; }
+	bool is_buffer_failed() const {
+		return buffer_failed;
+	}
 
 	// ------------------------------------------------------ Type serialization
 	void add(bool p_input);
@@ -187,11 +189,26 @@ public:
 	void add(std::uint32_t p_input);
 	void read(std::uint32_t &r_out);
 
-	void add(int p_input);
-	void read(int &r_out);
-
 	void add(std::uint64_t p_input);
 	void read(std::uint64_t &r_out);
+
+	void add(std::int8_t p_input);
+	void read(std::int8_t &r_out);
+
+	void add(std::int16_t p_input);
+	void read(std::int16_t &r_out);
+
+	void add(std::int32_t p_input);
+	void read(std::int32_t &r_out);
+
+	void add(std::int64_t p_input);
+	void read(std::int64_t &r_out);
+
+	void add(float p_input);
+	void read(float &p_out);
+
+	void add(double p_input);
+	void read(double &p_out);
 
 	void add(const std::string &p_string);
 	void read(std::string &r_out);

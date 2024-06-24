@@ -232,7 +232,7 @@ void PeerNetworkedController::controllable_collect_input(float p_delta, DataBuff
 		object_data->controller_funcs.collect_input(p_delta, r_data_buffer);
 #ifdef NS_DEBUG_ENABLED
 		if (scene_synchronizer->pedantic_checks) {
-			ASSERT_COND_MSG(!r_data_buffer.is_buffer_failed(), "[NetID: " + std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The collecte_input failed adding data into the DataBuffer. This should never happen!");
+			NS_ASSERT_COND_MSG(!r_data_buffer.is_buffer_failed(), "[NetID: " + std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The collecte_input failed adding data into the DataBuffer. This should never happen!");
 		} else {
 			NS_ENSURE_MSG(!r_data_buffer.is_buffer_failed(), "[FATAL] [NetID: " + std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The collecte_input failed adding data into the DataBuffer. This should never happen!");
 		}
@@ -246,8 +246,8 @@ bool PeerNetworkedController::controllable_are_inputs_different(DataBuffer &p_da
 		const bool are_inputs_different = object_data->controller_funcs.are_inputs_different(p_data_buffer_A, p_data_buffer_B);
 #ifdef NS_DEBUG_ENABLED
 		if (scene_synchronizer->pedantic_checks) {
-			ASSERT_COND_MSG(!p_data_buffer_A.is_buffer_failed(), "[NetID: " + std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The are_inputs_different failed reading from the DataBufferA. This should never happen!");
-			ASSERT_COND_MSG(!p_data_buffer_B.is_buffer_failed(), "[NetID: " + std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The are_inputs_different failed reading from the DataBufferB. This should never happen!");
+			NS_ASSERT_COND_MSG(!p_data_buffer_A.is_buffer_failed(), "[NetID: " + std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The are_inputs_different failed reading from the DataBufferA. This should never happen!");
+			NS_ASSERT_COND_MSG(!p_data_buffer_B.is_buffer_failed(), "[NetID: " + std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The are_inputs_different failed reading from the DataBufferB. This should never happen!");
 		} else {
 			NS_ENSURE_V_MSG(!p_data_buffer_A.is_buffer_failed(), true, "[FATAL] [NetID: " + std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The are_inputs_different failed reading from the DataBufferA. This should never happen!");
 			NS_ENSURE_V_MSG(!p_data_buffer_B.is_buffer_failed(), true, "[FATAL] [NetID: " + std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The are_inputs_different failed reading from the DataBufferB. This should never happen!");
@@ -266,7 +266,7 @@ void PeerNetworkedController::controllable_process(float p_delta, DataBuffer &p_
 		object_data->controller_funcs.process(p_delta, p_data_buffer);
 #ifdef NS_DEBUG_ENABLED
 		if (scene_synchronizer->pedantic_checks) {
-			ASSERT_COND_MSG(!p_data_buffer.is_buffer_failed(), "[NetID: " + std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The process failed reading from the DataBuffer. This should never happen!");
+			NS_ASSERT_COND_MSG(!p_data_buffer.is_buffer_failed(), "[NetID: " + std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The process failed reading from the DataBuffer. This should never happen!");
 		} else {
 			NS_ENSURE_MSG(!p_data_buffer.is_buffer_failed(), "[FATAL] [NetID: " + std::to_string(object_data->get_net_id().id) + " ObjectName: " + object_data->object_name + "] The process failed reading from the DataBuffer. This should never happen!");
 		}
@@ -574,7 +574,7 @@ bool RemotelyControlledController::fetch_next_input(float p_delta) {
 	if (frames_input.empty() == false && current_input_buffer_id != FrameIndex::NONE) {
 		// At this point is guaranteed that the current_input_buffer_id is never
 		// greater than the first item contained by `snapshots`.
-		ASSERT_COND(current_input_buffer_id < frames_input.front().id);
+		NS_ASSERT_COND(current_input_buffer_id < frames_input.front().id);
 	}
 #endif
 	return is_new_input;
@@ -668,7 +668,7 @@ bool RemotelyControlledController::receive_inputs(const std::vector<std::uint8_t
 	if (frames_input.empty() == false && current_input_buffer_id != FrameIndex::NONE) {
 		// At this point is guaranteed that the current_input_buffer_id is never
 		// greater than the first item contained by `snapshots`.
-		ASSERT_COND(current_input_buffer_id < frames_input.front().id);
+		NS_ASSERT_COND(current_input_buffer_id < frames_input.front().id);
 	}
 #endif
 
@@ -813,7 +813,7 @@ void PlayerController::notify_frame_checked(FrameIndex p_frame_index) {
 
 #ifdef NS_DEBUG_ENABLED
 	// Unreachable, because the next frame have always the next `p_frame_index` or empty.
-	ASSERT_COND(frames_input.empty() || (p_frame_index + 1) == frames_input.front().id);
+	NS_ASSERT_COND(frames_input.empty() || (p_frame_index + 1) == frames_input.front().id);
 #endif
 
 	// Make sure the remaining inputs are 0 sized, if not streaming can't be paused.
@@ -877,7 +877,7 @@ void PlayerController::on_rewind_frame_begin(FrameIndex p_frame_index, int p_rew
 		queued_instant_to_process = p_rewinding_index;
 #ifdef NS_DEBUG_ENABLED
 		// IMPOSSIBLE to trigger - without bugs.
-		ASSERT_COND(frames_input[p_rewinding_index].id == p_frame_index);
+		NS_ASSERT_COND(frames_input[p_rewinding_index].id == p_frame_index);
 #endif
 	} else {
 		queued_instant_to_process = -1;
@@ -986,10 +986,10 @@ void PlayerController::store_input_buffer(FrameIndex p_frame_index) {
 		std::uint16_t from_buffer__buffer_size_bits;
 		peer_controller->get_inputs_buffer_mut().begin_read();
 		peer_controller->get_inputs_buffer_mut().read(from_buffer__buffer_size_bits);
-		ASSERT_COND_MSG(from_buffer__buffer_size_bits == buffer_size_bits, "The buffer size must be the same between the one just calculated and the one inside the buffer");
+		NS_ASSERT_COND_MSG(from_buffer__buffer_size_bits == buffer_size_bits, "The buffer size must be the same between the one just calculated and the one inside the buffer");
 	}
 
-	ASSERT_COND_MSG(buffer_size_bits>=METADATA_SIZE, "The buffer size can't be less than the metadata.");
+	NS_ASSERT_COND_MSG(buffer_size_bits>=METADATA_SIZE, "The buffer size can't be less than the metadata.");
 #endif
 
 	FrameInput inputs;
@@ -1014,7 +1014,7 @@ void PlayerController::send_frame_input_buffer_to_server() {
 	// at least 1 input.
 	// It means that, unless the streaming is paused, the `frames_inputs`
 	// is never going to be empty at this point.
-	ASSERT_COND(inputs_count >= 1);
+	NS_ASSERT_COND(inputs_count >= 1);
 
 #define MAKE_ROOM(p_size)                                              \
 	if (cached_packet_data.size() < static_cast<size_t>(ofs + p_size)) \
@@ -1023,7 +1023,7 @@ void PlayerController::send_frame_input_buffer_to_server() {
 	int ofs = 0;
 	cached_packet_data.clear();
 	// At this point both the cached_packet_data and ofs are the same.
-	ASSERT_COND(ofs == cached_packet_data.size());
+	NS_ASSERT_COND(ofs == cached_packet_data.size());
 
 	// Let's store the ID of the first snapshot.
 	MAKE_ROOM(4);
@@ -1135,7 +1135,7 @@ void PlayerController::send_frame_input_buffer_to_server() {
 	cached_packet_data[ofs - previous_buffer_size - 1] = duplication_count;
 
 	// At this point both the cached_packet_data.size() and ofs MUST be the same.
-	ASSERT_COND(ofs == cached_packet_data.size());
+	NS_ASSERT_COND(ofs == cached_packet_data.size());
 
 	peer_controller->scene_synchronizer->call_rpc_receive_inputs(
 			peer_controller->scene_synchronizer->get_network_interface().get_server_peer(),
@@ -1197,7 +1197,7 @@ bool DollController::receive_inputs(const std::vector<uint8_t> &p_data) {
 			[](void *p_user_pointer, FrameIndex p_frame_index, std::uint16_t p_input_size_in_bits, const BitArray &p_bit_array) -> void {
 				SCParseTmpData *pd = static_cast<SCParseTmpData *>(p_user_pointer);
 
-				ASSERT_COND(p_frame_index != FrameIndex::NONE);
+				NS_ASSERT_COND(p_frame_index != FrameIndex::NONE);
 				if (pd->controller.last_doll_validated_input != FrameIndex::NONE && pd->controller.last_doll_validated_input >= p_frame_index) {
 					// This input is already processed.
 					return;
@@ -1465,7 +1465,7 @@ void DollController::on_snapshot_update_finished(const Snapshot &p_snapshot) {
 #ifdef NS_DEBUG_ENABLED
 	// The SceneSync set the correct input, and here it checks it.
 	const FrameIndex doll_executed_input = MapFunc::at(p_snapshot.peers_frames_index, peer_controller->get_authority_peer(), FrameIndex::NONE);
-	ASSERT_COND(doll_executed_input == current_input_buffer_id);
+	NS_ASSERT_COND(doll_executed_input == current_input_buffer_id);
 #endif
 	copy_controlled_objects_snapshot(p_snapshot, client_snapshots, false);
 }
@@ -1501,7 +1501,7 @@ void DollController::copy_controlled_objects_snapshot(
 		}
 	}
 
-	ASSERT_COND(snap->doll_executed_input == doll_executed_input);
+	NS_ASSERT_COND(snap->doll_executed_input == doll_executed_input);
 	snap->data.input_id = p_snapshot.input_id;
 
 	// Extracts the data from the snapshot.
@@ -1555,7 +1555,7 @@ FrameIndex DollController::fetch_checkable_snapshot(DollSnapshot *&r_client_snap
 
 	for (auto client_snap_it = client_snapshots.rbegin(); client_snap_it != client_snapshots.rend(); client_snap_it++) {
 		if (client_snap_it->doll_executed_input != FrameIndex::NONE) {
-			ASSERT_COND_MSG(client_snap_it->doll_executed_input <= current_input_buffer_id, "All the client snapshots are properly cleared when the `current_input_id` is manipulated. So this function is impossible to trigger. If it does, there is a bug on the `clear_previously_generated_client_snapshots`.");
+			NS_ASSERT_COND_MSG(client_snap_it->doll_executed_input <= current_input_buffer_id, "All the client snapshots are properly cleared when the `current_input_id` is manipulated. So this function is impossible to trigger. If it does, there is a bug on the `clear_previously_generated_client_snapshots`.");
 
 			auto server_snap_it = VecFunc::find(server_snapshots, client_snap_it->doll_executed_input);
 			if (server_snap_it != server_snapshots.end()) {
@@ -1629,8 +1629,8 @@ void DollController::on_snapshot_applied(
 #ifdef NS_DEBUG_ENABLED
 	// The `DollController` is never created on the server, and the below
 	// assertion is always satisfied.
-	ASSERT_COND(peer_controller->scene_synchronizer->is_client());
-	ASSERT_COND(p_frame_count_to_rewind >= 0);
+	NS_ASSERT_COND(peer_controller->scene_synchronizer->is_client());
+	NS_ASSERT_COND(p_frame_count_to_rewind >= 0);
 #endif
 
 	// This function is executed when the SceneSynchronizer apply the server
@@ -1660,7 +1660,7 @@ void DollController::apply_snapshot_no_input_reconciliation(const Snapshot &p_gl
 	// Apply the latest received server snapshot right away since the doll is not
 	// yet still processing on the server.
 
-	ASSERT_COND(server_snapshots.back().doll_executed_input == FrameIndex::NONE);
+	NS_ASSERT_COND(server_snapshots.back().doll_executed_input == FrameIndex::NONE);
 
 	static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(server_snapshots.back().data, 0, 0, nullptr, true, true, true, true, true);
 	last_doll_compared_input = FrameIndex::NONE;
@@ -1670,7 +1670,7 @@ void DollController::apply_snapshot_no_input_reconciliation(const Snapshot &p_gl
 
 void DollController::apply_snapshot_instant_input_reconciliation(const Snapshot &p_global_server_snapshot, const int p_frame_count_to_rewind) {
 	// This function assume the "frame count to rewind" is always 0.
-	ASSERT_COND(p_frame_count_to_rewind == 0);
+	NS_ASSERT_COND(p_frame_count_to_rewind == 0);
 
 	const int input_count = (int)frames_input.size();
 	if make_unlikely(input_count == 0) {
@@ -1729,7 +1729,7 @@ void DollController::apply_snapshot_rewinding_input_reconciliation(const Snapsho
 	// the timeline manipulations are much less visible.
 
 	// This function assume the "frame count to rewind" is never 0.
-	ASSERT_COND(p_frame_count_to_rewind > 0);
+	NS_ASSERT_COND(p_frame_count_to_rewind > 0);
 
 	// 1. Fetch the optimal queued inputs (how many inputs should be queued based
 	//    on the current connection).

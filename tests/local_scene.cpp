@@ -42,7 +42,7 @@ void LocalSceneSynchronizer::install_local_scene_sync() {
 				r_buffer.add(p_val.type);
 				r_buffer.add_bits(reinterpret_cast<const uint8_t *>(&p_val.data), sizeof(p_val.data) * 8);
 				// Not supported right now.
-				ASSERT_COND(!p_val.shared_buffer);
+				NS_ASSERT_COND(!p_val.shared_buffer);
 			},
 			[](NS::VarData &r_val, NS::DataBuffer &p_buffer, std::uint8_t p_variable_type) {
 				p_buffer.read(r_val.type);

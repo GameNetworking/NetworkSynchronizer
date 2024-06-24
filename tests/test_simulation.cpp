@@ -174,7 +174,7 @@ public:
 	}
 
 	void controller_process(float p_delta, NS::DataBuffer &p_buffer) {
-		ASSERT_COND(p_delta == delta);
+		NS_ASSERT_COND(p_delta == delta);
 		const float speed = 1.0;
 		Vec3 input;
 		p_buffer.read_normalized_vector3(input.x, input.y, input.z, NS::DataBuffer::COMPRESSION_LEVEL_3);
@@ -199,7 +199,7 @@ public:
 };
 
 void process_magnet_simulation(NS::LocalSceneSynchronizer &scene_sync, float p_delta, MagnetSceneObject &p_mag) {
-	ASSERT_COND(p_delta == delta);
+	NS_ASSERT_COND(p_delta == delta);
 	const float pushing_force = 200.0;
 
 	for (const NS::ObjectData *od : scene_sync.get_sorted_objects_data()) {
@@ -376,24 +376,24 @@ public:
 			}
 
 			if (controller_server->get_current_frame_index() != NS::FrameIndex::NONE) {
-				ASSERT_COND(controller_server->get_current_frame_index() < (process_until_frame + process_until_frame_timeout));
+				NS_ASSERT_COND(controller_server->get_current_frame_index() < (process_until_frame + process_until_frame_timeout));
 			}
 			if (controller_p1->get_current_frame_index() != NS::FrameIndex::NONE) {
-				ASSERT_COND(controller_p1->get_current_frame_index() < (process_until_frame + process_until_frame_timeout));
+				NS_ASSERT_COND(controller_p1->get_current_frame_index() < (process_until_frame + process_until_frame_timeout));
 			}
 		}
 
 		//                  ---- Validation phase ----
 		// First make sure all positions have changed at all.
-		ASSERT_COND(controlled_obj_server->get_position().distance_to(Vec3(1, 1, 1)) > 0.0001);
-		ASSERT_COND(light_magnet_server->get_position().distance_to(Vec3(2, 1, 1)) > 0.0001);
-		ASSERT_COND(heavy_magnet_server->get_position().distance_to(Vec3(1, 1, 2)) > 0.0001);
+		NS_ASSERT_COND(controlled_obj_server->get_position().distance_to(Vec3(1, 1, 1)) > 0.0001);
+		NS_ASSERT_COND(light_magnet_server->get_position().distance_to(Vec3(2, 1, 1)) > 0.0001);
+		NS_ASSERT_COND(heavy_magnet_server->get_position().distance_to(Vec3(1, 1, 2)) > 0.0001);
 
 		// Now, make sure the client and server positions are the same: ensuring the
 		// sync worked.
-		ASSERT_COND(controller_server_position_at_target_frame.distance_to(controller_p1_position_at_target_frame) < 0.0001);
-		ASSERT_COND(light_mag_server_position_at_target_frame.distance_to(light_mag_p1_position_at_target_frame) < 0.0001);
-		ASSERT_COND(heavy_mag_server_position_at_target_frame.distance_to(heavy_mag_p1_position_at_target_frame) < 0.0001);
+		NS_ASSERT_COND(controller_server_position_at_target_frame.distance_to(controller_p1_position_at_target_frame) < 0.0001);
+		NS_ASSERT_COND(light_mag_server_position_at_target_frame.distance_to(light_mag_p1_position_at_target_frame) < 0.0001);
+		NS_ASSERT_COND(heavy_mag_server_position_at_target_frame.distance_to(heavy_mag_p1_position_at_target_frame) < 0.0001);
 
 		on_scenes_done();
 	}
@@ -423,7 +423,7 @@ public:
 
 		controller_server->event_input_missed.bind([](NS::FrameIndex p_frame_index) {
 			// The input should be never missing!
-			ASSERT_NO_ENTRY();
+			NS_ASSERT_NO_ENTRY();
 		});
 
 		controller_p1->get_scene_synchronizer()->event_state_validated.bind([this](NS::FrameIndex p_frame_index, bool p_desync) {
@@ -451,9 +451,9 @@ public:
 	}
 
 	virtual void on_scenes_done() override {
-		ASSERT_COND(client_rewinded_frames.size() == 1);
-		ASSERT_COND(client_rewinded_frames[0] >= reset_position_on_frame);
-		ASSERT_COND(client_rewinded_frames[0] == correction_snapshot_sent);
+		NS_ASSERT_COND(client_rewinded_frames.size() == 1);
+		NS_ASSERT_COND(client_rewinded_frames[0] >= reset_position_on_frame);
+		NS_ASSERT_COND(client_rewinded_frames[0] == correction_snapshot_sent);
 	}
 };
 

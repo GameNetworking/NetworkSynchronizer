@@ -42,7 +42,7 @@ void decode_variable(double &val, DataBuffer &p_buffer) {
 
 void encode_variable(const std::vector<std::uint8_t> &val, DataBuffer &r_buffer) {
 	// TODO optimize?
-	ASSERT_COND(val.size() < 4294967295);
+	NS_ASSERT_COND(val.size() < 4294967295);
 	r_buffer.add_uint(val.size(), DataBuffer::COMPRESSION_LEVEL_1);
 	for (const auto v : val) {
 		r_buffer.add_uint(v, DataBuffer::COMPRESSION_LEVEL_3);
