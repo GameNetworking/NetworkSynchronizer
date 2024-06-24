@@ -21,6 +21,10 @@ SceneSynchronizerDebugger *SceneSynchronizerDebugger::singleton() {
 	return the_singleton;
 }
 
+void SceneSynchronizerDebugger::__set_singleton(SceneSynchronizerDebugger *p_singleton) {
+	the_singleton = p_singleton;
+}
+
 SceneSynchronizerDebugger::SceneSynchronizerDebugger() {
 	if (the_singleton == nullptr) {
 		the_singleton = this;
@@ -110,8 +114,8 @@ void SceneSynchronizerDebugger::prepare_dumping(int p_peer) {
 		d["time"] = file_system->get_time();
 
 		NS_ENSURE(file_system->store_file_string(
-				main_dump_directory_path + "/" + "dump-info-" + dump_name + /*"-" + std::to_string(p_peer) +*/ ".json",
-				d.dump()));
+			main_dump_directory_path + "/" + "dump-info-" + dump_name + /*"-" + std::to_string(p_peer) +*/ ".json",
+			d.dump()));
 	}
 
 #endif

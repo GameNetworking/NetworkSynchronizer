@@ -8,7 +8,9 @@ class NetworkInterface;
 
 class FileSystem {
 public:
-	virtual ~FileSystem() {}
+	virtual ~FileSystem() {
+	}
+
 	virtual std::string get_base_dir() const = 0;
 	virtual std::string get_date() const = 0;
 	virtual std::string get_time() const = 0;
@@ -17,6 +19,7 @@ public:
 	virtual bool store_file_buffer(const std::string &p_path, const std::uint8_t *p_src, uint64_t p_length) const = 0;
 	virtual bool file_exists(const std::string &p_path) const = 0;
 };
+
 NS_NAMESPACE_END
 
 class SceneSynchronizerDebugger {
@@ -37,6 +40,8 @@ public:
 
 public:
 	static SceneSynchronizerDebugger *singleton();
+	// USE THIS WITH CARE <3
+	static void __set_singleton(SceneSynchronizerDebugger *p_singleton);
 
 private:
 	NS::PrintMessageType log_level = NS::PrintMessageType::ERROR;
@@ -67,6 +72,7 @@ public:
 	~SceneSynchronizerDebugger();
 
 	void set_file_system(NS::FileSystem *p_file_system);
+
 	NS::FileSystem *get_file_system() const {
 #ifdef NS_DEBUG_ENABLED
 		return file_system;
