@@ -49,7 +49,7 @@ public:
 	virtual ~NetworkInterface() = default;
 
 public: // ----------------------------------------------------------- Interface
-	virtual void clear() {
+	virtual void reset() {
 		rpcs_info.clear();
 		rpc_last_sender = 0;
 	}

@@ -129,7 +129,7 @@ void SceneSynchronizerBase::setup(SynchronizerManager &p_synchronizer_interface)
 
 void SceneSynchronizerBase::conclude() {
 	network_interface->stop_listening_peer_connection();
-	network_interface->clear();
+	network_interface->reset();
 
 	clear_peers();
 	clear();
