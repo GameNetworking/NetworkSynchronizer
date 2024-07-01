@@ -10,35 +10,59 @@
 #include <vector>
 
 NS_NAMESPACE_BEGIN
-
 class SynchronizerManager {
 public:
-	virtual ~SynchronizerManager() {}
+	virtual ~SynchronizerManager() {
+	}
 
-	virtual void on_init_synchronizer(bool p_was_generating_ids) {}
-	virtual void on_uninit_synchronizer() {}
+	virtual void on_init_synchronizer(bool p_was_generating_ids) {
+	}
+
+	virtual void on_uninit_synchronizer() {
+	}
 
 #ifdef NS_DEBUG_ENABLED
-	virtual void debug_only_validate_objects() {}
+	virtual void debug_only_validate_objects() {
+	}
+
 	// Unique ID that is used to validate the object and ensure that destroyed objects are properly unregistered.
 	virtual uint64_t debug_only_get_object_id(ObjectHandle p_app_object_handle) const = 0;
 #endif
 
 	/// Add object data and generates the `ObjectNetId` if allowed.
-	virtual void on_add_object_data(struct ObjectData &p_object_data) {}
-	virtual void on_drop_object_data(ObjectData &p_object_data) {}
+	virtual void on_add_object_data(struct ObjectData &p_object_data) {
+	}
 
-	virtual void on_sync_group_created(SyncGroupId p_group_id) {}
+	virtual void on_drop_object_data(ObjectData &p_object_data) {
+	}
+
+	virtual void on_sync_group_created(SyncGroupId p_group_id) {
+	}
 
 	/// This function is always executed on the server before anything else
 	/// and it's here that you want to update the object relevancy.
-	virtual void update_objects_relevancy() {}
+	virtual void update_objects_relevancy() {
+	}
 
-	virtual bool snapshot_get_custom_data(const SyncGroup *p_group, struct VarData &r_custom_data) { return false; }
-	virtual std::uint8_t snapshot_get_custom_data_type() const { return 0; }
-	virtual void snapshot_set_custom_data(const VarData &r_custom_data) {}
+	virtual bool snapshot_get_custom_data(const SyncGroup *p_group, struct VarData &r_custom_data) {
+		return false;
+	}
+
+	virtual std::uint8_t snapshot_get_custom_data_type() const {
+		return 0;
+	}
+
+	virtual void snapshot_set_custom_data(const VarData &r_custom_data) {
+	}
 
 	virtual ObjectHandle fetch_app_object(const std::string &p_object_name) = 0;
+	/// Returns the object name.
+	/// NOTICE: The object name MUST be unique per object and MUST NEVER CHANGE.
+	/// NOTICE: You can delay the object name initialization by returning an empty string "".
+	///         This feature is useful in case this function is called before the name for the object is available.
+	///         Once the name is returned for an object (the returned string is non empty "")
+	///         the name must remain the same forever.
+	/// NOTICE: The name must be unique across all the peers!
 	virtual std::string get_object_name(ObjectHandle p_app_object_handle) const = 0;
 	virtual void setup_synchronizer_for(ObjectHandle p_app_object_handle, ObjectLocalId p_id) = 0;
 };
@@ -154,11 +178,13 @@ protected:
 	static void (*print_flush_stdout_func)();
 
 #ifdef NS_DEBUG_ENABLED
+
 public:
 	const bool pedantic_checks = false;
 	/// This is turned on by the integration tests to ensure no desync are
 	/// triggered by `ClientSynchronizer::calculates_sub_ticks` returning > 1.
 	const bool disable_client_sub_ticks = false;
+
 protected:
 #endif
 
@@ -322,6 +348,7 @@ public:
 	NS::NetworkInterface &get_network_interface() {
 		return *network_interface;
 	}
+
 	const NS::NetworkInterface &get_network_interface() const {
 		return *network_interface;
 	}
@@ -329,12 +356,18 @@ public:
 	NS::SynchronizerManager &get_synchronizer_manager() {
 		return *synchronizer_manager;
 	}
+
 	const NS::SynchronizerManager &get_synchronizer_manager() const {
 		return *synchronizer_manager;
 	}
 
-	const Synchronizer *get_synchronizer_internal() const { return synchronizer; }
-	Synchronizer *get_synchronizer_internal() { return synchronizer; }
+	const Synchronizer *get_synchronizer_internal() const {
+		return synchronizer;
+	}
+
+	Synchronizer *get_synchronizer_internal() {
+		return synchronizer;
+	}
 
 	void set_frames_per_seconds(int p_fps);
 	int get_frames_per_seconds() const;
@@ -384,13 +417,22 @@ public:
 	bool is_variable_registered(ObjectLocalId p_id, const std::string &p_variable) const;
 
 	void set_debug_rewindings_enabled(bool p_enabled);
-	bool get_debug_rewindings_enabled() const { return debug_rewindings_enabled; }
+
+	bool get_debug_rewindings_enabled() const {
+		return debug_rewindings_enabled;
+	}
 
 	void set_debug_server_speedup(bool p_enabled);
-	bool get_debug_server_speedup() const { return debug_server_speedup; }
+
+	bool get_debug_server_speedup() const {
+		return debug_server_speedup;
+	}
 
 	void set_debug_log_nodes_relevancy_update(bool p_enabled);
-	bool get_debug_log_nodes_relevancy_update() const { return debug_log_nodes_relevancy_update; }
+
+	bool get_debug_log_nodes_relevancy_update() const {
+		return debug_log_nodes_relevancy_update;
+	}
 
 public: // ---------------------------------------------------------------- RPCs
 	void rpc_receive_state(DataBuffer &p_snapshot);
@@ -549,6 +591,7 @@ public: // ---------------------------------------------------------------- APIs
 	bool client_is_simulated_object(ObjectLocalId p_id) const;
 
 public: // ------------------------------------------------------------ INTERNAL
+	void try_fetch_unnamed_objects_data_names();
 	void update_objects_relevancy();
 
 	void process_functions__clear();
@@ -610,14 +653,34 @@ public:
 	virtual void clear() = 0;
 
 	virtual void process(float p_delta) = 0;
-	virtual void on_peer_connected(int p_peer_id) {}
-	virtual void on_peer_disconnected(int p_peer_id) {}
-	virtual void on_object_data_added(NS::ObjectData &p_object_data) {}
-	virtual void on_object_data_removed(NS::ObjectData &p_object_data) {}
-	virtual void on_object_data_controller_changed(NS::ObjectData *p_object_data, int p_previous_controlling_peer) {}
-	virtual void on_variable_added(NS::ObjectData *p_object_data, const std::string &p_var_name) {}
-	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) {}
-	virtual void on_controller_reset(PeerNetworkedController &p_controller) {}
+
+	virtual void on_peer_connected(int p_peer_id) {
+	}
+
+	virtual void on_peer_disconnected(int p_peer_id) {
+	}
+
+	virtual void on_object_data_added(NS::ObjectData &p_object_data) {
+	}
+
+	virtual void on_object_data_removed(NS::ObjectData &p_object_data) {
+	}
+
+	virtual void on_object_data_name_known(ObjectData &p_object_data) {
+	}
+
+	virtual void on_object_data_controller_changed(NS::ObjectData *p_object_data, int p_previous_controlling_peer) {
+	}
+
+	virtual void on_variable_added(NS::ObjectData *p_object_data, const std::string &p_var_name) {
+	}
+
+	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) {
+	}
+
+	virtual void on_controller_reset(PeerNetworkedController &p_controller) {
+	}
+
 	virtual const std::vector<ObjectData *> &get_active_objects() const = 0;
 };
 
@@ -636,7 +699,10 @@ public:
 	virtual void process(float p_delta) override;
 	virtual void on_object_data_added(NS::ObjectData &p_object_data) override;
 	virtual void on_object_data_removed(NS::ObjectData &p_object_data) override;
-	virtual const std::vector<ObjectData *> &get_active_objects() const override { return active_objects; }
+
+	virtual const std::vector<ObjectData *> &get_active_objects() const override {
+		return active_objects;
+	}
 
 	void set_enabled(bool p_enabled);
 	bool is_enabled() const;
@@ -674,10 +740,14 @@ public:
 	virtual void on_peer_disconnected(int p_peer_id) override;
 	virtual void on_object_data_added(NS::ObjectData &p_object_data) override;
 	virtual void on_object_data_removed(NS::ObjectData &p_object_data) override;
+	virtual void on_object_data_name_known(ObjectData &p_object_data) override;
 	virtual void on_object_data_controller_changed(NS::ObjectData *p_object_data, int p_previous_controlling_peer) override;
 	virtual void on_variable_added(NS::ObjectData *p_object_data, const std::string &p_var_name) override;
 	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) override;
-	virtual const std::vector<ObjectData *> &get_active_objects() const override { return active_objects; }
+
+	virtual const std::vector<ObjectData *> &get_active_objects() const override {
+		return active_objects;
+	}
 
 	void notify_need_full_snapshot(int p_peer, bool p_notify_ASAP);
 
@@ -756,14 +826,17 @@ public:
 		VarData old_value;
 
 		EndSyncEvent() = default;
+
 		EndSyncEvent(const EndSyncEvent &p_other) :
-				EndSyncEvent(p_other.object_data, p_other.var_id, p_other.old_value) {}
+			EndSyncEvent(p_other.object_data, p_other.var_id, p_other.old_value) {
+		}
+
 		EndSyncEvent(
 				NS::ObjectData *p_object_data,
 				VarId p_var_id,
 				const VarData &p_old_value) :
-				object_data(p_object_data),
-				var_id(p_var_id) {
+			object_data(p_object_data),
+			var_id(p_var_id) {
 			old_value.copy(p_old_value);
 		}
 
@@ -801,15 +874,17 @@ public:
 		float alpha = 0.0;
 
 		TrickledSyncInterpolationData() = default;
+
 		TrickledSyncInterpolationData(const TrickledSyncInterpolationData &p_dss) :
-				od(p_dss.od),
-				past_epoch(p_dss.past_epoch),
-				future_epoch(p_dss.future_epoch),
-				epochs_timespan(p_dss.epochs_timespan),
-				alpha(p_dss.alpha) {
+			od(p_dss.od),
+			past_epoch(p_dss.past_epoch),
+			future_epoch(p_dss.future_epoch),
+			epochs_timespan(p_dss.epochs_timespan),
+			alpha(p_dss.alpha) {
 			past_epoch_buffer.copy(p_dss.past_epoch_buffer);
 			future_epoch_buffer.copy(p_dss.future_epoch_buffer);
 		}
+
 		TrickledSyncInterpolationData &operator=(const TrickledSyncInterpolationData &p_dss) {
 			od = p_dss.od;
 			past_epoch_buffer.copy(p_dss.past_epoch_buffer);
@@ -823,16 +898,23 @@ public:
 
 		TrickledSyncInterpolationData(
 				NS::ObjectData *p_nd) :
-				od(p_nd) {}
+			od(p_nd) {
+		}
+
 		TrickledSyncInterpolationData(
 				NS::ObjectData *p_nd,
 				DataBuffer p_past_epoch_buffer,
 				DataBuffer p_future_epoch_buffer) :
-				od(p_nd),
-				past_epoch_buffer(p_past_epoch_buffer),
-				future_epoch_buffer(p_future_epoch_buffer) {}
-		bool operator==(const TrickledSyncInterpolationData &o) const { return od == o.od; }
+			od(p_nd),
+			past_epoch_buffer(p_past_epoch_buffer),
+			future_epoch_buffer(p_future_epoch_buffer) {
+		}
+
+		bool operator==(const TrickledSyncInterpolationData &o) const {
+			return od == o.od;
+		}
 	};
+
 	std::vector<TrickledSyncInterpolationData> trickled_sync_array;
 
 public:
@@ -936,7 +1018,8 @@ public:
 	// It does a bunch of extra checks that ensure write/read.
 	// Eventually can be turned on to also verify everything works in game too.
 	SceneSynchronizer(bool p_pedantic_checks = false, bool p_disable_client_sub_ticks = false) :
-			SceneSynchronizerBase(&custom_network_interface, p_pedantic_checks, p_disable_client_sub_ticks) {}
+		SceneSynchronizerBase(&custom_network_interface, p_pedantic_checks, p_disable_client_sub_ticks) {
+	}
 
 	NetInterfaceClass &get_network_interface() {
 		return custom_network_interface;

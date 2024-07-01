@@ -9,7 +9,6 @@
 #include <string>
 
 NS_NAMESPACE_BEGIN
-
 class LocalSceneObject {
 protected:
 	friend class LocalScene;
@@ -23,9 +22,14 @@ public:
 
 	class LocalScene *get_scene() const;
 
-	virtual void on_scene_entry() {}
-	virtual void setup_synchronizer(class LocalSceneSynchronizer &p_scene_sync, ObjectLocalId p_id) {}
-	virtual void on_scene_exit() {}
+	virtual void on_scene_entry() {
+	}
+
+	virtual void setup_synchronizer(class LocalSceneSynchronizer &p_scene_sync, ObjectLocalId p_id) {
+	}
+
+	virtual void on_scene_exit() {
+	}
 
 	NS::ObjectLocalId find_local_id() const;
 };
@@ -53,23 +57,30 @@ public:
 
 class LocalSceneSynchronizerNoSubTicks : public LocalSceneSynchronizer {
 public:
-	LocalSceneSynchronizerNoSubTicks() : LocalSceneSynchronizer(true) {}
+	LocalSceneSynchronizerNoSubTicks() :
+		LocalSceneSynchronizer(true) {
+	}
 };
-	
+
 class LocalScene {
 	LocalNetwork network;
-	std::map<std::string, std::shared_ptr<LocalSceneObject>> objects;
+	std::vector<std::shared_ptr<LocalSceneObject>> objects;
 
 public:
 	LocalSceneSynchronizer *scene_sync = nullptr;
 
 public:
-	LocalNetwork &get_network() { return network; }
-	const LocalNetwork &get_network() const { return network; }
+	LocalNetwork &get_network() {
+		return network;
+	}
+
+	const LocalNetwork &get_network() const {
+		return network;
+	}
 
 	// Start the scene as no network.
 	void start_as_no_net();
-	
+
 	// Start the scene as server.
 	void start_as_server();
 
@@ -84,6 +95,8 @@ public:
 	template <class T>
 	T *fetch_object(const char *p_object_name);
 
+	int fetch_object_index(const char *p_object_name) const;
+
 	void remove_object(const char *p_object_name);
 
 	void process(float p_delta);
@@ -91,12 +104,13 @@ public:
 
 template <class T>
 T *LocalScene::add_object(const std::string &p_object_name, int p_authoritative_peer) {
-	const std::string name = p_object_name;
-	NS_ASSERT_COND(objects.find(name) == objects.end());
+	// Make sure the name are unique.
+	NS_ASSERT_COND(!fetch_object<T>(p_object_name.c_str()));
+
 	std::shared_ptr<T> object = std::make_shared<T>();
-	objects[name] = object;
+	objects.push_back(object);
 	object->scene_owner = this;
-	object->name = name;
+	object->name = p_object_name;
 	object->authoritative_peer_id = p_authoritative_peer;
 	object->on_scene_entry();
 	return object.get();
@@ -104,11 +118,13 @@ T *LocalScene::add_object(const std::string &p_object_name, int p_authoritative_
 
 template <class T>
 T *LocalScene::fetch_object(const char *p_object_name) {
-	std::map<std::string, std::shared_ptr<LocalSceneObject>>::iterator obj_it = objects.find(p_object_name);
-	if (obj_it != objects.end()) {
-		return dynamic_cast<T *>(obj_it->second.get());
+	for (auto o : objects) {
+		if (o->name == p_object_name) {
+			return dynamic_cast<T *>(o.get());
+		}
 	}
 	return nullptr;
 }
+
 
 NS_NAMESPACE_END

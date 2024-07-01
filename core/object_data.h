@@ -69,6 +69,8 @@ private:
 	// TODO consider uint8 or uint16
 	int controlled_by_peer = -1;
 
+	std::string object_name;
+
 public:
 	struct {
 		std::function<void(float /*delta*/, DataBuffer & /*r_data_buffer*/)> collect_input;
@@ -80,7 +82,6 @@ public:
 #ifdef NS_DEBUG_ENABLED
 	uint64_t debug_object_id = 0;
 #endif
-	std::string object_name;
 	// The local application object handle associated to this `NodeData`.
 	ObjectHandle app_object_handle = ObjectHandle::NONE;
 
@@ -107,8 +108,11 @@ public:
 			std::function<void(float /*delta*/, DataBuffer & /*r_data_buffer*/)> p_collect_input_func = nullptr,
 			std::function<bool(DataBuffer & /*p_data_buffer_A*/, DataBuffer & /*p_data_buffer_B*/)> p_are_inputs_different_func = nullptr,
 			std::function<void(float /*delta*/, DataBuffer & /*p_data_buffer*/)> p_process_func = nullptr);
-	bool set_controlled_by_peer(class SceneSynchronizerBase& Synchronizer, int p_peer);
+	bool set_controlled_by_peer(class SceneSynchronizerBase &Synchronizer, int p_peer);
 	int get_controlled_by_peer() const;
+
+	void set_object_name(const std::string &name, bool p_force_set = false);
+	const std::string &get_object_name() const;
 
 	VarId find_variable_id(const std::string &p_var_name) const;
 };

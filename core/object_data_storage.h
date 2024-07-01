@@ -5,7 +5,6 @@
 #include <vector>
 
 NS_NAMESPACE_BEGIN
-
 class ObjectDataStorage {
 	class SceneSynchronizerBase &sync;
 
@@ -18,6 +17,8 @@ class ObjectDataStorage {
 	std::vector<ObjectData *> objects_data_organized_by_netid;
 
 	std::map<int, std::vector<ObjectData *>> objects_data_controlled_by_peers;
+
+	std::vector<ObjectData *> unnamed_objects_data;
 
 public:
 	ObjectDataStorage(class SceneSynchronizerBase &p_sync);
@@ -42,11 +43,14 @@ public:
 	const std::vector<ObjectData *> &get_sorted_objects_data() const;
 	const std::map<int, std::vector<ObjectData *>> &get_peers_controlled_objects_data() const;
 	const std::vector<ObjectData *> *get_peer_controlled_objects_data(int p_peer) const;
+	const std::vector<ObjectData *> &get_unnamed_objects_data() const;
 
 	ObjectNetId generate_net_id() const;
 	bool is_empty() const;
 
 	void notify_set_controlled_by_peer(int p_old_peer, ObjectData &p_object);
+
+	void notify_object_name_unnamed_changed(ObjectData &p_object);
 };
 
 NS_NAMESPACE_END

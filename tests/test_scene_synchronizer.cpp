@@ -180,6 +180,83 @@ void test_client_and_server_initialization() {
 	NS_ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(server_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
 }
 
+void test_late_name_initialization() {
+	NS::LocalScene server_scene;
+	server_scene.start_as_server();
+
+	NS::LocalScene peer_1_scene;
+	peer_1_scene.start_as_client(server_scene);
+
+	// Add the scene sync
+	server_scene.scene_sync =
+			server_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+	NS_ASSERT_COND_MSG(server_scene.scene_sync->is_server(), "This must be a server scene sync.");
+
+	peer_1_scene.scene_sync =
+			peer_1_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+	NS_ASSERT_COND_MSG(peer_1_scene.scene_sync->is_client(), "This must be a client scene sync.");
+
+	server_scene.scene_sync->set_frame_confirmation_timespan(0.0);
+
+	// Spawn the object controlled on the server without a name, simulating a late name initialization
+	LocalNetworkedController *controller_p1_server = server_scene.add_object<LocalNetworkedController>("", peer_1_scene.get_peer());
+
+	// We pretend that the name is unknown on the client too.
+	LocalNetworkedController *controller_p1_client = peer_1_scene.add_object<LocalNetworkedController>("", peer_1_scene.get_peer());
+
+	controller_p1_server->position.data.f32 = -439;
+	NS_ASSERT_COND(controller_p1_client->position.data.f32 != controller_p1_server->position.data.f32);
+
+	// Process the scene 10 times.
+	for (int i = 0; i < 10; i++) {
+		server_scene.process(delta);
+		peer_1_scene.process(delta);
+	}
+
+	// Assert that the server position was never sync with the peer, since the
+	// name is unknown and there is no way to fetch the object on the client.
+	NS_ASSERT_COND(controller_p1_server->position.data.f32 == -439);
+	NS_ASSERT_COND(controller_p1_client->position.data.f32 != controller_p1_server->position.data.f32);
+
+	controller_p1_server->name = "controller_p1";
+
+	// Process the scene another 10 times.
+	for (int i = 0; i < 10; i++) {
+		server_scene.process(delta);
+		peer_1_scene.process(delta);
+
+		// Ensure the synchronizer fetched the name.
+		NS_ASSERT_COND(server_scene.scene_sync->get_object_data(controller_p1_server->local_id)->get_object_name() == "controller_p1");
+		NS_ASSERT_COND(peer_1_scene.scene_sync->get_object_data(controller_p1_client->local_id)->get_object_name() == "");
+	}
+
+	// Assert that the server position was never sync with the peer, since the
+	// name is still unknown on the client.
+	NS_ASSERT_COND(controller_p1_server->position.data.f32 == -439);
+	NS_ASSERT_COND(controller_p1_client->position.data.f32 != controller_p1_server->position.data.f32);
+
+	controller_p1_client->name = controller_p1_server->name;
+
+	// Process the scene another 10 times.
+	for (int i = 0; i < 10; i++) {
+		server_scene.process(delta);
+		peer_1_scene.process(delta);
+
+		// Ensure the synchronizer fetched the name everywhere
+		NS_ASSERT_COND(server_scene.scene_sync->get_object_data(controller_p1_server->local_id)->get_object_name() == "controller_p1");
+		NS_ASSERT_COND(peer_1_scene.scene_sync->get_object_data(controller_p1_client->local_id)->get_object_name() == "controller_p1");
+	}
+
+	// Assert that the server position is now sync on the client.
+	// NOTICE: This is using equal_approx with such big approximation (5.0)
+	// because we are no comparing the exact frame, so we expect the position
+	// not to be exactly the same. What's important is that the client was reconcilied.
+	NS_ASSERT_COND(NS::MathFunc::is_equal_approx(controller_p1_server->position.data.f32, -439.0f, 5.0f));
+	NS_ASSERT_COND(NS::MathFunc::is_equal_approx(controller_p1_client->position.data.f32, controller_p1_server->position.data.f32, 5.0f));
+
+	// Top!
+}
+
 class TestSceneObject : public NS::LocalSceneObject {
 public:
 	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
@@ -1053,6 +1130,7 @@ void test_no_network() {
 void test_scene_synchronizer() {
 	test_ids();
 	test_client_and_server_initialization();
+	test_late_name_initialization();
 	test_sync_groups();
 	test_state_notify();
 	test_processing_with_late_controller_registration();

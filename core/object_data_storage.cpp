@@ -59,6 +59,9 @@ void ObjectDataStorage::deallocate_object_data(ObjectData &p_object_data) {
 	p_object_data.controlled_by_peer = -1;
 	notify_set_controlled_by_peer(cbp, p_object_data);
 
+	// Remove from unnamed_objects_data if set
+	VecFunc::remove_unordered(unnamed_objects_data, &p_object_data);
+
 	delete (&p_object_data);
 
 	free_local_indices.push_back(local_id);
@@ -175,6 +178,10 @@ const std::vector<ObjectData *> *ObjectDataStorage::get_peer_controlled_objects_
 	return NS::MapFunc::get_or_null(objects_data_controlled_by_peers, p_peer);
 }
 
+const std::vector<ObjectData *> &ObjectDataStorage::get_unnamed_objects_data() const {
+	return unnamed_objects_data;
+}
+
 ObjectNetId ObjectDataStorage::generate_net_id() const {
 	ObjectNetId::IdType i = 0;
 	for (auto od : objects_data_organized_by_netid) {
@@ -213,6 +220,14 @@ void ObjectDataStorage::notify_set_controlled_by_peer(int p_old_peer, ObjectData
 				p_object.get_controlled_by_peer(),
 				std::vector<ObjectData *>());
 		NS::VecFunc::insert_unique(objects_it->second, &p_object);
+	}
+}
+
+void ObjectDataStorage::notify_object_name_unnamed_changed(ObjectData &p_object) {
+	if (p_object.object_name.empty()) {
+		VecFunc::insert_unique(unnamed_objects_data, &p_object);
+	} else {
+		VecFunc::remove_unordered(unnamed_objects_data, &p_object);
 	}
 }
 

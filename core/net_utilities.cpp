@@ -118,6 +118,25 @@ std::size_t NS::SyncGroup::add_new_sync_object(ObjectData *p_object_data, bool p
 	}
 }
 
+void NS::SyncGroup::notify_sync_object_name_is_known(ObjectData &p_object_data) {
+	// Notify simulated that the object name changed.
+	{
+		const std::size_t index = find_simulated(p_object_data);
+		if (index != VecFunc::index_none()) {
+			SimulatedObjectInfo &info = simulated_sync_objects[index];
+			info.change.unknown = true;
+		}
+	}
+
+	// Notify trickled that the object name changed.
+	{
+		const std::size_t index = find_trickled(p_object_data);
+		if (index != VecFunc::index_none()) {
+			trickled_sync_objects[index]._unknown = true;
+		}
+	}
+}
+
 void NS::SyncGroup::remove_sync_object(std::size_t p_index, bool p_is_simulated) {
 	int associted_peer = 0;
 
@@ -252,7 +271,7 @@ float NS::SyncGroup::get_trickled_update_rate(const NS::ObjectData *p_object_dat
 			return trickled_sync_objects[i].update_rate;
 		}
 	}
-	SceneSynchronizerDebugger::singleton()->print(ERROR, "NodeData " + p_object_data->object_name + " not found into `trickled_sync_objects`.");
+	SceneSynchronizerDebugger::singleton()->print(ERROR, "NodeData " + p_object_data->get_object_name() + " not found into `trickled_sync_objects`.");
 	return 0.0;
 }
 

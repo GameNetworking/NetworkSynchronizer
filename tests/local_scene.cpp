@@ -136,13 +136,24 @@ int LocalScene::get_peer() const {
 	return network.get_peer();
 }
 
+int LocalScene::fetch_object_index(const char *p_object_name) const {
+	int i = 0;
+	for (auto o : objects) {
+		if (o->name == p_object_name) {
+			return i;
+		}
+		i++;
+	}
+	return -1;
+}
+
 void LocalScene::remove_object(const char *p_object_name) {
-	std::map<std::string, std::shared_ptr<LocalSceneObject>>::iterator obj_it = objects.find(p_object_name);
-	if (obj_it != objects.end()) {
-		std::shared_ptr<LocalSceneObject> obj = obj_it->second;
+	const int obj_index = fetch_object_index(p_object_name);
+	if (obj_index >= 0) {
+		std::shared_ptr<LocalSceneObject> obj = objects[obj_index];
 		obj->on_scene_exit();
 		obj->scene_owner = nullptr;
-		objects.erase(obj_it);
+		VecFunc::remove_at_unordered(objects, obj_index);
 	}
 }
 

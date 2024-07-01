@@ -40,9 +40,7 @@
 #endif
 
 NS_NAMESPACE_BEGIN
-
 namespace MapFunc {
-
 template <class K, class V>
 V *get_or_null(std::map<K, V> &p_map, const K &p_key) {
 	typename std::map<K, V>::iterator it = p_map.find(p_key);
@@ -102,7 +100,6 @@ typename std::map<K, V>::iterator insert_if_new(std::map<K, V> &p_map, const K &
 }; //namespace MapFunc
 
 namespace VecFunc {
-
 inline std::size_t index_none() {
 	return std::numeric_limits<std::size_t>::max();
 }
@@ -244,7 +241,10 @@ struct ChangesListener {
 
 struct ListenerHandle {
 	std::intptr_t id;
-	bool operator==(const ListenerHandle &p_o) const { return id == p_o.id; }
+
+	bool operator==(const ListenerHandle &p_o) const {
+		return id == p_o.id;
+	}
 
 	static const ChangesListener *from_handle(ListenerHandle p_handle) {
 		return reinterpret_cast<const ChangesListener *>(p_handle.id);
@@ -254,6 +254,7 @@ struct ListenerHandle {
 		return ListenerHandle{ reinterpret_cast<std::intptr_t>(p_listener) };
 	}
 };
+
 inline static const ListenerHandle nulllistenerhandle = { 0 };
 
 struct PeerServerData {
@@ -286,11 +287,17 @@ public:
 		SimulatedObjectInfo(const SimulatedObjectInfo &) = default;
 		SimulatedObjectInfo &operator=(const SimulatedObjectInfo &) = default;
 		SimulatedObjectInfo &operator=(SimulatedObjectInfo &&) = default;
-		SimulatedObjectInfo(struct ObjectData *p_nd) :
-				od(p_nd) {}
-		bool operator==(const SimulatedObjectInfo &p_other) const { return od == p_other.od; }
 
-		void update_from(const SimulatedObjectInfo &p_other) {}
+		SimulatedObjectInfo(struct ObjectData *p_nd) :
+			od(p_nd) {
+		}
+
+		bool operator==(const SimulatedObjectInfo &p_other) const {
+			return od == p_other.od;
+		}
+
+		void update_from(const SimulatedObjectInfo &p_other) {
+		}
 	};
 
 	struct TrickledObjectInfo {
@@ -312,9 +319,14 @@ public:
 		TrickledObjectInfo(const TrickledObjectInfo &) = default;
 		TrickledObjectInfo &operator=(const TrickledObjectInfo &) = default;
 		TrickledObjectInfo &operator=(TrickledObjectInfo &&) = default;
+
 		TrickledObjectInfo(struct ObjectData *p_nd) :
-				od(p_nd) {}
-		bool operator==(const TrickledObjectInfo &p_other) const { return od == p_other.od; }
+			od(p_nd) {
+		}
+
+		bool operator==(const TrickledObjectInfo &p_other) const {
+			return od == p_other.od;
+		}
 
 		void update_from(const TrickledObjectInfo &p_other) {
 			update_rate = p_other.update_rate;
@@ -362,13 +374,22 @@ public:
 
 	void add_listening_peer(int p_peer);
 	void remove_listening_peer(int p_peer);
-	const std::vector<int> &get_listening_peers() const { return listening_peers; };
 
-	const std::vector<int> &get_networked_peers() const { return networked_peers; }
-	const std::vector<int> &get_simulating_peers() const { return simulating_peers; }
+	const std::vector<int> &get_listening_peers() const {
+		return listening_peers;
+	};
+
+	const std::vector<int> &get_networked_peers() const {
+		return networked_peers;
+	}
+
+	const std::vector<int> &get_simulating_peers() const {
+		return simulating_peers;
+	}
 
 	/// Returns the `index` or `UINT32_MAX` on error.
 	std::size_t add_new_sync_object(struct ObjectData *p_object_data, bool p_is_simulated);
+	void notify_sync_object_name_is_known(struct ObjectData &p_object_data);
 	void remove_sync_object(std::size_t p_index, bool p_is_simulated);
 	void remove_sync_object(const struct ObjectData &p_object_data);
 	void replace_objects(std::vector<SimulatedObjectInfo> &&p_new_simulated_objects, std::vector<TrickledObjectInfo> &&p_new_trickled_objects);

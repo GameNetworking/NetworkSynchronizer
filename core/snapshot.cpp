@@ -214,7 +214,7 @@ bool NS::Snapshot::compare(
 		bool are_nodes_different = false;
 		if (net_object_id >= ObjectNetId{ { ObjectNetId::IdType(p_snap_B.object_vars.size()) } }) {
 			if (r_differences_info) {
-				r_differences_info->push_back("Difference detected: The B snapshot doesn't contain this node: " + rew_object_data->object_name);
+				r_differences_info->push_back("Difference detected: The B snapshot doesn't contain this node: " + rew_object_data->get_object_name());
 			}
 #ifdef NS_DEBUG_ENABLED
 			is_equal = false;
@@ -232,7 +232,7 @@ bool NS::Snapshot::compare(
 
 			if (are_nodes_different) {
 				if (r_differences_info) {
-					r_differences_info->push_back("Difference detected: The node status on snapshot B is different. NODE: " + rew_object_data->object_name);
+					r_differences_info->push_back("Difference detected: The node status on snapshot B is different. NODE: " + rew_object_data->get_object_name());
 				}
 #ifdef NS_DEBUG_ENABLED
 				is_equal = false;

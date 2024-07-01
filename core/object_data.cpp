@@ -127,6 +127,22 @@ int ObjectData::get_controlled_by_peer() const {
 	return controlled_by_peer;
 }
 
+void ObjectData::set_object_name(const std::string &name, bool p_force_set) {
+	if (name == object_name && !p_force_set) {
+		return;
+	}
+	bool need_update = object_name.empty();
+	object_name = name;
+	need_update = need_update || object_name.empty();
+	if (need_update) {
+		storage.notify_object_name_unnamed_changed(*this);
+	}
+}
+
+const std::string &ObjectData::get_object_name() const {
+	return object_name;
+}
+
 VarId ObjectData::find_variable_id(const std::string &p_var_name) const {
 	for (const auto &v : vars) {
 		if (v.var.name == p_var_name) {
