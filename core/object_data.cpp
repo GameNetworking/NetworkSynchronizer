@@ -47,12 +47,9 @@ VarDescriptor::VarDescriptor(
 	enabled(p_enabled) {
 	var.name = p_name;
 	var.value = std::move(p_val);
+	NS_ASSERT_COND(id != NS::VarId::NONE);
 	NS_ASSERT_COND_MSG(set_func, "Please ensure that all the functions have a valid set function.");
 	NS_ASSERT_COND_MSG(get_func, "Please ensure that all the functions have a valid get function.");
-}
-
-bool VarDescriptor::operator<(const VarDescriptor &p_other) const {
-	return id < p_other.id;
 }
 
 ObjectData::ObjectData(ObjectDataStorage &p_storage) :

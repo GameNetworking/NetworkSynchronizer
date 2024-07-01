@@ -63,7 +63,7 @@ public:
 	///         Once the name is returned for an object (the returned string is non empty "")
 	///         the name must remain the same forever.
 	/// NOTICE: The name must be unique across all the peers!
-	virtual std::string get_object_name(ObjectHandle p_app_object_handle) const = 0;
+	virtual std::string fetch_object_name(ObjectHandle p_app_object_handle) const = 0;
 	virtual void setup_synchronizer_for(ObjectHandle p_app_object_handle, ObjectLocalId p_id) = 0;
 };
 

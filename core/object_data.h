@@ -26,17 +26,17 @@ struct NameAndVar {
 };
 
 struct VarDescriptor {
-	VarId id = VarId::NONE;
+	const VarId id;
 	NameAndVar var;
 	/// The variable type.
-	std::uint8_t type = 0;
+	const std::uint8_t type;
 	VarDataSetFunc set_func = nullptr;
 	VarDataGetFunc get_func = nullptr;
 	bool skip_rewinding = false;
 	bool enabled = false;
 	std::vector<struct ChangesListener *> changes_listeners;
 
-	VarDescriptor() = default;
+	VarDescriptor() = delete;
 	VarDescriptor(
 			VarId p_id,
 			const std::string &p_name,
@@ -46,8 +46,6 @@ struct VarDescriptor {
 			VarDataGetFunc p_get_func,
 			bool p_skip_rewinding,
 			bool p_enabled);
-
-	bool operator<(const VarDescriptor &p_other) const;
 };
 
 struct ObjectData {

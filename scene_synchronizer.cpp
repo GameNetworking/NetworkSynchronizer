@@ -113,12 +113,6 @@ void SceneSynchronizerBase::setup(SynchronizerManager &p_synchronizer_interface)
 	clear();
 	reset_synchronizer_mode();
 
-	// Make sure to reset all the assigned controllers.
-	reset_controllers();
-
-	// Spawn the self peer.
-	on_peer_connected(get_network_interface().get_local_peer_id());
-
 	// Init the peers already connected.
 	std::vector<int> peer_ids;
 	network_interface->fetch_connected_peers(peer_ids);
@@ -382,7 +376,7 @@ void SceneSynchronizerBase::register_app_object(ObjectHandle p_app_object_handle
 
 		od->set_net_id(ObjectNetId::NONE);
 		od->debug_object_id = synchronizer_manager->debug_only_get_object_id(p_app_object_handle);
-		od->set_object_name(synchronizer_manager->get_object_name(p_app_object_handle), true);
+		od->set_object_name(synchronizer_manager->fetch_object_name(p_app_object_handle), true);
 		od->app_object_handle = p_app_object_handle;
 
 		if (generate_id) {
@@ -1067,16 +1061,21 @@ void SceneSynchronizerBase::init_synchronizer(bool p_was_generating_ids) {
 			// When changing synchronizer mode, it's necessary to refresh the
 			// name too because each mode may have its own way of generating or
 			// handling the names.
-			od->set_object_name(synchronizer_manager->get_object_name(od->app_object_handle));
-
-			// Handle the variables ID.
-			for (VarId::IdType v = 0; v < od->vars.size(); v += 1) {
-				if (generate_id) {
-					od->vars[v].id = VarId{ v };
-				} else {
-					od->vars[v].id = VarId::NONE;
-				}
+			od->set_object_name(synchronizer_manager->fetch_object_name(od->app_object_handle));
+		}
+	} else {
+		// Always refresh the Objects names.
+		for (ObjectNetId::IdType i = 0; i < objects_data_storage.get_objects_data().size(); i += 1) {
+			ObjectData *od = objects_data_storage.get_objects_data()[i];
+			if (!od) {
+				continue;
 			}
+
+			// Refresh the object name.
+			// When changing synchronizer mode, it's necessary to refresh the
+			// name too because each mode may have its own way of generating or
+			// handling the names.
+			od->set_object_name(synchronizer_manager->fetch_object_name(od->app_object_handle));
 		}
 	}
 
@@ -1096,6 +1095,10 @@ void SceneSynchronizerBase::init_synchronizer(bool p_was_generating_ids) {
 	for (auto &peer_it : peer_data) {
 		synchronizer->on_peer_connected(peer_it.first);
 	}
+
+	// Ensure the self peer is spawned too.
+	// This is good to have here because the local peer may have changed.
+	on_peer_connected(get_network_interface().get_local_peer_id());
 
 	// Reset the controllers.
 	reset_controllers();
@@ -1501,7 +1504,7 @@ void SceneSynchronizerBase::try_fetch_unnamed_objects_data_names() {
 	// array as we go.
 	const std::vector<ObjectData *> unnamed_objects = objects_data_storage.get_unnamed_objects_data();
 	for (ObjectData *OD : unnamed_objects) {
-		OD->set_object_name(synchronizer_manager->get_object_name(OD->app_object_handle));
+		OD->set_object_name(synchronizer_manager->fetch_object_name(OD->app_object_handle));
 		if (!OD->get_object_name().empty()) {
 			// Mark this as changed to ensure the clients are eventually notified.
 			if (is_server()) {

@@ -252,7 +252,7 @@ void test_late_name_initialization() {
 	// because we are no comparing the exact frame, so we expect the position
 	// not to be exactly the same. What's important is that the client was reconcilied.
 	NS_ASSERT_COND(NS::MathFunc::is_equal_approx(controller_p1_server->position.data.f32, -439.0f, 5.0f));
-	NS_ASSERT_COND(NS::MathFunc::is_equal_approx(controller_p1_client->position.data.f32, controller_p1_server->position.data.f32, 5.0f));
+	NS_ASSERT_COND(NS::MathFunc::is_equal_approx(controller_p1_client->position.data.f32, controller_p1_server->position.data.f32, delta * 2.0f));
 
 	// Top!
 }
@@ -1127,6 +1127,83 @@ void test_no_network() {
 	NS_ASSERT_COND(NS::MathFunc::is_equal_approx(controlled_obj_1->position.data.f32, frame_count * delta * one_meter));
 }
 
+/// This test ensure the reset works properly so:
+/// 1. The object names are refreshed and sync with the client
+/// 2. The sync works properly even after the mode reset from No Net to Server.
+void test_sync_mode_reset() {
+	NS::LocalScene server_scene;
+	server_scene.start_as_no_net();
+
+	NS::LocalScene peer_1_scene;
+	peer_1_scene.start_as_no_net();
+
+	// Add the scene sync
+	server_scene.scene_sync =
+			server_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+
+	peer_1_scene.scene_sync =
+			peer_1_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+
+	server_scene.scene_sync->set_frame_confirmation_timespan(0.0);
+
+	LocalNetworkedController *controlled_obj_1_server = server_scene.add_object<LocalNetworkedController>("controller_1-NoNet", server_scene.get_peer());
+	LocalNetworkedController *controlled_obj_1_peer_1 = peer_1_scene.add_object<LocalNetworkedController>("controller_1", server_scene.get_peer());
+
+	// Ensure the scene started as no net.
+	NS_ASSERT_COND(server_scene.scene_sync->is_no_network());
+	NS_ASSERT_COND(peer_1_scene.scene_sync->is_no_network());
+
+	NS_ASSERT_COND(controlled_obj_1_server->position.data.f32 == 0);
+	NS_ASSERT_COND(controlled_obj_1_peer_1->position.data.f32 == 0);
+
+	// Process ONLY THE SERVER 10 frames
+	const int frame_count = 10;
+	for (int p = 0; p < frame_count; p++) {
+		server_scene.process(delta);
+		NS_ASSERT_COND(server_scene.scene_sync->get_object_data(controlled_obj_1_server->local_id)->get_object_name() == "controller_1-NoNet");
+		NS_ASSERT_COND(peer_1_scene.scene_sync->get_object_data(controlled_obj_1_peer_1->local_id)->get_object_name() == "controller_1");
+	}
+
+	// Ensure the character advanced exactly 10m on the server
+	const float one_meter = 1.0;
+	NS_ASSERT_COND(NS::MathFunc::is_equal_approx(controlled_obj_1_server->position.data.f32, frame_count * delta * one_meter));
+	// But not on the client.
+	NS_ASSERT_COND(controlled_obj_1_peer_1->position.data.f32 == 0);
+
+	// Also updates the server name
+	controlled_obj_1_server->name = "controller_1";
+
+	// Now connect the client to the server and trigger the scene_sync re-init.
+	server_scene.start_as_server();
+	peer_1_scene.start_as_client(server_scene);
+	server_scene.scene_sync->reset_synchronizer_mode();
+	peer_1_scene.scene_sync->reset_synchronizer_mode();
+
+	// Change who is controlling this controller to the peer now.
+	server_scene.scene_sync->set_controlled_by_peer(controlled_obj_1_server->local_id, peer_1_scene.get_peer());
+
+	NS_ASSERT_COND(server_scene.scene_sync->is_server());
+	NS_ASSERT_COND(peer_1_scene.scene_sync->is_client());
+	// Ensure the server properly updated the object name too.
+	NS_ASSERT_COND(server_scene.scene_sync->get_object_data(controlled_obj_1_server->local_id)->get_object_name() == "controller_1");
+
+	// Process 10 frames
+	for (int p = 0; p < frame_count; p++) {
+		server_scene.process(delta);
+		peer_1_scene.process(delta);
+
+		NS_ASSERT_COND(server_scene.scene_sync->get_object_data(controlled_obj_1_server->local_id)->get_object_name() == "controller_1");
+		NS_ASSERT_COND(peer_1_scene.scene_sync->get_object_data(controlled_obj_1_peer_1->local_id)->get_object_name() == "controller_1");
+	}
+
+	// Ensure the character advanced exactly 20m on both sides.
+	// NOTICE: The high approximation is needed because we are not comparing the same frames
+	//         Here we just need to ensure that transitioning from NoNet to server or client
+	//         doesn't cause issues and that the names are also updated.
+	NS_ASSERT_COND(NS::MathFunc::is_equal_approx(controlled_obj_1_server->position.data.f32, frame_count * delta * one_meter * 2.0f, delta * 2.0f));
+	NS_ASSERT_COND(NS::MathFunc::is_equal_approx(controlled_obj_1_peer_1->position.data.f32, frame_count * delta * one_meter * 2.0f, delta * 2.0f));
+}
+
 void test_scene_synchronizer() {
 	test_ids();
 	test_client_and_server_initialization();
@@ -1140,5 +1217,6 @@ void test_scene_synchronizer() {
 	test_controller_processing();
 	test_streaming();
 	test_no_network();
+	test_sync_mode_reset();
 }
 }; //namespace NS_Test
