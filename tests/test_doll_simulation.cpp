@@ -17,6 +17,14 @@
 namespace NS_Test {
 const float delta = 1.0f / 60.0f;
 
+std::shared_ptr<NS::LocalSceneSynchronizerNoSubTicks> SceneSyncNoSubTicks_Obj1;
+std::shared_ptr<NS::LocalSceneSynchronizerNoSubTicks> SceneSyncNoSubTicks_Obj2;
+std::shared_ptr<NS::LocalSceneSynchronizerNoSubTicks> SceneSyncNoSubTicks_Obj3;
+
+std::shared_ptr<NS::LocalSceneSynchronizer> SceneSync_Obj1;
+std::shared_ptr<NS::LocalSceneSynchronizer> SceneSync_Obj2;
+std::shared_ptr<NS::LocalSceneSynchronizer> SceneSync_Obj3;
+
 class TDSControlledObject : public NS::LocalSceneObject {
 public:
 	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
@@ -171,18 +179,18 @@ public:
 		// Add the scene sync
 		if (p_no_sub_ticks) {
 			server_scene.scene_sync =
-					server_scene.add_object<NS::LocalSceneSynchronizerNoSubTicks>("sync", server_scene.get_peer());
+					server_scene.add_existing_object(SceneSyncNoSubTicks_Obj1, "sync", server_scene.get_peer());
 			peer_1_scene.scene_sync =
-					peer_1_scene.add_object<NS::LocalSceneSynchronizerNoSubTicks>("sync", server_scene.get_peer());
+					peer_1_scene.add_existing_object(SceneSyncNoSubTicks_Obj2, "sync", server_scene.get_peer());
 			peer_2_scene.scene_sync =
-					peer_2_scene.add_object<NS::LocalSceneSynchronizerNoSubTicks>("sync", server_scene.get_peer());
+					peer_2_scene.add_existing_object(SceneSyncNoSubTicks_Obj3, "sync", server_scene.get_peer());
 		} else {
 			server_scene.scene_sync =
-					server_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+					server_scene.add_existing_object(SceneSync_Obj1, "sync", server_scene.get_peer());
 			peer_1_scene.scene_sync =
-					peer_1_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+					peer_1_scene.add_existing_object(SceneSync_Obj2, "sync", server_scene.get_peer());
 			peer_2_scene.scene_sync =
-					peer_2_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+					peer_2_scene.add_existing_object(SceneSync_Obj3, "sync", server_scene.get_peer());
 		}
 
 		server_scene.scene_sync->set_frame_confirmation_timespan(frame_confirmation_timespan);
@@ -722,6 +730,13 @@ void test_simulation_with_wrong_input() {
 }
 
 void test_doll_simulation() {
+	SceneSyncNoSubTicks_Obj1 = std::make_shared<NS::LocalSceneSynchronizerNoSubTicks>();
+	SceneSyncNoSubTicks_Obj2 = std::make_shared<NS::LocalSceneSynchronizerNoSubTicks>();
+	SceneSyncNoSubTicks_Obj3 = std::make_shared<NS::LocalSceneSynchronizerNoSubTicks>();
+	SceneSync_Obj1 = std::make_shared<NS::LocalSceneSynchronizer>();
+	SceneSync_Obj2 = std::make_shared<NS::LocalSceneSynchronizer>();
+	SceneSync_Obj3 = std::make_shared<NS::LocalSceneSynchronizer>();
+
 	test_simulation_without_reconciliation(0.0f);
 	test_simulation_without_reconciliation(1.f / 30.f);
 	test_simulation_reconciliation(0.0f);
@@ -731,5 +746,19 @@ void test_doll_simulation() {
 	test_simulation_with_wrong_input();
 	// TODO test with great latency and lag compensation.
 	test_latency();
+
+	SceneSyncNoSubTicks_Obj1->clear_scene();
+	SceneSyncNoSubTicks_Obj2->clear_scene();
+	SceneSyncNoSubTicks_Obj3->clear_scene();
+	SceneSync_Obj1->clear_scene();
+	SceneSync_Obj2->clear_scene();
+	SceneSync_Obj3->clear_scene();
+
+	SceneSyncNoSubTicks_Obj1 = std::shared_ptr<NS::LocalSceneSynchronizerNoSubTicks>();
+	SceneSyncNoSubTicks_Obj2 = std::shared_ptr<NS::LocalSceneSynchronizerNoSubTicks>();
+	SceneSyncNoSubTicks_Obj3 = std::shared_ptr<NS::LocalSceneSynchronizerNoSubTicks>();
+	SceneSync_Obj1 = std::shared_ptr<NS::LocalSceneSynchronizer>();
+	SceneSync_Obj2 = std::shared_ptr<NS::LocalSceneSynchronizer>();
+	SceneSync_Obj3 = std::shared_ptr<NS::LocalSceneSynchronizer>();
 }
 }; //namespace NS_Test

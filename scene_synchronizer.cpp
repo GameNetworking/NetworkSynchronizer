@@ -59,6 +59,8 @@ void SceneSynchronizerBase::install_synchronizer(
 }
 
 void SceneSynchronizerBase::setup(SynchronizerManager &p_synchronizer_interface) {
+	reset();
+
 	synchronizer_manager = &p_synchronizer_interface;
 	network_interface->start_listening_peer_connection(
 			[this](int p_peer) {
@@ -110,10 +112,9 @@ void SceneSynchronizerBase::setup(SynchronizerManager &p_synchronizer_interface)
 					false,
 					false);
 
-	clear();
 	reset_synchronizer_mode();
 
-	// Init the peers already connected.
+	// Fetch the peers connected from the Network Interface and ini them.
 	std::vector<int> peer_ids;
 	network_interface->fetch_connected_peers(peer_ids);
 	for (int peer_id : peer_ids) {
@@ -1159,14 +1160,65 @@ void SceneSynchronizerBase::clear() {
 	}
 	changes_listeners.clear();
 
-	// Avoid too much useless re-allocations.
-	changes_listeners.reserve(100);
-
 	if (synchronizer) {
 		synchronizer->clear();
 	}
 
 	process_functions__clear();
+}
+
+void SceneSynchronizerBase::clear_peers() {
+	// Copy, so we can safely remove the peers from `peer_data`.
+	std::vector<int> peers_tmp;
+	peers_tmp.reserve(peer_data.size());
+	for (auto &it : peer_data) {
+		peers_tmp.push_back(it.first);
+	}
+
+	for (int peer : peers_tmp) {
+		on_peer_disconnected(peer);
+	}
+
+	NS_ASSERT_COND_MSG(peer_data.empty(), "The above loop should have cleared this peer_data by calling `_on_peer_disconnected` for all the peers.");
+}
+
+void SceneSynchronizerBase::reset() {
+	clear_peers();
+	clear();
+
+	event_sync_started.clear();
+	event_sync_paused.clear();
+	event_settings_changed.clear();
+	event_peer_status_updated.clear();
+	event_state_validated.clear();
+	event_sent_snapshot.clear();
+	event_snapshot_update_finished.clear();
+	event_snapshot_applied.clear();
+	event_received_server_snapshot.clear();
+	event_rewind_frame_begin.clear();
+	event_desync_detected_with_info.clear();
+
+	for (int process_phase = PROCESS_PHASE_EARLY; process_phase < PROCESS_PHASE_COUNT; ++process_phase) {
+		cached_process_functions[process_phase].clear();
+	}
+	cached_process_functions_valid = false;
+
+	uninit_synchronizer();
+
+	recover_in_progress = false;
+	reset_in_progress = false;
+	rewinding_in_progress = false;
+	end_sync = false;
+
+	settings_changed = true;
+
+	rpc_handler_state.reset();
+	rpc_handler_notify_need_full_snapshot.reset();
+	rpc_handler_set_network_enabled.reset();
+	rpc_handler_notify_peer_status.reset();
+	rpc_handler_trickled_sync_data.reset();
+	rpc_handle_notify_netstats.reset();
+	rpc_handle_receive_input.reset();
 }
 
 void SceneSynchronizerBase::rpc_receive_state(DataBuffer &p_snapshot) {
@@ -1304,20 +1356,6 @@ void SceneSynchronizerBase::rpc_receive_inputs(int p_peer, const std::vector<std
 	}
 }
 
-void SceneSynchronizerBase::clear_peers() {
-	// Copy, so we can safely remove the peers from `peer_data`.
-	std::vector<int> peers_tmp;
-	peers_tmp.reserve(peer_data.size());
-	for (auto &it : peer_data) {
-		peers_tmp.push_back(it.first);
-	}
-
-	for (int peer : peers_tmp) {
-		on_peer_disconnected(peer);
-	}
-
-	NS_ASSERT_COND_MSG(peer_data.empty(), "The above loop should have cleared this peer_data by calling `_on_peer_disconnected` for all the peers.");
-}
 
 void SceneSynchronizerBase::detect_and_signal_changed_variables(int p_flags) {
 	const std::vector<ObjectData *> &active_objects = synchronizer->get_active_objects();
@@ -1454,10 +1492,10 @@ void SceneSynchronizerBase::drop_object_data(NS::ObjectData &p_object_data) {
 	}
 
 	// Remove this `ObjectData` from any event listener.
-	for (auto cl : changes_listeners) {
-		for (auto wv : cl->watching_vars) {
+	for (auto &cl : changes_listeners) {
+		for (auto &wv : cl->watching_vars) {
 			if (wv.node_data == &p_object_data) {
-				// We can't remove this entirely, otherwise we change that the user expects.
+				// We can't remove this entirely, otherwise we change the array length.
 				wv.node_data = nullptr;
 				wv.var_id = VarId::NONE;
 			}

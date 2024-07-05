@@ -53,6 +53,8 @@ public:
 	virtual uint64_t debug_only_get_object_id(ObjectHandle p_app_object_handle) const override;
 	virtual std::string fetch_object_name(ObjectHandle p_app_object_handle) const override;
 	virtual void setup_synchronizer_for(ObjectHandle p_app_object_handle, ObjectLocalId p_id) override;
+	
+	void clear_scene();
 };
 
 class LocalSceneSynchronizerNoSubTicks : public LocalSceneSynchronizer {
@@ -90,6 +92,9 @@ public:
 	int get_peer() const;
 
 	template <class T>
+	T *add_existing_object(const std::shared_ptr<T> &p_object, const std::string &p_object_name, int p_authoritative_peer);
+
+	template <class T>
 	T *add_object(const std::string &p_object_name, int p_authoritative_peer);
 
 	template <class T>
@@ -108,12 +113,20 @@ T *LocalScene::add_object(const std::string &p_object_name, int p_authoritative_
 	NS_ASSERT_COND(!fetch_object<T>(p_object_name.c_str()));
 
 	std::shared_ptr<T> object = std::make_shared<T>();
-	objects.push_back(object);
-	object->scene_owner = this;
-	object->name = p_object_name;
-	object->authoritative_peer_id = p_authoritative_peer;
-	object->on_scene_entry();
-	return object.get();
+	return add_existing_object(object, p_object_name, p_authoritative_peer);
+}
+
+template <class T>
+T *LocalScene::add_existing_object(const std::shared_ptr<T> &p_object, const std::string &p_object_name, int p_authoritative_peer) {
+	// Make sure the name are unique.
+	NS_ASSERT_COND(!fetch_object<T>(p_object_name.c_str()));
+
+	objects.push_back(p_object);
+	p_object->scene_owner = this;
+	p_object->name = p_object_name;
+	p_object->authoritative_peer_id = p_authoritative_peer;
+	p_object->on_scene_entry();
+	return p_object.get();
 }
 
 template <class T>

@@ -188,18 +188,7 @@ public:
 protected:
 #endif
 
-	class NetworkInterface *network_interface = nullptr;
-	SynchronizerManager *synchronizer_manager = nullptr;
-
-	RpcHandle<DataBuffer &> rpc_handler_state;
-	RpcHandle<> rpc_handler_notify_need_full_snapshot;
-	RpcHandle<bool> rpc_handler_set_network_enabled;
-	RpcHandle<bool> rpc_handler_notify_peer_status;
-	RpcHandle<const std::vector<std::uint8_t> &> rpc_handler_trickled_sync_data;
-	RpcHandle<DataBuffer &> rpc_handle_notify_netstats;
-
-	// Controller RPCs.
-	RpcHandle<int, const std::vector<std::uint8_t> &> rpc_handle_receive_input;
+protected: // --------------------------------------------------------- Settings
 
 	/// Fixed rate at which the NetSync has to produce frames.
 	int frames_per_seconds = 60;
@@ -261,6 +250,21 @@ protected:
 	/// Update the latency each 3 seconds.
 	float latency_update_rate = 3.0f;
 
+protected: // ----------------------------------------------------- User defined
+	class NetworkInterface *network_interface = nullptr;
+	SynchronizerManager *synchronizer_manager = nullptr;
+
+protected: // -------------------------------------------------------- Internals
+	RpcHandle<DataBuffer &> rpc_handler_state;
+	RpcHandle<> rpc_handler_notify_need_full_snapshot;
+	RpcHandle<bool> rpc_handler_set_network_enabled;
+	RpcHandle<bool> rpc_handler_notify_peer_status;
+	RpcHandle<const std::vector<std::uint8_t> &> rpc_handler_trickled_sync_data;
+	RpcHandle<DataBuffer &> rpc_handle_notify_netstats;
+
+	// Controller RPCs.
+	RpcHandle<int, const std::vector<std::uint8_t> &> rpc_handle_receive_input;
+	
 	Settings settings;
 	bool settings_changed = true;
 
@@ -577,9 +581,15 @@ public: // ---------------------------------------------------------------- APIs
 	void init_synchronizer(bool p_was_generating_ids);
 	void uninit_synchronizer();
 	void reset_synchronizer_mode();
-	void clear();
 
+	/// Removes all the ObjectData, changed variables, processing functions.
+	void clear();
+	/// Removes all the Peers.
 	void clear_peers();
+
+	/// Completely reset the SceneSync so the object can be used in a new context.
+	/// NOTICE: Setup must be called again onced reset is executed.
+	void reset();
 
 	void detect_and_signal_changed_variables(int p_flags);
 

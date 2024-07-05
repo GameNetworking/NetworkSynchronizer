@@ -116,6 +116,10 @@ void LocalSceneSynchronizer::setup_synchronizer_for(ObjectHandle p_app_object_ha
 	from_handle(p_app_object_handle)->setup_synchronizer(*get_scene()->scene_sync, p_id);
 }
 
+void LocalSceneSynchronizer::clear_scene() {
+	scene_owner = nullptr;
+}
+
 LocalScene *LocalSceneObject::get_scene() const {
 	return scene_owner;
 }

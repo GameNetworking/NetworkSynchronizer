@@ -5,7 +5,6 @@
 #include "../core/ensure.h"
 #include "../core/net_utilities.h"
 #include "../core/var_data.h"
-#include "../tests/local_network.h"
 #include "../core/net_math.h"
 #include "local_scene.h"
 
