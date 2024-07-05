@@ -1219,6 +1219,7 @@ void SceneSynchronizerBase::reset() {
 	rpc_handler_trickled_sync_data.reset();
 	rpc_handle_notify_netstats.reset();
 	rpc_handle_receive_input.reset();
+	network_interface->reset();
 }
 
 void SceneSynchronizerBase::rpc_receive_state(DataBuffer &p_snapshot) {
