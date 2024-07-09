@@ -16,10 +16,19 @@ option(ENABLE_DEBUG_DATA_BUFFER "Enable debug data buffer." OFF)
 # When turning this option on, you can override the release and debug CPP build flags.
 option(OVERRIDE_CXX_FLAGS "Enable this to override the flags used for release and debug. `CMAKE_CXX_FLAGS_DEBUG` `CMAKE_CXX_FLAGS_RELEASE`" OFF)
 
+# Ability to toggle between the static and DLL versions of the MSVC runtime library
+# Windows Store only supports the DLL version
+option(USE_STATIC_MSVC_RUNTIME_LIBRARY "Use the static MSVC runtime library" ON)
+
 if (MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fp:precise") # Ensure floating point is not fast to make math operations deterministic.
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /fp:precise") # Ensure floating point is not fast to make math operations deterministic.
     
+	# Set runtime library
+	if (USE_STATIC_MSVC_RUNTIME_LIBRARY)
+		set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+	endif()
+	
 	# Optionally generate debug symbols
 	if (GENERATE_DEBUG_SYMBOLS)
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zi")
