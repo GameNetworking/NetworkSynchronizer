@@ -20,6 +20,10 @@ option(OVERRIDE_CXX_FLAGS "Enable this to override the flags used for release an
 # Windows Store only supports the DLL version
 option(USE_STATIC_MSVC_RUNTIME_LIBRARY "Use the static MSVC runtime library" ON)
 
+# Ability to toggle between the static and DLL versions of the MSVC runtime library
+# Windows Store only supports the DLL version
+option(BUILD_MSVC_MD "In MSVC build the library using MD." ON)
+
 if (MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fp:precise") # Ensure floating point is not fast to make math operations deterministic.
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /fp:precise") # Ensure floating point is not fast to make math operations deterministic.
@@ -39,9 +43,18 @@ if (MSVC)
     	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /DEBUG")
     endif()
     
+    if (BUILD_MSVC_MD)
+	    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MD")
+	    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MD")
+	endif()
+	
     # Set compiler flags for various configurations
     if (NOT OVERRIDE_CXX_FLAGS)
-    	set(CMAKE_CXX_FLAGS_DEBUG "/GS /Od /Ob0 /RTC1")
+    	set(CMAKE_CXX_FLAGS_DEBUG "/MDd /GS /Od /Ob0 /RTC1")
+        if (BUILD_MSVC_MD)
+    	    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd")
+	        set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MDd")
+        endif()
     	set(CMAKE_CXX_FLAGS_RELEASE "/GS- /Gy /O2 /Oi /Ot")
     endif()
     set(CMAKE_CXX_FLAGS_DISTRIBUTION "${CMAKE_CXX_FLAGS_RELEASE}")
