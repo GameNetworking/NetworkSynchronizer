@@ -35,8 +35,8 @@ VarDescriptor::VarDescriptor(
 		const std::string &p_name,
 		std::uint8_t p_type,
 		VarData &&p_val,
-		VarDataSetFunc p_set_func,
-		VarDataGetFunc p_get_func,
+		NS_VarDataSetFunc p_set_func,
+		NS_VarDataGetFunc p_get_func,
 		bool p_skip_rewinding,
 		bool p_enabled) :
 	id(p_id),

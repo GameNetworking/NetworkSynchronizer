@@ -445,7 +445,7 @@ void SceneSynchronizerBase::set_controlled_by_peer(
 	object_data->set_controlled_by_peer(*this, p_peer);
 }
 
-void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const std::string &p_variable_name, const VarDataSetFunc &p_set_func, const VarDataGetFunc &p_get_func) {
+void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const std::string &p_variable_name, const NS_VarDataSetFunc &p_set_func, const NS_VarDataGetFunc &p_get_func) {
 	NS_ENSURE(p_id != ObjectLocalId::NONE);
 	NS_ENSURE(!p_variable_name.empty());
 	NS_ENSURE(p_set_func);

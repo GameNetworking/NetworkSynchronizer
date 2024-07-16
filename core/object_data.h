@@ -30,8 +30,8 @@ struct VarDescriptor {
 	NameAndVar var;
 	/// The variable type.
 	const std::uint8_t type;
-	VarDataSetFunc set_func = nullptr;
-	VarDataGetFunc get_func = nullptr;
+	NS_VarDataSetFunc set_func = nullptr;
+	NS_VarDataGetFunc get_func = nullptr;
 	bool skip_rewinding = false;
 	bool enabled = false;
 	std::vector<struct ChangesListener *> changes_listeners;
@@ -42,8 +42,8 @@ struct VarDescriptor {
 			const std::string &p_name,
 			std::uint8_t p_type,
 			VarData &&p_val,
-			VarDataSetFunc p_set_func,
-			VarDataGetFunc p_get_func,
+			NS_VarDataSetFunc p_set_func,
+			NS_VarDataGetFunc p_get_func,
 			bool p_skip_rewinding,
 			bool p_enabled);
 };
