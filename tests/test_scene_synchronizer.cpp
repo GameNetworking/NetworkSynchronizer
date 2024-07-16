@@ -68,10 +68,10 @@ public:
 		p_scene_sync.register_variable(
 				p_id,
 				"position",
-				[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const char *p_var_name, const NS::VarData &p_value) {
+				[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, const NS::VarData &p_value) {
 					static_cast<LocalNetworkedController *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->position.copy(p_value);
 				},
-				[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const char *p_var_name, NS::VarData &r_value) {
+				[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, NS::VarData &r_value) {
 					r_value.copy(static_cast<LocalNetworkedController *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->position);
 				});
 	}
@@ -270,10 +270,10 @@ public:
 		p_scene_sync.register_variable(
 				p_id,
 				"var_1",
-				[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const char *p_var_name, const NS::VarData &p_value) {
+				[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, const NS::VarData &p_value) {
 					static_cast<TestSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->var_1.copy(p_value);
 				},
-				[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const char *p_var_name, NS::VarData &r_value) {
+				[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, NS::VarData &r_value) {
 					r_value.copy(static_cast<TestSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->var_1);
 				});
 	}

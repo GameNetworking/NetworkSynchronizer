@@ -61,10 +61,10 @@ public:
 		p_scene_sync.register_variable(
 				p_id,
 				"xy",
-				[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const char *p_var_name, const NS::VarData &p_value) {
+				[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, const NS::VarData &p_value) {
 					static_cast<TDSControlledObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->set_xy(p_value.data.vec.x, p_value.data.vec.y);
 				},
-				[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const char *p_var_name, NS::VarData &r_value) {
+				[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, NS::VarData &r_value) {
 					r_value.copy(static_cast<const TDSControlledObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->xy);
 				});
 	}

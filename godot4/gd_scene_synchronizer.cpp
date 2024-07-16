@@ -557,13 +557,13 @@ void GdSceneSynchronizer::register_variable(Node *p_node, const StringName &p_va
 	scene_synchronizer.register_variable(
 			scene_synchronizer.find_object_local_id(scene_synchronizer.to_handle(p_node)),
 			std::string(String(p_variable).utf8()),
-			[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const char *p_var_name, const NS::VarData &p_value) {
+			[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, const NS::VarData &p_value) {
 				Node *node = GdSceneSynchronizer::SyncClass::from_handle(p_handle);
 				Variant v;
 				GdSceneSynchronizer::convert(v, p_value);
 				node->set(StringName(p_var_name), v);
 			},
-			[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const char *p_var_name, NS::VarData &r_value) {
+			[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, NS::VarData &r_value) {
 #ifdef NS_PROFILING_ENABLED
 				std::string info = std::string("Var name: ") + p_name;
 				NS_PROFILE_WITH_INFO(info);

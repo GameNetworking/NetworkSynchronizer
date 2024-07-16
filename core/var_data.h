@@ -88,7 +88,7 @@ public:
 	void copy(const VarData &p_other);
 };
 
-typedef std::function<void(class SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_app_object_handle, const char *p_name, const NS::VarData &p_val)> VarDataSetFunc;
-typedef std::function<void(const class SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_app_object_handle, const char *p_name, NS::VarData &r_val)> VarDataGetFunc;
+typedef std::function<void(class SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_app_object_handle, const std::string &p_name, const NS::VarData &p_val)> VarDataSetFunc;
+typedef std::function<void(const class SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_app_object_handle, const std::string &p_name, NS::VarData &r_val)> VarDataGetFunc;
 
 NS_NAMESPACE_END
