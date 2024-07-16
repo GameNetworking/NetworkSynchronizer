@@ -465,7 +465,7 @@ public: // ---------------------------------------------------------------- APIs
 	void set_controlled_by_peer(
 			ObjectLocalId p_id,
 			int p_peer);
-	void register_variable(ObjectLocalId p_id, const std::string &p_variable_name, VarDataSetFunc p_set_func, VarDataGetFunc p_get_func);
+	void register_variable(ObjectLocalId p_id, const std::string &p_variable_name, const VarDataSetFunc &p_set_func, const VarDataGetFunc &p_get_func);
 	void unregister_variable(ObjectLocalId p_id, const std::string &p_variable);
 
 	ObjectNetId get_app_object_net_id(ObjectLocalId p_local_id) const;
