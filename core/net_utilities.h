@@ -157,6 +157,15 @@ void insert_at_position_expand(std::vector<V> &r_vec, std::size_t p_index, const
 	r_vec[p_index] = p_val;
 }
 
+template <class V, typename T>
+V &get_or_expand(std::vector<V> &r_vec, std::size_t p_index, const T &p_default) {
+	if (r_vec.size() <= p_index) {
+		insert_at_position_expand(r_vec, p_index, p_default, p_default);
+	}
+
+	return r_vec[p_index];
+}
+
 // Return the value at index or default if not set.
 template <class V>
 const V &at(const std::vector<V> &p_vec, const std::size_t p_index, const V &p_default) {
@@ -275,8 +284,8 @@ struct SyncGroup {
 public:
 	struct Change {
 		bool unknown = false;
-		std::vector<std::string> uknown_vars;
-		std::vector<std::string> vars;
+		std::vector<VarId> uknown_vars;
+		std::vector<VarId> vars;
 	};
 
 	struct SimulatedObjectInfo {
@@ -370,7 +379,7 @@ public:
 	const std::vector<NS::SyncGroup::TrickledObjectInfo> &get_trickled_sync_objects() const;
 	std::vector<NS::SyncGroup::TrickledObjectInfo> &get_trickled_sync_objects();
 
-	void mark_changes_as_notified();
+	void mark_changes_as_notified(bool p_update_only_variables);
 
 	void add_listening_peer(int p_peer);
 	void remove_listening_peer(int p_peer);
@@ -395,8 +404,8 @@ public:
 	void replace_objects(std::vector<SimulatedObjectInfo> &&p_new_simulated_objects, std::vector<TrickledObjectInfo> &&p_new_trickled_objects);
 	void remove_all_nodes();
 
-	void notify_new_variable(struct ObjectData *p_object_data, const std::string &p_var_name);
-	void notify_variable_changed(struct ObjectData *p_object_data, const std::string &p_var_name);
+	void notify_new_variable(struct ObjectData *p_object_data, VarId p_var_id);
+	void notify_variable_changed(struct ObjectData *p_object_data, VarId p_var_id);
 
 	void set_trickled_update_rate(struct ObjectData *p_object_data, float p_update_rate);
 	float get_trickled_update_rate(const struct ObjectData *p_object_data) const;

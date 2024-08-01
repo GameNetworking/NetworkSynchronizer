@@ -9,6 +9,17 @@
 #include <vector>
 
 NS_NAMESPACE_BEGIN
+enum class VarSyncMode {
+	// This is the default sync mode: The Variable is sync as part of the state sync which happens at a fixed Hz.
+	STATE_SYNC,
+	// The Variable is sync as part of the state sync, which happens at a fixed Hz, but doesn't trigger any rewinding when the value desync.
+	STATE_UPDATE_ONLY,
+	// The variable is sync right away. As the STATE_UPDATE_ONLY doesn't trigger a rewinding.
+	CONSTANT_UPDATE_ONLY,
+	// The variable is never sync unless manually specified. As the STATE_UPDATE_ONLY doesn't trigger a rewinding.
+	MANUAL_UPDATE_ONLY,
+};
+
 struct NameAndVar {
 	std::string name;
 	VarData value;
@@ -32,7 +43,7 @@ struct VarDescriptor {
 	const std::uint8_t type;
 	NS_VarDataSetFunc set_func = nullptr;
 	NS_VarDataGetFunc get_func = nullptr;
-	bool skip_rewinding = false;
+	VarSyncMode sync_mode = VarSyncMode::STATE_SYNC;
 	bool enabled = false;
 	std::vector<struct ChangesListener *> changes_listeners;
 

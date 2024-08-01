@@ -264,7 +264,7 @@ protected: // -------------------------------------------------------- Internals
 
 	// Controller RPCs.
 	RpcHandle<int, const std::vector<std::uint8_t> &> rpc_handle_receive_input;
-	
+
 	Settings settings;
 	bool settings_changed = true;
 
@@ -484,7 +484,8 @@ public: // ---------------------------------------------------------------- APIs
 	/// - The variable is not registered.
 	VarId get_variable_id(ObjectLocalId p_id, const std::string &p_variable);
 
-	void set_skip_rewinding(ObjectLocalId p_id, const std::string &p_variable, bool p_skip_rewinding);
+	/// You can alter the sync rate for a specific variable by changing SyncMode.
+	void set_var_sync_mode(ObjectLocalId p_id, const std::string &p_variable, VarSyncMode p_sync_mode);
 
 	ListenerHandle track_variable_changes(
 			ObjectLocalId p_id,
@@ -945,9 +946,9 @@ public:
 			DataBuffer &p_snapshot,
 			void *p_user_pointer,
 			void (*p_custom_data_parse)(void *p_user_pointer, VarData &&p_custom_data),
-			void (*p_object_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
-			bool (*p_peers_frame_index_parse)(void *p_user_pointer, std::map<int, FrameIndex> &&p_frames_index),
-			void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, VarData &&p_value),
+			void (*p_object_parse)(void *p_user_pointer, ObjectData *p_object_data),
+			bool (*p_peers_frame_index_parse)(void *p_user_pointer, bool p_is_update_only_sync_data, std::map<int, FrameIndex> &&p_frames_index),
+			void (*p_variable_parse)(void *p_user_pointer, ObjectData *p_object_data, VarId p_var_id, VarData &&p_value, bool p_is_update_only_sync_data),
 			void (*p_simulated_objects_parse)(void *p_user_pointer, std::vector<SimulatedObjectInfo> &&p_simulated_objects));
 
 	void set_enabled(bool p_enabled);
@@ -996,7 +997,7 @@ private:
 	int calculates_sub_ticks(const float p_delta);
 	void process_simulation(float p_delta);
 
-	bool parse_snapshot(DataBuffer &p_snapshot);
+	bool parse_snapshot(DataBuffer &p_snapshot, std::vector<std::vector<VarId>> &r_update_only_info);
 
 	void notify_server_full_snapshot_is_needed();
 

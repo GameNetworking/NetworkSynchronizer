@@ -573,14 +573,14 @@ VarId SceneSynchronizerBase::get_variable_id(ObjectLocalId p_id, const std::stri
 	return od->find_variable_id(p_variable);
 }
 
-void SceneSynchronizerBase::set_skip_rewinding(ObjectLocalId p_id, const std::string &p_variable, bool p_skip_rewinding) {
-	NS::ObjectData *od = get_object_data(p_id);
+void SceneSynchronizerBase::set_var_sync_mode(ObjectLocalId p_id, const std::string &p_variable, VarSyncMode p_sync_mode) {
+	ObjectData *od = get_object_data(p_id);
 	NS_ENSURE(od);
 
 	const VarId id = od->find_variable_id(p_variable);
 	NS_ENSURE(id != VarId::NONE);
 
-	od->vars[id.id].skip_rewinding = p_skip_rewinding;
+	od->vars[id.id].sync_mode = p_sync_mode;
 }
 
 ListenerHandle SceneSynchronizerBase::track_variable_changes(
@@ -1963,7 +1963,7 @@ void ServerSynchronizer::on_object_data_controller_changed(NS::ObjectData *p_obj
 	}
 }
 
-void ServerSynchronizer::on_variable_added(NS::ObjectData *p_object_data, const std::string &p_var_name) {
+void ServerSynchronizer::on_variable_added(ObjectData *p_object_data, const std::string &p_var_name) {
 #ifdef NS_DEBUG_ENABLED
 	// Can't happen on server
 	NS_ASSERT_COND(!scene_synchronizer->is_recovered());
@@ -1971,12 +1971,15 @@ void ServerSynchronizer::on_variable_added(NS::ObjectData *p_object_data, const 
 	NS_ASSERT_COND(p_object_data->get_net_id() != ObjectNetId::NONE);
 #endif
 
-	for (NS::SyncGroup &group : sync_groups) {
-		group.notify_new_variable(p_object_data, p_var_name);
+	const VarId var_id = p_object_data->find_variable_id(p_var_name);
+	NS_ASSERT_COND_MSG(var_id != VarId::NONE, "The variable doesn't exist: " + p_var_name);
+
+	for (SyncGroup &group : sync_groups) {
+		group.notify_new_variable(p_object_data, var_id);
 	}
 }
 
-void ServerSynchronizer::on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) {
+void ServerSynchronizer::on_variable_changed(ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) {
 #ifdef NS_DEBUG_ENABLED
 	// Can't happen on server
 	NS_ASSERT_COND(!scene_synchronizer->is_recovered());
@@ -1984,8 +1987,8 @@ void ServerSynchronizer::on_variable_changed(NS::ObjectData *p_object_data, VarI
 	NS_ASSERT_COND(p_object_data->get_net_id() != ObjectNetId::NONE);
 #endif
 
-	for (NS::SyncGroup &group : sync_groups) {
-		group.notify_variable_changed(p_object_data, p_object_data->vars[p_var_id.id].var.name);
+	for (SyncGroup &group : sync_groups) {
+		group.notify_variable_changed(p_object_data, p_var_id);
 	}
 }
 
@@ -2177,7 +2180,7 @@ void ServerSynchronizer::process_snapshot_notificator() {
 		return;
 	}
 
-	for (NS::SyncGroup &group : sync_groups) {
+	for (SyncGroup &group : sync_groups) {
 		if (group.get_listening_peers().empty()) {
 			// No one is interested to this group.
 			continue;
@@ -2205,7 +2208,7 @@ void ServerSynchronizer::process_snapshot_notificator() {
 				continue;
 			}
 
-			NS::PeerData *peer = MapFunc::get_or_null(scene_synchronizer->peer_data, peer_id);
+			PeerData *peer = MapFunc::get_or_null(scene_synchronizer->peer_data, peer_id);
 			if (peer == nullptr) {
 				SceneSynchronizerDebugger::singleton()->print(ERROR, "The `process_snapshot_notificator` failed to lookup the peer_id `" + std::to_string(peer_id) + "`. Was it removed but never cleared from sync_groups. Report this error, as this is a bug.");
 				continue;
@@ -2275,7 +2278,7 @@ void ServerSynchronizer::generate_snapshot(
 		r_snapshot_db.add(true);
 
 		for (uint32_t i = 0; i < relevant_node_data.size(); i += 1) {
-			const NS::ObjectData *od = relevant_node_data[i].od;
+			const ObjectData *od = relevant_node_data[i].od;
 			NS_ASSERT_COND(od->get_net_id() != ObjectNetId::NONE);
 			NS_ASSERT_COND(od->get_net_id().id <= std::numeric_limits<uint16_t>::max());
 			r_snapshot_db.add(od->get_net_id().id);
@@ -2419,7 +2422,7 @@ void ServerSynchronizer::generate_snapshot_object_data(
 			var_has_value = false;
 		}
 
-		if (!force_snapshot_variables && !VecFunc::has(p_change.vars, var.var.name)) {
+		if (!force_snapshot_variables && !VecFunc::has(p_change.vars, i)) {
 			// This is a delta snapshot and this variable is the same as before.
 			// Skip this value
 			var_has_value = false;
@@ -2678,23 +2681,29 @@ void ClientSynchronizer::receive_snapshot(DataBuffer &p_snapshot) {
 	// that contains always the last received snapshot.
 	// Later, the snapshot is stored into the server queue.
 	// In this way, we are free to pop snapshot from the queue without wondering
-	// about losing the data. Indeed the received snapshot is just and
+	// about losing the data. Indeed, the received snapshot is just and
 	// incremental update so the last received data is always needed to fully
 	// reconstruct it.
 
 	SceneSynchronizerDebugger::singleton()->print(VERBOSE, "The Client received the server snapshot.", scene_synchronizer->get_network_interface().get_owner_name());
 
 	// Parse server snapshot.
-	const bool success = parse_snapshot(p_snapshot);
+	std::vector<std::vector<VarId>> update_only_info;
+	const bool success = parse_snapshot(p_snapshot, update_only_info);
 
 	if (success == false) {
 		return;
 	}
 
-	scene_synchronizer->event_received_server_snapshot.broadcast(last_received_snapshot);
+	if (update_only_info.size() > 0) {
+		// The received sync data is of type "update only" and doesn't contain
+		// information about state sync.
+	} else {
+		scene_synchronizer->event_received_server_snapshot.broadcast(last_received_snapshot);
 
-	// Finalize data.
-	store_controllers_snapshot(last_received_snapshot);
+		// Finalize data.
+		store_controllers_snapshot(last_received_snapshot);
+	}
 }
 
 void ClientSynchronizer::on_object_data_added(NS::ObjectData &p_object_data) {
@@ -2790,7 +2799,7 @@ void ClientSynchronizer::store_snapshot() {
 }
 
 void ClientSynchronizer::store_controllers_snapshot(
-		const NS::Snapshot &p_snapshot) {
+		const Snapshot &p_snapshot) {
 	// Put the parsed snapshot into the queue.
 
 	if (p_snapshot.input_id == FrameIndex::NONE) {
@@ -3329,21 +3338,26 @@ bool ClientSynchronizer::parse_sync_data(
 		DataBuffer &p_snapshot,
 		void *p_user_pointer,
 		void (*p_custom_data_parse)(void *p_user_pointer, VarData &&p_custom_data),
-		void (*p_object_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
-		bool (*p_peers_frame_index_parse)(void *p_user_pointer, std::map<int, FrameIndex> &&p_frames_index),
-		void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, VarData &&p_value),
+		void (*p_object_parse)(void *p_user_pointer, ObjectData *p_object_data),
+		bool (*p_peers_frame_index_parse)(void *p_user_pointer, bool p_is_update_only_sync_data, std::map<int, FrameIndex> &&p_frames_index),
+		void (*p_variable_parse)(void *p_user_pointer, ObjectData *p_object_data, VarId p_var_id, VarData &&p_value, bool p_is_update_only_sync_data),
 		void (*p_simulated_objects_parse)(void *p_user_pointer, std::vector<SimulatedObjectInfo> &&p_simulated_objects)) {
 	NS_PROFILE
 
-	// The snapshot is a DataBuffer that contains the scene informations.
+	// The snapshot is a DataBuffer that contains the scene information.
 	// NOTE: Check generate_snapshot to see the DataBuffer format.
 	std::map<int, FrameIndex> frames_index;
+
+	bool is_update_only_sync_data = false;
 
 	p_snapshot.begin_read();
 	if (p_snapshot.size() <= 0) {
 		// Nothing to do.
 		return true;
 	}
+
+	p_snapshot.read(is_update_only_sync_data);
+	NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as it failed reading `is_update_only_sync_data`.");
 
 	{
 		// Fetch `active_node_list_byte_array`.
@@ -3409,7 +3423,7 @@ bool ClientSynchronizer::parse_sync_data(
 
 	while (true) {
 		// First extract the object data
-		NS::ObjectData *synchronizer_object_data = nullptr;
+		ObjectData *synchronizer_object_data = nullptr;
 		{
 			ObjectNetId net_id = ObjectNetId::NONE;
 			p_snapshot.read(net_id.id);
@@ -3519,6 +3533,10 @@ bool ClientSynchronizer::parse_sync_data(
 				NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `var_has_value` was expected at this point. Object: `" + synchronizer_object_data->get_object_name() + "` Var: `" + var_desc.var.name + "`");
 
 				if (var_has_value) {
+					if (is_update_only_sync_data) {
+						NS_ENSURE_V_MSG(var_desc.sync_mode != VarSyncMode::STATE_SYNC, false, "This snapshot is corrupted because the received sync_data is set as update_only but it's updating a variable that should be sync as SYNC_STATE. This should not be possible. (Is the client receiving broken or hacked data?)");
+					}
+
 					VarData value;
 					SceneSynchronizerBase::var_data_decode(value, p_snapshot, var_desc.type);
 					NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `variable value` was expected at this point. Object: `" + synchronizer_object_data->get_object_name() + "` Var: `" + var_desc.var.name + "`");
@@ -3528,13 +3546,14 @@ bool ClientSynchronizer::parse_sync_data(
 							p_user_pointer,
 							synchronizer_object_data,
 							var_desc.id,
-							std::move(value));
+							std::move(value),
+							is_update_only_sync_data);
 				}
 			}
 		}
 	}
 
-	NS_ENSURE_V_MSG(p_peers_frame_index_parse(p_user_pointer, std::move(frames_index)), false, "This snapshot is corrupted as the frame index parsing failed.");
+	NS_ENSURE_V_MSG(p_peers_frame_index_parse(p_user_pointer, is_update_only_sync_data, std::move(frames_index)), false, "This snapshot is corrupted as the frame index parsing failed.");
 
 	return true;
 }
@@ -3715,12 +3734,12 @@ void ClientSynchronizer::remove_object_from_trickled_sync(NS::ObjectData *p_obje
 	VecFunc::remove_unordered(trickled_sync_array, p_object_data);
 }
 
-bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
+bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot, std::vector<std::vector<VarId>> &r_update_only_info) {
 	if (want_to_enable) {
 		if (enabled) {
 			SceneSynchronizerDebugger::singleton()->print(ERROR, "At this point the client is supposed to be disabled. This is a bug that must be solved.", scene_synchronizer->get_network_interface().get_owner_name());
 		}
-		// The netwroking is disabled and we can re-enable it.
+		// The networking is disabled and we can re-enable it.
 		enabled = true;
 		want_to_enable = false;
 		scene_synchronizer->event_sync_started.broadcast();
@@ -3728,22 +3747,26 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 
 	need_full_snapshot_notified = false;
 
-	NS::Snapshot received_snapshot;
+	Snapshot received_snapshot;
 	received_snapshot.copy(last_received_snapshot);
 	received_snapshot.input_id = FrameIndex::NONE;
 
 	struct ParseData {
-		NS::Snapshot &snapshot;
+		Snapshot &snapshot;
 		PeerNetworkedController *player_controller;
 		SceneSynchronizerBase *scene_synchronizer;
 		ClientSynchronizer *client_synchronizer;
+		FrameIndex prev_input_id;
+		std::vector<std::vector<VarId>> &r_update_only_info;
 	};
 
 	ParseData parse_data{
 		received_snapshot,
 		player_controller,
 		scene_synchronizer,
-		this
+		this,
+		last_received_snapshot.input_id,
+		r_update_only_info
 	};
 
 	const bool success = parse_sync_data(
@@ -3773,23 +3796,31 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 			},
 
 			// Parse peer frames index
-			[](void *p_user_pointer, std::map<int, FrameIndex> &&p_peers_frames_index) -> bool {
+			[](void *p_user_pointer, bool p_is_update_only_sync_data, std::map<int, FrameIndex> &&p_peers_frames_index) -> bool {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
 
-				// Extract the InputID for the controller processed as Authority by this client.
-				const FrameIndex authority_frame_index = pd->player_controller ? MapFunc::at(p_peers_frames_index, pd->player_controller->get_authority_peer(), FrameIndex::NONE) : FrameIndex::NONE;
+				if (p_is_update_only_sync_data) {
+					// We are just updating variables that doesn't trigger any
+					// rewinding so doesn't need any specific input ID.
+					// Just use the previous one.
 
-				// Store it.
-				pd->snapshot.input_id = authority_frame_index;
+					pd->snapshot.input_id = pd->prev_input_id;
+				} else {
+					// Extract the InputID for the controller processed as Authority by this client.
+					const FrameIndex authority_frame_index = pd->player_controller ? MapFunc::at(p_peers_frames_index, pd->player_controller->get_authority_peer(), FrameIndex::NONE) : FrameIndex::NONE;
 
-				// Store the frames index.
-				pd->snapshot.peers_frames_index = std::move(p_peers_frames_index);
+					// Store it.
+					pd->snapshot.input_id = authority_frame_index;
+
+					// Store the frames index.
+					pd->snapshot.peers_frames_index = std::move(p_peers_frames_index);
+				}
 
 				return true;
 			},
 
 			// Parse variable:
-			[](void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, VarData &&p_value) {
+			[](void *p_user_pointer, ObjectData *p_object_data, VarId p_var_id, VarData &&p_value, bool p_is_update_only_sync_data) {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
 
 				if (p_object_data->vars.size() != uint32_t(pd->snapshot.object_vars[p_object_data->get_net_id().id].size())) {
@@ -3799,6 +3830,11 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 
 				pd->snapshot.object_vars[p_object_data->get_net_id().id][p_var_id.id].name = p_object_data->vars[p_var_id.id].var.name;
 				pd->snapshot.object_vars[p_object_data->get_net_id().id][p_var_id.id].value = std::move(p_value);
+
+				if (p_is_update_only_sync_data) {
+					std::vector<VarId> &update_vars = VecFunc::get_or_expand(pd->r_update_only_info, p_object_data->get_net_id().id, std::vector<VarId>());
+					update_vars.push_back(p_var_id);
+				}
 			},
 
 			// Parse node activation:
