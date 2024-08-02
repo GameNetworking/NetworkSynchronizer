@@ -485,7 +485,7 @@ public: // ---------------------------------------------------------------- APIs
 	VarId get_variable_id(ObjectLocalId p_id, const std::string &p_variable);
 
 	/// You can alter the sync rate for a specific variable by changing SyncMode.
-	void set_var_sync_mode(ObjectLocalId p_id, const std::string &p_variable, VarSyncMode p_sync_mode);
+	void set_variable_sync_mode(ObjectLocalId p_id, const std::string &p_variable, VarSyncMode p_sync_mode);
 
 	ListenerHandle track_variable_changes(
 			ObjectLocalId p_id,
@@ -990,7 +990,11 @@ private:
 			PlayerController *p_player_controller);
 
 	void __pcr__sync__no_rewind(
-			const Snapshot &p_postponed_recover);
+			const Snapshot &p_postponed_recover,
+			const bool p_skip_simulated_objects_update = false,
+			const bool p_disable_apply_non_doll_controlled_only = false,
+			const bool p_skip_snapshot_applied_event_broadcast = false,
+			const bool p_skip_change_event = false);
 
 	void __pcr__no_rewind(
 			const FrameIndex p_checkable_frame_index,

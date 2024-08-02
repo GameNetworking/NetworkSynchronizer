@@ -573,7 +573,7 @@ VarId SceneSynchronizerBase::get_variable_id(ObjectLocalId p_id, const std::stri
 	return od->find_variable_id(p_variable);
 }
 
-void SceneSynchronizerBase::set_var_sync_mode(ObjectLocalId p_id, const std::string &p_variable, VarSyncMode p_sync_mode) {
+void SceneSynchronizerBase::set_variable_sync_mode(ObjectLocalId p_id, const std::string &p_variable, VarSyncMode p_sync_mode) {
 	ObjectData *od = get_object_data(p_id);
 	NS_ENSURE(od);
 
@@ -2221,7 +2221,7 @@ void ServerSynchronizer::process_snapshot_notificator() {
 
 			auto pd_it = MapFunc::insert_if_new(peers_data, peer_id, PeerServerData());
 
-			if (pd_it->second.force_notify_snapshot == false && notify_state == false) {
+			if (pd_it->second.force_notify_snapshot || notify_state) {
 				pd_it->second.force_notify_snapshot = false;
 
 				DataBuffer *snap;
@@ -2893,7 +2893,13 @@ void ClientSynchronizer::process_received_update_only_data() {
 		return;
 	}
 
-	__pcr__sync__no_rewind(update_only_snapshot.value());
+	update_only_snapshot->input_id = FrameIndex{ 0 };
+	__pcr__sync__no_rewind(
+			update_only_snapshot.value(),
+			true,
+			false,
+			true,
+			false);
 	update_only_snapshot.reset();
 }
 
@@ -2914,7 +2920,7 @@ void ClientSynchronizer::process_received_server_state() {
 		// The server last received snapshot is a no input snapshot. Just assume it's the most up-to-date.
 		SceneSynchronizerDebugger::singleton()->print(VERBOSE, "The client received a \"no input\" snapshot, so the client is setting it right away assuming is the most updated one.", scene_synchronizer->get_network_interface().get_owner_name());
 
-		apply_snapshot(*last_received_server_snapshot, NetEventFlag::SYNC_RECOVER, 0, nullptr);
+		apply_snapshot(*last_received_server_snapshot, NetEventFlag::SERVER_UPDATE, 0, nullptr);
 		last_received_server_snapshot.reset();
 		return;
 	}
@@ -3147,7 +3153,7 @@ void ClientSynchronizer::__pcr__sync__rewind(
 	const NS::Snapshot &server_snapshot = *last_received_server_snapshot;
 	apply_snapshot(
 			server_snapshot,
-			NetEventFlag::SYNC_RECOVER | NetEventFlag::SYNC_RESET,
+			NetEventFlag::SERVER_UPDATE | NetEventFlag::SYNC_RESET,
 			p_rewind_frame_count,
 			scene_synchronizer->debug_rewindings_enabled ? &applied_data_info : nullptr);
 
@@ -3190,7 +3196,7 @@ void ClientSynchronizer::__pcr__rewind(
 		NS_PROFILE_NAMED_WITH_INFO("Rewinding frame", prof_info);
 #endif
 
-		scene_synchronizer->change_events_begin(NetEventFlag::SYNC_RECOVER | NetEventFlag::SYNC_REWIND);
+		scene_synchronizer->change_events_begin(NetEventFlag::SERVER_UPDATE | NetEventFlag::SYNC_REWIND);
 
 		// Step 1 -- Notify the local controller about the instant to process
 		//           on the next process.
@@ -3213,7 +3219,7 @@ void ClientSynchronizer::__pcr__rewind(
 		// Step 3 -- Pull node changes.
 		{
 			NS_PROFILE_NAMED("detect_and_signal_changed_variables");
-			scene_synchronizer->detect_and_signal_changed_variables(NetEventFlag::SYNC_RECOVER | NetEventFlag::SYNC_REWIND);
+			scene_synchronizer->detect_and_signal_changed_variables(NetEventFlag::SERVER_UPDATE | NetEventFlag::SYNC_REWIND);
 		}
 
 		// Step 4 -- Update snapshots.
@@ -3230,7 +3236,12 @@ void ClientSynchronizer::__pcr__rewind(
 #endif
 }
 
-void ClientSynchronizer::__pcr__sync__no_rewind(const NS::Snapshot &p_no_rewind_recover) {
+void ClientSynchronizer::__pcr__sync__no_rewind(
+		const Snapshot &p_no_rewind_recover,
+		const bool p_skip_simulated_objects_update,
+		const bool p_disable_apply_non_doll_controlled_only,
+		const bool p_skip_snapshot_applied_event_broadcast,
+		const bool p_skip_change_event) {
 	NS_PROFILE
 	NS_ASSERT_COND_MSG(p_no_rewind_recover.input_id == FrameIndex{ { 0 } }, "This function is never called unless there is something to recover without rewinding.");
 
@@ -3239,11 +3250,15 @@ void ClientSynchronizer::__pcr__sync__no_rewind(const NS::Snapshot &p_no_rewind_
 
 	apply_snapshot(
 			p_no_rewind_recover,
-			NetEventFlag::SYNC_RECOVER,
+			NetEventFlag::SERVER_UPDATE,
 			0,
 			scene_synchronizer->debug_rewindings_enabled ? &applied_data_info : nullptr,
 			// ALWAYS skips custom data because partial snapshots don't contain custom_data.
-			true);
+			true,
+			p_skip_simulated_objects_update,
+			p_disable_apply_non_doll_controlled_only,
+			p_skip_snapshot_applied_event_broadcast,
+			p_skip_change_event);
 
 	if (applied_data_info.size() > 0) {
 		SceneSynchronizerDebugger::singleton()->print(INFO, "Partial reset:", scene_synchronizer->get_network_interface().get_owner_name());
@@ -3276,7 +3291,7 @@ void ClientSynchronizer::process_paused_controller_recovery() {
 
 	apply_snapshot(
 			*last_received_server_snapshot,
-			NetEventFlag::SYNC_RECOVER,
+			NetEventFlag::SERVER_UPDATE,
 			0,
 			&applied_data_info);
 
@@ -3919,6 +3934,9 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot, bool &r_skip_sta
 
 					pd->update_only_snapshot->object_vars[p_object_data->get_net_id().id][p_var_id.id].name = p_object_data->vars[p_var_id.id].var.name;
 					pd->update_only_snapshot->object_vars[p_object_data->get_net_id().id][p_var_id.id].value.copy(p_value);
+
+					// Pretend this object is simulated, in this way the apply snapshot will apply the variable for this object.
+					VecFunc::insert_unique(pd->update_only_snapshot->simulated_objects, p_object_data->get_net_id());
 				}
 
 				if (p_object_data->vars.size() != uint32_t(pd->snapshot.object_vars[p_object_data->get_net_id().id].size())) {
@@ -4073,7 +4091,7 @@ void ClientSynchronizer::update_simulated_objects_list(const std::vector<Simulat
 }
 
 void ClientSynchronizer::apply_snapshot(
-		const NS::Snapshot &p_snapshot,
+		const Snapshot &p_snapshot,
 		const int p_flag,
 		const int p_frame_count_to_rewind,
 		std::vector<std::string> *r_applied_data_info,
@@ -4084,7 +4102,7 @@ void ClientSynchronizer::apply_snapshot(
 		const bool p_skip_change_event) {
 	NS_PROFILE
 
-	const std::vector<NS::NameAndVar> *snap_objects_vars = p_snapshot.object_vars.data();
+	const std::vector<NameAndVar> *snap_objects_vars = p_snapshot.object_vars.data();
 
 	if (!p_skip_change_event) {
 		scene_synchronizer->change_events_begin(p_flag);
