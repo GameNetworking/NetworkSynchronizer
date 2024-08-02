@@ -54,13 +54,13 @@ bool compare_vars(
 						c_vars[var_index].value);
 
 		if (different) {
-			if (p_object_data.vars[var_index].skip_rewinding) {
+			if (p_object_data.vars[var_index].sync_mode != NS::VarSyncMode::STATE_UPDATE_SYNC) {
 				// The vars are different, but we don't need to trigger a rewind.
 				if (r_no_rewind_recover) {
-					if (uint32_t(r_no_rewind_recover->object_vars.data()[p_object_data.get_net_id().id].size()) <= var_index) {
-						r_no_rewind_recover->object_vars.data()[p_object_data.get_net_id().id].resize(var_index + 1);
+					if (uint32_t(r_no_rewind_recover->object_vars[p_object_data.get_net_id().id].size()) <= var_index) {
+						r_no_rewind_recover->object_vars[p_object_data.get_net_id().id].resize(var_index + 1);
 					}
-					r_no_rewind_recover->object_vars.data()[p_object_data.get_net_id().id].data()[var_index].copy(s_vars[var_index]);
+					r_no_rewind_recover->object_vars[p_object_data.get_net_id().id][var_index].copy(s_vars[var_index]);
 					// Sets `input_id` to 0 to signal that this snapshot contains
 					// no-rewind data.
 					r_no_rewind_recover->input_id = NS::FrameIndex{ { 0 } };
@@ -130,7 +130,7 @@ void NS::Snapshot::copy(const Snapshot &p_other) {
 }
 
 bool NS::Snapshot::compare(
-		const NS::SceneSynchronizerBase &scene_synchronizer,
+		const SceneSynchronizerBase &scene_synchronizer,
 		const Snapshot &p_snap_A,
 		const Snapshot &p_snap_B,
 		const int p_skip_objects_not_controlled_by_peer,
@@ -140,7 +140,7 @@ bool NS::Snapshot::compare(
 		,
 		std::vector<ObjectNetId> *r_different_node_data
 #endif
-) {
+		) {
 #ifdef NS_DEBUG_ENABLED
 	bool is_equal = true;
 #endif

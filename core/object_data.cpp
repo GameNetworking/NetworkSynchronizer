@@ -37,13 +37,13 @@ VarDescriptor::VarDescriptor(
 		VarData &&p_val,
 		NS_VarDataSetFunc p_set_func,
 		NS_VarDataGetFunc p_get_func,
-		bool p_skip_rewinding,
+		VarSyncMode p_sync_mode,
 		bool p_enabled) :
 	id(p_id),
 	type(p_type),
 	set_func(p_set_func),
 	get_func(p_get_func),
-	skip_rewinding(p_skip_rewinding),
+	sync_mode(p_sync_mode),
 	enabled(p_enabled) {
 	var.name = p_name;
 	var.value = std::move(p_val);

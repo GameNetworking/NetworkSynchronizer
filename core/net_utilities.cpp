@@ -30,18 +30,34 @@ std::vector<NS::SyncGroup::TrickledObjectInfo> &NS::SyncGroup::get_trickled_sync
 	return trickled_sync_objects;
 }
 
-void NS::SyncGroup::mark_changes_as_notified(bool p_update_only_variables) {
-	for (int i = 0; i < int(simulated_sync_objects.size()); ++i) {
-		simulated_sync_objects[i].change.unknown = false;
-		simulated_sync_objects[i].change.uknown_vars.clear();
-		simulated_sync_objects[i].change.vars.clear();
+void NS::SyncGroup::mark_changes_as_notified(bool p_only_non_state_update) {
+	if (p_only_non_state_update) {
+		for (int i = 0; i < int(simulated_sync_objects.size()); ++i) {
+			if (simulated_sync_objects[i].od) {
+				for (int h = int(simulated_sync_objects[i].change.vars.size()) - 1; h >= 0; h--) {
+					const VarId var_id(simulated_sync_objects[i].change.vars[h]);
+					if (simulated_sync_objects[i].od->vars[var_id.id].sync_mode == VarSyncMode::STATE_UPDATE_SYNC ||
+						simulated_sync_objects[i].od->vars[var_id.id].sync_mode == VarSyncMode::STATE_UPDATE_SKIP_SYNC) {
+						VecFunc::remove_at_unordered(simulated_sync_objects[i].change.vars, h);
+						h--;
+					}
+				}
+			}
+		}
+	} else {
+		for (int i = 0; i < int(simulated_sync_objects.size()); ++i) {
+			simulated_sync_objects[i].change.unknown = false;
+			simulated_sync_objects[i].change.uknown_vars.clear();
+			simulated_sync_objects[i].change.vars.clear();
+		}
+
+		for (int i = 0; i < int(trickled_sync_objects.size()); ++i) {
+			trickled_sync_objects[i]._unknown = false;
+		}
+		simulated_sync_objects_list_changed = false;
+		trickled_sync_objects_list_changed = false;
+		peers_with_newly_calculated_latency.clear();
 	}
-	for (int i = 0; i < int(trickled_sync_objects.size()); ++i) {
-		trickled_sync_objects[i]._unknown = false;
-	}
-	simulated_sync_objects_list_changed = false;
-	trickled_sync_objects_list_changed = false;
-	peers_with_newly_calculated_latency.clear();
 }
 
 void NS::SyncGroup::add_listening_peer(int p_peer) {

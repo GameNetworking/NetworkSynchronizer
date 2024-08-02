@@ -734,8 +734,10 @@ class ServerSynchronizer final : public Synchronizer {
 	std::vector<ObjectData *> active_objects;
 
 	enum SnapshotGenerationMode {
-		/// The shanpshot will include The NetId and the object name and all the changed variables.
+		/// The snapshot will include The NetId and the object name and all the changed variables.
 		SNAPSHOT_GENERATION_MODE_NORMAL,
+		/// The snapshot will include The NetId and the object name and all the changed variables but the one that use as VarSyncMode "STATE_UPDATE_*".
+		SNAPSHOT_GENERATION_MODE_SKIP_STATE_UPDATE,
 		/// The snapshot will include The object name only.
 		SNAPSHOT_GENERATION_MODE_FORCE_NODE_PATH_ONLY,
 		/// The snapshot will contains everything no matter what.
@@ -788,15 +790,16 @@ public:
 
 	void process_snapshot_notificator();
 
-	void generate_snapshot(
+	int generate_snapshot(
 			bool p_force_full_snapshot,
-			const NS::SyncGroup &p_group,
+			bool p_skip_variables_using_state_update,
+			const SyncGroup &p_group,
 			DataBuffer &r_snapshot_db) const;
 
 	void generate_snapshot_object_data(
-			const NS::ObjectData *p_object_data,
+			const ObjectData *p_object_data,
 			SnapshotGenerationMode p_mode,
-			const NS::SyncGroup::Change &p_change,
+			const SyncGroup::Change &p_change,
 			std::vector<int> &r_frame_index_added_for_peer,
 			DataBuffer &r_snapshot_db) const;
 
@@ -822,6 +825,7 @@ public:
 	std::map<ObjectNetId, std::string> objects_names;
 
 	Snapshot last_received_snapshot;
+	std::optional<Snapshot> update_only_snapshot;
 	std::deque<Snapshot> client_snapshots;
 	FrameIndex last_received_server_snapshot_index = FrameIndex::NONE;
 	std::optional<Snapshot> last_received_server_snapshot;
@@ -965,6 +969,7 @@ private:
 	void store_controllers_snapshot(const Snapshot &p_snapshot);
 
 	void process_server_sync();
+	void process_received_update_only_data();
 	void process_received_server_state();
 
 	bool __pcr__fetch_recovery_info(
@@ -997,7 +1002,7 @@ private:
 	int calculates_sub_ticks(const float p_delta);
 	void process_simulation(float p_delta);
 
-	bool parse_snapshot(DataBuffer &p_snapshot, std::vector<std::vector<VarId>> &r_update_only_info);
+	bool parse_snapshot(DataBuffer &p_snapshot, bool &r_skip_status_sync, std::optional<Snapshot> &r_update_only_snapshot);
 
 	void notify_server_full_snapshot_is_needed();
 

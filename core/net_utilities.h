@@ -379,7 +379,7 @@ public:
 	const std::vector<NS::SyncGroup::TrickledObjectInfo> &get_trickled_sync_objects() const;
 	std::vector<NS::SyncGroup::TrickledObjectInfo> &get_trickled_sync_objects();
 
-	void mark_changes_as_notified(bool p_update_only_variables);
+	void mark_changes_as_notified(bool p_only_non_state_update);
 
 	void add_listening_peer(int p_peer);
 	void remove_listening_peer(int p_peer);

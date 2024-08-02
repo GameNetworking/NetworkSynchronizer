@@ -1021,9 +1021,9 @@ void test_variable_change_event() {
 					NetEventFlag::SYNC_RESET);
 
 			// Mark the parameter as skip rewinding first.
-			server_scene.scene_sync->set_skip_rewinding(server_obj_1_oh, "var_1", true);
-			peer_1_scene.scene_sync->set_skip_rewinding(p1_obj_1_oh, "var_1", true);
-			peer_2_scene.scene_sync->set_skip_rewinding(p2_obj_1_oh, "var_1", true);
+			server_scene.scene_sync->set_var_sync_mode(server_obj_1_oh, "var_1", NS::VarSyncMode::STATE_UPDATE_SKIP_SYNC);
+			peer_1_scene.scene_sync->set_var_sync_mode(p1_obj_1_oh, "var_1", NS::VarSyncMode::STATE_UPDATE_SKIP_SYNC);
+			peer_2_scene.scene_sync->set_var_sync_mode(p2_obj_1_oh, "var_1", NS::VarSyncMode::STATE_UPDATE_SKIP_SYNC);
 
 			// Change the value on the server.
 			server_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 1;
@@ -1041,9 +1041,9 @@ void test_variable_change_event() {
 			NS_ASSERT_COND(!is_p2_change_event_triggered);
 
 			// Now set the var as rewinding.
-			server_scene.scene_sync->set_skip_rewinding(server_obj_1_oh, "var_1", false);
-			peer_1_scene.scene_sync->set_skip_rewinding(p1_obj_1_oh, "var_1", false);
-			peer_2_scene.scene_sync->set_skip_rewinding(p2_obj_1_oh, "var_1", false);
+			server_scene.scene_sync->set_var_sync_mode(server_obj_1_oh, "var_1", NS::VarSyncMode::STATE_UPDATE_SYNC);
+			peer_1_scene.scene_sync->set_var_sync_mode(p1_obj_1_oh, "var_1", NS::VarSyncMode::STATE_UPDATE_SYNC);
+			peer_2_scene.scene_sync->set_var_sync_mode(p2_obj_1_oh, "var_1", NS::VarSyncMode::STATE_UPDATE_SYNC);
 
 			// Change the value on the server.
 			server_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 10;

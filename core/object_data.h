@@ -10,14 +10,16 @@
 
 NS_NAMESPACE_BEGIN
 enum class VarSyncMode {
-	// This is the default sync mode: The Variable is sync as part of the state sync which happens at a fixed Hz.
-	STATE_SYNC,
-	// The Variable is sync as part of the state sync, which happens at a fixed Hz, but doesn't trigger any rewinding when the value desync.
-	STATE_UPDATE_ONLY,
-	// The variable is sync right away. As the STATE_UPDATE_ONLY doesn't trigger a rewinding.
-	CONSTANT_UPDATE_ONLY,
-	// The variable is never sync unless manually specified. As the STATE_UPDATE_ONLY doesn't trigger a rewinding.
-	MANUAL_UPDATE_ONLY,
+	// This is the default sync mode: The Variable is updated as part of the state sync which happens at a fixed Hz, and triggers sync mechanism when a difference is detected on the client.
+	STATE_UPDATE_SYNC,
+	// The Variable is sync as part of the state sync, which happens at a fixed Hz, but doesn't trigger any of the sync mechanism when updated.
+	STATE_UPDATE_SKIP_SYNC,
+	// The variable is sync at the end of the frame when changed on the server and doesn't trigger any sync mechanism when updated on the client.
+	// Use this to update variables like the health, that need immediate update but doesn't require any sync when the client value is different.
+	CONSTANT_UPDATE_SKIP_SYNC,
+	// The variable is never sync unless manually specified.
+	// This is nice to use with variables that never changes since we keep these out the checking loop, saving processing effort.
+	MANUAL_UPDATE_SKIP_SYNC,
 };
 
 struct NameAndVar {
@@ -43,7 +45,7 @@ struct VarDescriptor {
 	const std::uint8_t type;
 	NS_VarDataSetFunc set_func = nullptr;
 	NS_VarDataGetFunc get_func = nullptr;
-	VarSyncMode sync_mode = VarSyncMode::STATE_SYNC;
+	VarSyncMode sync_mode = VarSyncMode::STATE_UPDATE_SYNC;
 	bool enabled = false;
 	std::vector<struct ChangesListener *> changes_listeners;
 
@@ -55,7 +57,7 @@ struct VarDescriptor {
 			VarData &&p_val,
 			NS_VarDataSetFunc p_set_func,
 			NS_VarDataGetFunc p_get_func,
-			bool p_skip_rewinding,
+			VarSyncMode p_sync_mode,
 			bool p_enabled);
 };
 
