@@ -92,8 +92,8 @@ std::size_t NS::SyncGroup::add_new_sync_object(ObjectData *p_object_data, bool p
 
 			info.change.unknown = true;
 
-			for (int i = 0; i < int(p_object_data->vars.size()); ++i) {
-				notify_new_variable(p_object_data, p_object_data->vars[i].var.name);
+			for (VarId::IdType i = 0; i < VarId::IdType(p_object_data->vars.size()); ++i) {
+				notify_new_variable(p_object_data, { i });
 			}
 
 			if (p_object_data->get_controlled_by_peer() > 0) {
@@ -244,18 +244,18 @@ void NS::SyncGroup::remove_all_nodes() {
 	}
 }
 
-void NS::SyncGroup::notify_new_variable(ObjectData *p_object_data, const std::string &p_var_name) {
+void NS::SyncGroup::notify_new_variable(ObjectData *p_object_data, VarId p_var_id) {
 	const std::size_t index = find_simulated(*p_object_data);
 	if (index != VecFunc::index_none()) {
-		VecFunc::insert_unique(simulated_sync_objects[index].change.vars, p_var_name);
-		VecFunc::insert_unique(simulated_sync_objects[index].change.uknown_vars, p_var_name);
+		VecFunc::insert_unique(simulated_sync_objects[index].change.vars, p_var_id);
+		VecFunc::insert_unique(simulated_sync_objects[index].change.uknown_vars, p_var_id);
 	}
 }
 
-void NS::SyncGroup::notify_variable_changed(ObjectData *p_object_data, const std::string &p_var_name) {
+void NS::SyncGroup::notify_variable_changed(ObjectData *p_object_data, VarId p_var_id) {
 	const std::size_t index = find_simulated(*p_object_data);
 	if (index != VecFunc::index_none()) {
-		VecFunc::insert_unique(simulated_sync_objects[index].change.vars, p_var_name);
+		VecFunc::insert_unique(simulated_sync_objects[index].change.vars, p_var_id);
 	}
 }
 

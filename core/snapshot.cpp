@@ -57,10 +57,10 @@ bool compare_vars(
 			if (p_object_data.vars[var_index].skip_rewinding) {
 				// The vars are different, but we don't need to trigger a rewind.
 				if (r_no_rewind_recover) {
-					if (uint32_t(r_no_rewind_recover->object_vars.data()[p_object_data.get_net_id().id].size()) <= var_index) {
-						r_no_rewind_recover->object_vars.data()[p_object_data.get_net_id().id].resize(var_index + 1);
+					if (uint32_t(r_no_rewind_recover->object_vars[p_object_data.get_net_id().id].size()) <= var_index) {
+						r_no_rewind_recover->object_vars[p_object_data.get_net_id().id].resize(var_index + 1);
 					}
-					r_no_rewind_recover->object_vars.data()[p_object_data.get_net_id().id].data()[var_index].copy(s_vars[var_index]);
+					r_no_rewind_recover->object_vars[p_object_data.get_net_id().id][var_index].copy(s_vars[var_index]);
 					// Sets `input_id` to 0 to signal that this snapshot contains
 					// no-rewind data.
 					r_no_rewind_recover->input_id = NS::FrameIndex{ { 0 } };

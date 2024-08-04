@@ -1971,8 +1971,11 @@ void ServerSynchronizer::on_variable_added(NS::ObjectData *p_object_data, const 
 	NS_ASSERT_COND(p_object_data->get_net_id() != ObjectNetId::NONE);
 #endif
 
-	for (NS::SyncGroup &group : sync_groups) {
-		group.notify_new_variable(p_object_data, p_var_name);
+	const VarId var_id = p_object_data->find_variable_id(p_var_name);
+	NS_ASSERT_COND_MSG(var_id != VarId::NONE, "The variable doesn't exist: " + p_var_name);
+
+	for (SyncGroup &group : sync_groups) {
+		group.notify_new_variable(p_object_data, var_id);
 	}
 }
 
@@ -1984,13 +1987,13 @@ void ServerSynchronizer::on_variable_changed(NS::ObjectData *p_object_data, VarI
 	NS_ASSERT_COND(p_object_data->get_net_id() != ObjectNetId::NONE);
 #endif
 
-	for (NS::SyncGroup &group : sync_groups) {
-		group.notify_variable_changed(p_object_data, p_object_data->vars[p_var_id.id].var.name);
+	for (SyncGroup &group : sync_groups) {
+		group.notify_variable_changed(p_object_data, p_var_id);
 	}
 }
 
 void ServerSynchronizer::notify_need_full_snapshot(int p_peer, bool p_notify_ASAP) {
-	NS::PeerServerData *psd = MapFunc::get_or_null(peers_data, p_peer);
+	PeerServerData *psd = MapFunc::get_or_null(peers_data, p_peer);
 	NS_ENSURE(psd);
 	psd->need_full_snapshot = true;
 	if (p_notify_ASAP) {
@@ -2007,7 +2010,7 @@ SyncGroupId ServerSynchronizer::sync_group_create() {
 	return id;
 }
 
-const NS::SyncGroup *ServerSynchronizer::sync_group_get(SyncGroupId p_group_id) const {
+const SyncGroup *ServerSynchronizer::sync_group_get(SyncGroupId p_group_id) const {
 	NS_ENSURE_V_MSG(p_group_id.id < sync_groups.size(), nullptr, "The group id `" + p_group_id + "` doesn't exist.");
 	return &sync_groups[p_group_id.id];
 }
@@ -2419,7 +2422,7 @@ void ServerSynchronizer::generate_snapshot_object_data(
 			var_has_value = false;
 		}
 
-		if (!force_snapshot_variables && !VecFunc::has(p_change.vars, var.var.name)) {
+		if (var_has_value && !force_snapshot_variables && !VecFunc::has(p_change.vars, VarId{ i })) {
 			// This is a delta snapshot and this variable is the same as before.
 			// Skip this value
 			var_has_value = false;
@@ -2427,7 +2430,8 @@ void ServerSynchronizer::generate_snapshot_object_data(
 
 #ifdef NS_DEBUG_ENABLED
 		if (scene_synchronizer->pedantic_checks) {
-			// Make sure the value read from `var.var.value` equals to the one set on the scene.
+			// Make sure the value read from `var.var.value` equals to the one
+			// set on the scene.
 			VarData current_val;
 			var.get_func(
 					scene_synchronizer->get_synchronizer_manager(),
