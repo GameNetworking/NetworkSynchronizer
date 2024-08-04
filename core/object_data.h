@@ -16,7 +16,7 @@ enum class VarSyncMode {
 	STATE_UPDATE_SKIP_SYNC,
 	// The variable is sync at the end of the frame when changed on the server and doesn't trigger any sync mechanism when updated on the client.
 	// Use this to update variables like the health, that need immediate update but doesn't require any sync when the client value is different.
-	CONSTANT_UPDATE_SKIP_SYNC,
+	IMMEDIATE_UPDATE_SKIP_SYNC,
 	// The variable is never sync unless manually specified.
 	// This is nice to use with variables that never changes since we keep these out the checking loop, saving processing effort.
 	MANUAL_UPDATE_SKIP_SYNC,

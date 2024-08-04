@@ -289,6 +289,7 @@ protected: // -------------------------------------------------------- Internals
 	Processor<float> cached_process_functions[PROCESS_PHASE_COUNT];
 
 	bool debug_rewindings_enabled = false;
+	bool debug_instant_snapshot_enabled = false;
 	bool debug_server_speedup = false;
 	bool debug_log_nodes_relevancy_update = false;
 
@@ -990,11 +991,7 @@ private:
 			PlayerController *p_player_controller);
 
 	void __pcr__sync__no_rewind(
-			const Snapshot &p_postponed_recover,
-			const bool p_skip_simulated_objects_update = false,
-			const bool p_disable_apply_non_doll_controlled_only = false,
-			const bool p_skip_snapshot_applied_event_broadcast = false,
-			const bool p_skip_change_event = false);
+			const Snapshot &p_postponed_recover);
 
 	void __pcr__no_rewind(
 			const FrameIndex p_checkable_frame_index,

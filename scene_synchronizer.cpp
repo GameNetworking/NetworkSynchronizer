@@ -2361,29 +2361,20 @@ int ServerSynchronizer::generate_snapshot(
 
 		if (object_data != nullptr) {
 			if (p_skip_variables_using_state_update) {
-				bool has_non_state_update_variables_changed = false;
-				// Verify that this object has at least a
-
-				for (auto &change : relevant_node_data[i].change.vars) {
-					if (object_data->vars[change.id].sync_mode != VarSyncMode::STATE_UPDATE_SYNC && object_data->vars[change.id].sync_mode != VarSyncMode::STATE_UPDATE_SKIP_SYNC) {
-						has_non_state_update_variables_changed = true;
-						break;
-					}
-				}
-
+				const bool has_non_state_update_variables_changed = relevant_node_data[i].change.immediate_update_vars.size() > 0;
 				if (!has_non_state_update_variables_changed) {
 					// Skip this ObjectData has it doesn't have any changed (non STATE_UPDATE) variable.
 					continue;
 				}
 			}
 
-			snapshot_object_data_count += 1;
 			generate_snapshot_object_data(
 					object_data,
 					mode,
 					relevant_node_data[i].change,
 					frame_index_added_for_peer,
 					r_snapshot_db);
+			snapshot_object_data_count += 1;
 		}
 	}
 
@@ -2470,16 +2461,23 @@ void ServerSynchronizer::generate_snapshot_object_data(
 			var_has_value = false;
 		}
 
-		if (!force_snapshot_variables && !VecFunc::has(p_change.vars, VarId{ i })) {
-			// This is a delta snapshot and this variable is the same as before.
-			// Skip this value
-			var_has_value = false;
-		}
-
 		if (skip_state_update) {
 			if (var.sync_mode == VarSyncMode::STATE_UPDATE_SYNC || var.sync_mode == VarSyncMode::STATE_UPDATE_SKIP_SYNC) {
 				// This variable uses the STATE_UPDATE SyncMode so, it must be
 				// excluded from this Object for now.
+				var_has_value = false;
+			}
+
+			if (var_has_value && !force_snapshot_variables && !VecFunc::has(p_change.immediate_update_vars, VarId{ i })) {
+				// This is a delta snapshot and this variable is the same as before.
+				// Skip this value
+				var_has_value = false;
+			}
+		} else {
+			// Th
+			if (!force_snapshot_variables && !VecFunc::has(p_change.vars, VarId{ i })) {
+				// This is a delta snapshot and this variable is the same as before.
+				// Skip this value
 				var_has_value = false;
 			}
 		}
@@ -2894,13 +2892,31 @@ void ClientSynchronizer::process_received_update_only_data() {
 	}
 
 	update_only_snapshot->input_id = FrameIndex{ 0 };
-	__pcr__sync__no_rewind(
+
+	// Apply found differences without rewind.
+	std::vector<std::string> applied_data_info;
+
+	apply_snapshot(
 			update_only_snapshot.value(),
+			NetEventFlag::SERVER_UPDATE,
+			0,
+			scene_synchronizer->debug_instant_snapshot_enabled ? &applied_data_info : nullptr,
+			// ALWAYS skips custom data because instant update snapshots don't contain custom_data.
 			true,
-			false,
+			// Never update the skip_simulated_object since the instant update doesn't contains it.
+			true,
+			true,
 			true,
 			false);
+
 	update_only_snapshot.reset();
+
+	if (applied_data_info.size() > 0) {
+		SceneSynchronizerDebugger::singleton()->print(INFO, "Instant snapshot:", scene_synchronizer->get_network_interface().get_owner_name());
+		for (int i = 0; i < int(applied_data_info.size()); i++) {
+			SceneSynchronizerDebugger::singleton()->print(INFO, "|- " + applied_data_info[i], scene_synchronizer->get_network_interface().get_owner_name());
+		}
+	}
 }
 
 void ClientSynchronizer::process_received_server_state() {
@@ -3236,12 +3252,7 @@ void ClientSynchronizer::__pcr__rewind(
 #endif
 }
 
-void ClientSynchronizer::__pcr__sync__no_rewind(
-		const Snapshot &p_no_rewind_recover,
-		const bool p_skip_simulated_objects_update,
-		const bool p_disable_apply_non_doll_controlled_only,
-		const bool p_skip_snapshot_applied_event_broadcast,
-		const bool p_skip_change_event) {
+void ClientSynchronizer::__pcr__sync__no_rewind(const Snapshot &p_no_rewind_recover) {
 	NS_PROFILE
 	NS_ASSERT_COND_MSG(p_no_rewind_recover.input_id == FrameIndex{ { 0 } }, "This function is never called unless there is something to recover without rewinding.");
 
@@ -3254,11 +3265,7 @@ void ClientSynchronizer::__pcr__sync__no_rewind(
 			0,
 			scene_synchronizer->debug_rewindings_enabled ? &applied_data_info : nullptr,
 			// ALWAYS skips custom data because partial snapshots don't contain custom_data.
-			true,
-			p_skip_simulated_objects_update,
-			p_disable_apply_non_doll_controlled_only,
-			p_skip_snapshot_applied_event_broadcast,
-			p_skip_change_event);
+			true);
 
 	if (applied_data_info.size() > 0) {
 		SceneSynchronizerDebugger::singleton()->print(INFO, "Partial reset:", scene_synchronizer->get_network_interface().get_owner_name());

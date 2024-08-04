@@ -845,9 +845,9 @@ void test_variable_sync_modes() {
 			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 0;
 			peer_2_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 0;
 
-			server_scene.scene_sync->set_variable_sync_mode(server_obj_1_oh, "var_1", NS::VarSyncMode::CONSTANT_UPDATE_SKIP_SYNC);
-			peer_1_scene.scene_sync->set_variable_sync_mode(p1_obj_1_oh, "var_1", NS::VarSyncMode::CONSTANT_UPDATE_SKIP_SYNC);
-			peer_2_scene.scene_sync->set_variable_sync_mode(p2_obj_1_oh, "var_1", NS::VarSyncMode::CONSTANT_UPDATE_SKIP_SYNC);
+			server_scene.scene_sync->set_variable_sync_mode(server_obj_1_oh, "var_1", NS::VarSyncMode::IMMEDIATE_UPDATE_SKIP_SYNC);
+			peer_1_scene.scene_sync->set_variable_sync_mode(p1_obj_1_oh, "var_1", NS::VarSyncMode::IMMEDIATE_UPDATE_SKIP_SYNC);
+			peer_2_scene.scene_sync->set_variable_sync_mode(p2_obj_1_oh, "var_1", NS::VarSyncMode::IMMEDIATE_UPDATE_SKIP_SYNC);
 
 			for (int i = 0; i < 4; i++) {
 				server_scene.process(delta);

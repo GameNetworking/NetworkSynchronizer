@@ -286,6 +286,7 @@ public:
 		bool unknown = false;
 		std::vector<VarId> uknown_vars;
 		std::vector<VarId> vars;
+		std::vector<VarId> immediate_update_vars;
 	};
 
 	struct SimulatedObjectInfo {
@@ -375,9 +376,9 @@ public:
 	bool is_trickled_node_list_changed() const;
 	const std::vector<int> get_peers_with_newly_calculated_latency() const;
 
-	const std::vector<NS::SyncGroup::SimulatedObjectInfo> &get_simulated_sync_objects() const;
-	const std::vector<NS::SyncGroup::TrickledObjectInfo> &get_trickled_sync_objects() const;
-	std::vector<NS::SyncGroup::TrickledObjectInfo> &get_trickled_sync_objects();
+	const std::vector<SimulatedObjectInfo> &get_simulated_sync_objects() const;
+	const std::vector<TrickledObjectInfo> &get_trickled_sync_objects() const;
+	std::vector<TrickledObjectInfo> &get_trickled_sync_objects();
 
 	void mark_changes_as_notified(bool p_only_non_state_update);
 

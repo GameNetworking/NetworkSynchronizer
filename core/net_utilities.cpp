@@ -33,22 +33,14 @@ std::vector<NS::SyncGroup::TrickledObjectInfo> &NS::SyncGroup::get_trickled_sync
 void NS::SyncGroup::mark_changes_as_notified(bool p_only_non_state_update) {
 	if (p_only_non_state_update) {
 		for (int i = 0; i < int(simulated_sync_objects.size()); ++i) {
-			if (simulated_sync_objects[i].od) {
-				for (int h = int(simulated_sync_objects[i].change.vars.size()) - 1; h >= 0; h--) {
-					const VarId var_id(simulated_sync_objects[i].change.vars[h]);
-					if (simulated_sync_objects[i].od->vars[var_id.id].sync_mode == VarSyncMode::STATE_UPDATE_SYNC ||
-						simulated_sync_objects[i].od->vars[var_id.id].sync_mode == VarSyncMode::STATE_UPDATE_SKIP_SYNC) {
-						VecFunc::remove_at_unordered(simulated_sync_objects[i].change.vars, h);
-						h--;
-					}
-				}
-			}
+			simulated_sync_objects[i].change.immediate_update_vars.clear();
 		}
 	} else {
 		for (int i = 0; i < int(simulated_sync_objects.size()); ++i) {
 			simulated_sync_objects[i].change.unknown = false;
 			simulated_sync_objects[i].change.uknown_vars.clear();
 			simulated_sync_objects[i].change.vars.clear();
+			simulated_sync_objects[i].change.immediate_update_vars.clear();
 		}
 
 		for (int i = 0; i < int(trickled_sync_objects.size()); ++i) {
@@ -272,6 +264,10 @@ void NS::SyncGroup::notify_variable_changed(ObjectData *p_object_data, VarId p_v
 	const std::size_t index = find_simulated(*p_object_data);
 	if (index != VecFunc::index_none()) {
 		VecFunc::insert_unique(simulated_sync_objects[index].change.vars, p_var_id);
+
+		if (simulated_sync_objects[index].od->vars[p_var_id.id].sync_mode == VarSyncMode::IMMEDIATE_UPDATE_SKIP_SYNC) {
+			VecFunc::insert_unique(simulated_sync_objects[index].change.immediate_update_vars, p_var_id);
+		}
 	}
 }
 
