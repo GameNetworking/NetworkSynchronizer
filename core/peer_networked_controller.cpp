@@ -1008,13 +1008,10 @@ void PlayerController::send_frame_input_buffer_to_server() {
 	// |-- Input buffer.
 
 	const size_t inputs_count = std::min(frames_input.size(), static_cast<size_t>(peer_controller->get_max_redundant_inputs() + 1));
-	// This is unreachable because `can_accept_new_inputs()`, used just before
-	// this function, checks the `frames_input` array to definite
-	// whether the client can collects new inputs and make sure it always contains
-	// at least 1 input.
-	// It means that, unless the streaming is paused, the `frames_inputs`
-	// is never going to be empty at this point.
-	NS_ASSERT_COND(inputs_count >= 1);
+	if make_unlikely(inputs_count <= 0) {
+		// Nothing to send.
+		return;
+	}
 
 #define MAKE_ROOM(p_size)                                              \
 	if (cached_packet_data.size() < static_cast<size_t>(ofs + p_size)) \

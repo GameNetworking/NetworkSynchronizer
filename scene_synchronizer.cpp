@@ -194,7 +194,9 @@ std::string SceneSynchronizerBase::var_data_stringify(const VarData &p_var_data,
 }
 
 void SceneSynchronizerBase::__print_line(const std::string &p_str) {
-	print_line_func(p_str);
+	if (print_line_func) {
+		print_line_func(p_str);
+	}
 }
 
 void SceneSynchronizerBase::print_code_message(const char *p_function, const char *p_file, int p_line, const std::string &p_error, const std::string &p_message, NS::PrintMessageType p_type) {
@@ -202,11 +204,15 @@ void SceneSynchronizerBase::print_code_message(const char *p_function, const cha
 	std::string msg = log_level_str + " The condition " + p_error + " evaluated to false: " + p_message + "\n";
 	msg += std::string() + "At: " + p_file + "::" + p_file + "::" + std::to_string(p_line);
 	SceneSynchronizerDebugger::singleton()->__add_message(msg, "SceneSync");
-	print_code_message_func(p_function, p_file, p_line, p_error, p_message, p_type);
+	if (print_code_message_func) {
+		print_code_message_func(p_function, p_file, p_line, p_error, p_message, p_type);
+	}
 }
 
 void SceneSynchronizerBase::print_flush_stdout() {
-	print_flush_stdout_func();
+	if (print_flush_stdout_func) {
+		print_flush_stdout_func();
+	}
 }
 
 void SceneSynchronizerBase::set_frames_per_seconds(int p_fps) {
@@ -902,7 +908,10 @@ bool SceneSynchronizerBase::is_end_sync() const {
 
 std::size_t SceneSynchronizerBase::get_client_max_frames_storage_size() const {
 	const float netsync_frame_per_seconds = (float)get_frames_per_seconds();
-	return (std::size_t)std::ceil(get_frame_confirmation_timespan() * get_max_predicted_intervals() * netsync_frame_per_seconds);
+	// NOTE The prediction interval can't be less than 10 frames.
+	//      This allows the confirmation timespan to be set to a very low value
+	//      without issues.
+	return (std::size_t)std::ceil(std::max(get_frame_confirmation_timespan(), (get_fixed_frame_delta() * 10.0f)) * get_max_predicted_intervals() * netsync_frame_per_seconds);
 }
 
 void SceneSynchronizerBase::force_state_notify(SyncGroupId p_sync_group_id) {
