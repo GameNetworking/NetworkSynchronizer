@@ -1259,7 +1259,7 @@ int DollController::fetch_optimal_queued_inputs() const {
 	//
 	// TODO: At the moment this value is fixed to the min_frame_delay, but at some
 	// point we will want to change this value dynamically depending on packet loss.
-	return peer_controller->scene_synchronizer->get_min_server_input_buffer_size();
+	return peer_controller->scene_synchronizer->get_min_doll_input_buffer_size();
 }
 
 bool DollController::fetch_next_input(float p_delta) {
