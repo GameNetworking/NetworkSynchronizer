@@ -265,7 +265,20 @@ public:
 					peer_1_scene.process(rand_delta);
 				}
 				if (p_process_peer2) {
+					// TODO remove, this is just a trigger for my breakpoint
+					const NS::ObjectLocalId doll_id = controlled_1_peer2->local_id;
+					const NS::FrameIndex controller_1_doll_frame_index = peer_2_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index();
+					if (controller_1_doll_frame_index != NS::FrameIndex::NONE && controller_1_doll_frame_index.id >= 45) {
+						peer_2_scene.scene_sync->__print_line("The Frame.");
+					}
+
 					peer_2_scene.process(rand_delta);
+
+					// TODO remove
+					const NS::FrameIndex controller_1_doll_frame_index_post = peer_2_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index();
+					if (controller_1_doll_frame_index != NS::FrameIndex::NONE && controller_1_doll_frame_index_post != NS::FrameIndex::NONE && controller_1_doll_frame_index >= controller_1_doll_frame_index_post) {
+						peer_2_scene.scene_sync->__print_line("It  went back.");
+					}
 				}
 			}
 
@@ -418,12 +431,14 @@ struct TestDollSimulationStorePositions : public TestDollSimulationBase {
 	}
 
 	void assert_positions(const std::map<NS::FrameIndex, NS::VarData> &p_player_map, const std::map<NS::FrameIndex, NS::VarData> &p_doll_map, NS::FrameIndex assert_after) {
-		// Find the biggeest FrameInput
+		// Find the biggest FrameInput
 		NS::FrameIndex biggest_frame_index = NS::FrameIndex{ { 0 } };
-		for (const auto &[fi, vd] : p_doll_map) {
-			if (fi != NS::FrameIndex::NONE) {
-				if (fi > biggest_frame_index) {
-					biggest_frame_index = fi;
+		{
+			for (const auto &[fi, vd] : p_doll_map) {
+				if (fi != NS::FrameIndex::NONE) {
+					if (fi > biggest_frame_index) {
+						biggest_frame_index = fi;
+					}
 				}
 			}
 		}
@@ -462,8 +477,8 @@ void test_simulation_reconciliation(float p_frame_confirmation_timespan) {
 	test.assert_positions(NS::FrameIndex{ { 0 } }, NS::FrameIndex{ { 0 } });
 
 	// 2. Introduce a desync manually and test again.
-	test.controlled_1_peer2->set_xy(0, 0); // Modify the doll on peer 1
-	test.controlled_2_peer1->set_xy(0, 0); // Modify the doll on peer 2
+	test.controlled_1_peer2->set_xy(0, 0); // Modify the doll on peer 2
+	test.controlled_2_peer1->set_xy(0, 0); // Modify the doll on peer 1
 
 	// Run another 30 frames.
 	test.do_test(30);
@@ -488,6 +503,155 @@ void test_simulation_reconciliation(float p_frame_confirmation_timespan) {
 
 		// and despite that the simulations are correct.
 		test.assert_positions(ensure_no_desync_after, ensure_no_desync_after);
+	}
+}
+
+class TestSceneObject : public NS::LocalSceneObject {
+public:
+	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
+	NS::VarData var_1;
+
+	virtual void on_scene_entry() override {
+		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
+	}
+
+	virtual void setup_synchronizer(NS::LocalSceneSynchronizer &p_scene_sync, NS::ObjectLocalId p_id) override {
+		local_id = p_id;
+		p_scene_sync.register_variable(
+				p_id,
+				"var_1",
+				[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, const NS::VarData &p_value) {
+					static_cast<TestSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->var_1.copy(p_value);
+				},
+				[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, NS::VarData &r_value) {
+					r_value.copy(static_cast<TestSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->var_1);
+				});
+	}
+
+	virtual void on_scene_exit() override {
+		get_scene()->scene_sync->on_app_object_removed(get_scene()->scene_sync->to_handle(this));
+	}
+
+	void set_xy(double x, double y) {
+		var_1 = NS::VarData(x, y);
+	}
+
+	NS::VarData get_xy() const {
+		return NS::VarData::make_copy(var_1);
+	}
+};
+
+struct TestDollSimulationWithSceneObjectStorePositions : public TestDollSimulationStorePositions {
+	TestSceneObject *scene_object_server = nullptr;
+	TestSceneObject *scene_object_peer1 = nullptr;
+	TestSceneObject *scene_object_peer2 = nullptr;
+
+	virtual void on_scenes_initialized() override {
+		scene_object_server = server_scene.add_object<TestSceneObject>("scene_object", server_scene.get_peer());
+		scene_object_peer1 = peer_1_scene.add_object<TestSceneObject>("scene_object", server_scene.get_peer());
+		scene_object_peer2 = peer_2_scene.add_object<TestSceneObject>("scene_object", server_scene.get_peer());
+
+		scene_object_server->set_xy(80., 44.);
+		scene_object_peer1->set_xy(80., 44.);
+		scene_object_peer2->set_xy(80., 44.);
+
+		TestDollSimulationStorePositions::on_scenes_initialized();
+
+		// Ensure the scene_object are at their initial location as defined.
+		NS_ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(scene_object_server->get_xy(), NS::VarData(80., 44.)));
+		NS_ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(scene_object_peer2->get_xy(), NS::VarData(80., 44.)));
+		NS_ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(scene_object_peer1->get_xy(), NS::VarData(80., 44.)));
+	}
+
+	// Used to introduce a desync by changing the input on the server.
+	std::map<NS::FrameIndex, NS::VarData> scene_object_server_peer1_positions;
+	std::map<NS::FrameIndex, NS::VarData> scene_object_server_peer2_positions;
+	std::map<NS::FrameIndex, NS::VarData> scene_object_client1_positions;
+	std::map<NS::FrameIndex, NS::VarData> scene_object_client2_positions;
+
+	virtual void on_server_process(float p_delta) override {
+		TestDollSimulationStorePositions::on_server_process(p_delta);
+
+		const NS::FrameIndex controller_1_player_frame_index = peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index();
+		const NS::FrameIndex controller_2_player_frame_index = peer_2_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->get_current_frame_index();
+
+		NS::MapFunc::assign(scene_object_server_peer1_positions, controller_1_player_frame_index, scene_object_peer1->get_xy());
+		NS::MapFunc::assign(scene_object_server_peer2_positions, controller_2_player_frame_index, scene_object_peer1->get_xy());
+	}
+
+	virtual void on_client_1_process(float p_delta) override {
+		TestDollSimulationStorePositions::on_client_1_process(p_delta);
+
+		const NS::FrameIndex controller_1_player_frame_index = peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index();
+		NS::MapFunc::assign(scene_object_client1_positions, controller_1_player_frame_index, scene_object_peer1->get_xy());
+	}
+
+	virtual void on_client_2_process(float p_delta) override {
+		TestDollSimulationStorePositions::on_client_2_process(p_delta);
+
+		const NS::FrameIndex controller_2_player_frame_index = peer_2_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer())->get_current_frame_index();
+		NS::MapFunc::assign(scene_object_client2_positions, controller_2_player_frame_index, scene_object_peer2->get_xy());
+	}
+
+	void assert_positions_scene_object(NS::FrameIndex assert_after) {
+		assert_positions(scene_object_server_peer1_positions, scene_object_client1_positions, assert_after);
+		assert_positions(scene_object_server_peer2_positions, scene_object_client2_positions, assert_after);
+	}
+};
+
+void test_simulation_world_object_reconciliation(float p_frame_confirmation_timespan) {
+	TestDollSimulationWithSceneObjectStorePositions test;
+
+	test.frame_confirmation_timespan = p_frame_confirmation_timespan;
+	// NOTICE: Disabling sub ticks because these cause some additional and
+	//         difficult to control desync that invalidate this test.
+	test.init_test(true);
+
+	test.do_test(30);
+
+	// 1. Make sure no desync were detected so far.
+	NS_ASSERT_COND(test.peer1_desync_detected.size() == 0);
+	NS_ASSERT_COND(test.peer2_desync_detected.size() == 0);
+
+	// Ensure the positions are all the same.
+	test.assert_positions(NS::FrameIndex{ { 0 } }, NS::FrameIndex{ { 0 } });
+
+	// 2. Introduce a desync manually and test again.
+	test.controlled_1_peer2->set_xy(.0, .0); // Modify the doll on peer 2
+	test.scene_object_peer2->set_xy(.0, .0);
+
+	// TODO enable this loop
+	// Process this another 4 times to ensure no
+	// other desync occurred and all the frames are being processed
+	//for (int i = 0; i < 4; i++)
+	{
+		// Run another 30 frames.
+		test.do_test(30);
+
+		if (p_frame_confirmation_timespan <= 0.0) {
+			// Ensure it was able to reconcile right away.
+			// With `p_frame_confirmation_timespan == 0` the server snapshot is
+			// received before the doll process it, and since the doll is able to
+			// apply the server's snapshot during the normal processing, the desync
+			// is not even triggered.
+			NS_ASSERT_COND(test.peer1_desync_detected.size() == 0);
+			NS_ASSERT_COND(test.peer2_desync_detected.size() == 1);
+			test.assert_positions({ 31 }, { 31 });
+			test.assert_positions_scene_object({ 31 });
+		} else {
+			// Ensure it was able to reconcile in 1 frame or less.
+			NS_ASSERT_COND(test.peer1_desync_detected.size() == 0);
+			NS_ASSERT_COND(test.peer2_desync_detected.size() <= 1);
+
+			// Make sure the reconciliation was successful.
+			// NOTE: 50 is a margin established basing on the `p_frame_confirmation_timespan`.
+			const NS::FrameIndex ensure_no_desync_after = NS::FrameIndex{ { 50 } };
+			test.assert_no_desync(ensure_no_desync_after, ensure_no_desync_after);
+
+			// and despite that the simulations are correct.
+			test.assert_positions(ensure_no_desync_after, ensure_no_desync_after);
+			test.assert_positions_scene_object(ensure_no_desync_after);
+		}
 	}
 }
 
@@ -752,7 +916,10 @@ void test_doll_simulation() {
 	//test_simulation_without_reconciliation(1.f / 30.f);
 	//test_simulation_reconciliation(0.0f);
 	//test_simulation_reconciliation(0.0001);
-	test_simulation_reconciliation(1.0f / 10.0f);
+	//test_simulation_reconciliation(1.0f / 10.0f);
+	//test_simulation_world_object_reconciliation(0.0f);
+	//test_simulation_world_object_reconciliation(1.0f / float(frame_per_seconds));
+	//test_simulation_world_object_reconciliation(1.f / 10.0f);
 	//test_simulation_with_latency();
 	//test_simulation_with_hiccups();
 	//test_simulation_with_wrong_input();

@@ -3968,7 +3968,7 @@ void ClientSynchronizer::apply_snapshot(
 		const bool p_skip_change_event) {
 	NS_PROFILE
 
-	const std::vector<NS::NameAndVar> *snap_objects_vars = p_snapshot.object_vars.data();
+	const std::vector<NameAndVar> *snap_objects_vars = p_snapshot.object_vars.data();
 
 	if (!p_skip_change_event) {
 		scene_synchronizer->change_events_begin(p_flag);
@@ -3980,7 +3980,7 @@ void ClientSynchronizer::apply_snapshot(
 	}
 
 	for (const SimulatedObjectInfo &info : p_snapshot.simulated_objects) {
-		NS::ObjectData *object_data = scene_synchronizer->get_object_data(info.net_id);
+		ObjectData *object_data = scene_synchronizer->get_object_data(info.net_id);
 
 		if (object_data == nullptr) {
 			// This can happen, and it's totally expected, because the server

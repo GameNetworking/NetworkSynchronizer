@@ -400,7 +400,7 @@ public:
 	}
 
 	void set_max_doll_input_buffer_size(int p_val) {
-		min_doll_input_buffer_size = p_val;
+		max_doll_input_buffer_size = p_val;
 	}
 
 	int get_max_doll_input_buffer_size() const {

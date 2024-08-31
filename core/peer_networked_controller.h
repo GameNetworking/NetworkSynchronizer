@@ -36,7 +36,7 @@ struct NoNetController;
 // The most important part is inside the `PlayerController`, `ServerController`,
 // `DollController`, `NoNetController`.
 class PeerNetworkedController final {
-	friend class NS::SceneSynchronizerBase;
+	friend class SceneSynchronizerBase;
 	template <class NetInterfaceClass>
 	friend class NetworkedController;
 	friend struct RemotelyControlledController;
@@ -69,14 +69,14 @@ private:
 	Controller *controller = nullptr;
 	DataBuffer inputs_buffer;
 
-	NS::SceneSynchronizerBase *scene_synchronizer = nullptr;
+	SceneSynchronizerBase *scene_synchronizer = nullptr;
 
 	bool are_controllable_objects_sorted = false;
 	std::vector<ObjectData *> _sorted_controllable_objects;
 
 	bool has_player_new_input = false;
 
-	NS::PHandler event_handler_peer_status_updated = NS::NullPHandler;
+	PHandler event_handler_peer_status_updated = NullPHandler;
 
 public: // -------------------------------------------------------------- Events
 	Processor<> event_controller_reset;

@@ -1193,10 +1193,16 @@ bool DollController::receive_inputs(const std::vector<uint8_t> &p_data) {
 			// Parse the Input:
 			[](void *p_user_pointer, FrameIndex p_frame_index, std::uint16_t p_input_size_in_bits, const BitArray &p_bit_array) -> void {
 				SCParseTmpData *pd = static_cast<SCParseTmpData *>(p_user_pointer);
+				if (pd->controller.peer_controller->authority_peer == 3) {
+					SceneSynchronizerDebugger::singleton()->print(WARNING, "Received doll input: " + p_frame_index);
+				}
 
 				NS_ASSERT_COND(p_frame_index != FrameIndex::NONE);
 				if (pd->controller.last_doll_validated_input != FrameIndex::NONE && pd->controller.last_doll_validated_input >= p_frame_index) {
 					// This input is already processed.
+					if (pd->controller.peer_controller->authority_peer == 3) {
+						SceneSynchronizerDebugger::singleton()->print(WARNING, "discarded: " + p_frame_index);
+					}
 					return;
 				}
 
@@ -1271,7 +1277,7 @@ bool DollController::fetch_next_input(float p_delta) {
 
 		// This offset is defined by the lag compensation algorithm inside the
 		// `on_snapshot_applied`, and is used to compensate the lag by
-		// getting rid or introduce inputs, during the recdonciliation (rewinding)
+		// getting rid or introduce inputs, during the reconciliation (rewinding)
 		// phase.
 		const FrameIndex frame_to_process = queued_frame_index_to_process + queued_instant_to_process;
 		// Search the input.
@@ -1346,6 +1352,9 @@ bool DollController::fetch_next_input(float p_delta) {
 
 void DollController::process(float p_delta) {
 	const bool is_new_input = fetch_next_input(p_delta);
+	if (peer_controller->authority_peer == 3) {
+		SceneSynchronizerDebugger::singleton()->print(WARNING, "---- The processing input: " + get_current_frame_index() + " --- the queue instant to process: " + std::to_string(queued_instant_to_process) + " is_new_input: " + std::string(is_new_input ? "true" : "false"));
+	}
 
 	if make_likely(current_input_buffer_id > FrameIndex{ { 0 } }) {
 		// This operation is done here, because the doll process on a different
@@ -1696,17 +1705,27 @@ void DollController::apply_snapshot_instant_input_reconciliation(const Snapshot 
 		last_doll_compared_input = FrameIndex{ { 0 } };
 	}
 
-	// 3. Once the ideal input to restore is found, it's necessary to find the
-	//    nearest server snapshot to apply.
-	//    Notice that this logic is build so to prefer building a bigger input buffer
-	//    than needed, while keeping the scene consistent, rather than breaking
-	//    the synchronization.
+	// 3. Once the ideal input to restore is found, checks if we have a server
+	//    snapshot.
 	const DollSnapshot *snapshot_to_apply = nullptr;
 	for (const DollSnapshot &snapshot : server_snapshots) {
-		if (snapshot.doll_executed_input <= last_doll_compared_input) {
+		if (snapshot.doll_executed_input == last_doll_compared_input) {
 			snapshot_to_apply = &snapshot;
 		} else {
 			break;
+		}
+	}
+
+	if (!snapshot_to_apply) {
+		// 3B. If the server snapshot is not found, let's take it from the client.
+		//     Don't worry, the server snapshot will be applied by the processor
+		//     once it's encountered.
+		for (const DollSnapshot &snapshot : client_snapshots) {
+			if (snapshot.doll_executed_input == last_doll_compared_input) {
+				snapshot_to_apply = &snapshot;
+			} else {
+				break;
+			}
 		}
 	}
 
@@ -1741,7 +1760,7 @@ void DollController::apply_snapshot_rewinding_input_reconciliation(const Snapsho
 
 		// The lag compensation algorithm offsets the available
 		// inputs so that the `input_count` equals to `optimal_queued_inputs`
-		// at the end of the reconcilation (rewinding) operation.
+		// at the end of the reconciliation (rewinding) operation.
 
 		// 3. Fetch the ideal frame to reset.
 		if make_likely(frames_input.back().id.id >= std::uint32_t(optimal_input_count)) {
@@ -1751,7 +1770,7 @@ void DollController::apply_snapshot_rewinding_input_reconciliation(const Snapsho
 		}
 
 		// 4. Ensure there is a server snapshot at some point, in between the new
-		//    rewinding process queue or return and wait untill there is a
+		//    rewinding process queue or return and wait until there is a
 		//    server snapshot.
 		bool server_snapshot_found = false;
 		for (auto it = server_snapshots.rbegin(); it != server_snapshots.rend(); it++) {
