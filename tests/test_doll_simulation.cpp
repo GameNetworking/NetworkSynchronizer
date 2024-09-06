@@ -15,7 +15,7 @@
 #include <thread>
 
 namespace NS_Test {
-int frame_per_seconds = 60;
+int frames_per_seconds = 60;
 
 std::shared_ptr<NS::LocalSceneSynchronizerNoSubTicks> SceneSyncNoSubTicks_Obj1;
 std::shared_ptr<NS::LocalSceneSynchronizerNoSubTicks> SceneSyncNoSubTicks_Obj2;
@@ -193,9 +193,9 @@ public:
 					peer_2_scene.add_existing_object(SceneSync_Obj3, "sync", server_scene.get_peer());
 		}
 
-		server_scene.scene_sync->set_frames_per_seconds(frame_per_seconds);
-		peer_1_scene.scene_sync->set_frames_per_seconds(frame_per_seconds);
-		peer_2_scene.scene_sync->set_frames_per_seconds(frame_per_seconds);
+		server_scene.scene_sync->set_frames_per_seconds(frames_per_seconds);
+		peer_1_scene.scene_sync->set_frames_per_seconds(frames_per_seconds);
+		peer_2_scene.scene_sync->set_frames_per_seconds(frames_per_seconds);
 
 		server_scene.scene_sync->set_frame_confirmation_timespan(frame_confirmation_timespan);
 
@@ -703,9 +703,6 @@ void test_simulation_with_hiccups(TestDollSimulationStorePositions &test) {
 
 void test_simulation_with_latency() {
 	TestDollSimulationStorePositions test;
-	test.server_scene.scene_sync->set_frames_per_seconds(frame_per_seconds);
-	test.peer_1_scene.scene_sync->set_frames_per_seconds(frame_per_seconds);
-	test.peer_2_scene.scene_sync->set_frames_per_seconds(frame_per_seconds);
 
 	test.frame_confirmation_timespan = 1.0f / 10.0f;
 	// NOTICE: Disabling sub ticks because these cause some additional and
@@ -912,6 +909,7 @@ void test_doll_simulation() {
 	SceneSync_Obj2 = std::make_shared<NS::LocalSceneSynchronizer>();
 	SceneSync_Obj3 = std::make_shared<NS::LocalSceneSynchronizer>();
 
+	const int initial_frames_per_seconds = frames_per_seconds;
 	for (int i = 0; i < 3; i++) {
 		test_simulation_without_reconciliation(0.0f);
 		test_simulation_without_reconciliation(1.f / 30.f);
@@ -919,10 +917,13 @@ void test_doll_simulation() {
 		test_simulation_reconciliation(0.0001f);
 		test_simulation_reconciliation(1.0f / 10.0f);
 		test_simulation_world_object_reconciliation(0.0f);
-		test_simulation_world_object_reconciliation(1.0f / float(frame_per_seconds));
+		test_simulation_world_object_reconciliation(1.0f / float(frames_per_seconds));
 		test_simulation_world_object_reconciliation(1.f / 10.0f);
-		frame_per_seconds *= 2;
+		frames_per_seconds *= 2;
 	}
+
+	frames_per_seconds = initial_frames_per_seconds;
+
 	test_simulation_with_latency();
 	test_simulation_with_hiccups();
 	test_simulation_with_wrong_input();
