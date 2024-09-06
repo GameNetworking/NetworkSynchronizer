@@ -1193,16 +1193,8 @@ bool DollController::receive_inputs(const std::vector<uint8_t> &p_data) {
 			// Parse the Input:
 			[](void *p_user_pointer, FrameIndex p_frame_index, std::uint16_t p_input_size_in_bits, const BitArray &p_bit_array) -> void {
 				SCParseTmpData *pd = static_cast<SCParseTmpData *>(p_user_pointer);
-				if (pd->controller.peer_controller->authority_peer == 3) {
-					SceneSynchronizerDebugger::singleton()->print(WARNING, "Received doll input: " + p_frame_index);
-				}
-
 				NS_ASSERT_COND(p_frame_index != FrameIndex::NONE);
 				if (pd->controller.last_doll_validated_input != FrameIndex::NONE && pd->controller.last_doll_validated_input >= p_frame_index) {
-					// This input is already processed.
-					if (pd->controller.peer_controller->authority_peer == 3) {
-						SceneSynchronizerDebugger::singleton()->print(WARNING, "discarded: " + p_frame_index);
-					}
 					return;
 				}
 
@@ -1352,9 +1344,6 @@ bool DollController::fetch_next_input(float p_delta) {
 
 void DollController::process(float p_delta) {
 	const bool is_new_input = fetch_next_input(p_delta);
-	if (peer_controller->authority_peer == 3) {
-		SceneSynchronizerDebugger::singleton()->print(WARNING, "---- The processing input: " + get_current_frame_index() + " --- the queue instant to process: " + std::to_string(queued_instant_to_process) + " is_new_input: " + std::string(is_new_input ? "true" : "false"));
-	}
 
 	if make_likely(current_input_buffer_id > FrameIndex{ { 0 } }) {
 		// This operation is done here, because the doll process on a different

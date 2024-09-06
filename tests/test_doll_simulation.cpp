@@ -15,7 +15,7 @@
 #include <thread>
 
 namespace NS_Test {
-const int frame_per_seconds = 240;
+int frame_per_seconds = 60;
 
 std::shared_ptr<NS::LocalSceneSynchronizerNoSubTicks> SceneSyncNoSubTicks_Obj1;
 std::shared_ptr<NS::LocalSceneSynchronizerNoSubTicks> SceneSyncNoSubTicks_Obj2;
@@ -449,7 +449,7 @@ struct TestDollSimulationStorePositions : public TestDollSimulationBase {
 		for (NS::FrameIndex i = NS::FrameIndex{ { 0 } }; i <= biggest_frame_index; i += 1) {
 			const NS::VarData *player_position = NS::MapFunc::get_or_null(p_player_map, i);
 			const NS::VarData *doll_position = NS::MapFunc::get_or_null(p_doll_map, i);
-			if (i > assert_after) {
+			if (i > assert_after && player_position) {
 				NS_ASSERT_COND(player_position);
 				NS_ASSERT_COND(doll_position);
 				NS_ASSERT_COND(NS::LocalSceneSynchronizer::var_data_compare(*player_position, *doll_position));
@@ -912,19 +912,22 @@ void test_doll_simulation() {
 	SceneSync_Obj2 = std::make_shared<NS::LocalSceneSynchronizer>();
 	SceneSync_Obj3 = std::make_shared<NS::LocalSceneSynchronizer>();
 
-	//test_simulation_without_reconciliation(0.0f);
-	//test_simulation_without_reconciliation(1.f / 30.f);
-	//test_simulation_reconciliation(0.0f);
-	//test_simulation_reconciliation(0.0001);
-	//test_simulation_reconciliation(1.0f / 10.0f);
-	//test_simulation_world_object_reconciliation(0.0f);
-	//test_simulation_world_object_reconciliation(1.0f / float(frame_per_seconds));
-	//test_simulation_world_object_reconciliation(1.f / 10.0f);
-	//test_simulation_with_latency();
-	//test_simulation_with_hiccups();
-	//test_simulation_with_wrong_input();
+	for (int i = 0; i < 3; i++) {
+		test_simulation_without_reconciliation(0.0f);
+		test_simulation_without_reconciliation(1.f / 30.f);
+		test_simulation_reconciliation(0.0f);
+		test_simulation_reconciliation(0.0001f);
+		test_simulation_reconciliation(1.0f / 10.0f);
+		test_simulation_world_object_reconciliation(0.0f);
+		test_simulation_world_object_reconciliation(1.0f / float(frame_per_seconds));
+		test_simulation_world_object_reconciliation(1.f / 10.0f);
+		frame_per_seconds *= 2;
+	}
+	test_simulation_with_latency();
+	test_simulation_with_hiccups();
+	test_simulation_with_wrong_input();
 	//// TODO test with great latency and lag compensation.
-	//test_latency();
+	test_latency();
 
 	SceneSyncNoSubTicks_Obj1->clear_scene();
 	SceneSyncNoSubTicks_Obj2->clear_scene();
