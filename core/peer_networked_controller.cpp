@@ -1195,6 +1195,7 @@ bool DollController::receive_inputs(const std::vector<uint8_t> &p_data) {
 				SCParseTmpData *pd = static_cast<SCParseTmpData *>(p_user_pointer);
 				NS_ASSERT_COND(p_frame_index != FrameIndex::NONE);
 				if (pd->controller.last_doll_validated_input != FrameIndex::NONE && pd->controller.last_doll_validated_input >= p_frame_index) {
+					// This input is already processed.
 					return;
 				}
 

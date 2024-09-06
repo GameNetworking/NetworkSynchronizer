@@ -265,20 +265,7 @@ public:
 					peer_1_scene.process(rand_delta);
 				}
 				if (p_process_peer2) {
-					// TODO remove, this is just a trigger for my breakpoint
-					const NS::ObjectLocalId doll_id = controlled_1_peer2->local_id;
-					const NS::FrameIndex controller_1_doll_frame_index = peer_2_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index();
-					if (controller_1_doll_frame_index != NS::FrameIndex::NONE && controller_1_doll_frame_index.id >= 45) {
-						peer_2_scene.scene_sync->__print_line("The Frame.");
-					}
-
 					peer_2_scene.process(rand_delta);
-
-					// TODO remove
-					const NS::FrameIndex controller_1_doll_frame_index_post = peer_2_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index();
-					if (controller_1_doll_frame_index != NS::FrameIndex::NONE && controller_1_doll_frame_index_post != NS::FrameIndex::NONE && controller_1_doll_frame_index >= controller_1_doll_frame_index_post) {
-						peer_2_scene.scene_sync->__print_line("It  went back.");
-					}
 				}
 			}
 
@@ -620,11 +607,9 @@ void test_simulation_world_object_reconciliation(float p_frame_confirmation_time
 	test.controlled_1_peer2->set_xy(.0, .0); // Modify the doll on peer 2
 	test.scene_object_peer2->set_xy(.0, .0);
 
-	// TODO enable this loop
-	// Process this another 4 times to ensure no
+	// Process this another 3 times to ensure no
 	// other desync occurred and all the frames are being processed
-	//for (int i = 0; i < 4; i++)
-	{
+	for (int i = 0; i < 3; i++) {
 		// Run another 30 frames.
 		test.do_test(30);
 
@@ -927,7 +912,7 @@ void test_doll_simulation() {
 	test_simulation_with_latency();
 	test_simulation_with_hiccups();
 	test_simulation_with_wrong_input();
-	//// TODO test with great latency and lag compensation.
+	// TODO test with great latency and lag compensation.
 	test_latency();
 
 	SceneSyncNoSubTicks_Obj1->clear_scene();
