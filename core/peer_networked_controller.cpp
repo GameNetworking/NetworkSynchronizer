@@ -1193,7 +1193,6 @@ bool DollController::receive_inputs(const std::vector<uint8_t> &p_data) {
 			// Parse the Input:
 			[](void *p_user_pointer, FrameIndex p_frame_index, std::uint16_t p_input_size_in_bits, const BitArray &p_bit_array) -> void {
 				SCParseTmpData *pd = static_cast<SCParseTmpData *>(p_user_pointer);
-
 				NS_ASSERT_COND(p_frame_index != FrameIndex::NONE);
 				if (pd->controller.last_doll_validated_input != FrameIndex::NONE && pd->controller.last_doll_validated_input >= p_frame_index) {
 					// This input is already processed.
@@ -1259,7 +1258,7 @@ int DollController::fetch_optimal_queued_inputs() const {
 	//
 	// TODO: At the moment this value is fixed to the min_frame_delay, but at some
 	// point we will want to change this value dynamically depending on packet loss.
-	return peer_controller->scene_synchronizer->get_min_server_input_buffer_size();
+	return peer_controller->scene_synchronizer->get_min_doll_input_buffer_size();
 }
 
 bool DollController::fetch_next_input(float p_delta) {
@@ -1271,7 +1270,7 @@ bool DollController::fetch_next_input(float p_delta) {
 
 		// This offset is defined by the lag compensation algorithm inside the
 		// `on_snapshot_applied`, and is used to compensate the lag by
-		// getting rid or introduce inputs, during the recdonciliation (rewinding)
+		// getting rid or introduce inputs, during the reconciliation (rewinding)
 		// phase.
 		const FrameIndex frame_to_process = queued_frame_index_to_process + queued_instant_to_process;
 		// Search the input.
@@ -1671,7 +1670,7 @@ void DollController::apply_snapshot_instant_input_reconciliation(const Snapshot 
 
 	const int input_count = (int)frames_input.size();
 	if make_unlikely(input_count == 0) {
-		// When there are not inputs to process, it's much better not to apply
+		// When there are no inputs to process, it's much better not to apply
 		// any snapshot.
 		// The reason is that at some point it will receive inputs, and then
 		// this algorithm will do much better job applying the snapshot and
@@ -1741,7 +1740,7 @@ void DollController::apply_snapshot_rewinding_input_reconciliation(const Snapsho
 
 		// The lag compensation algorithm offsets the available
 		// inputs so that the `input_count` equals to `optimal_queued_inputs`
-		// at the end of the reconcilation (rewinding) operation.
+		// at the end of the reconciliation (rewinding) operation.
 
 		// 3. Fetch the ideal frame to reset.
 		if make_likely(frames_input.back().id.id >= std::uint32_t(optimal_input_count)) {
@@ -1751,7 +1750,7 @@ void DollController::apply_snapshot_rewinding_input_reconciliation(const Snapsho
 		}
 
 		// 4. Ensure there is a server snapshot at some point, in between the new
-		//    rewinding process queue or return and wait untill there is a
+		//    rewinding process queue or return and wait until there is a
 		//    server snapshot.
 		bool server_snapshot_found = false;
 		for (auto it = server_snapshots.rbegin(); it != server_snapshots.rend(); it++) {

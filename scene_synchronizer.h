@@ -212,6 +212,9 @@ protected: // --------------------------------------------------------- Settings
 	int min_server_input_buffer_size = 2;
 	int max_server_input_buffer_size = 7;
 
+	int min_doll_input_buffer_size = 2;
+	int max_doll_input_buffer_size = 7;
+
 	/// Negligible packet loss we can just ignore.
 	float negligible_packet_loss = 0.001f;
 
@@ -264,7 +267,7 @@ protected: // -------------------------------------------------------- Internals
 
 	// Controller RPCs.
 	RpcHandle<int, const std::vector<std::uint8_t> &> rpc_handle_receive_input;
-	
+
 	Settings settings;
 	bool settings_changed = true;
 
@@ -388,6 +391,22 @@ public:
 	void set_max_server_input_buffer_size(int p_val);
 	int get_max_server_input_buffer_size() const;
 
+	void set_min_doll_input_buffer_size(int p_val) {
+		min_doll_input_buffer_size = p_val;
+	}
+
+	int get_min_doll_input_buffer_size() const {
+		return min_doll_input_buffer_size;
+	}
+
+	void set_max_doll_input_buffer_size(int p_val) {
+		max_doll_input_buffer_size = p_val;
+	}
+
+	int get_max_doll_input_buffer_size() const {
+		return max_doll_input_buffer_size;
+	}
+
 	void set_negligible_packet_loss(float p_val);
 	float get_negligible_packet_loss() const;
 
@@ -501,7 +520,7 @@ public: // ---------------------------------------------------------------- APIs
 	void untrack_variable_changes(ListenerHandle p_handle);
 
 	/// You can use the macro `callable_mp()` to register custom C++ function.
-	NS::PHandler register_process(ObjectLocalId p_id, ProcessPhase p_phase, std::function<void(float)> p_func);
+	PHandler register_process(ObjectLocalId p_id, ProcessPhase p_phase, std::function<void(float)> p_func);
 	void unregister_process(ObjectLocalId p_id, ProcessPhase p_phase, NS::PHandler p_func_handler);
 
 	/// Setup the trickled sync method for this specific object.
@@ -527,7 +546,7 @@ public: // ---------------------------------------------------------------- APIs
 	SyncGroupId sync_group_create();
 
 	/// IMPORTANT: The pointer returned is invalid at the end of the scope executing this function. Never store it.
-	const NS::SyncGroup *sync_group_get(SyncGroupId p_group_id) const;
+	const SyncGroup *sync_group_get(SyncGroupId p_group_id) const;
 
 	void sync_group_add_object(ObjectLocalId p_id, SyncGroupId p_group_id, bool p_realtime);
 	void sync_group_add_object(ObjectNetId p_id, SyncGroupId p_group_id, bool p_realtime);
