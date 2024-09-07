@@ -75,12 +75,8 @@ const std::vector<ObjectData *> &PeerNetworkedController::get_sorted_controllabl
 	return _sorted_controllable_objects;
 }
 
-void PeerNetworkedController::set_max_redundant_inputs(int p_max) {
-	max_redundant_inputs = p_max;
-}
-
 int PeerNetworkedController::get_max_redundant_inputs() const {
-	return max_redundant_inputs;
+	return scene_synchronizer ? scene_synchronizer->get_max_redundant_inputs() : 0;
 }
 
 FrameIndex PeerNetworkedController::get_current_frame_index() const {

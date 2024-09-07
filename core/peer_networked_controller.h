@@ -57,11 +57,6 @@ public:
 	};
 
 private:
-	/// Amount of time an inputs is re-sent to each peer.
-	/// Resenging inputs is necessary because the packets may be lost since as
-	/// they are sent in an unreliable way.
-	int max_redundant_inputs = 6;
-
 	// The peer associated to this NetController.
 	int authority_peer = -1;
 
@@ -91,7 +86,6 @@ public: // ---------------------------------------------------------------- APIs
 
 	const std::vector<ObjectData *> &get_sorted_controllable_objects();
 
-	void set_max_redundant_inputs(int p_max);
 	int get_max_redundant_inputs() const;
 
 	FrameIndex get_current_frame_index() const;

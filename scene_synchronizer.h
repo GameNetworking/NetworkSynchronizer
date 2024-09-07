@@ -215,6 +215,11 @@ protected: // --------------------------------------------------------- Settings
 	int min_doll_input_buffer_size = 2;
 	int max_doll_input_buffer_size = 7;
 
+	/// Amount of time a player inputs is re-sent to each peer.
+	/// Resending inputs is necessary because the packets may be lost since as
+	/// they are sent in an unreliable way.
+	int max_redundant_inputs = 6;
+
 	/// Negligible packet loss we can just ignore.
 	float negligible_packet_loss = 0.001f;
 
@@ -405,6 +410,14 @@ public:
 
 	int get_max_doll_input_buffer_size() const {
 		return max_doll_input_buffer_size;
+	}
+
+	void set_max_redundant_inputs(int p_val) {
+		max_redundant_inputs = p_val;
+	}
+
+	int get_max_redundant_inputs() const {
+		return max_redundant_inputs;
 	}
 
 	void set_negligible_packet_loss(float p_val);
