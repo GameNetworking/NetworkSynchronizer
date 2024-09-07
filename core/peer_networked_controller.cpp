@@ -1670,7 +1670,7 @@ void DollController::apply_snapshot_instant_input_reconciliation(const Snapshot 
 
 	const int input_count = (int)frames_input.size();
 	if make_unlikely(input_count == 0) {
-		// When there are not inputs to process, it's much better not to apply
+		// When there are no inputs to process, it's much better not to apply
 		// any snapshot.
 		// The reason is that at some point it will receive inputs, and then
 		// this algorithm will do much better job applying the snapshot and
@@ -1695,27 +1695,17 @@ void DollController::apply_snapshot_instant_input_reconciliation(const Snapshot 
 		last_doll_compared_input = FrameIndex{ { 0 } };
 	}
 
-	// 3. Once the ideal input to restore is found, checks if we have a server
-	//    snapshot.
+	// 3. Once the ideal input to restore is found, it's necessary to find the
+	//    nearest server snapshot to apply.
+	//    Notice that this logic is build so to prefer building a bigger input buffer
+	//    than needed, while keeping the scene consistent, rather than breaking
+	//    the synchronization.
 	const DollSnapshot *snapshot_to_apply = nullptr;
 	for (const DollSnapshot &snapshot : server_snapshots) {
-		if (snapshot.doll_executed_input == last_doll_compared_input) {
+		if (snapshot.doll_executed_input <= last_doll_compared_input) {
 			snapshot_to_apply = &snapshot;
 		} else {
 			break;
-		}
-	}
-
-	if (!snapshot_to_apply) {
-		// 3B. If the server snapshot is not found, let's take it from the client.
-		//     Don't worry, the server snapshot will be applied by the processor
-		//     once it's encountered.
-		for (const DollSnapshot &snapshot : client_snapshots) {
-			if (snapshot.doll_executed_input == last_doll_compared_input) {
-				snapshot_to_apply = &snapshot;
-			} else {
-				break;
-			}
 		}
 	}
 
