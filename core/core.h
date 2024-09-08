@@ -33,7 +33,7 @@ enum NetEventFlag {
 
 	/// Called when the variable is modified by the `NetworkSynchronizer`
 	/// because not in sync with the server.
-	SYNC_RECOVER = 1 << 1,
+	SERVER_UPDATE = 1 << 1,
 
 	/// Called when the variable is modified by the `NetworkSynchronizer`
 	/// because it's preparing the node for the rewinding.
@@ -49,8 +49,8 @@ enum NetEventFlag {
 	// ~~ Preconfigured ~~ //
 
 	DEFAULT = CHANGE | END_SYNC,
-	SYNC = SYNC_RECOVER | SYNC_RESET | SYNC_REWIND,
-	ALWAYS = CHANGE | SYNC_RECOVER | SYNC_RESET | SYNC_REWIND | END_SYNC
+	SYNC = SERVER_UPDATE | SYNC_RESET | SYNC_REWIND,
+	ALWAYS = CHANGE | SERVER_UPDATE | SYNC_RESET | SYNC_REWIND | END_SYNC
 };
 
 enum ProcessPhase {

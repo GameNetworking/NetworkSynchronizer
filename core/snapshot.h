@@ -10,14 +10,25 @@ class SceneSynchronizerBase;
 struct SimulatedObjectInfo {
 	ObjectNetId net_id;
 	int controlled_by_peer;
-	
+
 	SimulatedObjectInfo() = default;
-	SimulatedObjectInfo(const ObjectNetId& p_id) : net_id(p_id), controlled_by_peer(-1) {}
-	SimulatedObjectInfo(const ObjectNetId& p_id, int p_controlled_by_peer) : net_id(p_id), controlled_by_peer(p_controlled_by_peer) {}
-	bool operator==(const SimulatedObjectInfo& p_other) const { return net_id == p_other.net_id; }
+
+	SimulatedObjectInfo(const ObjectNetId &p_id) :
+		net_id(p_id),
+		controlled_by_peer(-1) {
+	}
+
+	SimulatedObjectInfo(const ObjectNetId &p_id, int p_controlled_by_peer) :
+		net_id(p_id),
+		controlled_by_peer(p_controlled_by_peer) {
+	}
+
+	bool operator==(const SimulatedObjectInfo &p_other) const {
+		return net_id == p_other.net_id;
+	}
 };
 
-struct Snapshot final {
+struct Snapshot {
 	FrameIndex input_id = FrameIndex::NONE;
 	std::vector<SimulatedObjectInfo> simulated_objects;
 	/// The Node variables in a particular frame. The order of this vector
@@ -47,7 +58,7 @@ public:
 	void copy(const Snapshot &p_other);
 
 	static bool compare(
-			const NS::SceneSynchronizerBase &scene_synchronizer,
+			const SceneSynchronizerBase &scene_synchronizer,
 			const Snapshot &p_snap_A,
 			const Snapshot &p_snap_B,
 			const int p_skip_objects_not_controlled_by_peer,
@@ -61,4 +72,13 @@ public:
 #endif
 };
 
+struct RollingUpdateSnapshot : public Snapshot {
+	/// This is set to true when the server sends only parts of the changed objects.
+	bool was_partially_updated = false;
+	bool is_just_updated_input_id = false;
+	bool is_just_updated_simulated_objects = false;
+	bool is_just_updated_custom_data = false;
+	/// The list of the updated object vars on the last update.
+	std::vector<ObjectNetId> just_updated_object_vars;
+};
 }; //namespace NS
