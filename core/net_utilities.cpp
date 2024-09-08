@@ -6,6 +6,53 @@
 #include "peer_networked_controller.h"
 #include "scene_synchronizer_debugger.h"
 
+void NS::SyncGroup::advance_timer_state_notifier(
+		const float p_delta,
+		const float p_frame_confirmation_timespan,
+		const int p_max_objects_count_per_partial_update,
+		bool &r_send_update,
+		std::vector<std::size_t> &r_partial_update_simulated_objects_info_indices) {
+	// Notify the state if needed
+	state_notifier_timer += p_delta;
+	r_send_update = state_notifier_timer >= p_frame_confirmation_timespan;
+	if (r_send_update) {
+		state_notifier_timer = 0.0;
+	} else {
+		// No state update, verify if this SyncGroup does partial updates.
+		update_partial_update_list();
+
+		for (std::size_t index : partial_update_simulated_sync_objects) {
+			simulated_sync_objects[index].last_partial_update_timer += p_delta;
+			if (
+				simulated_sync_objects[index].last_partial_update_timer >= simulated_sync_objects[index].partial_update_timespan_sec
+				&& r_partial_update_simulated_objects_info_indices.size() < p_max_objects_count_per_partial_update
+				&& (simulated_sync_objects[index].change.unknown
+					|| simulated_sync_objects[index].change.unknown_vars.size() > 0
+					|| simulated_sync_objects[index].change.vars.size() > 0)) {
+				r_partial_update_simulated_objects_info_indices.push_back(index);
+				simulated_sync_objects[index].last_partial_update_timer = 0.0f;
+			}
+		}
+
+		if (partial_update_simulated_sync_objects.size() > p_max_objects_count_per_partial_update) {
+			// Now move all the added indices behind so the next frame we give them less priority.
+			// This ensures that all the objects get updated at some point.
+			for (std::size_t index : r_partial_update_simulated_objects_info_indices) {
+				VecFunc::remove(partial_update_simulated_sync_objects, index);
+				partial_update_simulated_sync_objects.push_back(index);
+			}
+		}
+
+		r_send_update = r_partial_update_simulated_objects_info_indices.size() > 0;
+	}
+}
+
+void NS::SyncGroup::force_state_notify() {
+	// Sets a very big number and ensure the state notify is triggered on the next frame.
+	// NOTE the -100 was added to make it very unlikely to cause a float overflow.
+	state_notifier_timer = std::numeric_limits<float>::max() - 100.0f;
+}
+
 bool NS::SyncGroup::is_realtime_node_list_changed() const {
 	return simulated_sync_objects_list_changed;
 }
@@ -30,15 +77,33 @@ std::vector<NS::SyncGroup::TrickledObjectInfo> &NS::SyncGroup::get_trickled_sync
 	return trickled_sync_objects;
 }
 
-void NS::SyncGroup::mark_changes_as_notified() {
-	for (int i = 0; i < int(simulated_sync_objects.size()); ++i) {
-		simulated_sync_objects[i].change.unknown = false;
-		simulated_sync_objects[i].change.uknown_vars.clear();
-		simulated_sync_objects[i].change.vars.clear();
+void NS::SyncGroup::mark_changes_as_notified(bool p_is_partial_update, const std::vector<std::size_t> &p_partial_update_simulated_objects_info_indices) {
+	if (p_is_partial_update) {
+		// When it's a partial update this array is always NOT empty
+		NS_ASSERT_COND(p_partial_update_simulated_objects_info_indices.size() > 0);
+
+		for (const std::size_t index : p_partial_update_simulated_objects_info_indices) {
+			simulated_sync_objects[index].change.unknown = false;
+			simulated_sync_objects[index].change.unknown_vars.clear();
+			simulated_sync_objects[index].change.vars.clear();
+		}
+	} else {
+		// When it isn't a partial update this array is always empty
+		NS_ASSERT_COND(p_partial_update_simulated_objects_info_indices.size() <= 0);
+
+		// Mark all the simulated objects as updated
+		for (auto &sso : simulated_sync_objects) {
+			sso.change.unknown = false;
+			sso.change.unknown_vars.clear();
+			sso.change.vars.clear();
+		}
 	}
-	for (int i = 0; i < int(trickled_sync_objects.size()); ++i) {
-		trickled_sync_objects[i]._unknown = false;
+
+	// Mark all the trickled objects as known.
+	for (auto &tso : trickled_sync_objects) {
+		tso._unknown = false;
 	}
+
 	simulated_sync_objects_list_changed = false;
 	trickled_sync_objects_list_changed = false;
 	peers_with_newly_calculated_latency.clear();
@@ -87,6 +152,7 @@ std::size_t NS::SyncGroup::add_new_sync_object(ObjectData *p_object_data, bool p
 			index = simulated_sync_objects.size();
 			simulated_sync_objects.push_back(p_object_data);
 			simulated_sync_objects_list_changed = true;
+			partial_update_simulated_sync_objects_changed = true;
 
 			SimulatedObjectInfo &info = simulated_sync_objects[index];
 
@@ -153,6 +219,7 @@ void NS::SyncGroup::remove_sync_object(std::size_t p_index, bool p_is_simulated)
 	if (p_is_simulated) {
 		VecFunc::remove_at_unordered(simulated_sync_objects, p_index);
 		simulated_sync_objects_list_changed = true;
+		partial_update_simulated_sync_objects_changed = true;
 	} else {
 		VecFunc::remove_at_unordered(trickled_sync_objects, p_index);
 		trickled_sync_objects_list_changed = true;
@@ -224,6 +291,7 @@ void NS::SyncGroup::replace_objects(std::vector<SimulatedObjectInfo> &&p_new_sim
 			std::move(p_new_simulated_objects),
 			true,
 			simulated_sync_objects);
+	partial_update_simulated_sync_objects_changed = true;
 
 	replace_nodes_impl(
 			*this,
@@ -236,6 +304,7 @@ void NS::SyncGroup::remove_all_nodes() {
 	if (!simulated_sync_objects.empty()) {
 		simulated_sync_objects.clear();
 		simulated_sync_objects_list_changed = true;
+		partial_update_simulated_sync_objects_changed = true;
 	}
 
 	if (!trickled_sync_objects.empty()) {
@@ -248,7 +317,7 @@ void NS::SyncGroup::notify_new_variable(ObjectData *p_object_data, VarId p_var_i
 	const std::size_t index = find_simulated(*p_object_data);
 	if (index != VecFunc::index_none()) {
 		VecFunc::insert_unique(simulated_sync_objects[index].change.vars, p_var_id);
-		VecFunc::insert_unique(simulated_sync_objects[index].change.uknown_vars, p_var_id);
+		VecFunc::insert_unique(simulated_sync_objects[index].change.unknown_vars, p_var_id);
 	}
 }
 
@@ -256,6 +325,50 @@ void NS::SyncGroup::notify_variable_changed(ObjectData *p_object_data, VarId p_v
 	const std::size_t index = find_simulated(*p_object_data);
 	if (index != VecFunc::index_none()) {
 		VecFunc::insert_unique(simulated_sync_objects[index].change.vars, p_var_id);
+	}
+}
+
+void NS::SyncGroup::set_simulated_partial_update_timespan_seconds(const ObjectData &p_object_data, bool p_partial_update_enabled, float p_update_timespan) {
+	const std::size_t index = find_simulated(p_object_data);
+	if (index != VecFunc::index_none()) {
+		simulated_sync_objects[index].partial_update_timespan_sec = p_partial_update_enabled ? std::max(p_update_timespan, 0.0f) : -1.0f;
+
+		if (simulated_sync_objects[index].partial_update_timespan_sec < 0.0f) {
+			// The partial update is disabled, so reset the timer.
+			simulated_sync_objects[index].last_partial_update_timer = 0.0f;
+		}
+
+		partial_update_simulated_sync_objects_changed = true;
+	}
+}
+
+bool NS::SyncGroup::is_simulated_partial_updating(const ObjectData &p_object_data) const {
+	const std::size_t index = find_simulated(p_object_data);
+	if (index != VecFunc::index_none()) {
+		return simulated_sync_objects[index].partial_update_timespan_sec >= 0.0f;
+	}
+	return false;
+}
+
+float NS::SyncGroup::get_simulated_partial_update_timespan_seconds(const ObjectData &p_object_data) const {
+	const std::size_t index = find_simulated(p_object_data);
+	if (index != VecFunc::index_none()) {
+		return simulated_sync_objects[index].partial_update_timespan_sec;
+	}
+	return -1.0;
+}
+
+void NS::SyncGroup::update_partial_update_list() {
+	if (!partial_update_simulated_sync_objects_changed) {
+		return;
+	}
+	partial_update_simulated_sync_objects_changed = false;
+
+	partial_update_simulated_sync_objects.clear();
+	for (std::size_t i = 0; i < simulated_sync_objects.size(); i++) {
+		if (simulated_sync_objects[i].partial_update_timespan_sec >= 0.0f) {
+			partial_update_simulated_sync_objects.push_back(i);
+		}
 	}
 }
 
@@ -378,15 +491,15 @@ void NS::SyncGroup::validate_peer_association(int p_peer) {
 	}
 }
 
-bool NS::SyncGroup::has_simulated(const struct ObjectData &p_object_data) const {
+bool NS::SyncGroup::has_simulated(const ObjectData &p_object_data) const {
 	return find_simulated(p_object_data) != VecFunc::index_none();
 }
 
-bool NS::SyncGroup::has_trickled(const struct ObjectData &p_object_data) const {
+bool NS::SyncGroup::has_trickled(const ObjectData &p_object_data) const {
 	return find_trickled(p_object_data) != VecFunc::index_none();
 }
 
-std::size_t NS::SyncGroup::find_simulated(const struct ObjectData &p_object_data) const {
+std::size_t NS::SyncGroup::find_simulated(const ObjectData &p_object_data) const {
 	std::size_t i = 0;
 	for (auto sso : simulated_sync_objects) {
 		if (sso.od == &p_object_data) {
@@ -397,7 +510,7 @@ std::size_t NS::SyncGroup::find_simulated(const struct ObjectData &p_object_data
 	return VecFunc::index_none();
 }
 
-std::size_t NS::SyncGroup::find_trickled(const struct ObjectData &p_object_data) const {
+std::size_t NS::SyncGroup::find_trickled(const ObjectData &p_object_data) const {
 	std::size_t i = 0;
 	for (auto toi : trickled_sync_objects) {
 		if (toi.od == &p_object_data) {

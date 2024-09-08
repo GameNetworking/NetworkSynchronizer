@@ -286,13 +286,17 @@ struct SyncGroup {
 public:
 	struct Change {
 		bool unknown = false;
-		std::vector<VarId> uknown_vars;
+		std::vector<VarId> unknown_vars;
 		std::vector<VarId> vars;
 	};
 
 	struct SimulatedObjectInfo {
 		struct ObjectData *od = nullptr;
 		Change change;
+		// NOTICE: -1 means deactivated and the object is never consider for partial update.
+		float partial_update_timespan_sec = -1.0;
+		// Used to track the amount of time passed from the last partial update.
+		float last_partial_update_timer = 0.0;
 
 		SimulatedObjectInfo() = default;
 		SimulatedObjectInfo(const SimulatedObjectInfo &) = default;
@@ -352,6 +356,9 @@ private:
 	bool simulated_sync_objects_list_changed = false;
 	std::vector<SimulatedObjectInfo> simulated_sync_objects;
 
+	bool partial_update_simulated_sync_objects_changed = false;
+	std::vector<std::size_t> partial_update_simulated_sync_objects;
+
 	bool trickled_sync_objects_list_changed = false;
 	std::vector<TrickledObjectInfo> trickled_sync_objects;
 
@@ -367,12 +374,21 @@ private:
 
 	std::vector<int> listening_peers;
 
-public:
-	uint64_t user_data = 0;
-
 	float state_notifier_timer = 0.0;
 
 public:
+	uint64_t user_data = 0;
+
+public:
+	void advance_timer_state_notifier(
+			const float p_delta,
+			const float p_frame_confirmation_timespan,
+			const int p_max_objects_count_per_partial_update,
+			bool &r_send_update,
+			std::vector<std::size_t> &r_partial_update_simulated_objects_info_indices);
+
+	void force_state_notify();
+
 	bool is_realtime_node_list_changed() const;
 	bool is_trickled_node_list_changed() const;
 	const std::vector<int> get_peers_with_newly_calculated_latency() const;
@@ -381,7 +397,7 @@ public:
 	const std::vector<NS::SyncGroup::TrickledObjectInfo> &get_trickled_sync_objects() const;
 	std::vector<NS::SyncGroup::TrickledObjectInfo> &get_trickled_sync_objects();
 
-	void mark_changes_as_notified();
+	void mark_changes_as_notified(bool p_is_partial_update, const std::vector<std::size_t> &p_partial_update_simulated_objects_info_indices);
 
 	void add_listening_peer(int p_peer);
 	void remove_listening_peer(int p_peer);
@@ -409,6 +425,12 @@ public:
 	void notify_new_variable(struct ObjectData *p_object_data, VarId p_var_id);
 	void notify_variable_changed(struct ObjectData *p_object_data, VarId p_var_id);
 
+	void set_simulated_partial_update_timespan_seconds(const struct ObjectData &p_object_data, bool p_partial_update_enabled, float p_update_timespan);
+	bool is_simulated_partial_updating(const struct ObjectData &p_object_data) const;
+	float get_simulated_partial_update_timespan_seconds(const struct ObjectData &p_object_data) const;
+
+	void update_partial_update_list();
+
 	void set_trickled_update_rate(struct ObjectData *p_object_data, float p_update_rate);
 	float get_trickled_update_rate(const struct ObjectData *p_object_data) const;
 
@@ -416,7 +438,7 @@ public:
 
 	void notify_peer_has_newly_calculated_latency(int p_peer);
 
-	void notify_controller_changed(NS::ObjectData *p_object_data, int p_previous_controlling_peer);
+	void notify_controller_changed(ObjectData *p_object_data, int p_previous_controlling_peer);
 
 	// Used when a new listener is added or removed.
 	void notify_simulating_peers_about_listener_status(int p_peer_listener, bool p_simulating);

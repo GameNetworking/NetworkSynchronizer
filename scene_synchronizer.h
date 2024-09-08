@@ -44,7 +44,19 @@ public:
 	virtual void update_objects_relevancy() {
 	}
 
-	virtual bool snapshot_get_custom_data(const SyncGroup *p_group, struct VarData &r_custom_data) {
+	/// This function is called during the snapshot generation on both the client
+	/// and the server and allows to add custom data to it.
+	/// Returns true if the r_custom_data is set.
+	virtual bool snapshot_get_custom_data(
+			const SyncGroup *p_group,
+			/// This is set to "true" when the current snapshot contains only
+			/// part of the changed objects.
+			bool p_is_partial_update,
+			/// This list is populated only when `p_is_partial_update` is `true`
+			/// and contains the indices of the simulated objects info that you
+			/// can use to retrieve the ObjectData using `p_group->get_simulated_sync_objects()[index].od`.
+			const std::vector<std::size_t> &p_partial_update_simulated_objects_info_indices,
+			struct VarData &r_custom_data) {
 		return false;
 	}
 
@@ -245,6 +257,9 @@ protected: // --------------------------------------------------------- Settings
 	/// a set of frames predicted by the client.
 	float frame_confirmation_timespan = 1.0f;
 
+	/// The amount of objects to include into the partial update.
+	int max_objects_count_per_partial_update = 3;
+
 	/// This parameter is used to defines how many intervals the client can ever
 	/// predict.
 	/// The NetSync stops recording more frames, if the clients overflow this span.
@@ -383,6 +398,14 @@ public:
 
 	void set_frames_per_seconds(int p_fps);
 	int get_frames_per_seconds() const;
+
+	void set_max_objects_count_per_partial_update(int p_val) {
+		max_objects_count_per_partial_update = p_val;
+	}
+
+	int get_max_objects_count_per_partial_update() const {
+		return max_objects_count_per_partial_update;
+	}
 
 	// The tick delta time used to step the networking processing.
 	float get_fixed_frame_delta() const;
@@ -764,13 +787,13 @@ class ServerSynchronizer final : public Synchronizer {
 	std::vector<NS::SyncGroup> sync_groups;
 	std::vector<ObjectData *> active_objects;
 
-	enum SnapshotGenerationMode {
-		/// The shanpshot will include The NetId and the object name and all the changed variables.
-		SNAPSHOT_GENERATION_MODE_NORMAL,
+	enum class SnapshotObjectGeneratorMode {
+		/// The snapshot will include The NetId and the object name and all the changed variables.
+		NORMAL,
 		/// The snapshot will include The object name only.
-		SNAPSHOT_GENERATION_MODE_FORCE_NODE_PATH_ONLY,
-		/// The snapshot will contains everything no matter what.
-		SNAPSHOT_GENERATION_MODE_FORCE_FULL,
+		FORCE_NODE_PATH_ONLY,
+		/// The snapshot will contain everything no matter what.
+		FORCE_FULL,
 	};
 
 public:
@@ -821,13 +844,14 @@ public:
 
 	void generate_snapshot(
 			bool p_force_full_snapshot,
-			const NS::SyncGroup &p_group,
+			const SyncGroup &p_group,
+			const std::vector<std::size_t> &p_partial_update_simulated_objects_info_indices,
 			DataBuffer &r_snapshot_db) const;
 
 	void generate_snapshot_object_data(
-			const NS::ObjectData *p_object_data,
-			SnapshotGenerationMode p_mode,
-			const NS::SyncGroup::Change &p_change,
+			const ObjectData *p_object_data,
+			SnapshotObjectGeneratorMode p_mode,
+			const SyncGroup::Change &p_change,
 			std::vector<int> &r_frame_index_added_for_peer,
 			DataBuffer &r_snapshot_db) const;
 
@@ -852,7 +876,7 @@ public:
 	PeerNetworkedController *player_controller = nullptr;
 	std::map<ObjectNetId, std::string> objects_names;
 
-	Snapshot last_received_snapshot;
+	RollingUpdateSnapshot last_received_snapshot;
 	std::deque<Snapshot> client_snapshots;
 	FrameIndex last_received_server_snapshot_index = FrameIndex::NONE;
 	std::optional<Snapshot> last_received_server_snapshot;
@@ -863,7 +887,7 @@ public:
 	bool need_full_snapshot_notified = false;
 
 	struct EndSyncEvent {
-		NS::ObjectData *object_data = nullptr;
+		ObjectData *object_data = nullptr;
 		VarId var_id = VarId::NONE;
 		VarData old_value;
 
@@ -976,6 +1000,7 @@ public:
 	bool parse_sync_data(
 			DataBuffer &p_snapshot,
 			void *p_user_pointer,
+			void (*p_notify_update_mode)(void *p_user_pointer, bool p_is_partial_update),
 			void (*p_custom_data_parse)(void *p_user_pointer, VarData &&p_custom_data),
 			void (*p_object_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
 			bool (*p_peers_frame_index_parse)(void *p_user_pointer, std::map<int, FrameIndex> &&p_frames_index),
@@ -993,7 +1018,7 @@ private:
 	/// Store object data organized per controller.
 	void store_snapshot();
 
-	void store_controllers_snapshot(const Snapshot &p_snapshot);
+	void store_controllers_snapshot(const RollingUpdateSnapshot &p_snapshot);
 
 	void process_server_sync();
 	void process_received_server_state();
