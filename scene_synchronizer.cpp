@@ -2847,13 +2847,52 @@ void ClientSynchronizer::store_controllers_snapshot(
 		last_received_server_snapshot.emplace(Snapshot::make_copy(p_snapshot));
 		last_received_server_snapshot_index = p_snapshot.input_id;
 	} else {
-		SceneSynchronizerDebugger::singleton()->print(VERBOSE, "The Client received the server snapshot: " + p_snapshot.input_id, scene_synchronizer->get_network_interface().get_owner_name());
 		NS_ENSURE_MSG(
 				last_received_server_snapshot_index == FrameIndex::NONE ||
 				last_received_server_snapshot_index <= p_snapshot.input_id,
 				"The client received a too old snapshot. If this happens back to back for a long period it's a bug, otherwise can be ignored. last_received_server_snapshot_index: " + std::to_string(last_received_server_snapshot_index.id) + " p_snapshot.input_id: " + std::to_string(p_snapshot.input_id.id));
-		last_received_server_snapshot.emplace(Snapshot::make_copy(p_snapshot));
-		last_received_server_snapshot_index = p_snapshot.input_id;
+
+		if (p_snapshot.was_partially_updated) {
+			// Since this is a partial update, the current snapshot can't be
+			// used as is to check the sync.
+			// The reason is that, since we do a delta update, all the objects
+			// contained into `p_snapshot` that didn't get updated have a state 
+			// which is old and most likely invalid.
+			// This is the reason we can't just use it as synchronization ground.
+			//
+			// For this reason we need to first take the locally generated snapshot,
+			// then override the objects value with the one received.
+			// The resulting snapshot is not a fully accurate one, but it's good
+			// enough to (eventually) rewind part of the scene objects, without
+			// breaking the sync.
+			SceneSynchronizerDebugger::singleton()->print(VERBOSE, "The Client received the server [PARTIAL] snapshot: " + p_snapshot.input_id, scene_synchronizer->get_network_interface().get_owner_name());
+			for (const Snapshot &client_snapshot : client_snapshots) {
+				if (client_snapshot.input_id == p_snapshot.input_id) {
+					last_received_server_snapshot.emplace(Snapshot::make_copy(client_snapshot));
+					break;
+				}
+			}
+			NS_ENSURE_MSG(last_received_server_snapshot.has_value(), "The Client received a partial snapshot `" + p_snapshot.input_id+"` from the server but it was not possible to find a locally generated snapshot with the same ID. This should not be possible and it's a bug.");
+
+			// Now copy the update objects.
+			if (p_snapshot.is_just_updated_custom_data) {
+				How to merge custom data;
+			}
+			if (p_snapshot.is_just_updated_simulated_objects) {
+				last_received_server_snapshot.value().simulated_objects = p_snapshot.simulated_objects;
+			}
+			for (ObjectNetId net_id : p_snapshot.just_updated_object_vars) {
+				TODO please ensure that this array contains the NetId.
+				last_received_server_snapshot.value().object_vars[net_id] = p_snapshot.get_object_vars(net_id);
+			}
+
+			last_received_server_snapshot_index = p_snapshot.input_id;
+		} else {
+			// The current snapshot represent the full server copy, so just copy it.
+			SceneSynchronizerDebugger::singleton()->print(VERBOSE, "The Client received the server snapshot: " + p_snapshot.input_id, scene_synchronizer->get_network_interface().get_owner_name());
+			last_received_server_snapshot.emplace(Snapshot::make_copy(p_snapshot));
+			last_received_server_snapshot_index = p_snapshot.input_id;
+		}
 	}
 
 	NS_ASSERT_COND(last_received_server_snapshot_index == p_snapshot.input_id);
@@ -3801,7 +3840,6 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 #ifdef NS_DEBUG_ENABLED
 	// Ensure these properties are not set at this point.
 	NS_ASSERT_COND(!received_snapshot.was_partially_updated);
-	NS_ASSERT_COND(!received_snapshot.is_just_updated_input_id);
 	NS_ASSERT_COND(!received_snapshot.is_just_updated_simulated_objects);
 	NS_ASSERT_COND(!received_snapshot.is_just_updated_custom_data);
 	NS_ASSERT_COND(received_snapshot.just_updated_object_vars.size() == 0);

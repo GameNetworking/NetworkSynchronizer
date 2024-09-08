@@ -329,7 +329,7 @@ public: // -------------------------------------------------------------- Events
 	///       So, you can assume the snapshot contains the result of the last executed input.
 	Processor<const Snapshot & /*p_snapshot*/> event_snapshot_update_finished;
 	Processor<const Snapshot & /*p_snapshot*/, int /*p_frame_count_to_rewind*/> event_snapshot_applied;
-	Processor<const Snapshot & /*p_received_snapshot*/> event_received_server_snapshot;
+	Processor<const RollingUpdateSnapshot & /*p_received_snapshot*/> event_received_server_snapshot;
 	Processor<FrameIndex /*p_frame_index*/, int /*p_rewinding_index*/, int /*p_rewinding_frame_count*/> event_rewind_frame_begin;
 	Processor<FrameIndex, ObjectHandle /*p_app_object_handle*/, const std::vector<std::string> & /*p_var_names*/, const std::vector<VarData> & /*p_client_values*/, const std::vector<VarData> & /*p_server_values*/> event_desync_detected_with_info;
 

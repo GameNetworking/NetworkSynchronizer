@@ -72,10 +72,9 @@ public:
 #endif
 };
 
-struct RollingUpdateSnapshot : public Snapshot {
+struct RollingUpdateSnapshot final : public Snapshot {
 	/// This is set to true when the server sends only parts of the changed objects.
 	bool was_partially_updated = false;
-	bool is_just_updated_input_id = false;
 	bool is_just_updated_simulated_objects = false;
 	bool is_just_updated_custom_data = false;
 	/// The list of the updated object vars on the last update.
