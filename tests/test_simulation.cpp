@@ -405,7 +405,7 @@ public:
 /// make sure the client was immediately re-sync with a single rewinding action.
 struct TestSimulationWithRewind : public TestSimulationBase {
 	NS::FrameIndex reset_position_on_frame = NS::FrameIndex{ { 100 } };
-	float notify_state_interval = 0.0;
+	float notify_state_interval = 0.0f;
 
 public:
 	std::vector<NS::FrameIndex> client_rewinded_frames;
@@ -418,7 +418,7 @@ public:
 
 	virtual void on_scenes_initialized() override {
 		server_scene.scene_sync->set_frame_confirmation_timespan(notify_state_interval);
-		// Make sure the client can predicts as many frames it needs (no need to add some more noise on this test).
+		// Make sure the client can predict as many frames it needs (no need to add some more noise to this test).
 		server_scene.scene_sync->set_max_predicted_intervals(20);
 
 		controller_server->event_input_missed.bind([](NS::FrameIndex p_frame_index) {
@@ -457,9 +457,188 @@ public:
 	}
 };
 
+/// This test validates the Partial Update feature.
+/// It sets the controller as partially Updating each frame and ensure that the
+/// controller is re-sync in exactly 1 frame even when the sync rate is set to 1.0 seconds.
+struct TestSimulationWithRewindAndPartialUpdate : public TestSimulationWithRewind {
+	TestSimulationWithRewindAndPartialUpdate(float p_notify_state_interval) :
+		TestSimulationWithRewind(p_notify_state_interval) {
+	}
+
+	virtual void on_scenes_initialized() override {
+		TestSimulationWithRewind::on_scenes_initialized();
+
+		// Set the controller eligible for partial update so their changes are notified ASAP.
+		server_scene.scene_sync->sync_group_set_simulated_partial_update_timespan_seconds(
+				controlled_obj_server->local_id,
+				NS::SyncGroupId::GLOBAL,
+				true,
+				0.0f);
+	}
+
+	virtual void on_scenes_done() override {
+		TestSimulationWithRewind::on_scenes_done();
+		NS_ASSERT_COND(client_rewinded_frames[0] == (reset_position_on_frame));
+	}
+};
+
+class ActorSceneObject : public NS::LocalSceneObject {
+public:
+	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
+	Vec3 position;
+
+	virtual void on_scene_entry() override {
+		set_position(Vec3());
+
+		if (get_scene()->scene_sync->is_server()) {
+			get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
+		}
+	}
+
+	virtual void setup_synchronizer(NS::LocalSceneSynchronizer &p_scene_sync, NS::ObjectLocalId p_id) override {
+		local_id = p_id;
+		p_scene_sync.register_variable(
+				p_id, "position",
+				[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, const NS::VarData &p_value) {
+					static_cast<ActorSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->position = Vec3::from(p_value);
+				},
+				[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, NS::VarData &r_value) {
+					r_value = static_cast<const ActorSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->position;
+				});
+	}
+
+	virtual void on_scene_exit() override {
+		get_scene()->scene_sync->on_app_object_removed(get_scene()->scene_sync->to_handle(this));
+	}
+
+	void set_position(const Vec3 &p_pos) {
+		position = p_pos;
+	}
+
+	Vec3 get_position() const {
+		return position;
+	}
+};
+
+
+struct TestObjectSimulationWithPartialUpdate : public TestSimulationBase {
+	NS::FrameIndex reset_position_on_frame = NS::FrameIndex{ { 100 } };
+	float notify_state_interval = 0.0f;
+
+	ActorSceneObject *actor_1_on_server = nullptr;
+	ActorSceneObject *actor_1_on_peer1 = nullptr;
+
+	ActorSceneObject *actor_2_on_server = nullptr;
+	ActorSceneObject *actor_2_on_peer1 = nullptr;
+
+	ActorSceneObject *actor_3_on_server = nullptr;
+	ActorSceneObject *actor_3_on_peer1 = nullptr;
+
+	ActorSceneObject *actor_4_on_server = nullptr;
+	ActorSceneObject *actor_4_on_peer1 = nullptr;
+
+public:
+	std::vector<NS::FrameIndex> client_rewinded_frames;
+	// The ID of snapshot sent by the server.
+	std::vector<NS::FrameIndex> correction_snapshots_sent;
+
+	TestObjectSimulationWithPartialUpdate() :
+		notify_state_interval(1.0f) {
+	}
+
+	virtual void on_scenes_initialized() override {
+		server_scene.scene_sync->set_frame_confirmation_timespan(notify_state_interval);
+		// Make sure the client can predict as many frames it needs (no need to add some more noise to this test).
+		server_scene.scene_sync->set_max_predicted_intervals(20);
+
+		controller_server->event_input_missed.bind([](NS::FrameIndex p_frame_index) {
+			// The input should be never missing!
+			NS_ASSERT_NO_ENTRY();
+		});
+
+		controller_p1->get_scene_synchronizer()->event_state_validated.bind([this](NS::FrameIndex p_frame_index, bool p_desync) {
+			if (p_desync) {
+				client_rewinded_frames.push_back(p_frame_index);
+			}
+		});
+
+		actor_1_on_server = server_scene.add_object<ActorSceneObject>("actor_1", server_scene.get_peer());
+		actor_1_on_peer1 = peer_1_scene.add_object<ActorSceneObject>("actor_1", server_scene.get_peer());
+
+		actor_2_on_server = server_scene.add_object<ActorSceneObject>("actor_2", server_scene.get_peer());
+		actor_2_on_peer1 = peer_1_scene.add_object<ActorSceneObject>("actor_2", server_scene.get_peer());
+
+		actor_3_on_server = server_scene.add_object<ActorSceneObject>("actor_3", server_scene.get_peer());
+		actor_3_on_peer1 = peer_1_scene.add_object<ActorSceneObject>("actor_3", server_scene.get_peer());
+
+		actor_4_on_server = server_scene.add_object<ActorSceneObject>("actor_4", server_scene.get_peer());
+		actor_4_on_peer1 = peer_1_scene.add_object<ActorSceneObject>("actor_4", server_scene.get_peer());
+
+		// Set the actor eligible for partial update so their changes are notified ASAP.
+		server_scene.scene_sync->sync_group_set_simulated_partial_update_timespan_seconds(
+				actor_1_on_server->local_id,
+				NS::SyncGroupId::GLOBAL,
+				true,
+				0.0f);
+
+		server_scene.scene_sync->sync_group_set_simulated_partial_update_timespan_seconds(
+				actor_2_on_server->local_id,
+				NS::SyncGroupId::GLOBAL,
+				true,
+				0.0f);
+
+		server_scene.scene_sync->sync_group_set_simulated_partial_update_timespan_seconds(
+				actor_3_on_server->local_id,
+				NS::SyncGroupId::GLOBAL,
+				true,
+				0.0f);
+
+		server_scene.scene_sync->sync_group_set_simulated_partial_update_timespan_seconds(
+				actor_4_on_server->local_id,
+				NS::SyncGroupId::GLOBAL,
+				true,
+				0.0f);
+
+		// Ensure that only 2 objects are sent per Partial Update
+		server_scene.scene_sync->set_max_objects_count_per_partial_update(2);
+	}
+
+	virtual void on_server_process(float p_delta) override {
+		if (controller_server->get_current_frame_index() == reset_position_on_frame) {
+			// Change the location of all the 4 objects.
+			actor_1_on_server->set_position(Vec3(10.0, 10.0, 10.0));
+			actor_2_on_server->set_position(Vec3(10.0, 10.0, 10.0));
+			actor_3_on_server->set_position(Vec3(10.0, 10.0, 10.0));
+			actor_4_on_server->set_position(Vec3(10.0, 10.0, 10.0));
+
+			server_scene.scene_sync->event_sent_snapshot.bind([this](NS::FrameIndex p_frame_index, int p_peer) {
+				correction_snapshots_sent.push_back(p_frame_index);
+				if (p_frame_index == (reset_position_on_frame + 1)) {
+					server_scene.scene_sync->event_sent_snapshot.clear();
+				}
+			});
+		}
+	}
+
+	virtual void on_scenes_processed(float p_delta) override {
+	}
+
+	virtual void on_scenes_done() override {
+		NS_ASSERT_COND(client_rewinded_frames.size() == 2);
+		NS_ASSERT_COND(client_rewinded_frames[0] == reset_position_on_frame);
+		NS_ASSERT_COND(client_rewinded_frames[1] == (reset_position_on_frame+1));
+		NS_ASSERT_COND(correction_snapshots_sent.size() == 2);
+		NS_ASSERT_COND(correction_snapshots_sent[0] == reset_position_on_frame);
+		NS_ASSERT_COND(correction_snapshots_sent[1] == (reset_position_on_frame+1));
+	}
+};
+
 void test_simulation() {
 	TestSimulationBase().do_test();
 	TestSimulationWithRewind(0.0f).do_test();
 	TestSimulationWithRewind(1.0f).do_test();
+	TestSimulationWithRewindAndPartialUpdate(0.0f).do_test();
+	TestSimulationWithRewindAndPartialUpdate(1.0f).do_test();
+	TestObjectSimulationWithPartialUpdate().do_test();
 }
 }; //namespace NS_Test
