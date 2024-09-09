@@ -40,22 +40,59 @@ void LocalSceneSynchronizer::install_local_scene_sync() {
 	install_synchronizer(
 			[](NS::DataBuffer &r_buffer, const NS::VarData &p_val) {
 				r_buffer.add(p_val.type);
-				r_buffer.add_bits(reinterpret_cast<const uint8_t *>(&p_val.data), sizeof(p_val.data) * 8);
-				// Not supported right now.
-				NS_ASSERT_COND(!p_val.shared_buffer);
+				if (p_val.type == 3) {
+					// Shared buffer array of integers
+					const std::vector<int> &val = *std::static_pointer_cast<std::vector<int>>(p_val.shared_buffer);
+					r_buffer.add(int(val.size()));
+					for (int v : val) {
+						r_buffer.add(v);
+					}
+				} else {
+					r_buffer.add_bits(reinterpret_cast<const uint8_t *>(&p_val.data), sizeof(p_val.data) * 8);
+					// The shared buffer must have the type set to 3.
+					NS_ASSERT_COND(!p_val.shared_buffer);
+				}
 			},
 			[](NS::VarData &r_val, NS::DataBuffer &p_buffer, std::uint8_t p_variable_type) {
 				p_buffer.read(r_val.type);
-				p_buffer.read_bits(reinterpret_cast<uint8_t *>(&r_val.data), sizeof(r_val.data) * 8);
+				if (r_val.type == 3) {
+					int size;
+					p_buffer.read(size);
+					std::vector<int> array;
+					for (int i = 0; i < size; i++) {
+						int v;
+						p_buffer.read(v);
+						array.push_back(v);
+					}
+					r_val.shared_buffer = std::make_shared<std::vector<int>>(array);
+				} else {
+					p_buffer.read_bits(reinterpret_cast<uint8_t *>(&r_val.data), sizeof(r_val.data) * 8);
+				}
 			},
 			[](const NS::VarData &p_A, const NS::VarData &p_B) -> bool {
-				return memcmp(&p_A.data, &p_B.data, sizeof(p_A.data)) == 0;
+				if (p_A.type == 3 && p_B.type == 3) {
+					const std::vector<int> &A = *std::static_pointer_cast<std::vector<int>>(p_A.shared_buffer);
+					const std::vector<int> &B = *std::static_pointer_cast<std::vector<int>>(p_B.shared_buffer);
+					if (A.size() == B.size()) {
+						for (int i = 0; i < A.size(); i++) {
+							if (A[i] != B[i]) {
+								return false;
+							}
+						}
+						return true;
+					}
+					return false;
+				} else {
+					return memcmp(&p_A.data, &p_B.data, sizeof(p_A.data)) == 0;
+				}
 			},
 			[](const NS::VarData &p_var_data, bool p_verbose) -> std::string {
 				if (p_var_data.type == 1) {
 					return std::to_string(p_var_data.data.f32);
 				} else if (p_var_data.type == 2) {
 					return std::string("[" + std::to_string(p_var_data.data.vec.x) + ", " + std::to_string(p_var_data.data.vec.y) + ", " + std::to_string(p_var_data.data.vec.z) + "]");
+				} else if (p_var_data.type == 3) {
+					return std::string("[Array of ints]");
 				} else {
 					return std::string("[No stringify supported for this VarData type: `" + std::to_string(p_var_data.type) + "`]");
 				}

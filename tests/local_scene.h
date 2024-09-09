@@ -53,7 +53,57 @@ public:
 	virtual uint64_t debug_only_get_object_id(ObjectHandle p_app_object_handle) const override;
 	virtual std::string fetch_object_name(ObjectHandle p_app_object_handle) const override;
 	virtual void setup_synchronizer_for(ObjectHandle p_app_object_handle, ObjectLocalId p_id) override;
-	
+
+	std::function<bool(const SyncGroup *p_group,
+			bool p_is_partial_update,
+			const std::vector<std::size_t> &p_partial_update_simulated_objects_info_indices,
+			VarData &r_custom_data)> snapshot_get_custom_data_func;
+
+	std::function<bool(const std::vector<ObjectNetId> &p_partial_update_objects,
+			VarData &r_custom_data,
+			const VarData &p_custom_data_from_server_snapshot)> snapshot_merge_custom_data_for_partial_update_func;
+
+	std::function<std::uint8_t()> snapshot_get_custom_data_type_func;
+
+	std::function<void(const VarData &r_custom_data)> snapshot_set_custom_data_func;
+
+	virtual bool snapshot_get_custom_data(
+			const SyncGroup *p_group,
+			bool p_is_partial_update,
+			const std::vector<std::size_t> &p_partial_update_simulated_objects_info_indices,
+			VarData &r_custom_data) override {
+		if (snapshot_get_custom_data_func) {
+			return snapshot_get_custom_data_func(p_group, p_is_partial_update, p_partial_update_simulated_objects_info_indices, r_custom_data);
+		} else {
+			return SynchronizerManager::snapshot_get_custom_data(p_group, p_is_partial_update, p_partial_update_simulated_objects_info_indices, r_custom_data);
+		}
+	}
+
+	virtual bool snapshot_merge_custom_data_for_partial_update(
+			const std::vector<ObjectNetId> &p_partial_update_objects,
+			VarData &r_custom_data,
+			const VarData &p_custom_data_from_server_snapshot) override {
+		if (snapshot_merge_custom_data_for_partial_update_func) {
+			return snapshot_merge_custom_data_for_partial_update_func(p_partial_update_objects, r_custom_data, p_custom_data_from_server_snapshot);
+		} else {
+			return SynchronizerManager::snapshot_merge_custom_data_for_partial_update(p_partial_update_objects, r_custom_data, p_custom_data_from_server_snapshot);
+		}
+	}
+
+	virtual std::uint8_t snapshot_get_custom_data_type() const override {
+		if (snapshot_get_custom_data_type_func) {
+			return snapshot_get_custom_data_type_func();
+		} else {
+			return SynchronizerManager::snapshot_get_custom_data_type();
+		}
+	}
+
+	virtual void snapshot_set_custom_data(const VarData &r_custom_data) override {
+		if (snapshot_set_custom_data_func) {
+			snapshot_set_custom_data_func(r_custom_data);
+		}
+	}
+
 	void clear_scene();
 };
 
