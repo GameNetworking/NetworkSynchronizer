@@ -780,7 +780,7 @@ void SceneSynchronizerBase::sync_group_add_object(NS::ObjectData *p_object_data,
 }
 
 void SceneSynchronizerBase::sync_group_remove_object(ObjectLocalId p_id, SyncGroupId p_group_id) {
-	NS::ObjectData *nd = get_object_data(p_id);
+	ObjectData *nd = get_object_data(p_id);
 	sync_group_remove_object(nd, p_group_id);
 }
 
@@ -789,24 +789,45 @@ void SceneSynchronizerBase::sync_group_remove_object(ObjectNetId p_id, SyncGroup
 	sync_group_remove_object(nd, p_group_id);
 }
 
-void SceneSynchronizerBase::sync_group_remove_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id) {
+void SceneSynchronizerBase::sync_group_remove_object(ObjectData *p_object_data, SyncGroupId p_group_id) {
 	NS_ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
 	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_remove_object(p_object_data, p_group_id);
 }
 
-void SceneSynchronizerBase::sync_group_fetch_object_grups(NS::ObjectLocalId p_id, std::vector<SyncGroupId> &r_simulated_groups, std::vector<SyncGroupId> &r_trickled_groups) const {
-	const NS::ObjectData *object_data = get_object_data(p_id);
+void SceneSynchronizerBase::sync_group_fetch_object_grups(ObjectLocalId p_id, std::vector<SyncGroupId> &r_simulated_groups, std::vector<SyncGroupId> &r_trickled_groups) const {
+	const ObjectData *object_data = get_object_data(p_id);
 	sync_group_fetch_object_grups(object_data, r_simulated_groups, r_trickled_groups);
 }
 
-void SceneSynchronizerBase::sync_group_fetch_object_grups(NS::ObjectNetId p_id, std::vector<SyncGroupId> &r_simulated_groups, std::vector<SyncGroupId> &r_trickled_groups) const {
-	const NS::ObjectData *object_data = get_object_data(p_id);
+void SceneSynchronizerBase::sync_group_fetch_object_grups(ObjectNetId p_id, std::vector<SyncGroupId> &r_simulated_groups, std::vector<SyncGroupId> &r_trickled_groups) const {
+	const ObjectData *object_data = get_object_data(p_id);
 	sync_group_fetch_object_grups(object_data, r_simulated_groups, r_trickled_groups);
 }
 
-void SceneSynchronizerBase::sync_group_fetch_object_grups(const NS::ObjectData *p_object_data, std::vector<SyncGroupId> &r_simulated_groups, std::vector<SyncGroupId> &r_trickled_groups) const {
+void SceneSynchronizerBase::sync_group_fetch_object_grups(const ObjectData *p_object_data, std::vector<SyncGroupId> &r_simulated_groups, std::vector<SyncGroupId> &r_trickled_groups) const {
 	NS_ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
 	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_fetch_object_grups(p_object_data, r_simulated_groups, r_trickled_groups);
+}
+
+void SceneSynchronizerBase::sync_group_set_simulated_partial_update_timespan_seconds(ObjectLocalId p_id, SyncGroupId p_group_id, bool p_partial_update_enabled, float p_update_timespan) {
+	ObjectData *object_data = get_object_data(p_id);
+	NS_ENSURE_MSG(object_data, "The object data with ID `"+p_id+"` wasn't found.");
+	NS_ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
+	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_set_simulated_partial_update_timespan_seconds(*object_data, p_group_id, p_partial_update_enabled, p_update_timespan);
+}
+
+bool SceneSynchronizerBase::sync_group_is_simulated_partial_updating(ObjectLocalId p_id, SyncGroupId p_group_id) const {
+	const ObjectData *object_data = get_object_data(p_id);
+	NS_ENSURE_V_MSG(object_data, false, "The object data with ID `"+p_id+"` wasn't found.");
+	NS_ENSURE_V_MSG(is_server(), false, "This function CAN be used only on the server.");
+	return static_cast<const ServerSynchronizer *>(synchronizer)->sync_group_is_simulated_partial_updating(*object_data, p_group_id);
+}
+
+float SceneSynchronizerBase::sync_group_get_simulated_partial_update_timespan_seconds(ObjectLocalId p_id, SyncGroupId p_group_id) const {
+	const ObjectData *object_data = get_object_data(p_id);
+	NS_ENSURE_V_MSG(object_data, -1.0f, "The object data with ID `"+p_id+"` wasn't found.");
+	NS_ENSURE_V_MSG(is_server(), -1.0f, "This function CAN be used only on the server.");
+	return static_cast<const ServerSynchronizer *>(synchronizer)->sync_group_get_simulated_partial_update_timespan_seconds(*object_data, p_group_id);
 }
 
 void SceneSynchronizerBase::sync_group_replace_objects(SyncGroupId p_group_id, std::vector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, std::vector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes) {
@@ -2054,6 +2075,21 @@ void ServerSynchronizer::sync_group_fetch_object_grups(const ObjectData *p_objec
 	}
 }
 
+void ServerSynchronizer::sync_group_set_simulated_partial_update_timespan_seconds(const ObjectData &p_object_data, SyncGroupId p_group_id, bool p_partial_update_enabled, float p_update_timespan) {
+	NS_ENSURE_MSG(p_group_id.id < sync_groups.size(), "The group id `" + (p_group_id) + "` doesn't exist.");
+	sync_groups[p_group_id.id].set_simulated_partial_update_timespan_seconds(p_object_data, p_partial_update_enabled, p_update_timespan);
+}
+
+bool ServerSynchronizer::sync_group_is_simulated_partial_updating(const ObjectData &p_object_data, SyncGroupId p_group_id) const {
+	NS_ENSURE_V_MSG(p_group_id.id < sync_groups.size(), false, "The group id `" + (p_group_id) + "` doesn't exist.");
+	return sync_groups[p_group_id.id].is_simulated_partial_updating(p_object_data);
+}
+
+float ServerSynchronizer::sync_group_get_simulated_partial_update_timespan_seconds(const ObjectData &p_object_data, SyncGroupId p_group_id) const {
+	NS_ENSURE_V_MSG(p_group_id.id < sync_groups.size(), -1.0f, "The group id `" + (p_group_id) + "` doesn't exist.");
+	return sync_groups[p_group_id.id].get_simulated_partial_update_timespan_seconds(p_object_data);
+}
+
 void ServerSynchronizer::sync_group_replace_object(SyncGroupId p_group_id, std::vector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, std::vector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes) {
 	NS_ENSURE_MSG(p_group_id.id < sync_groups.size(), "The group id `" + p_group_id + "` doesn't exist.");
 	NS_ENSURE_MSG(p_group_id != SyncGroupId::GLOBAL, "You can't change this SyncGroup in any way. Create a new one.");
@@ -2875,15 +2911,25 @@ void ClientSynchronizer::store_controllers_snapshot(
 			NS_ENSURE_MSG(last_received_server_snapshot.has_value(), "The Client received a partial snapshot `" + p_snapshot.input_id+"` from the server but it was not possible to find a locally generated snapshot with the same ID. This should not be possible and it's a bug.");
 
 			// Now copy the update objects.
+			Snapshot &the_storing_snapshot = last_received_server_snapshot.value();
 			if (p_snapshot.is_just_updated_custom_data) {
-				How to merge custom data;
+				the_storing_snapshot.has_custom_data = scene_synchronizer->get_synchronizer_manager().snapshot_merge_custom_data_for_partial_update(
+						p_snapshot.just_updated_object_vars,
+						the_storing_snapshot.custom_data,
+						p_snapshot.custom_data);
 			}
 			if (p_snapshot.is_just_updated_simulated_objects) {
-				last_received_server_snapshot.value().simulated_objects = p_snapshot.simulated_objects;
+				the_storing_snapshot.simulated_objects = p_snapshot.simulated_objects;
 			}
 			for (ObjectNetId net_id : p_snapshot.just_updated_object_vars) {
-				TODO please ensure that this array contains the NetId.
-				last_received_server_snapshot.value().object_vars[net_id] = p_snapshot.get_object_vars(net_id);
+				if (uint32_t(the_storing_snapshot.object_vars.size()) <= net_id.id) {
+					// Ensure the vector is big enough.
+					the_storing_snapshot.object_vars.resize(net_id.id + 1);
+				}
+				the_storing_snapshot.object_vars[net_id.id].resize(p_snapshot.get_object_vars(net_id)->size());
+				for (int i = 0; i < p_snapshot.get_object_vars(net_id)->size(); i++) {
+					the_storing_snapshot.object_vars[net_id.id][i].copy((*p_snapshot.get_object_vars(net_id))[i]);
+				}
 			}
 
 			last_received_server_snapshot_index = p_snapshot.input_id;

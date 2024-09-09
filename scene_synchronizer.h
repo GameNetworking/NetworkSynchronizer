@@ -60,12 +60,23 @@ public:
 		return false;
 	}
 
+	/// This function is always called on client to merge the custom data
+	/// between the client snapshot and the partial update snapshot received
+	/// from the server.
+	virtual bool snapshot_merge_custom_data_for_partial_update(
+			const std::vector<ObjectNetId> &p_partial_update_objects,
+			struct VarData &r_custom_data,
+			const struct VarData &p_custom_data_from_server_snapshot) {
+		return false;
+	}
+
 	virtual std::uint8_t snapshot_get_custom_data_type() const {
 		return 0;
 	}
 
 	virtual void snapshot_set_custom_data(const VarData &r_custom_data) {
 	}
+
 
 	virtual ObjectHandle fetch_app_object(const std::string &p_object_name) = 0;
 	/// Returns the object name.
@@ -586,15 +597,19 @@ public: // ---------------------------------------------------------------- APIs
 
 	void sync_group_add_object(ObjectLocalId p_id, SyncGroupId p_group_id, bool p_realtime);
 	void sync_group_add_object(ObjectNetId p_id, SyncGroupId p_group_id, bool p_realtime);
-	void sync_group_add_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime);
+	void sync_group_add_object(ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime);
 
 	void sync_group_remove_object(ObjectLocalId p_id, SyncGroupId p_group_id);
 	void sync_group_remove_object(ObjectNetId p_id, SyncGroupId p_group_id);
-	void sync_group_remove_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id);
+	void sync_group_remove_object(ObjectData *p_object_data, SyncGroupId p_group_id);
 
-	void sync_group_fetch_object_grups(NS::ObjectLocalId p_id, std::vector<SyncGroupId> &r_simulated_groups, std::vector<SyncGroupId> &r_trickled_groups) const;
-	void sync_group_fetch_object_grups(NS::ObjectNetId p_id, std::vector<SyncGroupId> &r_simulated_groups, std::vector<SyncGroupId> &r_trickled_groups) const;
-	void sync_group_fetch_object_grups(const NS::ObjectData *p_object_data, std::vector<SyncGroupId> &r_simulated_groups, std::vector<SyncGroupId> &r_trickled_groups) const;
+	void sync_group_fetch_object_grups(ObjectLocalId p_id, std::vector<SyncGroupId> &r_simulated_groups, std::vector<SyncGroupId> &r_trickled_groups) const;
+	void sync_group_fetch_object_grups(ObjectNetId p_id, std::vector<SyncGroupId> &r_simulated_groups, std::vector<SyncGroupId> &r_trickled_groups) const;
+	void sync_group_fetch_object_grups(const ObjectData *p_object_data, std::vector<SyncGroupId> &r_simulated_groups, std::vector<SyncGroupId> &r_trickled_groups) const;
+
+	void sync_group_set_simulated_partial_update_timespan_seconds(ObjectLocalId p_id, SyncGroupId p_group_id, bool p_partial_update_enabled, float p_update_timespan);
+	bool sync_group_is_simulated_partial_updating(ObjectLocalId p_id, SyncGroupId p_group_id) const;
+	float sync_group_get_simulated_partial_update_timespan_seconds(ObjectLocalId p_id, SyncGroupId p_group_id) const;
 
 	/// Use `std::move()` to transfer `p_new_realtime_object` and `p_new_trickled_objects`.
 	void sync_group_replace_objects(SyncGroupId p_group_id, std::vector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_objects, std::vector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_objects);
@@ -820,10 +835,13 @@ public:
 	/// IMPORTANT: The pointer returned is invalid at the end of the scope executing this function. Never store it.
 	const NS::SyncGroup *sync_group_get(SyncGroupId p_group_id) const;
 
-	void sync_group_add_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime);
-	void sync_group_remove_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id);
-	void sync_group_fetch_object_grups(const NS::ObjectData *p_object_data, std::vector<SyncGroupId> &r_simulated_groups, std::vector<SyncGroupId> &r_trickled_groups) const;
-	void sync_group_replace_object(SyncGroupId p_group_id, std::vector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, std::vector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes);
+	void sync_group_add_object(ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime);
+	void sync_group_remove_object(ObjectData *p_object_data, SyncGroupId p_group_id);
+	void sync_group_fetch_object_grups(const ObjectData *p_object_data, std::vector<SyncGroupId> &r_simulated_groups, std::vector<SyncGroupId> &r_trickled_groups) const;
+	void sync_group_set_simulated_partial_update_timespan_seconds(const ObjectData &p_object_data, SyncGroupId p_group_id, bool p_partial_update_enabled, float p_update_timespan);
+	bool sync_group_is_simulated_partial_updating(const ObjectData &p_object_data, SyncGroupId p_group_id) const;
+	float sync_group_get_simulated_partial_update_timespan_seconds(const ObjectData &p_object_data, SyncGroupId p_group_id) const;
+	void sync_group_replace_object(SyncGroupId p_group_id, std::vector<SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, std::vector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes);
 	void sync_group_remove_all_objects(SyncGroupId p_group_id);
 	void sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id);
 	void sync_group_update(int p_peer_id);
@@ -898,7 +916,7 @@ public:
 		}
 
 		EndSyncEvent(
-				NS::ObjectData *p_object_data,
+				ObjectData *p_object_data,
 				VarId p_var_id,
 				const VarData &p_old_value) :
 			object_data(p_object_data),
