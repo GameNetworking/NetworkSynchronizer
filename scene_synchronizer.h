@@ -60,6 +60,10 @@ public:
 		return false;
 	}
 
+	virtual std::uint8_t snapshot_get_custom_data_type() const {
+		return 0;
+	}
+
 	/// This function is always called on client to merge the custom data
 	/// between the client snapshot and the partial update snapshot received
 	/// from the server.
@@ -70,13 +74,8 @@ public:
 		return false;
 	}
 
-	virtual std::uint8_t snapshot_get_custom_data_type() const {
-		return 0;
-	}
-
 	virtual void snapshot_set_custom_data(const VarData &r_custom_data) {
 	}
-
 
 	virtual ObjectHandle fetch_app_object(const std::string &p_object_name) = 0;
 	/// Returns the object name.
