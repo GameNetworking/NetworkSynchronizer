@@ -687,14 +687,14 @@ void SceneSynchronizerBase::untrack_variable_changes(ListenerHandle p_handle) {
 	delete listener;
 }
 
-NS::PHandler SceneSynchronizerBase::register_process(ObjectLocalId p_id, ProcessPhase p_phase, std::function<void(float)> p_func) {
+PHandler SceneSynchronizerBase::register_process(ObjectLocalId p_id, ProcessPhase p_phase, std::function<void(float)> p_func) {
 	NS_ENSURE_V(p_id != NS::ObjectLocalId::NONE, NS::NullPHandler);
 	NS_ENSURE_V(p_func, NS::NullPHandler);
 
 	ObjectData *od = get_object_data(p_id);
 	NS_ENSURE_V(od, NS::NullPHandler);
 
-	const NS::PHandler EFH = od->functions[p_phase].bind(p_func);
+	const PHandler EFH = od->functions[p_phase].bind(p_func);
 
 	process_functions__clear();
 
@@ -2769,13 +2769,11 @@ void ClientSynchronizer::receive_snapshot(DataBuffer &p_snapshot) {
 	SceneSynchronizerDebugger::singleton()->print(VERBOSE, "The Client received the server snapshot.", scene_synchronizer->get_network_interface().get_owner_name());
 
 	// Parse server snapshot.
-	const bool success = parse_snapshot(p_snapshot);
+	const bool success = parse_snapshot(p_snapshot, true);
 
 	if (success == false) {
 		return;
 	}
-
-	scene_synchronizer->event_received_server_snapshot.broadcast(last_received_snapshot);
 
 	// Finalize data.
 	store_controllers_snapshot(last_received_snapshot);
@@ -2865,9 +2863,9 @@ void ClientSynchronizer::store_snapshot() {
 	}
 #endif
 
-	client_snapshots.push_back(NS::Snapshot());
+	client_snapshots.push_back(Snapshot());
 
-	NS::Snapshot &snap = client_snapshots.back();
+	Snapshot &snap = client_snapshots.back();
 	snap.input_id = player_controller->get_current_frame_index();
 
 	update_client_snapshot(snap);
@@ -2946,6 +2944,12 @@ void ClientSynchronizer::store_controllers_snapshot(
 	}
 
 	NS_ASSERT_COND(last_received_server_snapshot_index == p_snapshot.input_id);
+
+	// NOTE 1: At this point last_received_server_snapshot is guaranteed to have a value.
+	// NOTE 2: Using the last_received_server_snapshot instead of last_received_snapshot
+	//         because on the former we do extra stuff in order to properly parse
+	//         it in case the received one is a partial update.
+	scene_synchronizer->event_received_server_snapshot.broadcast(last_received_server_snapshot.value());
 }
 
 void ClientSynchronizer::process_server_sync() {
@@ -3089,7 +3093,7 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 		const FrameIndex p_input_id,
 		const int p_rewind_frame_count,
 		const PlayerController &p_local_player_controller,
-		NS::Snapshot &r_no_rewind_recover) {
+		Snapshot &r_no_rewind_recover) {
 	NS_PROFILE
 	std::vector<std::string> differences_info;
 
@@ -3097,7 +3101,7 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 	std::vector<ObjectNetId> different_node_data;
 #endif
 
-	bool is_equal = NS::Snapshot::compare(
+	bool is_equal = Snapshot::compare(
 			*scene_synchronizer,
 			*last_received_server_snapshot,
 			client_snapshots.front(),
@@ -3195,7 +3199,7 @@ void ClientSynchronizer::__pcr__sync__rewind(
 
 	std::vector<std::string> applied_data_info;
 
-	const NS::Snapshot &server_snapshot = *last_received_server_snapshot;
+	const Snapshot &server_snapshot = *last_received_server_snapshot;
 	apply_snapshot(
 			server_snapshot,
 			NetEventFlag::SERVER_UPDATE | NetEventFlag::SYNC_RESET,
@@ -3281,7 +3285,7 @@ void ClientSynchronizer::__pcr__rewind(
 #endif
 }
 
-void ClientSynchronizer::__pcr__sync__no_rewind(const NS::Snapshot &p_no_rewind_recover) {
+void ClientSynchronizer::__pcr__sync__no_rewind(const Snapshot &p_no_rewind_recover) {
 	NS_PROFILE
 	NS_ASSERT_COND_MSG(p_no_rewind_recover.input_id == FrameIndex{ { 0 } }, "This function is never called unless there is something to recover without rewinding.");
 
@@ -3464,14 +3468,14 @@ bool ClientSynchronizer::parse_sync_data(
 		void (*p_notify_update_mode)(void *p_user_pointer, bool p_is_partial_update),
 		void (*p_custom_data_parse)(void *p_user_pointer, VarData &&p_custom_data),
 		void (*p_object_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
-		bool (*p_peers_frame_index_parse)(void *p_user_pointer, std::map<int, FrameIndex> &&p_frames_index),
+		bool (*p_peers_frame_index_parse)(void *p_user_pointer, std::map<int, FrameIndexWithMeta> &&p_frames_index),
 		void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, VarData &&p_value),
 		void (*p_simulated_objects_parse)(void *p_user_pointer, std::vector<SimulatedObjectInfo> &&p_simulated_objects)) {
 	NS_PROFILE
 
 	// The snapshot is a DataBuffer that contains the scene information.
 	// NOTE: Check generate_snapshot to see the DataBuffer format.
-	std::map<int, FrameIndex> frames_index;
+	std::map<int, FrameIndexWithMeta> frames_index;
 
 	p_snapshot.begin_read();
 	if (p_snapshot.size() <= 0) {
@@ -3488,11 +3492,11 @@ bool ClientSynchronizer::parse_sync_data(
 
 		if (is_partial_update) {
 			// The partial update always includes the frame index. Fetch it.
-			FrameIndex frame_index;
-			p_snapshot.read(frame_index.id);
+			FrameIndexWithMeta frame_index_meta;
+			p_snapshot.read(frame_index_meta.frame_index.id);
 			NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as the `frame_index` FrameIndex expected is not set.");
 
-			MapFunc::assign(frames_index, scene_synchronizer->get_network_interface().get_local_peer_id(), frame_index);
+			MapFunc::assign(frames_index, scene_synchronizer->get_network_interface().get_local_peer_id(), frame_index_meta);
 		}
 	}
 
@@ -3650,7 +3654,7 @@ bool ClientSynchronizer::parse_sync_data(
 
 			if (!skip_object) {
 				if (synchronizer_object_data->get_controlled_by_peer() > 0) {
-					MapFunc::assign(frames_index, synchronizer_object_data->get_controlled_by_peer(), frame_index);
+					MapFunc::assign(frames_index, synchronizer_object_data->get_controlled_by_peer(), FrameIndexWithMeta(frame_index));
 				}
 			}
 		}
@@ -3866,7 +3870,7 @@ void ClientSynchronizer::remove_object_from_trickled_sync(NS::ObjectData *p_obje
 	VecFunc::remove_unordered(trickled_sync_array, p_object_data);
 }
 
-bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
+bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot, bool p_is_server_snapshot) {
 	if (want_to_enable) {
 		if (enabled) {
 			SceneSynchronizerDebugger::singleton()->print(ERROR, "At this point the client is supposed to be disabled. This is a bug that must be solved.", scene_synchronizer->get_network_interface().get_owner_name());
@@ -3896,13 +3900,15 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 		PeerNetworkedController *player_controller;
 		SceneSynchronizerBase *scene_synchronizer;
 		ClientSynchronizer *client_synchronizer;
+		bool is_server_snapshot;
 	};
 
 	ParseData parse_data{
 		received_snapshot,
 		player_controller,
 		scene_synchronizer,
-		this
+		this,
+		p_is_server_snapshot
 	};
 
 	const bool success = parse_sync_data(
@@ -3943,17 +3949,28 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 			},
 
 			// Parse peer frames index
-			[](void *p_user_pointer, std::map<int, FrameIndex> &&p_peers_frames_index) -> bool {
+			[](void *p_user_pointer, std::map<int, FrameIndexWithMeta> &&p_peers_frames_index) -> bool {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
 
 				// Extract the InputID for the controller processed as Authority by this client.
-				const FrameIndex authority_frame_index = pd->player_controller ? MapFunc::at(p_peers_frames_index, pd->player_controller->get_authority_peer(), FrameIndex::NONE) : FrameIndex::NONE;
+				const FrameIndexWithMeta authority_frame_index_meta = pd->player_controller ? MapFunc::at(p_peers_frames_index, pd->player_controller->get_authority_peer(), FrameIndexWithMeta()) : FrameIndexWithMeta();
 
 				// Store it.
-				pd->snapshot.input_id = authority_frame_index;
+				pd->snapshot.input_id = authority_frame_index_meta.frame_index;
+
+				for (auto &[peer, meta] : p_peers_frames_index) {
+					meta.is_server_validated = pd->is_server_snapshot;
+				}
 
 				// Store the frames index.
 				pd->snapshot.peers_frames_index = std::move(p_peers_frames_index);
+
+#ifdef NS_DEBUG_ENABLED
+				// Assert that the FrameIndex were properly moved.
+				for (const auto &[peer, meta] : pd->snapshot.peers_frames_index) {
+					NS_ASSERT_COND(meta.is_server_validated == pd->is_server_snapshot);
+				}
+#endif
 
 				return true;
 			},
@@ -4006,7 +4023,7 @@ void ClientSynchronizer::notify_server_full_snapshot_is_needed() {
 			scene_synchronizer->network_interface->get_server_peer());
 }
 
-void ClientSynchronizer::update_client_snapshot(NS::Snapshot &r_snapshot) {
+void ClientSynchronizer::update_client_snapshot(Snapshot &r_snapshot) {
 	NS_PROFILE
 
 	r_snapshot.simulated_objects = simulated_objects;
@@ -4023,7 +4040,7 @@ void ClientSynchronizer::update_client_snapshot(NS::Snapshot &r_snapshot) {
 	r_snapshot.peers_frames_index.clear();
 	for (const auto &[peer, data] : scene_synchronizer->peer_data) {
 		if (data.controller) {
-			MapFunc::assign(r_snapshot.peers_frames_index, peer, data.controller->get_current_frame_index());
+			MapFunc::assign(r_snapshot.peers_frames_index, peer, FrameIndexWithMeta(false, data.controller->get_current_frame_index()));
 		}
 	}
 
@@ -4112,7 +4129,7 @@ void ClientSynchronizer::update_simulated_objects_list(const std::vector<Simulat
 }
 
 void ClientSynchronizer::apply_snapshot(
-		const NS::Snapshot &p_snapshot,
+		const Snapshot &p_snapshot,
 		const int p_flag,
 		const int p_frame_count_to_rewind,
 		std::vector<std::string> *r_applied_data_info,

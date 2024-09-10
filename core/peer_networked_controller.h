@@ -7,7 +7,6 @@
 #include <deque>
 
 NS_NAMESPACE_BEGIN
-
 class SceneSynchronizerBase;
 class NetworkInterface;
 
@@ -132,7 +131,9 @@ public:
 	void setup_synchronizer(NS::SceneSynchronizerBase &p_synchronizer, int p_peer);
 	void remove_synchronizer();
 
-	int get_authority_peer() const { return authority_peer; }
+	int get_authority_peer() const {
+		return authority_peer;
+	}
 
 	NS::SceneSynchronizerBase *get_scene_synchronizer() const;
 	bool has_scene_synchronizer() const;
@@ -178,15 +179,20 @@ struct Controller {
 	PeerNetworkedController *peer_controller;
 
 	Controller(PeerNetworkedController *p_peer_controller) :
-			peer_controller(p_peer_controller) {}
+		peer_controller(p_peer_controller) {
+	}
 
 	virtual ~Controller() = default;
 
-	virtual void ready() {}
+	virtual void ready() {
+	}
+
 	virtual FrameIndex get_current_frame_index() const = 0;
 	virtual void process(float p_delta) = 0;
 
-	virtual bool receive_inputs(const std::vector<std::uint8_t> &p_data) { return false; };
+	virtual bool receive_inputs(const std::vector<std::uint8_t> &p_data) {
+		return false;
+	};
 };
 
 struct RemotelyControlledController : public Controller {
@@ -292,6 +298,11 @@ public:
 	struct DollSnapshot final {
 		// Contains the data useful for the Doll.
 		Snapshot data;
+		/// This is set to true only when the `frame_index` comes from the server.
+		/// NOTE: This is needed to know when the `frame_index` is taken from a
+		///       client generated snapshot because of a partial updated snapshot
+		///       was received.
+		bool is_server_validated = false;
 		FrameIndex doll_executed_input = FrameIndex::NONE;
 
 	public:
@@ -302,21 +313,27 @@ public:
 		DollSnapshot(const DollSnapshot &p_other) = delete;
 		DollSnapshot operator=(const DollSnapshot &p_other) = delete;
 
-		DollSnapshot(FrameIndex p_index) { doll_executed_input = p_index; }
+		DollSnapshot(FrameIndex p_index) {
+			doll_executed_input = p_index;
+		}
 
-		bool operator==(const DollSnapshot &p_other) const { return doll_executed_input == p_other.doll_executed_input; }
+		bool operator==(const DollSnapshot &p_other) const {
+			return doll_executed_input == p_other.doll_executed_input;
+		}
 	};
 
 public:
-	NS::PHandler event_handler_received_snapshot = NS::NullPHandler;
-	NS::PHandler event_handler_rewind_frame_begin = NS::NullPHandler;
-	NS::PHandler event_handler_state_validated = NS::NullPHandler;
-	NS::PHandler event_handler_client_snapshot_updated = NS::NullPHandler;
-	NS::PHandler event_handler_snapshot_applied = NS::NullPHandler;
+	PHandler event_handler_received_snapshot = NullPHandler;
+	PHandler event_handler_rewind_frame_begin = NullPHandler;
+	PHandler event_handler_state_validated = NullPHandler;
+	PHandler event_handler_client_snapshot_updated = NullPHandler;
+	PHandler event_handler_snapshot_applied = NullPHandler;
 
 	// The lastest `FrameIndex` validated.
 	FrameIndex last_doll_validated_input = FrameIndex::NONE;
-	// The lastest `FrameIndex` on which the server / doll snapshots were compared.
+	// Used to avoid that snapshots are cleared by partial updates.
+	bool skip_snapshot_validation = false;
+	// The latest `FrameIndex` on which the server / doll snapshots were compared.
 	FrameIndex last_doll_compared_input = FrameIndex::NONE;
 	FrameIndex queued_frame_index_to_process = FrameIndex{ { 0 } };
 	int queued_instant_to_process = -1;
@@ -361,10 +378,11 @@ public:
 			,
 			std::vector<ObjectNetId> *r_different_node_data
 #endif
-	);
+			);
 
 	void on_snapshot_applied(const Snapshot &p_global_server_snapshot, const int p_frame_count_to_rewind);
-	void apply_snapshot_no_input_reconciliation(const Snapshot &p_global_server_snapshot);
+	void apply_snapshot_no_simulation(const Snapshot &p_global_server_snapshot);
+	void apply_snapshot_no_input_reconciliation(const Snapshot &p_global_server_snapshot, FrameIndex p_frame_index);
 	void apply_snapshot_instant_input_reconciliation(const Snapshot &p_global_server_snapshot, const int p_frame_count_to_rewind);
 	void apply_snapshot_rewinding_input_reconciliation(const Snapshot &p_global_server_snapshot, const int p_frame_count_to_rewind);
 };

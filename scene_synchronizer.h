@@ -339,7 +339,7 @@ public: // -------------------------------------------------------------- Events
 	///       So, you can assume the snapshot contains the result of the last executed input.
 	Processor<const Snapshot & /*p_snapshot*/> event_snapshot_update_finished;
 	Processor<const Snapshot & /*p_snapshot*/, int /*p_frame_count_to_rewind*/> event_snapshot_applied;
-	Processor<const RollingUpdateSnapshot & /*p_received_snapshot*/> event_received_server_snapshot;
+	Processor<const Snapshot & /*p_received_snapshot*/> event_received_server_snapshot;
 	Processor<FrameIndex /*p_frame_index*/, int /*p_rewinding_index*/, int /*p_rewinding_frame_count*/> event_rewind_frame_begin;
 	Processor<FrameIndex, ObjectHandle /*p_app_object_handle*/, const std::vector<std::optional<VarData>> & /*p_client_values*/, const std::vector<std::optional<VarData>> & /*p_server_values*/> event_desync_detected_with_info;
 
@@ -1020,7 +1020,9 @@ public:
 			void (*p_notify_update_mode)(void *p_user_pointer, bool p_is_partial_update),
 			void (*p_custom_data_parse)(void *p_user_pointer, VarData &&p_custom_data),
 			void (*p_object_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
-			bool (*p_peers_frame_index_parse)(void *p_user_pointer, std::map<int, FrameIndex> &&p_frames_index),
+			// NOTE: The frame index meta is not initialized by this function,
+			// and it's up to the calling function doint it.
+			bool (*p_peers_frame_index_parse)(void *p_user_pointer, std::map<int, FrameIndexWithMeta> &&p_frames_index),
 			void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, VarData &&p_value),
 			void (*p_simulated_objects_parse)(void *p_user_pointer, std::vector<SimulatedObjectInfo> &&p_simulated_objects));
 
@@ -1070,7 +1072,7 @@ private:
 	int calculates_sub_ticks(const float p_delta);
 	void process_simulation(float p_delta);
 
-	bool parse_snapshot(DataBuffer &p_snapshot);
+	bool parse_snapshot(DataBuffer &p_snapshot, bool p_is_server_snapshot);
 
 	void notify_server_full_snapshot_is_needed();
 

@@ -1370,8 +1370,10 @@ void DollController::process(float p_delta) {
 }
 
 void DollController::on_state_validated(FrameIndex p_frame_index, bool p_detected_desync) {
-	notify_frame_checked(last_doll_compared_input);
-	clear_previously_generated_client_snapshots();
+	if (!skip_snapshot_validation) {
+		notify_frame_checked(last_doll_compared_input);
+		clear_previously_generated_client_snapshots();
+	}
 }
 
 void DollController::notify_frame_checked(FrameIndex p_doll_frame_index) {
@@ -1433,15 +1435,15 @@ void DollController::clear_previously_generated_client_snapshots() {
 
 void DollController::on_received_server_snapshot(const Snapshot &p_snapshot) {
 	NS_PROFILE
-	const FrameIndex doll_executed_input = MapFunc::at(p_snapshot.peers_frames_index, peer_controller->get_authority_peer(), FrameIndex::NONE);
-	if (last_doll_validated_input != FrameIndex::NONE && last_doll_validated_input >= doll_executed_input) {
+	const FrameIndexWithMeta doll_executed_input_meta = MapFunc::at(p_snapshot.peers_frames_index, peer_controller->get_authority_peer(), FrameIndexWithMeta());
+	if (last_doll_validated_input != FrameIndex::NONE && last_doll_validated_input >= doll_executed_input_meta.frame_index) {
 		// Snapshot already checked, no need to store this.
 		return;
 	}
 
 	// This check ensure that the server_snapshots contains just a single FrameIndex::NONE
 	// snapshot or a bunch of indexed one.
-	if (p_snapshot.input_id == FrameIndex::NONE || doll_executed_input == FrameIndex::NONE) {
+	if (p_snapshot.input_id == FrameIndex::NONE || doll_executed_input_meta.frame_index == FrameIndex::NONE) {
 		// The received snapshot doesn't have a FrameIndex set, it means there is no controller
 		// so assume this is the most up-to-date snapshot.
 		server_snapshots.clear();
@@ -1456,8 +1458,10 @@ void DollController::on_received_server_snapshot(const Snapshot &p_snapshot) {
 void DollController::on_snapshot_update_finished(const Snapshot &p_snapshot) {
 #ifdef NS_DEBUG_ENABLED
 	// The SceneSync set the correct input, and here it checks it.
-	const FrameIndex doll_executed_input = MapFunc::at(p_snapshot.peers_frames_index, peer_controller->get_authority_peer(), FrameIndex::NONE);
-	NS_ASSERT_COND(doll_executed_input == current_input_buffer_id);
+	const FrameIndexWithMeta doll_executed_input = MapFunc::at(p_snapshot.peers_frames_index, peer_controller->get_authority_peer(), FrameIndexWithMeta());
+	NS_ASSERT_COND(doll_executed_input.frame_index == current_input_buffer_id);
+	// NOTE: This function is called on client, so is_server_validated is expected to be false at this point.
+	NS_ASSERT_COND(doll_executed_input.is_server_validated== false);
 #endif
 	copy_controlled_objects_snapshot(p_snapshot, client_snapshots, false);
 }
@@ -1467,11 +1471,11 @@ void DollController::copy_controlled_objects_snapshot(
 		std::vector<DollSnapshot> &r_snapshots,
 		bool p_store_even_when_doll_is_not_processing) {
 	NS_PROFILE
-	const FrameIndex doll_executed_input = MapFunc::at(p_snapshot.peers_frames_index, peer_controller->get_authority_peer(), FrameIndex::NONE);
+	const FrameIndexWithMeta doll_executed_input_meta = MapFunc::at(p_snapshot.peers_frames_index, peer_controller->get_authority_peer(), FrameIndexWithMeta());
 	const std::vector<ObjectData *> *controlled_objects = peer_controller->scene_synchronizer->get_peer_controlled_objects_data(peer_controller->get_authority_peer());
 
 	if (!p_store_even_when_doll_is_not_processing) {
-		if (doll_executed_input == FrameIndex::NONE) {
+		if (doll_executed_input_meta.frame_index == FrameIndex::NONE) {
 			// Nothing to store.
 			return;
 		}
@@ -1483,21 +1487,22 @@ void DollController::copy_controlled_objects_snapshot(
 
 	DollSnapshot *snap;
 	{
-		auto it = VecFunc::find(r_snapshots, DollSnapshot(doll_executed_input));
+		auto it = VecFunc::find(r_snapshots, DollSnapshot(doll_executed_input_meta.frame_index));
 		if (it == r_snapshots.end()) {
 			r_snapshots.push_back(DollSnapshot(FrameIndex::NONE));
 			snap = &r_snapshots.back();
-			snap->doll_executed_input = doll_executed_input;
+			snap->doll_executed_input = doll_executed_input_meta.frame_index;
 		} else {
 			snap = &*it;
 		}
 	}
 
-	NS_ASSERT_COND(snap->doll_executed_input == doll_executed_input);
+	NS_ASSERT_COND(snap->doll_executed_input == doll_executed_input_meta.frame_index);
+	snap->is_server_validated = doll_executed_input_meta.is_server_validated;
 	snap->data.input_id = p_snapshot.input_id;
 
 	// Extracts the data from the snapshot.
-	MapFunc::assign(snap->data.peers_frames_index, peer_controller->get_authority_peer(), doll_executed_input);
+	MapFunc::assign(snap->data.peers_frames_index, peer_controller->get_authority_peer(), doll_executed_input_meta);
 
 	if (!controlled_objects || controlled_objects->size() <= 0) {
 		// Nothing to store for this doll.
@@ -1638,9 +1643,22 @@ void DollController::on_snapshot_applied(
 	//       - Delaying the input processing when the input buffer is small (with the goal of growing the buffer)
 	//       - Discarding part of the input buffer, if the buffer grown too much, to remain up-to-dated with the server.
 
+	skip_snapshot_validation = false;
+
 	if make_unlikely(!server_snapshots.empty() && server_snapshots.back().doll_executed_input == FrameIndex::NONE) {
 		// This controller is not simulating on the server. This function handles this case.
-		apply_snapshot_no_input_reconciliation(p_global_server_snapshot);
+		apply_snapshot_no_simulation(p_global_server_snapshot);
+	}
+
+	const FrameIndexWithMeta doll_executed_input_meta = MapFunc::at(p_global_server_snapshot.peers_frames_index, peer_controller->get_authority_peer(), FrameIndexWithMeta());
+	if (doll_executed_input_meta.frame_index != FrameIndex::NONE && !doll_executed_input_meta.is_server_validated) {
+		// This snapshot is a partially updated one that contains a state
+		// generated locally, so it's not good for processing the input reconciliation.
+
+		skip_snapshot_validation = true;
+
+		apply_snapshot_no_input_reconciliation(p_global_server_snapshot, doll_executed_input_meta.frame_index);
+		return;
 	}
 
 	if make_likely(current_input_buffer_id != FrameIndex::NONE) {
@@ -1652,7 +1670,7 @@ void DollController::on_snapshot_applied(
 	}
 }
 
-void DollController::apply_snapshot_no_input_reconciliation(const Snapshot &p_global_server_snapshot) {
+void DollController::apply_snapshot_no_simulation(const Snapshot &p_global_server_snapshot) {
 	// Apply the latest received server snapshot right away since the doll is not
 	// yet still processing on the server.
 
@@ -1662,6 +1680,22 @@ void DollController::apply_snapshot_no_input_reconciliation(const Snapshot &p_gl
 	last_doll_compared_input = FrameIndex::NONE;
 	current_input_buffer_id = FrameIndex::NONE;
 	queued_frame_index_to_process = FrameIndex::NONE;
+}
+
+void DollController::apply_snapshot_no_input_reconciliation(const Snapshot &p_global_server_snapshot, FrameIndex p_frame_index) {
+	static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(
+			p_global_server_snapshot,
+			0,
+			0,
+			nullptr,
+			true,
+			true,
+			true,
+			true,
+			true);
+	current_input_buffer_id = p_frame_index;
+	queued_frame_index_to_process = current_input_buffer_id + 1;
+	skip_snapshot_validation = true;
 }
 
 void DollController::apply_snapshot_instant_input_reconciliation(const Snapshot &p_global_server_snapshot, const int p_frame_count_to_rewind) {

@@ -5,7 +5,7 @@
 #include <map>
 #include <optional>
 
-namespace NS {
+NS_NAMESPACE_BEGIN
 class SceneSynchronizerBase;
 
 struct SimulatedObjectInfo {
@@ -29,6 +29,27 @@ struct SimulatedObjectInfo {
 	}
 };
 
+struct FrameIndexWithMeta {
+	/// This is set to true only when the `frame_index` comes from the server.
+	/// NOTE: This is needed to know when the `frame_index` is taken from a
+	///       client generated snapshot because of a partial updated snapshot
+	///       was received.
+	bool is_server_validated = false;
+	FrameIndex frame_index = FrameIndex::NONE;
+
+	FrameIndexWithMeta() = default;
+	FrameIndexWithMeta(const FrameIndexWithMeta &) = default;
+
+	FrameIndexWithMeta(bool p_is_server_validated, FrameIndex p_frame_index):
+		is_server_validated(p_is_server_validated),
+		frame_index(p_frame_index) {
+	}
+
+	FrameIndexWithMeta(FrameIndex p_frame_index):
+		frame_index(p_frame_index) {
+	}
+};
+
 struct Snapshot {
 	FrameIndex input_id = FrameIndex::NONE;
 	std::vector<SimulatedObjectInfo> simulated_objects;
@@ -41,7 +62,7 @@ struct Snapshot {
 	/// NOTE: Due to the nature of the doll simulation, when comparing the
 	///       server snapshot with the client snapshot this map is never checked.
 	///       This map is used by the Doll-controller's reconciliation algorithm.
-	std::map<int, FrameIndex> peers_frames_index;
+	std::map<int, FrameIndexWithMeta> peers_frames_index;
 
 	bool has_custom_data = false;
 
@@ -81,4 +102,5 @@ struct RollingUpdateSnapshot final : public Snapshot {
 	/// The list of the updated object vars on the last update.
 	std::vector<ObjectNetId> just_updated_object_vars;
 };
-}; //namespace NS
+
+NS_NAMESPACE_END
