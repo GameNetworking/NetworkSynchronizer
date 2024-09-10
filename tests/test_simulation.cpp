@@ -692,7 +692,7 @@ void process_actors_drag_simulation(NS::LocalSceneSynchronizer &scene_sync, floa
 		NS::LocalSceneObject *lso = scene_sync.from_handle(od->app_object_handle);
 		ActorSceneObject *aso = dynamic_cast<ActorSceneObject *>(lso);
 		if (aso) {
-			const int drag = float(p_actors_drags[od->get_net_id().id]) / 100.0;
+			const int drag = float(p_actors_drags[od->get_net_id().id]) / 100.0f; // TODO change this int to float
 			aso->set_position(aso->get_position() - Vec3(drag * p_delta, drag * p_delta, drag * p_delta));
 		}
 	}

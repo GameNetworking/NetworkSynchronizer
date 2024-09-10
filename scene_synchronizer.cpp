@@ -2928,7 +2928,11 @@ void ClientSynchronizer::store_controllers_snapshot(
 				}
 				the_storing_snapshot.object_vars[net_id.id].resize(p_snapshot.get_object_vars(net_id)->size());
 				for (int i = 0; i < p_snapshot.get_object_vars(net_id)->size(); i++) {
-					the_storing_snapshot.object_vars[net_id.id][i].copy((*p_snapshot.get_object_vars(net_id))[i]);
+					if ((*p_snapshot.get_object_vars(net_id))[i].has_value()) {
+						the_storing_snapshot.object_vars[net_id.id][i].emplace(VarData::make_copy((*p_snapshot.get_object_vars(net_id))[i].value()));
+					} else {
+						the_storing_snapshot.object_vars[net_id.id][i].reset();
+					}
 				}
 			}
 
@@ -3015,7 +3019,7 @@ void ClientSynchronizer::process_received_server_state() {
 	const int frame_count_after_input_id = inner_player_controller->count_frames_after(last_checked_input);
 
 	bool need_rewind;
-	NS::Snapshot no_rewind_recover;
+	Snapshot no_rewind_recover;
 	if make_likely(!client_snapshots.empty() && client_snapshots.front().input_id == last_checked_input) {
 		// In this case the client is checking the frame for the first time, and
 		// this is the most common case.
@@ -3133,43 +3137,39 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 #ifdef NS_DEBUG_ENABLED
 	// Emit the de-sync detected signal.
 	if (!is_equal) {
-		std::vector<std::string> variable_names;
-		std::vector<VarData> server_values;
-		std::vector<VarData> client_values;
+		std::vector<std::optional<VarData>> server_values;
+		std::vector<std::optional<VarData>> client_values;
 
 		for (
 			int i = 0;
 			i < int(different_node_data.size());
 			i += 1) {
 			const ObjectNetId net_node_id = different_node_data[i];
-			NS::ObjectData *rew_node_data = scene_synchronizer->get_object_data(net_node_id);
+			ObjectData *rew_node_data = scene_synchronizer->get_object_data(net_node_id);
 
-			const std::vector<NS::NameAndVar> *server_node_vars = ObjectNetId{ { ObjectNetId::IdType(last_received_server_snapshot->object_vars.size()) } } <= net_node_id ? nullptr : &(last_received_server_snapshot->object_vars[net_node_id.id]);
-			const std::vector<NS::NameAndVar> *client_node_vars = ObjectNetId{ { ObjectNetId::IdType(client_snapshots.front().object_vars.size()) } } <= net_node_id ? nullptr : &(client_snapshots.front().object_vars[net_node_id.id]);
+			const std::vector<std::optional<VarData>> *server_object_vars = ObjectNetId{ { ObjectNetId::IdType(last_received_server_snapshot->object_vars.size()) } } <= net_node_id ? nullptr : &(last_received_server_snapshot->object_vars[net_node_id.id]);
+			const std::vector<std::optional<VarData>> *client_node_vars = ObjectNetId{ { ObjectNetId::IdType(client_snapshots.front().object_vars.size()) } } <= net_node_id ? nullptr : &(client_snapshots.front().object_vars[net_node_id.id]);
 
-			const std::size_t count = std::max(server_node_vars ? server_node_vars->size() : 0, client_node_vars ? client_node_vars->size() : 0);
+			const std::size_t count = std::max(server_object_vars ? server_object_vars->size() : 0, client_node_vars ? client_node_vars->size() : 0);
 
-			variable_names.resize(count);
 			server_values.resize(count);
 			client_values.resize(count);
 
 			for (std::size_t g = 0; g < count; ++g) {
-				if (server_node_vars && g < server_node_vars->size()) {
-					variable_names[g] = (*server_node_vars)[g].name;
-					server_values[g].copy((*server_node_vars)[g].value);
+				if (server_object_vars && g < server_object_vars->size() && (*server_object_vars)[g].has_value()) {
+					server_values[g].emplace(VarData::make_copy((*server_object_vars)[g].value()));
 				} else {
-					server_values[g] = VarData();
+					server_values[g].reset();
 				}
 
-				if (client_node_vars && g < client_node_vars->size()) {
-					variable_names[g] = (*client_node_vars)[g].name;
-					client_values[g].copy((*client_node_vars)[g].value);
+				if (client_node_vars && g < client_node_vars->size() && (*client_node_vars)[g].has_value()) {
+					client_values[g].emplace(VarData::make_copy((*client_node_vars)[g].value()));
 				} else {
-					client_values[g] = VarData();
+					client_values[g].reset();
 				}
 			}
 
-			scene_synchronizer->event_desync_detected_with_info.broadcast(p_input_id, rew_node_data->app_object_handle, variable_names, client_values, server_values);
+			scene_synchronizer->event_desync_detected_with_info.broadcast(p_input_id, rew_node_data->app_object_handle, client_values, server_values);
 		}
 	}
 #endif
@@ -3967,8 +3967,7 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot) {
 					pd->snapshot.object_vars[p_object_data->get_net_id().id].resize(p_object_data->vars.size());
 				}
 
-				pd->snapshot.object_vars[p_object_data->get_net_id().id][p_var_id.id].name = p_object_data->vars[p_var_id.id].var.name;
-				pd->snapshot.object_vars[p_object_data->get_net_id().id][p_var_id.id].value = std::move(p_value);
+				pd->snapshot.object_vars[p_object_data->get_net_id().id][p_var_id.id].emplace(std::move(p_value));
 			},
 
 			// Parse node activation:
@@ -4029,7 +4028,7 @@ void ClientSynchronizer::update_client_snapshot(NS::Snapshot &r_snapshot) {
 	}
 
 	// Create the snapshot, even for the objects controlled by the dolls.
-	for (const NS::ObjectData *od : scene_synchronizer->objects_data_storage.get_sorted_objects_data()) {
+	for (const ObjectData *od : scene_synchronizer->objects_data_storage.get_sorted_objects_data()) {
 		NS_PROFILE_NAMED("Update object data");
 
 		if (od == nullptr || od->realtime_sync_enabled_on_client == false) {
@@ -4048,21 +4047,19 @@ void ClientSynchronizer::update_client_snapshot(NS::Snapshot &r_snapshot) {
 		NS_ASSERT_COND_MSG(od->get_net_id().id < uint32_t(r_snapshot.object_vars.size()), "This array was resized above, this can't be triggered.");
 #endif
 
-		std::vector<NS::NameAndVar> *snap_node_vars = r_snapshot.object_vars.data() + od->get_net_id().id;
+		std::vector<std::optional<VarData>> *snap_node_vars = r_snapshot.object_vars.data() + od->get_net_id().id;
 		snap_node_vars->resize(od->vars.size());
 
-		NS::NameAndVar *snap_node_vars_ptr = snap_node_vars->data();
+		std::optional<VarData> *snap_node_vars_ptr = snap_node_vars->data();
 		for (std::size_t v = 0; v < od->vars.size(); v += 1) {
 #ifdef NS_PROFILING_ENABLED
 			std::string sub_perf_info = "Var: " + od->vars[v].var.name;
 			NS_PROFILE_NAMED_WITH_INFO("Update object data variable", sub_perf_info);
 #endif
 			if (od->vars[v].enabled) {
-				snap_node_vars_ptr[v].name = od->vars[v].var.name;
-				snap_node_vars_ptr[v].value.copy(od->vars[v].var.value);
+				snap_node_vars_ptr[v].emplace(VarData::make_copy(od->vars[v].var.value));
 			} else {
-				snap_node_vars_ptr[v].name = std::string();
-				snap_node_vars_ptr[v].value = VarData();
+				snap_node_vars_ptr[v].reset();
 			}
 		}
 	}
@@ -4126,7 +4123,7 @@ void ClientSynchronizer::apply_snapshot(
 		const bool p_skip_change_event) {
 	NS_PROFILE
 
-	const std::vector<NameAndVar> *snap_objects_vars = p_snapshot.object_vars.data();
+	const std::vector<std::optional<VarData>> *snap_objects_vars = p_snapshot.object_vars.data();
 
 	if (!p_skip_change_event) {
 		scene_synchronizer->change_events_begin(p_flag);
@@ -4165,7 +4162,7 @@ void ClientSynchronizer::apply_snapshot(
 			continue;
 		}
 
-		const std::vector<NameAndVar> &snap_object_vars = snap_objects_vars[info.net_id.id];
+		const std::vector<std::optional<VarData>> &snap_object_vars = snap_objects_vars[info.net_id.id];
 
 		if (r_applied_data_info) {
 			r_applied_data_info->push_back("Applied snapshot on the object: " + object_data->get_object_name());
@@ -4174,17 +4171,13 @@ void ClientSynchronizer::apply_snapshot(
 		// NOTE: The vars may not contain ALL the variables: it depends on how
 		//       the snapshot was captured.
 		for (VarId v = VarId{ { 0 } }; v < VarId{ { VarId::IdType(snap_object_vars.size()) } }; v += 1) {
-			if (snap_object_vars[v.id].name.empty()) {
+			if (!snap_object_vars[v.id].has_value()) {
 				// This variable was not set, skip it.
 				continue;
 			}
 
-#ifdef NS_DEBUG_ENABLED
-			NS_ASSERT_COND_MSG(snap_object_vars[v.id].name == object_data->vars[v.id].var.name, "The variable name, on both snapshot and client scene_sync, are supposed to be exactly the same at this point. Snapshot `" + snap_object_vars[v.id].name + "` ClientSceneSync `" + object_data->vars[v.id].var.name + "`");
-#endif
-
-			const std::string &variable_name = snap_object_vars[v.id].name;
-			const VarData &snap_value = snap_object_vars[v.id].value;
+			const std::string &variable_name = object_data->vars[v.id].var.name;
+			const VarData &snap_value = snap_object_vars[v.id].value();
 			VarData current_val;
 			object_data->vars[v.id].get_func(
 					*scene_synchronizer->synchronizer_manager,

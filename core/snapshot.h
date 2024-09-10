@@ -3,6 +3,7 @@
 #include "core.h"
 #include "object_data.h"
 #include <map>
+#include <optional>
 
 namespace NS {
 class SceneSynchronizerBase;
@@ -34,7 +35,7 @@ struct Snapshot {
 	/// The Node variables in a particular frame. The order of this vector
 	/// matters because the index is the `ObjectNetId`.
 	/// The variable array order also matter.
-	std::vector<std::vector<NameAndVar>> object_vars;
+	std::vector<std::vector<std::optional<VarData>>> object_vars;
 
 	/// The executed FrameIndex for the simulating peers.
 	/// NOTE: Due to the nature of the doll simulation, when comparing the
@@ -51,7 +52,7 @@ struct Snapshot {
 public:
 	operator std::string() const;
 
-	const std::vector<NameAndVar> *get_object_vars(ObjectNetId p_id) const;
+	const std::vector<std::optional<VarData>> *get_object_vars(ObjectNetId p_id) const;
 
 	/// Copy the given snapshot.
 	static Snapshot make_copy(const Snapshot &p_other);

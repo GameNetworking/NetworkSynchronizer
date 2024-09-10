@@ -188,7 +188,7 @@ void GdSceneSynchronizer::_bind_methods() {
 	ADD_SIGNAL(MethodInfo("state_validated", PropertyInfo(Variant::INT, "input_id"), PropertyInfo(Variant::BOOL, "desync_detected")));
 	ADD_SIGNAL(MethodInfo("rewind_frame_begin", PropertyInfo(Variant::INT, "input_id"), PropertyInfo(Variant::INT, "index"), PropertyInfo(Variant::INT, "count")));
 
-	ADD_SIGNAL(MethodInfo("desync_detected", PropertyInfo(Variant::INT, "input_id"), PropertyInfo(Variant::OBJECT, "node"), PropertyInfo(Variant::ARRAY, "var_names"), PropertyInfo(Variant::ARRAY, "client_values"), PropertyInfo(Variant::ARRAY, "server_values")));
+	ADD_SIGNAL(MethodInfo("desync_detected", PropertyInfo(Variant::INT, "input_id"), PropertyInfo(Variant::OBJECT, "node"), PropertyInfo(Variant::ARRAY, "client_values"), PropertyInfo(Variant::ARRAY, "server_values")));
 }
 
 GdSceneSynchronizer::GdSceneSynchronizer() :
@@ -239,24 +239,24 @@ GdSceneSynchronizer::GdSceneSynchronizer() :
 			});
 
 	event_handler_desync_detected =
-			scene_synchronizer.event_desync_detected_with_info.bind([this](NS::FrameIndex p_frame, NS::ObjectHandle p_app_object, const std::vector<std::string> &p_var_names, const std::vector<NS::VarData> &p_client_values, const std::vector<NS::VarData> &p_server_values) -> void {
-				Vector<String> var_names;
+			scene_synchronizer.event_desync_detected_with_info.bind([this](NS::FrameIndex p_frame, NS::ObjectHandle p_app_object, const std::vector<std::optional<NS::VarData>> &p_client_values, const std::vector<std::optional<NS::VarData>> &p_server_values) -> void {
 				Vector<Variant> client_values;
 				Vector<Variant> server_values;
-				for (auto n : p_var_names) {
-					var_names.push_back(String(n.c_str()));
-				}
 				for (const auto &vd : p_client_values) {
 					Variant v;
-					GdSceneSynchronizer::convert(v, vd);
+					if(vd.has_value()) {
+						GdSceneSynchronizer::convert(v, vd);
+					}
 					client_values.push_back(v);
 				}
 				for (const auto &vd : p_server_values) {
 					Variant v;
-					GdSceneSynchronizer::convert(v, vd);
+					if(vd.has_value()) {
+						GdSceneSynchronizer::convert(v, vd);
+					}
 					server_values.push_back(v);
 				}
-				emit_signal("desync_detected", p_frame.id, GdSceneSynchronizer::SyncClass::from_handle(p_app_object), var_names, client_values, server_values);
+				emit_signal("desync_detected", p_frame.id, GdSceneSynchronizer::SyncClass::from_handle(p_app_object), client_values, server_values);
 			});
 }
 

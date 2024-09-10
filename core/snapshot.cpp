@@ -9,10 +9,10 @@ NS::Snapshot::operator std::string() const {
 	for (std::size_t net_node_id = 0; net_node_id < object_vars.size(); net_node_id += 1) {
 		s += "\nObject Data: " + std::to_string(net_node_id);
 		for (std::size_t i = 0; i < object_vars[net_node_id].size(); i += 1) {
-			s += "\n|- Variable: ";
-			s += object_vars[net_node_id][i].name;
+			s += "\n|- Variable index: ";
+			s += std::to_string(i);
 			s += " = ";
-			s += SceneSynchronizerBase::var_data_stringify(object_vars[net_node_id][i].value);
+			s += object_vars[net_node_id][i].has_value() ? SceneSynchronizerBase::var_data_stringify(object_vars[net_node_id][i].value()) : "NO-VALUE";
 		}
 	}
 	s += "\nCUSTOM DATA:\n";
@@ -22,12 +22,12 @@ NS::Snapshot::operator std::string() const {
 
 bool compare_vars(
 		const NS::ObjectData &p_object_data,
-		const std::vector<NS::NameAndVar> &p_server_vars,
-		const std::vector<NS::NameAndVar> &p_client_vars,
+		const std::vector<std::optional<NS::VarData>> &p_server_vars,
+		const std::vector<std::optional<NS::VarData>> &p_client_vars,
 		NS::Snapshot *r_no_rewind_recover,
 		std::vector<std::string> *r_differences_info) {
-	const NS::NameAndVar *s_vars = p_server_vars.data();
-	const NS::NameAndVar *c_vars = p_client_vars.data();
+	const std::optional<NS::VarData> *s_vars = p_server_vars.data();
+	const std::optional<NS::VarData> *c_vars = p_client_vars.data();
 
 #ifdef NS_DEBUG_ENABLED
 	bool is_equal = true;
@@ -39,7 +39,7 @@ bool compare_vars(
 			continue;
 		}
 
-		if (s_vars[var_index].name.empty()) {
+		if (!s_vars[var_index].has_value()) {
 			// This variable was not set, skip the check.
 			continue;
 		}
@@ -47,11 +47,11 @@ bool compare_vars(
 		// Compare.
 		const bool different =
 				// Make sure this variable is set.
-				c_vars[var_index].name.empty() ||
+				!c_vars[var_index].has_value() ||
 				// Check if the value is different.
 				!NS::SceneSynchronizerBase::var_data_compare(
-						s_vars[var_index].value,
-						c_vars[var_index].value);
+						s_vars[var_index].value(),
+						c_vars[var_index].value());
 
 		if (different) {
 			if (p_object_data.vars[var_index].skip_rewinding) {
@@ -60,7 +60,7 @@ bool compare_vars(
 					if (uint32_t(r_no_rewind_recover->object_vars[p_object_data.get_net_id().id].size()) <= var_index) {
 						r_no_rewind_recover->object_vars[p_object_data.get_net_id().id].resize(var_index + 1);
 					}
-					r_no_rewind_recover->object_vars[p_object_data.get_net_id().id][var_index].copy(s_vars[var_index]);
+					r_no_rewind_recover->object_vars[p_object_data.get_net_id().id][var_index].emplace(NS::VarData::make_copy(s_vars[var_index].value()));
 					// Sets `input_id` to 0 to signal that this snapshot contains
 					// no-rewind data.
 					r_no_rewind_recover->input_id = NS::FrameIndex{ { 0 } };
@@ -69,20 +69,16 @@ bool compare_vars(
 				if (r_differences_info) {
 					r_differences_info->push_back(
 							"[NO REWIND] Difference found on var #" + std::to_string(var_index) + " " + p_object_data.vars[var_index].var.name + " " +
-							"Server value: `" + NS::SceneSynchronizerBase::var_data_stringify(s_vars[var_index].value) + "` " +
-							"Client value: `" + NS::SceneSynchronizerBase::var_data_stringify(c_vars[var_index].value) + "`.    " +
-							"[Server name: `" + s_vars[var_index].name + "` " +
-							"Client name: `" + c_vars[var_index].name + "`].");
+							"Server value: `" + NS::SceneSynchronizerBase::var_data_stringify(s_vars[var_index].value()) + "` " +
+							"Client value: `" + NS::SceneSynchronizerBase::var_data_stringify(c_vars[var_index].value()) + "`.");
 				}
 			} else {
 				// The vars are different.
 				if (r_differences_info) {
 					r_differences_info->push_back(
 							"Difference found on var #" + std::to_string(var_index) + " " + p_object_data.vars[var_index].var.name + " " +
-							"Server value: `" + NS::SceneSynchronizerBase::var_data_stringify(s_vars[var_index].value) + "` " +
-							"Client value: `" + NS::SceneSynchronizerBase::var_data_stringify(c_vars[var_index].value) + "`.    " +
-							"[Server name: `" + s_vars[var_index].name + "` " +
-							"Client name: `" + c_vars[var_index].name + "`].");
+							"Server value: `" + NS::SceneSynchronizerBase::var_data_stringify(s_vars[var_index].value()) + "` " +
+							"Client value: `" + NS::SceneSynchronizerBase::var_data_stringify(c_vars[var_index].value()) + "`.");
 				}
 #ifdef NS_DEBUG_ENABLED
 				is_equal = false;
@@ -100,7 +96,7 @@ bool compare_vars(
 #endif
 }
 
-const std::vector<NS::NameAndVar> *NS::Snapshot::get_object_vars(ObjectNetId p_id) const {
+const std::vector<std::optional<NS::VarData>> *NS::Snapshot::get_object_vars(ObjectNetId p_id) const {
 	if (object_vars.size() > p_id.id) {
 		return &object_vars[p_id.id];
 	}
@@ -121,8 +117,11 @@ void NS::Snapshot::copy(const Snapshot &p_other) {
 	for (std::size_t i = 0; i < p_other.object_vars.size(); i++) {
 		object_vars[i].resize(p_other.object_vars[i].size());
 		for (std::size_t s = 0; s < p_other.object_vars[i].size(); s++) {
-			object_vars[i][s].name = p_other.object_vars[i][s].name;
-			object_vars[i][s].value.copy(p_other.object_vars[i][s].value);
+			if (p_other.object_vars[i][s].has_value()) {
+				object_vars[i][s].emplace(VarData::make_copy(p_other.object_vars[i][s].value()));
+			} else {
+				object_vars[i][s].reset();
+			}
 		}
 	}
 	has_custom_data = p_other.has_custom_data;
@@ -140,7 +139,7 @@ bool NS::Snapshot::compare(
 		,
 		std::vector<ObjectNetId> *r_different_node_data
 #endif
-) {
+		) {
 #ifdef NS_DEBUG_ENABLED
 	bool is_equal = true;
 #endif

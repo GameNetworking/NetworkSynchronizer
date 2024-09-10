@@ -1524,14 +1524,18 @@ void DollController::copy_controlled_objects_snapshot(
 			continue;
 		}
 
-		const std::vector<NameAndVar> *vars = p_snapshot.get_object_vars(object_data->get_net_id());
+		const std::vector<std::optional<VarData>> *vars = p_snapshot.get_object_vars(object_data->get_net_id());
 		NS_ENSURE_CONTINUE_MSG(vars, "[FATAL] The snapshot didn't contain the object: " + object_data->get_net_id() + ". If this error spams for a long period (1/2 seconds) or never recover, it's a bug since.");
 
 		snap->data.simulated_objects.push_back(object_data->get_net_id());
 
 		snap->data.object_vars[object_data->get_net_id().id].clear();
-		for (const NameAndVar &nav : *vars) {
-			snap->data.object_vars[object_data->get_net_id().id].push_back(NameAndVar::make_copy(nav));
+		for (const std::optional<VarData> &nav : *vars) {
+			if (nav.has_value()) {
+				snap->data.object_vars[object_data->get_net_id().id].push_back(VarData::make_copy(nav.value()));
+			} else {
+				snap->data.object_vars[object_data->get_net_id().id].push_back(std::optional<VarData>());
+			}
 		}
 	}
 

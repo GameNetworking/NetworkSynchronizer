@@ -341,7 +341,7 @@ public: // -------------------------------------------------------------- Events
 	Processor<const Snapshot & /*p_snapshot*/, int /*p_frame_count_to_rewind*/> event_snapshot_applied;
 	Processor<const RollingUpdateSnapshot & /*p_received_snapshot*/> event_received_server_snapshot;
 	Processor<FrameIndex /*p_frame_index*/, int /*p_rewinding_index*/, int /*p_rewinding_frame_count*/> event_rewind_frame_begin;
-	Processor<FrameIndex, ObjectHandle /*p_app_object_handle*/, const std::vector<std::string> & /*p_var_names*/, const std::vector<VarData> & /*p_client_values*/, const std::vector<VarData> & /*p_server_values*/> event_desync_detected_with_info;
+	Processor<FrameIndex, ObjectHandle /*p_app_object_handle*/, const std::vector<std::optional<VarData>> & /*p_client_values*/, const std::vector<std::optional<VarData>> & /*p_server_values*/> event_desync_detected_with_info;
 
 private:
 	// This is private so this class can be created only from
