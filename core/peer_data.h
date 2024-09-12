@@ -1,11 +1,9 @@
-
 #pragma once
 
 #include "core.h"
 #include "peer_networked_controller.h"
 
 NS_NAMESPACE_BEGIN
-
 // These data are used by the server and are never synchronized.
 struct PeerAuthorityData {
 	// Used to know if the peer is enabled.
@@ -42,11 +40,14 @@ public:
 	// stop working and didn't have the time to figure it out.
 	// TODO consider to fix this --^
 	PeerData() = default;
+
 	PeerData(const PeerData &other) :
-			authority_data(other.authority_data),
-			compressed_latency(other.compressed_latency),
-			out_packet_loss_percentage(other.out_packet_loss_percentage),
-			latency_jitter_ms(other.latency_jitter_ms) {}
+		authority_data(other.authority_data),
+		compressed_latency(other.compressed_latency),
+		out_packet_loss_percentage(other.out_packet_loss_percentage),
+		latency_jitter_ms(other.latency_jitter_ms) {
+	}
+
 	PeerData &operator=(const PeerData &other) noexcept {
 		authority_data = other.authority_data;
 		compressed_latency = other.compressed_latency;
@@ -62,19 +63,34 @@ public:
 	// In ms
 	float get_latency() const;
 
-	void set_compressed_latency(std::uint8_t p_compressed_latency) { compressed_latency = p_compressed_latency; }
-	std::uint8_t get_compressed_latency() const { return compressed_latency; }
+	void set_compressed_latency(std::uint8_t p_compressed_latency) {
+		compressed_latency = p_compressed_latency;
+	}
+
+	std::uint8_t get_compressed_latency() const {
+		return compressed_latency;
+	}
 
 	void set_out_packet_loss_percentage(float p_packet_loss);
-	float get_out_packet_loss_percentage() const { return out_packet_loss_percentage; }
 
-	void set_latency_jitter_ms(float p_jitter_ms) { latency_jitter_ms = p_jitter_ms; }
-	float get_latency_jitter_ms() const { return latency_jitter_ms; }
+	float get_out_packet_loss_percentage() const {
+		return out_packet_loss_percentage;
+	}
 
-	void make_controller();
+	void set_latency_jitter_ms(float p_jitter_ms) {
+		latency_jitter_ms = p_jitter_ms;
+	}
+
+	float get_latency_jitter_ms() const {
+		return latency_jitter_ms;
+	}
+
+	void make_controller(SceneSynchronizerBase &p_scene_synchronizer);
+
 	PeerNetworkedController *get_controller() {
 		return controller.get();
 	}
+
 	const PeerNetworkedController *get_controller() const {
 		return controller.get();
 	}

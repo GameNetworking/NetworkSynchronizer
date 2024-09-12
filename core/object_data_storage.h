@@ -24,6 +24,8 @@ public:
 	ObjectDataStorage(class SceneSynchronizerBase &p_sync);
 	~ObjectDataStorage();
 
+	class SceneSynchronizerDebugger &get_debugger() const;
+
 	ObjectData *allocate_object_data();
 	void deallocate_object_data(ObjectData &p_object_data);
 

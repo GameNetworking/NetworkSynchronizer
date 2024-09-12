@@ -24,6 +24,26 @@ option(USE_STATIC_MSVC_RUNTIME_LIBRARY "Use the static MSVC runtime library" ON)
 # Windows Store only supports the DLL version
 option(BUILD_MSVC_MD "In MSVC build the library using MD." ON)
 
+# TODO please turn this off by default
+option(ENABLE_DEBUGGER_UI "Enables the debugger UI." OFF)
+
+if(ENABLE_DEBUGGER_UI)
+    # Find Python interpreter used to load the debugger_ui into C++.
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+
+    # Command to execute the Python script
+    add_custom_command(
+        OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/../core/__generated__debugger_ui.h
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../debugger_ui/cpplize_debugger.py ${CMAKE_CURRENT_SOURCE_DIR}/..
+        COMMENT "Running Python script to generate the __generated__debugger_ui.h file"
+    )
+    
+    # Include the generated file as part of the build dependencies
+    add_custom_target(RunPythonScript ALL
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../core/__generated__debugger_ui.h
+    )
+endif()
+
 if (MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fp:precise") # Ensure floating point is not fast to make math operations deterministic.
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /fp:precise") # Ensure floating point is not fast to make math operations deterministic.
@@ -132,6 +152,11 @@ set(NS_SRC_FILES
 	${NS_ROOT}/tests/tests.cpp
 	${NS_ROOT}/tests/tests.h
 )
+
+if(ENABLE_DEBUGGER_UI)
+    add_compile_definitions(UI_DEBUGGER_ENABLED)
+    list(APPEND NS_SRC_FILES ${NS_ROOT}/core/__generated__debugger_ui.h)
+endif()
 	
 # Group source files
 source_group(TREE ${NS_ROOT} FILES ${NS_SRC_FILES})
@@ -148,4 +173,8 @@ endif()
 
 if (ENABLE_DEBUG_DATA_BUFFER)
 	target_compile_definitions(NetworkSynchronizer PUBLIC DEBUG_DATA_BUFFER)
+endif()
+
+if(ENABLE_DEBUGGER_UI)
+    add_dependencies(NetworkSynchronizer RunPythonScript)
 endif()

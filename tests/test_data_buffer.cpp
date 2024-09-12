@@ -3,6 +3,7 @@
 #include "../core/data_buffer.h"
 #include "../core/ensure.h"
 #include "../core/net_math.h"
+#include "NetworkSynchronizer/core/scene_synchronizer_debugger.h"
 
 inline std::vector<std::int64_t> int_values(NS::DataBuffer::CompressionLevel p_compression_level) {
 	std::vector<int64_t> values;
@@ -876,6 +877,8 @@ void test_data_buffer_reading_failing() {
 }
 
 void NS_Test::test_data_buffer() {
+	NS::SceneSynchronizerDebugger debugger;
+	NS::SceneSynchronizerDebugger::__set_singleton(&debugger);
 	test_data_buffer_string();
 	test_data_buffer_u16string();
 	test_data_buffer_bool();
@@ -902,4 +905,5 @@ void NS_Test::test_data_buffer() {
 	test_data_buffer_skip();
 	test_data_buffer_writing_failing();
 	test_data_buffer_reading_failing();
+	NS::SceneSynchronizerDebugger::__set_singleton(nullptr);
 }

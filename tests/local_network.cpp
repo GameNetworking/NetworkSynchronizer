@@ -208,6 +208,9 @@ NS_NAMESPACE_END
 
 /// Test that the LocalNetwork is able to sync stuff.
 void NS_Test::test_local_network() {
+	NS::SceneSynchronizerDebugger debugger;
+	NS::SceneSynchronizerDebugger::__set_singleton(&debugger);
+	
 	NS::LocalNetworkProps network_properties;
 
 	NS::LocalNetwork server;
@@ -442,4 +445,6 @@ void NS_Test::test_local_network() {
 
 	NS_ASSERT_COND(server_rpc_executed_by[2] == server.get_peer()); // Make sure this was executed locally too.
 	NS_ASSERT_COND(peer_2_rpc_executed_by[3] == server.get_peer()); // Make sure this was executed remotely.
+	
+	NS::SceneSynchronizerDebugger::__set_singleton(nullptr);
 }

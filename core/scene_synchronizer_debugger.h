@@ -20,8 +20,6 @@ public:
 	virtual bool file_exists(const std::string &p_path) const = 0;
 };
 
-NS_NAMESPACE_END
-
 class SceneSynchronizerDebugger {
 	static SceneSynchronizerDebugger *the_singleton;
 
@@ -38,13 +36,8 @@ public:
 		CLIENT_DESYNC_DETECTED_SOFT = 1 << 1,
 	};
 
-public:
-	static SceneSynchronizerDebugger *singleton();
-	// USE THIS WITH CARE <3
-	static void __set_singleton(SceneSynchronizerDebugger *p_singleton);
-
 private:
-	NS::PrintMessageType log_level = NS::PrintMessageType::ERROR;
+	PrintMessageType log_level = NS::PrintMessageType::ERROR;
 
 #ifdef NS_DEBUG_ENABLED
 	bool dump_enabled = false;
@@ -61,7 +54,7 @@ private:
 	//         inside the CPP and avoid clutter the includes, since that header includes many non wanted includes.
 	struct SceneSynchronizerDebuggerJsonStorage *frame_dump_storage = nullptr;
 
-	// A really small description about what happens on this frame.
+	// A small description about what happens on this frame.
 	FrameEvent frame_dump__frame_events = FrameEvent::EMPTY;
 
 	DataBufferDumpMode frame_dump_data_buffer_dump_mode = NONE;
@@ -70,6 +63,8 @@ private:
 public:
 	SceneSynchronizerDebugger();
 	~SceneSynchronizerDebugger();
+
+	SceneSynchronizerDebugger &get_debugger() const;
 
 	void set_file_system(NS::FileSystem *p_file_system);
 
@@ -118,3 +113,5 @@ public:
 
 	void __add_message(const std::string &p_message, const std::string &p_object_name);
 };
+
+NS_NAMESPACE_END

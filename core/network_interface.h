@@ -10,19 +10,29 @@
 #include <vector>
 
 NS_NAMESPACE_BEGIN
-
 template <typename... ARGs>
 class RpcHandle {
 	friend class NetworkInterface;
 
+	class SceneSynchronizerDebugger *debugger = nullptr;
 	std::uint8_t index = std::numeric_limits<std::uint8_t>::max();
-	RpcHandle(std::uint8_t p_index) :
-			index(p_index) {}
+
+	RpcHandle(SceneSynchronizerDebugger &p_debugger, std::uint8_t p_index) :
+		debugger(&p_debugger),
+		index(p_index) {
+	}
 
 public:
 	RpcHandle() = default;
 
-	std::uint8_t get_index() const { return index; }
+	SceneSynchronizerDebugger &get_debugger() const {
+		return *debugger;
+	}
+
+	std::uint8_t get_index() const {
+		return index;
+	}
+
 	void reset() {
 		index = std::numeric_limits<std::uint8_t>::max();
 	}
@@ -44,11 +54,20 @@ public:
 protected:
 	std::vector<RPCInfo> rpcs_info;
 	int rpc_last_sender = 0;
+	SceneSynchronizerDebugger *debugger = nullptr;
 
 public:
 	virtual ~NetworkInterface() = default;
 
 public: // ----------------------------------------------------------- Interface
+	void __set_debugger(SceneSynchronizerDebugger &p_debugger) {
+		debugger = &p_debugger;
+	}
+
+	class SceneSynchronizerDebugger &get_debugger() const {
+		return *debugger;
+	}
+
 	virtual void reset() {
 		rpcs_info.clear();
 		rpc_last_sender = 0;
@@ -97,12 +116,12 @@ public: // ---------------------------------------------------------------- APIs
 		// responsible to execute the user rpc function.
 		std::function<void(DataBuffer &)> func =
 				[p_rpc_func](DataBuffer &p_db) {
-					internal_call_rpc(p_rpc_func, p_db);
-				};
+			internal_call_rpc(p_rpc_func, p_db);
+		};
 
 		const std::uint8_t rpc_index = std::uint8_t(rpcs_info.size());
 		rpcs_info.push_back({ p_reliable, p_call_local, func });
-		return RpcHandle<ARGS...>(rpc_index);
+		return RpcHandle<ARGS...>(get_debugger(), rpc_index);
 	}
 
 	/// Calls an rpc.
@@ -162,7 +181,7 @@ void RpcHandle<ARGs...>::rpc(NetworkInterface &p_interface, int p_peer_id, ARGs.
 	NS_ENSURE(p_interface.rpcs_info.size() > index);
 	NS_ASSERT_COND_MSG(p_interface.get_local_peer_id() != p_peer_id, "Sending an rpc to self is not allowed.");
 
-	DataBuffer db;
+	DataBuffer db(get_debugger());
 	db.begin_write(0);
 
 	// Add the rpc id.

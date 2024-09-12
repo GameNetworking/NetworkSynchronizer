@@ -5,12 +5,22 @@
 #include <algorithm>
 #include <cmath>
 
-BitArray::BitArray(std::uint32_t p_initial_size_in_bit) {
+BitArray::BitArray(NS::SceneSynchronizerDebugger &p_debugger):
+	debugger(&p_debugger) {
+}
+
+BitArray::BitArray(NS::SceneSynchronizerDebugger &p_debugger, std::uint32_t p_initial_size_in_bit):
+	debugger(&p_debugger) {
 	resize_in_bits(p_initial_size_in_bit);
 }
 
-BitArray::BitArray(const std::vector<std::uint8_t> &p_bytes) :
+BitArray::BitArray(NS::SceneSynchronizerDebugger &p_debugger, const std::vector<std::uint8_t> &p_bytes) :
+	debugger(&p_debugger),
 	bytes(p_bytes) {
+}
+
+void BitArray::operator=(const BitArray &p_other) {
+	debugger = p_other.debugger;
 }
 
 bool BitArray::resize_in_bytes(int p_bytes_count) {

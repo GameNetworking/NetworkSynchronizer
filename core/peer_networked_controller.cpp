@@ -33,7 +33,9 @@ static inline std::uint32_t ns_decode_uint32(const std::uint8_t *p_arr) {
 	return u;
 }
 
-PeerNetworkedController::PeerNetworkedController() {
+PeerNetworkedController::PeerNetworkedController(SceneSynchronizerBase &p_scene_synchronizer):
+	scene_synchronizer(&p_scene_synchronizer),
+	inputs_buffer(p_scene_synchronizer.get_debugger()) {
 }
 
 PeerNetworkedController::~PeerNetworkedController() {
@@ -47,6 +49,14 @@ PeerNetworkedController::~PeerNetworkedController() {
 
 	remove_synchronizer();
 }
+
+SceneSynchronizerDebugger &PeerNetworkedController::get_debugger() {
+	return scene_synchronizer->get_debugger();
+};
+
+const SceneSynchronizerDebugger &PeerNetworkedController::get_debugger() const {
+	return scene_synchronizer->get_debugger();
+};
 
 void PeerNetworkedController::notify_controllable_objects_changed() {
 	are_controllable_objects_sorted = false;
@@ -184,9 +194,9 @@ void PeerNetworkedController::set_inputs_buffer(const BitArray &p_new_buffer, ui
 	inputs_buffer.shrink_to(p_metadata_size_in_bit, p_size_in_bit);
 }
 
-void PeerNetworkedController::setup_synchronizer(NS::SceneSynchronizerBase &p_synchronizer, int p_peer) {
-	NS_ENSURE_MSG(scene_synchronizer == nullptr, "Cannot register with a new `SceneSynchronizer` because this controller is already registered with one. This is a bug, one controller should not be registered with two `SceneSynchronizer`s.");
-	scene_synchronizer = &p_synchronizer;
+void PeerNetworkedController::setup_synchronizer(int p_peer) {
+	// This is set by the constructor.
+	NS_ASSERT_COND(scene_synchronizer);
 	authority_peer = p_peer;
 
 	event_handler_peer_status_updated =
@@ -424,17 +434,17 @@ bool RemotelyControlledController::fetch_next_input(float p_delta) {
 			set_frame_input(frames_input.front(), true);
 			frames_input.pop_front();
 			// Start tracing the packets from this moment on.
-			SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] Input `" + current_input_buffer_id + "` selected as first input.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+			peer_controller->get_debugger().print(INFO, "[RemotelyControlledController::fetch_next_input] Input `" + current_input_buffer_id + "` selected as first input.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 		} else {
 			is_new_input = false;
-			SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] Still no inputs.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+			peer_controller->get_debugger().print(INFO, "[RemotelyControlledController::fetch_next_input] Still no inputs.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 		}
 	} else {
 		const FrameIndex next_input_id = current_input_buffer_id + 1;
-		SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] The server is looking for: " + next_input_id, "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+		peer_controller->get_debugger().print(INFO, "[RemotelyControlledController::fetch_next_input] The server is looking for: " + next_input_id, "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
 		if make_unlikely(streaming_paused) {
-			SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] The streaming is paused.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+			peer_controller->get_debugger().print(INFO, "[RemotelyControlledController::fetch_next_input] The streaming is paused.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 			// Stream is paused.
 			if (frames_input.empty() == false &&
 				frames_input.front().id >= next_input_id) {
@@ -452,16 +462,16 @@ bool RemotelyControlledController::fetch_next_input(float p_delta) {
 			}
 		} else if make_unlikely(frames_input.empty() == true) {
 			// The input buffer is empty; a packet is missing.
-			SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] Missing input: " + std::to_string(next_input_id.id) + " Input buffer is void, i'm using the previous one!", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+			peer_controller->get_debugger().print(INFO, "[RemotelyControlledController::fetch_next_input] Missing input: " + std::to_string(next_input_id.id) + " Input buffer is void, i'm using the previous one!", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
 			is_new_input = false;
 			ghost_input_count += 1;
 		} else {
-			SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] The input buffer is not empty, so looking for the next input. Hopefully `" + std::to_string(next_input_id.id) + "`", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+			peer_controller->get_debugger().print(INFO, "[RemotelyControlledController::fetch_next_input] The input buffer is not empty, so looking for the next input. Hopefully `" + std::to_string(next_input_id.id) + "`", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
 			// The input buffer is not empty, search the new input.
 			if (next_input_id == frames_input.front().id) {
-				SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] The input `" + std::to_string(next_input_id.id) + "` was found.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+				peer_controller->get_debugger().print(INFO, "[RemotelyControlledController::fetch_next_input] The input `" + std::to_string(next_input_id.id) + "` was found.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
 				// Wow, the next input is perfect!
 				set_frame_input(frames_input.front(), false);
@@ -504,8 +514,8 @@ bool RemotelyControlledController::fetch_next_input(float p_delta) {
 				// For this reason we keep track the amount of missing packets
 				// using `ghost_input_count`.
 
-				SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] The input `" + std::to_string(next_input_id.id) + "` was NOT found. Recovering process started.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
-				SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] ghost_input_count: `" + std::to_string(ghost_input_count) + "`", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+				peer_controller->get_debugger().print(INFO, "[RemotelyControlledController::fetch_next_input] The input `" + std::to_string(next_input_id.id) + "` was NOT found. Recovering process started.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+				peer_controller->get_debugger().print(INFO, "[RemotelyControlledController::fetch_next_input] ghost_input_count: `" + std::to_string(ghost_input_count) + "`", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
 				const int size = std::min(ghost_input_count, std::uint32_t(frames_input.size()));
 				const FrameIndex ghost_packet_id = next_input_id + ghost_input_count;
@@ -518,14 +528,14 @@ bool RemotelyControlledController::fetch_next_input(float p_delta) {
 				pir_A.copy(peer_controller->get_inputs_buffer());
 
 				for (int i = 0; i < size; i += 1) {
-					SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] checking if `" + std::string(frames_input.front().id) + "` can be used to recover `" + std::string(next_input_id) + "`.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+					peer_controller->get_debugger().print(INFO, "[RemotelyControlledController::fetch_next_input] checking if `" + std::string(frames_input.front().id) + "` can be used to recover `" + std::string(next_input_id) + "`.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
 					if (ghost_packet_id < frames_input.front().id) {
-						SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] The input `" + frames_input.front().id + "` can't be used as the ghost_packet_id (`" + std::string(ghost_packet_id) + "`) is more than the input.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+						peer_controller->get_debugger().print(INFO, "[RemotelyControlledController::fetch_next_input] The input `" + frames_input.front().id + "` can't be used as the ghost_packet_id (`" + std::string(ghost_packet_id) + "`) is more than the input.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 						break;
 					} else {
 						const FrameIndex input_id = frames_input.front().id;
-						SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] The input `" + std::string(input_id) + "` is eligible as next frame.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+						peer_controller->get_debugger().print(INFO, "[RemotelyControlledController::fetch_next_input] The input `" + std::string(input_id) + "` is eligible as next frame.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
 						pi = frames_input.front();
 						frames_input.pop_front();
@@ -547,7 +557,7 @@ bool RemotelyControlledController::fetch_next_input(float p_delta) {
 
 						const bool are_different = peer_controller->controllable_are_inputs_different(pir_A, pir_B);
 						if (are_different) {
-							SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::fetch_next_input] The input `" + input_id + "` is different from the one executed so far, so better to execute it.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+							peer_controller->get_debugger().print(INFO, "[RemotelyControlledController::fetch_next_input] The input `" + input_id + "` is different from the one executed so far, so better to execute it.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 							break;
 						}
 					}
@@ -556,11 +566,11 @@ bool RemotelyControlledController::fetch_next_input(float p_delta) {
 				if (recovered) {
 					set_frame_input(pi, false);
 					ghost_input_count = 0;
-					SceneSynchronizerDebugger::singleton()->print(INFO, "Packet recovered. The new InputID is: `" + current_input_buffer_id + "`", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+					peer_controller->get_debugger().print(INFO, "Packet recovered. The new InputID is: `" + current_input_buffer_id + "`", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 				} else {
 					ghost_input_count += 1;
 					is_new_input = false;
-					SceneSynchronizerDebugger::singleton()->print(INFO, "Packet still missing, the server is still using the old input.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+					peer_controller->get_debugger().print(INFO, "Packet still missing, the server is still using the old input.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 				}
 			}
 		}
@@ -592,7 +602,7 @@ void RemotelyControlledController::process(float p_delta) {
 
 	if make_unlikely(current_input_buffer_id == FrameIndex::NONE) {
 		// Skip this until the first input arrive.
-		SceneSynchronizerDebugger::singleton()->print(INFO, "Server skips this frame as the current_input_buffer_id == FrameIndex::NONE", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+		peer_controller->get_debugger().print(INFO, "Server skips this frame as the current_input_buffer_id == FrameIndex::NONE", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 		return;
 	}
 
@@ -602,15 +612,15 @@ void RemotelyControlledController::process(float p_delta) {
 	}
 #endif
 
-	SceneSynchronizerDebugger::singleton()->print(INFO, "RemotelyControlled process index: " + current_input_buffer_id, "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+	peer_controller->get_debugger().print(INFO, "RemotelyControlled process index: " + current_input_buffer_id, "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
 	peer_controller->get_inputs_buffer_mut().begin_read();
 	peer_controller->get_inputs_buffer_mut().seek(METADATA_SIZE);
-	SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(peer_controller->authority_peer, SceneSynchronizerDebugger::READ);
+	peer_controller->get_debugger().databuffer_operation_begin_record(peer_controller->authority_peer, SceneSynchronizerDebugger::READ);
 	peer_controller->controllable_process(
 			p_delta,
 			peer_controller->get_inputs_buffer_mut());
-	SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
+	peer_controller->get_debugger().databuffer_operation_end_record();
 }
 
 bool is_remote_frame_A_older(const FrameInput &p_snap_a, const FrameInput &p_snap_b) {
@@ -669,7 +679,7 @@ bool RemotelyControlledController::receive_inputs(const std::vector<std::uint8_t
 #endif
 
 	if (!success) {
-		SceneSynchronizerDebugger::singleton()->print(INFO, "[RemotelyControlledController::receive_input] Failed.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer), true);
+		peer_controller->get_debugger().print(INFO, "[RemotelyControlledController::receive_input] Failed.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer), true);
 	}
 
 	return success;
@@ -742,7 +752,7 @@ AutonomousServerController::AutonomousServerController(
 }
 
 bool AutonomousServerController::receive_inputs(const std::vector<std::uint8_t> &p_data) {
-	SceneSynchronizerDebugger::singleton()->print(ERROR, "`receive_input` called on the `AutonomousServerController` it should not happen by design. This is a bug.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+	peer_controller->get_debugger().print(ERROR, "`receive_input` called on the `AutonomousServerController` it should not happen by design. This is a bug.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 	return false;
 }
 
@@ -752,13 +762,13 @@ int AutonomousServerController::get_inputs_count() const {
 }
 
 bool AutonomousServerController::fetch_next_input(float p_delta) {
-	SceneSynchronizerDebugger::singleton()->print(INFO, "Autonomous server fetch input.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+	peer_controller->get_debugger().print(INFO, "Autonomous server fetch input.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
 	peer_controller->get_inputs_buffer_mut().begin_write(METADATA_SIZE);
 	peer_controller->get_inputs_buffer_mut().seek(METADATA_SIZE);
-	SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(peer_controller->authority_peer, SceneSynchronizerDebugger::WRITE);
+	peer_controller->get_debugger().databuffer_operation_begin_record(peer_controller->authority_peer, SceneSynchronizerDebugger::WRITE);
 	peer_controller->controllable_collect_input(p_delta, peer_controller->get_inputs_buffer_mut());
-	SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
+	peer_controller->get_debugger().databuffer_operation_end_record();
 	peer_controller->get_inputs_buffer_mut().dry();
 
 	if make_unlikely(current_input_buffer_id == FrameIndex::NONE) {
@@ -912,15 +922,15 @@ void PlayerController::process(float p_delta) {
 		if (accept_new_inputs) {
 			current_input_id = FrameIndex{ { input_buffers_counter } };
 
-			SceneSynchronizerDebugger::singleton()->print(INFO, "Player process index: " + std::string(current_input_id), "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+			peer_controller->get_debugger().print(INFO, "Player process index: " + std::string(current_input_id), "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
 			peer_controller->get_inputs_buffer_mut().begin_write(METADATA_SIZE);
 
 			peer_controller->get_inputs_buffer_mut().seek(METADATA_SIZE);
 
-			SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(peer_controller->authority_peer, SceneSynchronizerDebugger::WRITE);
+			peer_controller->get_debugger().databuffer_operation_begin_record(peer_controller->authority_peer, SceneSynchronizerDebugger::WRITE);
 			peer_controller->controllable_collect_input(p_delta, peer_controller->get_inputs_buffer_mut());
-			SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
+			peer_controller->get_debugger().databuffer_operation_end_record();
 
 			// Set the metadata which is used to store the buffer size.
 			const std::uint16_t buffer_size_bits = peer_controller->get_inputs_buffer().size() + METADATA_SIZE;
@@ -932,18 +942,18 @@ void PlayerController::process(float p_delta) {
 				streaming_paused = false;
 			}
 		} else {
-			SceneSynchronizerDebugger::singleton()->print(WARNING, "It's not possible to accept new inputs. Is this lagging?", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+			peer_controller->get_debugger().print(WARNING, "It's not possible to accept new inputs. Is this lagging?", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 		}
 
 		peer_controller->get_inputs_buffer_mut().dry();
 		peer_controller->get_inputs_buffer_mut().begin_read();
 		peer_controller->get_inputs_buffer_mut().seek(METADATA_SIZE); // Skip meta.
 
-		SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(peer_controller->authority_peer, SceneSynchronizerDebugger::READ);
+		peer_controller->get_debugger().databuffer_operation_begin_record(peer_controller->authority_peer, SceneSynchronizerDebugger::READ);
 		// The physics process is always emitted, because we still need to simulate
 		// the character motion even if we don't store the player inputs.
 		peer_controller->controllable_process(p_delta, peer_controller->get_inputs_buffer_mut());
-		SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
+		peer_controller->get_debugger().databuffer_operation_end_record();
 
 		peer_controller->player_set_has_new_input(false);
 		if (!streaming_paused) {
@@ -969,7 +979,7 @@ FrameIndex PlayerController::get_current_frame_index() const {
 }
 
 bool PlayerController::receive_inputs(const std::vector<std::uint8_t> &p_data) {
-	SceneSynchronizerDebugger::singleton()->print(NS::ERROR, "`receive_input` called on the `PlayerServerController` -This function is not supposed to be called on the player controller. Only the server and the doll should receive this.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+	peer_controller->get_debugger().print(NS::ERROR, "`receive_input` called on the `PlayerServerController` -This function is not supposed to be called on the player controller. Only the server and the doll should receive this.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 	return false;
 }
 
@@ -1074,9 +1084,9 @@ void PlayerController::send_frame_input_buffer_to_server() {
 		}
 
 		if (current_input_id == previous_input_id) {
-			SceneSynchronizerDebugger::singleton()->notify_are_inputs_different_result(peer_controller->authority_peer, frames_input[i].id.id, is_similar);
+			peer_controller->get_debugger().notify_are_inputs_different_result(peer_controller->authority_peer, frames_input[i].id.id, is_similar);
 		} else if (current_input_id == frames_input[i].id) {
-			SceneSynchronizerDebugger::singleton()->notify_are_inputs_different_result(peer_controller->authority_peer, previous_input_id.id, is_similar);
+			peer_controller->get_debugger().notify_are_inputs_different_result(peer_controller->authority_peer, previous_input_id.id, is_similar);
 		}
 
 		if (is_similar) {
@@ -1085,12 +1095,12 @@ void PlayerController::send_frame_input_buffer_to_server() {
 			// In this way, we don't need to compare these frames again.
 			frames_input[i].similarity = previous_input_id;
 
-			SceneSynchronizerDebugger::singleton()->notify_input_sent_to_server(peer_controller->authority_peer, frames_input[i].id.id, previous_input_id.id);
+			peer_controller->get_debugger().notify_input_sent_to_server(peer_controller->authority_peer, frames_input[i].id.id, previous_input_id.id);
 		} else {
 			// This input is different from the previous one, so let's
 			// finalize the previous and start another one.
 
-			SceneSynchronizerDebugger::singleton()->notify_input_sent_to_server(peer_controller->authority_peer, frames_input[i].id.id, frames_input[i].id.id);
+			peer_controller->get_debugger().notify_input_sent_to_server(peer_controller->authority_peer, frames_input[i].id.id, frames_input[i].id.id);
 
 			if (previous_input_id != FrameIndex::NONE) {
 				// We can finally finalize the previous input
@@ -1219,7 +1229,7 @@ bool DollController::receive_inputs(const std::vector<uint8_t> &p_data) {
 			});
 
 	if (!success) {
-		SceneSynchronizerDebugger::singleton()->print(ERROR, "[DollController::receive_input] Failed.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+		peer_controller->get_debugger().print(ERROR, "[DollController::receive_input] Failed.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 	}
 
 	return success;
@@ -1331,7 +1341,7 @@ bool DollController::fetch_next_input(float p_delta) {
 		FrameInput guessed_fi = frames_input[closest_frame_index];
 		guessed_fi.id = next_input_id;
 		set_frame_input(guessed_fi, false);
-		SceneSynchronizerDebugger::singleton()->print(INFO, "The input " + next_input_id + " is missing. Copying it from " + std::string(frames_input[closest_frame_index].id));
+		peer_controller->get_debugger().print(INFO, "The input " + next_input_id + " is missing. Copying it from " + std::string(frames_input[closest_frame_index].id));
 		return true;
 	} else {
 		// The input is not set and there is no suitable one.
@@ -1355,15 +1365,15 @@ void DollController::process(float p_delta) {
 	}
 
 	if (is_new_input) {
-		SceneSynchronizerDebugger::singleton()->print(INFO, "Doll process index: " + std::string(current_input_buffer_id), "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+		peer_controller->get_debugger().print(INFO, "Doll process index: " + std::string(current_input_buffer_id), "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
 		peer_controller->get_inputs_buffer_mut().begin_read();
 		peer_controller->get_inputs_buffer_mut().seek(METADATA_SIZE);
-		SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(peer_controller->authority_peer, SceneSynchronizerDebugger::READ);
+		peer_controller->get_debugger().databuffer_operation_begin_record(peer_controller->authority_peer, SceneSynchronizerDebugger::READ);
 		peer_controller->controllable_process(
 				p_delta,
 				peer_controller->get_inputs_buffer_mut());
-		SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
+		peer_controller->get_debugger().databuffer_operation_end_record();
 	}
 
 	queued_instant_to_process = -1;
@@ -1878,15 +1888,15 @@ NoNetController::NoNetController(PeerNetworkedController *p_peer_controller) :
 
 void NoNetController::process(float p_delta) {
 	peer_controller->get_inputs_buffer_mut().begin_write(0); // No need of meta in this case.
-	SceneSynchronizerDebugger::singleton()->print(INFO, "Nonet process index: " + std::string(frame_id), "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
-	SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(peer_controller->authority_peer, SceneSynchronizerDebugger::WRITE);
+	peer_controller->get_debugger().print(INFO, "Nonet process index: " + std::string(frame_id), "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+	peer_controller->get_debugger().databuffer_operation_begin_record(peer_controller->authority_peer, SceneSynchronizerDebugger::WRITE);
 	peer_controller->controllable_collect_input(p_delta, peer_controller->get_inputs_buffer_mut());
-	SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
+	peer_controller->get_debugger().databuffer_operation_end_record();
 	peer_controller->get_inputs_buffer_mut().dry();
 	peer_controller->get_inputs_buffer_mut().begin_read();
-	SceneSynchronizerDebugger::singleton()->databuffer_operation_begin_record(peer_controller->authority_peer, SceneSynchronizerDebugger::READ);
+	peer_controller->get_debugger().databuffer_operation_begin_record(peer_controller->authority_peer, SceneSynchronizerDebugger::READ);
 	peer_controller->controllable_process(p_delta, peer_controller->get_inputs_buffer_mut());
-	SceneSynchronizerDebugger::singleton()->databuffer_operation_end_record();
+	peer_controller->get_debugger().databuffer_operation_end_record();
 	frame_id += 1;
 }
 

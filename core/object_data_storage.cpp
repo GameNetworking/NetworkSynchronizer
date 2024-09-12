@@ -22,6 +22,10 @@ ObjectDataStorage::~ObjectDataStorage() {
 	objects_data_controlled_by_peers.clear();
 }
 
+SceneSynchronizerDebugger &ObjectDataStorage::get_debugger() const {
+	return sync.get_debugger();
+}
+
 ObjectData *ObjectDataStorage::allocate_object_data() {
 	ObjectData *od = new ObjectData(*this);
 

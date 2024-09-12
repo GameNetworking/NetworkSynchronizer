@@ -3,6 +3,8 @@
 #include "core.h"
 #include "processor.h"
 #include "var_data.h"
+#include "NetworkSynchronizer/scene_synchronizer.h"
+
 #include <algorithm>
 #include <map>
 
@@ -380,6 +382,8 @@ public:
 	uint64_t user_data = 0;
 
 public:
+	SceneSynchronizerDebugger &get_debugger() const;
+
 	void advance_timer_state_notifier(
 			const float p_delta,
 			const float p_frame_confirmation_timespan,

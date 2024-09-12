@@ -888,8 +888,6 @@ struct TestObjectSimulationWithPartialUpdateAndCustomDataAndDoll : public TestOb
 
 		// Add the controlled object 1 to the scene 2.
 		controlled_obj_1_p2 = peer_2_scene.add_object<TSLocalNetworkedController>("controller_1", peer_1_scene.get_peer());
-		peer_1_scene.scene_sync->set_debug_rewindings_enabled(true);
-		SceneSynchronizerDebugger::singleton()->set_log_level(NS::INFO);
 
 		controlled_obj_1_p2->set_position(Vec3(1.0, 1.0, 1.0));
 		controlled_obj_1_p2->set_weight(70.0);
