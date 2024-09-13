@@ -13,9 +13,14 @@ font_size = 9
 
 # ---------------------------------------------------------------------------------------- Utilities
 def load_json(path):
+	path = path.strip()
 	if exists(path):
-		with open(path) as f:
-			return json.load(f)
+		with open(path, encoding="utf8") as f:
+			file_data = f.read().replace('\n', '')
+			try:
+				return json.loads(file_data)
+			except json.JSONDecodeError as e:
+				print("JSON loading `", path, "` error `", e, " JSON: ", file_data)
 	return {}
 
 

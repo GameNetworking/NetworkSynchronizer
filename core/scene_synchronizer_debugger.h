@@ -15,7 +15,11 @@ public:
 	virtual std::string get_date() const = 0;
 	virtual std::string get_time() const = 0;
 	virtual bool make_dir_recursive(const std::string &p_dir_path, bool p_erase_content) const = 0;
-	virtual bool store_file_string(const std::string &p_path, const std::string &p_string_file) const = 0;
+
+	virtual bool store_file_string(const std::string &p_path, const std::string &p_string_file) const {
+		return store_file_buffer(p_path, reinterpret_cast<const std::uint8_t *>(p_string_file.c_str()), p_string_file.length());
+	}
+
 	virtual bool store_file_buffer(const std::string &p_path, const std::uint8_t *p_src, uint64_t p_length) const = 0;
 	virtual bool file_exists(const std::string &p_path) const = 0;
 };
