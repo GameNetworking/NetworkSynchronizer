@@ -490,7 +490,7 @@ void DataBuffer::add_real(double p_input, CompressionLevel p_compression_level) 
 		}
 		bit_offset += 64;
 
-		DEB_WRITE(DATA_TYPE_REAL, p_compression_level, std::to_string(p_input));
+		DEB_WRITE(DATA_TYPE_REAL, p_compression_level, std::to_string(fp64_from_bits(val)));
 	} else {
 		add_real(float(p_input), p_compression_level);
 	}
@@ -514,6 +514,8 @@ void DataBuffer::add_real(float p_input, CompressionLevel p_compression_level) {
 			buffer_failed = true;
 		}
 		bit_offset += 32;
+
+		DEB_WRITE(DATA_TYPE_REAL, p_compression_level, std::to_string(fp32_from_bits(val)));
 	} else if (p_compression_level == COMPRESSION_LEVEL_2 || p_compression_level == COMPRESSION_LEVEL_3) {
 		std::uint16_t val = fp16_ieee_from_fp32_value(p_input);
 		make_room_in_bits(16);
@@ -521,12 +523,12 @@ void DataBuffer::add_real(float p_input, CompressionLevel p_compression_level) {
 			buffer_failed = true;
 		}
 		bit_offset += 16;
+
+		DEB_WRITE(DATA_TYPE_REAL, p_compression_level, std::to_string(fp16_ieee_to_fp32_value(val)));
 	} else {
 		// Unreachable.
 		NS_ASSERT_NO_ENTRY();
 	}
-
-	DEB_WRITE(DATA_TYPE_REAL, p_compression_level, std::to_string(p_input));
 }
 
 void DataBuffer::read_real(double &r_value, CompressionLevel p_compression_level) {
@@ -773,7 +775,14 @@ void DataBuffer::add_normalized_vector2(T x, T y, CompressionLevel p_compression
 	NS_ASSERT_COND((metadata_size + bit_size) <= buffer.size_in_bits() && bit_offset <= buffer.size_in_bits());
 #endif
 
-	DEB_WRITE(DATA_TYPE_NORMALIZED_VECTOR2, p_compression_level, "X: " + std::to_string(x) + " Y: " + std::to_string(y));
+#ifdef DEBUG_DATA_BUFFER
+	{
+		const T decompressed_angle = (decompress_unit_float<T>(compressed_angle, max_value) * T(M_TAU)) - T(M_PI);
+		const float read_x = std::cos(decompressed_angle) * static_cast<T>(is_not_zero);
+		const float read_y = std::sin(decompressed_angle) * static_cast<T>(is_not_zero);
+		DEB_WRITE(DATA_TYPE_NORMALIZED_VECTOR2, p_compression_level, "X: " + std::to_string(read_x) + " Y: " + std::to_string(read_y));
+	}
+#endif
 }
 
 template void DataBuffer::read_normalized_vector2<float>(float &, float &, DataBuffer::CompressionLevel);

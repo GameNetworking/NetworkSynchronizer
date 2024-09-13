@@ -100,13 +100,13 @@ def create_layout():
 	# Release this array, we don't need anylonger.
 	frames_description.clear()
 
-	frames_list = sg.Listbox(frame_list_values, key="FRAMES_LIST", size = [45, 30], enable_events=True, horizontal_scroll=True, select_mode=sg.LISTBOX_SELECT_MODE_BROWSE)
-	frames_list = sg.Frame("Frames", layout=[[frames_list]], vertical_alignment="top")
+	frames_list = sg.Listbox(frame_list_values, key="FRAMES_LIST", expand_y=True, expand_x=True, enable_events=True, horizontal_scroll=True, select_mode=sg.LISTBOX_SELECT_MODE_BROWSE, size=(None, None))
+	frames_list = sg.Frame("Frames", layout=[[frames_list]], relief=sg.RELIEF_SUNKEN, vertical_alignment="top", size=(280, 500))
 
 	# --- UI - Compose frame detail ---
 	# Node list
-	nodes_list_listbox = sg.Listbox([], key="NODE_LIST",  size = [45, 0], enable_events=True, horizontal_scroll=True, expand_y=True, expand_x=True, select_mode=sg.LISTBOX_SELECT_MODE_MULTIPLE)
-	nodes_list_listbox = sg.Frame("Nodes", layout=[[nodes_list_listbox]], vertical_alignment="top", expand_y=True, expand_x=True);
+	nodes_list_listbox = sg.Listbox([], key="NODE_LIST",  enable_events=True, horizontal_scroll=True, expand_y=True, expand_x=True, select_mode=sg.LISTBOX_SELECT_MODE_MULTIPLE, size=(None, None))
+	nodes_list_listbox = sg.Frame("Nodes", layout=[[nodes_list_listbox]], vertical_alignment="top", size=(280, 500))
 
 	# Selected nodes title.
 	node_tile_txt = sg.Text("", key="FRAME_SUMMARY", font="Any, " + str(font_size - 1), justification="left", border_width=1, text_color="dark red")
@@ -122,21 +122,21 @@ def create_layout():
 		table_status_header.append("End ("+dir+")")
 		table_status_widths.append(30)
 
-	table_status = sg.Table([], table_status_header, key="TABLE_STATUS", justification='left', auto_size_columns=False, col_widths=table_status_widths, vertical_scroll_only=False, num_rows=38)
-	table_status = sg.Frame("States", layout=[[table_status]], vertical_alignment="top")
+	table_status = sg.Table([], table_status_header, key="TABLE_STATUS", justification='left', size=(None, None), expand_x=True, expand_y=True, auto_size_columns=True, col_widths=table_status_widths, vertical_scroll_only=False, num_rows=38)
+	table_status = sg.Frame("States", layout=[[table_status]], vertical_alignment="top", expand_x=True, expand_y=True)
 
 	# Messages table
 	tables_logs = []
 	for dir in directories:
-		tables_logs.append(sg.Frame("Log: " + dir + " Iteration: ", key=dir+"_FRAME_TABLE_LOG", layout=[[sg.Table([], [" #", "Log"], key=dir+"_TABLE_LOG", justification='left', auto_size_columns=False, col_widths=[4, 70], vertical_scroll_only=False, num_rows=25)]], vertical_alignment="top"))
+		tables_logs.append(sg.Frame("Log: " + dir + " Iteration: ", key=dir+"_FRAME_TABLE_LOG", expand_x=True, expand_y=True, layout=[[sg.Table([], [" #", "Log"], key=dir+"_TABLE_LOG", justification='left', expand_x=True, expand_y=True, auto_size_columns=False, col_widths=(7, 70), vertical_scroll_only=False, num_rows=25)]], vertical_alignment="top"))
 
-	logs = sg.Frame("Messages", layout=[tables_logs], vertical_alignment="top")
+	logs = sg.Frame("Messages", layout=[tables_logs], vertical_alignment="top", expand_x=True, expand_y=True)
 
 	# --- UI - Main Window ---
 	layout = [
 	  [
-			sg.Frame("", [[frames_list], [nodes_list_listbox]], vertical_alignment="top", expand_y=True),
-			sg.Frame("Frame detail", [[node_tile_txt], [table_status], [logs]], key="FRAME_FRAME_DETAIL", vertical_alignment="top")
+			sg.Column(size=(300, None), expand_y=True, vertical_alignment="top", layout=[[frames_list], [nodes_list_listbox]]),
+		  	sg.Column(expand_x=True, expand_y=True, vertical_alignment="top", layout=[[sg.Frame("Frame detail", [[node_tile_txt], [table_status], [logs]], key="FRAME_FRAME_DETAIL", expand_x=True, expand_y=True, vertical_alignment="top")]])
 		],
 		[
 			sg.Button("Exit")
@@ -232,7 +232,7 @@ while True:
 		window["TABLE_STATUS"].update([])
 
 		for dir_name in directories:
-			window[dir_name + "_FRAME_TABLE_LOG"].update("Log: " + dir_name + "Frame: " + str(selected_frame_index) + " Iteration: " + str(used_frame_iteration[dir_name]))
+			window[dir_name + "_FRAME_TABLE_LOG"].update("Log: " + dir_name + " Frame: " + str(selected_frame_index) + " Iteration: " + str(used_frame_iteration[dir_name]))
 			window[dir_name + "_TABLE_LOG"].update([["", "[Nothing for this node]"]])
 
 		if event_values["NODE_LIST"] != []:
