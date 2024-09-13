@@ -50,11 +50,7 @@ PeerNetworkedController::~PeerNetworkedController() {
 	remove_synchronizer();
 }
 
-SceneSynchronizerDebugger &PeerNetworkedController::get_debugger() {
-	return scene_synchronizer->get_debugger();
-};
-
-const SceneSynchronizerDebugger &PeerNetworkedController::get_debugger() const {
+SceneSynchronizerDebugger &PeerNetworkedController::get_debugger() const {
 	return scene_synchronizer->get_debugger();
 };
 
@@ -341,9 +337,9 @@ bool PeerNetworkedController::__input_data_parse(
 
 	// Contains the entire packet and in turn it will be seek to specific location
 	// so I will not need to copy chunk of the packet data.
-	DataBuffer pir;
-	pir.copy(p_data);
-	pir.begin_read();
+	DataBuffer pir(get_debugger());
+	pir.copy(BitArray(get_debugger(), p_data));
+	pir.begin_read(get_debugger());
 
 	while (ofs < data_len) {
 		NS_ENSURE_V_MSG(ofs + 1 <= data_len, false, "The arrived packet size doesn't meet the expected size.");
@@ -457,7 +453,7 @@ bool RemotelyControlledController::fetch_next_input(float p_delta) {
 			} else {
 				// No inputs, or we are not yet arrived to the client input,
 				// so just pretend the next input is void.
-				peer_controller->set_inputs_buffer(BitArray(METADATA_SIZE), METADATA_SIZE, 0);
+				peer_controller->set_inputs_buffer(BitArray(get_debugger(),METADATA_SIZE), METADATA_SIZE, 0);
 				is_new_input = false;
 			}
 		} else if make_unlikely(frames_input.empty() == true) {
@@ -521,10 +517,10 @@ bool RemotelyControlledController::fetch_next_input(float p_delta) {
 				const FrameIndex ghost_packet_id = next_input_id + ghost_input_count;
 
 				bool recovered = false;
-				FrameInput pi;
+				FrameInput pi(get_debugger());
 
-				DataBuffer pir_A;
-				DataBuffer pir_B;
+				DataBuffer pir_A(get_debugger());
+				DataBuffer pir_B(get_debugger());
 				pir_A.copy(peer_controller->get_inputs_buffer());
 
 				for (int i = 0; i < size; i += 1) {
@@ -550,9 +546,9 @@ bool RemotelyControlledController::fetch_next_input(float p_delta) {
 						pir_B.copy(pi.inputs_buffer);
 						pir_B.shrink_to(METADATA_SIZE, pi.buffer_size_bit - METADATA_SIZE);
 
-						pir_A.begin_read();
+						pir_A.begin_read(get_debugger());
 						pir_A.seek(METADATA_SIZE);
-						pir_B.begin_read();
+						pir_B.begin_read(get_debugger());
 						pir_B.seek(METADATA_SIZE);
 
 						const bool are_different = peer_controller->controllable_are_inputs_different(pir_A, pir_B);
@@ -614,7 +610,7 @@ void RemotelyControlledController::process(float p_delta) {
 
 	peer_controller->get_debugger().print(INFO, "RemotelyControlled process index: " + current_input_buffer_id, "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
-	peer_controller->get_inputs_buffer_mut().begin_read();
+	peer_controller->get_inputs_buffer_mut().begin_read(get_debugger());
 	peer_controller->get_inputs_buffer_mut().seek(METADATA_SIZE);
 	peer_controller->get_debugger().databuffer_operation_begin_record(peer_controller->authority_peer, SceneSynchronizerDebugger::READ);
 	peer_controller->controllable_process(
@@ -647,7 +643,7 @@ bool RemotelyControlledController::receive_inputs(const std::vector<std::uint8_t
 					return;
 				}
 
-				FrameInput rfs;
+				FrameInput rfs(pd->controller.get_debugger());
 				rfs.id = p_input_id;
 
 				const bool found = std::binary_search(
@@ -764,7 +760,7 @@ int AutonomousServerController::get_inputs_count() const {
 bool AutonomousServerController::fetch_next_input(float p_delta) {
 	peer_controller->get_debugger().print(INFO, "Autonomous server fetch input.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
-	peer_controller->get_inputs_buffer_mut().begin_write(METADATA_SIZE);
+	peer_controller->get_inputs_buffer_mut().begin_write(get_debugger(), METADATA_SIZE);
 	peer_controller->get_inputs_buffer_mut().seek(METADATA_SIZE);
 	peer_controller->get_debugger().databuffer_operation_begin_record(peer_controller->authority_peer, SceneSynchronizerDebugger::WRITE);
 	peer_controller->controllable_collect_input(p_delta, peer_controller->get_inputs_buffer_mut());
@@ -904,7 +900,7 @@ void PlayerController::process(float p_delta) {
 		// instead to fetch a new input, read it from the stored snapshots.
 		DataBuffer ib(frames_input[queued_instant_to_process].inputs_buffer);
 		ib.shrink_to(METADATA_SIZE, frames_input[queued_instant_to_process].buffer_size_bit - METADATA_SIZE);
-		ib.begin_read();
+		ib.begin_read(get_debugger());
 		ib.seek(METADATA_SIZE);
 		peer_controller->controllable_process(p_delta, ib);
 		queued_instant_to_process = -1;
@@ -924,7 +920,7 @@ void PlayerController::process(float p_delta) {
 
 			peer_controller->get_debugger().print(INFO, "Player process index: " + std::string(current_input_id), "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
-			peer_controller->get_inputs_buffer_mut().begin_write(METADATA_SIZE);
+			peer_controller->get_inputs_buffer_mut().begin_write(get_debugger(), METADATA_SIZE);
 
 			peer_controller->get_inputs_buffer_mut().seek(METADATA_SIZE);
 
@@ -946,7 +942,7 @@ void PlayerController::process(float p_delta) {
 		}
 
 		peer_controller->get_inputs_buffer_mut().dry();
-		peer_controller->get_inputs_buffer_mut().begin_read();
+		peer_controller->get_inputs_buffer_mut().begin_read(get_debugger());
 		peer_controller->get_inputs_buffer_mut().seek(METADATA_SIZE); // Skip meta.
 
 		peer_controller->get_debugger().databuffer_operation_begin_record(peer_controller->authority_peer, SceneSynchronizerDebugger::READ);
@@ -988,9 +984,9 @@ void PlayerController::store_input_buffer(FrameIndex p_frame_index) {
 
 #ifdef NS_DEBUG_ENABLED
 	if (peer_controller->scene_synchronizer->pedantic_checks) {
-		peer_controller->get_inputs_buffer_mut().begin_read();
+		peer_controller->get_inputs_buffer_mut().begin_read(get_debugger());
 		std::uint16_t from_buffer__buffer_size_bits;
-		peer_controller->get_inputs_buffer_mut().begin_read();
+		peer_controller->get_inputs_buffer_mut().begin_read(get_debugger());
 		peer_controller->get_inputs_buffer_mut().read(from_buffer__buffer_size_bits);
 		NS_ASSERT_COND_MSG(from_buffer__buffer_size_bits == buffer_size_bits, "The buffer size must be the same between the one just calculated and the one inside the buffer");
 	}
@@ -998,7 +994,7 @@ void PlayerController::store_input_buffer(FrameIndex p_frame_index) {
 	NS_ASSERT_COND_MSG(buffer_size_bits>=METADATA_SIZE, "The buffer size can't be less than the metadata.");
 #endif
 
-	FrameInput inputs;
+	FrameInput inputs(get_debugger());
 	inputs.id = p_frame_index;
 	inputs.inputs_buffer = peer_controller->get_inputs_buffer().get_buffer();
 	inputs.buffer_size_bit = buffer_size_bits;
@@ -1038,8 +1034,8 @@ void PlayerController::send_frame_input_buffer_to_server() {
 	int previous_buffer_size = 0;
 	uint8_t duplication_count = 0;
 
-	DataBuffer pir_A;
-	DataBuffer pir_B;
+	DataBuffer pir_A(get_debugger());
+	DataBuffer pir_B(get_debugger());
 	pir_A.copy(peer_controller->get_inputs_buffer().get_buffer());
 
 	// Compose the packets
@@ -1060,9 +1056,9 @@ void PlayerController::send_frame_input_buffer_to_server() {
 					pir_B.copy(frames_input[i].inputs_buffer);
 					pir_B.shrink_to(METADATA_SIZE, frames_input[i].buffer_size_bit - METADATA_SIZE);
 
-					pir_A.begin_read();
+					pir_A.begin_read(get_debugger());
 					pir_A.seek(METADATA_SIZE);
-					pir_B.begin_read();
+					pir_B.begin_read(get_debugger());
 					pir_B.seek(METADATA_SIZE);
 
 					const bool are_different = peer_controller->controllable_are_inputs_different(pir_A, pir_B);
@@ -1205,7 +1201,7 @@ bool DollController::receive_inputs(const std::vector<uint8_t> &p_data) {
 					return;
 				}
 
-				FrameInput rfs;
+				FrameInput rfs(pd->controller.get_debugger());
 				rfs.id = p_frame_index;
 
 				const bool found = std::binary_search(
@@ -1367,7 +1363,7 @@ void DollController::process(float p_delta) {
 	if (is_new_input) {
 		peer_controller->get_debugger().print(INFO, "Doll process index: " + std::string(current_input_buffer_id), "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
-		peer_controller->get_inputs_buffer_mut().begin_read();
+		peer_controller->get_inputs_buffer_mut().begin_read(get_debugger());
 		peer_controller->get_inputs_buffer_mut().seek(METADATA_SIZE);
 		peer_controller->get_debugger().databuffer_operation_begin_record(peer_controller->authority_peer, SceneSynchronizerDebugger::READ);
 		peer_controller->controllable_process(
@@ -1887,13 +1883,13 @@ NoNetController::NoNetController(PeerNetworkedController *p_peer_controller) :
 }
 
 void NoNetController::process(float p_delta) {
-	peer_controller->get_inputs_buffer_mut().begin_write(0); // No need of meta in this case.
+	peer_controller->get_inputs_buffer_mut().begin_write(get_debugger(), 0); // No need of meta in this case.
 	peer_controller->get_debugger().print(INFO, "Nonet process index: " + std::string(frame_id), "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 	peer_controller->get_debugger().databuffer_operation_begin_record(peer_controller->authority_peer, SceneSynchronizerDebugger::WRITE);
 	peer_controller->controllable_collect_input(p_delta, peer_controller->get_inputs_buffer_mut());
 	peer_controller->get_debugger().databuffer_operation_end_record();
 	peer_controller->get_inputs_buffer_mut().dry();
-	peer_controller->get_inputs_buffer_mut().begin_read();
+	peer_controller->get_inputs_buffer_mut().begin_read(get_debugger());
 	peer_controller->get_debugger().databuffer_operation_begin_record(peer_controller->authority_peer, SceneSynchronizerDebugger::READ);
 	peer_controller->controllable_process(p_delta, peer_controller->get_inputs_buffer_mut());
 	peer_controller->get_debugger().databuffer_operation_end_record();

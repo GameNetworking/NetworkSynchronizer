@@ -89,7 +89,7 @@ void ObjectDataStorage::object_set_net_id(ObjectData &p_object_data, ObjectNetId
 
 	if (objects_data_organized_by_netid.size() > p_new_id.id) {
 		if (objects_data_organized_by_netid[p_new_id.id] && objects_data_organized_by_netid[p_new_id.id] != (&p_object_data)) {
-			SceneSynchronizerDebugger::singleton()->print(ERROR, "[NET] The object `" + p_object_data.object_name + "` was associated with to a new NetId that was used by `" + objects_data_organized_by_netid[p_new_id.id]->object_name + "`. THIS IS NOT SUPPOSED TO HAPPEN.");
+			get_debugger().print(ERROR, "[NET] The object `" + p_object_data.object_name + "` was associated with to a new NetId that was used by `" + objects_data_organized_by_netid[p_new_id.id]->object_name + "`. THIS IS NOT SUPPOSED TO HAPPEN.");
 		}
 	} else {
 		// Expand the array

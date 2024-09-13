@@ -21,6 +21,7 @@ BitArray::BitArray(NS::SceneSynchronizerDebugger &p_debugger, const std::vector<
 
 void BitArray::operator=(const BitArray &p_other) {
 	debugger = p_other.debugger;
+	bytes = p_other.bytes;
 }
 
 bool BitArray::resize_in_bytes(int p_bytes_count) {

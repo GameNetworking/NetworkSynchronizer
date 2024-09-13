@@ -57,13 +57,7 @@
 // TODO improve the allocation mechanism.
 
 NS_NAMESPACE_BEGIN
-DataBuffer::DataBuffer(SceneSynchronizerDebugger &p_debugger) :
-	debugger(&p_debugger),
-	buffer(p_debugger) {
-}
-
-DataBuffer::DataBuffer(SceneSynchronizerDebugger &p_debugger, const DataBuffer &p_other) :
-	debugger(&p_debugger),
+DataBuffer::DataBuffer(const DataBuffer &p_other) :
 	metadata_size(p_other.metadata_size),
 	bit_offset(p_other.bit_offset),
 	bit_size(p_other.bit_size),
@@ -71,8 +65,7 @@ DataBuffer::DataBuffer(SceneSynchronizerDebugger &p_debugger, const DataBuffer &
 	buffer(p_other.buffer) {
 }
 
-DataBuffer::DataBuffer(SceneSynchronizerDebugger &p_debugger, const BitArray &p_buffer) :
-	debugger(&p_debugger),
+DataBuffer::DataBuffer(const BitArray &p_buffer) :
 	bit_size(p_buffer.size_in_bits()),
 	is_reading(true),
 	buffer(p_buffer) {
@@ -92,7 +85,6 @@ bool DataBuffer::operator==(const DataBuffer &p_other) const {
 }
 
 void DataBuffer::copy(const DataBuffer &p_other) {
-	debugger = p_other.debugger;
 	metadata_size = p_other.metadata_size;
 	bit_offset = p_other.bit_offset;
 	bit_size = p_other.bit_size;
@@ -108,8 +100,9 @@ void DataBuffer::copy(const BitArray &p_buffer) {
 	buffer = p_buffer;
 }
 
-void DataBuffer::begin_write(int p_metadata_size) {
+void DataBuffer::begin_write(SceneSynchronizerDebugger &p_debugger, int p_metadata_size) {
 	NS_ASSERT_COND_MSG(p_metadata_size >= 0, "Metadata size can't be negative");
+	buffer.set_debugger(p_debugger);
 	metadata_size = p_metadata_size;
 	bit_size = 0;
 	bit_offset = 0;
@@ -164,7 +157,8 @@ void DataBuffer::skip(int p_bits) {
 	bit_offset += p_bits;
 }
 
-void DataBuffer::begin_read() {
+void DataBuffer::begin_read(SceneSynchronizerDebugger &p_debugger) {
+	buffer.set_debugger(p_debugger);
 	bit_offset = 0;
 	is_reading = true;
 	buffer_failed = false;
@@ -926,6 +920,7 @@ void DataBuffer::read_data_buffer(DataBuffer &r_db) {
 	}
 
 	NS_ASSERT_COND(!r_db.is_reading);
+	r_db.buffer.set_debugger(get_debugger());
 
 	bool using_compression_lvl_2 = false;
 	read(using_compression_lvl_2);

@@ -7,7 +7,6 @@
 #include "core/net_utilities.h"
 #include "core/object_data.h"
 #include "core/peer_networked_controller.h"
-#include "core/scene_synchronizer_debugger.h"
 #include "core/snapshot.h"
 #include "core/var_data.h"
 #include <limits>
@@ -30,8 +29,6 @@ SceneSynchronizerBase::SceneSynchronizerBase(NetworkInterface *p_network_interfa
 #endif
 	network_interface(p_network_interface),
 	objects_data_storage(*this) {
-	debugger = new SceneSynchronizerDebugger;
-	p_network_interface->__set_debugger(*debugger);
 	// Avoid too much useless re-allocations.
 	changes_listeners.reserve(100);
 }
@@ -40,8 +37,6 @@ SceneSynchronizerBase::~SceneSynchronizerBase() {
 	clear();
 	uninit_synchronizer();
 	network_interface = nullptr;
-	delete debugger;
-	debugger = nullptr;
 }
 
 void SceneSynchronizerBase::install_synchronizer(
@@ -64,6 +59,10 @@ void SceneSynchronizerBase::install_synchronizer(
 
 void SceneSynchronizerBase::setup(SynchronizerManager &p_synchronizer_interface) {
 	reset();
+
+	// These can't be triggered because the interface and the debugger are
+	// initialized by this class during the constructor.
+	NS_ASSERT_COND(network_interface);
 
 	synchronizer_manager = &p_synchronizer_interface;
 	network_interface->start_listening_peer_connection(
@@ -204,7 +203,7 @@ void SceneSynchronizerBase::__print_line(const std::string &p_str) {
 }
 
 void SceneSynchronizerBase::print_code_message(SceneSynchronizerDebugger *p_debugger, const char *p_function, const char *p_file, int p_line, const std::string &p_error, const std::string &p_message, NS::PrintMessageType p_type) {
-	const std::string log_level_str = NS::get_log_level_txt(p_type);
+	const std::string log_level_str = get_log_level_txt(p_type);
 	std::string msg = log_level_str + " The condition " + p_error + " evaluated to false: " + p_message + "\n";
 	msg += std::string() + "At: " + p_file + "::" + p_file + "::" + std::to_string(p_line);
 	if (p_debugger) {
@@ -1287,7 +1286,7 @@ void SceneSynchronizerBase::rpc_trickled_sync_data(const std::vector<std::uint8_
 
 void SceneSynchronizerBase::rpc_notify_netstats(DataBuffer &p_data) {
 	NS_ENSURE(is_client());
-	p_data.begin_read();
+	p_data.begin_read(get_debugger());
 
 	std::uint8_t compressed_latency;
 	p_data.read(compressed_latency);
@@ -2245,11 +2244,11 @@ void ServerSynchronizer::process_snapshot_notificator() {
 
 		bool full_snapshot_need_init = true;
 		DataBuffer full_snapshot(get_debugger());
-		full_snapshot.begin_write(0);
+		full_snapshot.begin_write(get_debugger(), 0);
 
 		bool delta_snapshot_need_init = true;
 		DataBuffer delta_snapshot(get_debugger());
-		delta_snapshot.begin_write(0);
+		delta_snapshot.begin_write(get_debugger(), 0);
 
 		for (int peer_id : group.get_listening_peers()) {
 			if (peer_id == scene_synchronizer->get_network_interface().get_local_peer_id()) {
@@ -2571,7 +2570,7 @@ void ServerSynchronizer::process_trickled_sync(float p_delta) {
 		group.sort_trickled_node_by_update_priority();
 
 		DataBuffer global_buffer(get_debugger());
-		global_buffer.begin_write(0);
+		global_buffer.begin_write(get_debugger(), 0);
 		global_buffer.add_uint(epoch, DataBuffer::COMPRESSION_LEVEL_1);
 
 		for (auto &object_info : objects_info) {
@@ -2596,7 +2595,7 @@ void ServerSynchronizer::process_trickled_sync(float p_delta) {
 				object_info._update_priority = 0.0;
 
 				// Read the state and write into the tmp_buffer:
-				tmp_buffer.begin_write(0);
+				tmp_buffer.begin_write(get_debugger(), 0);
 
 				object_info.od->func_trickled_collect(tmp_buffer, object_info.update_rate);
 				if (tmp_buffer.total_size() > UINT16_MAX) {
@@ -2687,7 +2686,7 @@ void ServerSynchronizer::send_net_stat_to_peer(int p_peer, PeerData &p_peer_data
 	}
 
 	DataBuffer db(get_debugger());
-	db.begin_write(0);
+	db.begin_write(get_debugger(), 0);
 
 	// Latency
 	db.add(p_peer_data.get_compressed_latency());
@@ -3483,7 +3482,7 @@ bool ClientSynchronizer::parse_sync_data(
 	// NOTE: Check generate_snapshot to see the DataBuffer format.
 	std::map<int, FrameIndexWithMeta> frames_index;
 
-	p_snapshot.begin_read();
+	p_snapshot.begin_read(get_debugger());
 	if (p_snapshot.size() <= 0) {
 		// Nothing to do.
 		return true;
@@ -3718,8 +3717,8 @@ void ClientSynchronizer::set_enabled(bool p_enabled) {
 }
 
 void ClientSynchronizer::receive_trickled_sync_data(const std::vector<std::uint8_t> &p_data) {
-	DataBuffer future_epoch_buffer(get_debugger(), BitArray(get_debugger(), p_data));
-	future_epoch_buffer.begin_read();
+	DataBuffer future_epoch_buffer(BitArray(get_debugger(), p_data));
+	future_epoch_buffer.begin_read(get_debugger());
 
 	int remaining_size = future_epoch_buffer.size() - future_epoch_buffer.get_bit_offset();
 	if (remaining_size < future_epoch_buffer.get_bit_taken(DataBuffer::DATA_TYPE_UINT, DataBuffer::COMPRESSION_LEVEL_1)) {
@@ -3797,10 +3796,10 @@ void ClientSynchronizer::receive_trickled_sync_data(const std::vector<std::uint8
 #endif
 		stream.future_epoch_buffer.copy(BitArray(get_debugger(), future_buffer_data));
 
-		stream.past_epoch_buffer.begin_write(0);
+		stream.past_epoch_buffer.begin_write(get_debugger(), 0);
 
 		// 2. Now collect the past epoch buffer by reading the current values.
-		db.begin_write(0);
+		db.begin_write(get_debugger(), 0);
 
 		if (!stream.od->func_trickled_collect) {
 			scene_synchronizer->get_debugger().print(INFO, "The function `receive_trickled_sync_data` is skiplatency the node `" + stream.od->get_object_name() + "` as the function `trickled_collect` failed executing.", scene_synchronizer->get_network_interface().get_owner_name());
@@ -3860,20 +3859,20 @@ void ClientSynchronizer::process_trickled_sync(float p_delta) {
 
 		stream.alpha += p_delta / stream.epochs_timespan;
 		stream.alpha = std::min(stream.alpha, scene_synchronizer->get_max_trickled_interpolation_alpha());
-		stream.past_epoch_buffer.begin_read();
-		stream.future_epoch_buffer.begin_read();
+		stream.past_epoch_buffer.begin_read(get_debugger());
+		stream.future_epoch_buffer.begin_read(get_debugger());
 
 		db1.copy(stream.past_epoch_buffer);
 		db2.copy(stream.future_epoch_buffer);
-		db1.begin_read();
-		db2.begin_read();
+		db1.begin_read(get_debugger());
+		db2.begin_read(get_debugger());
 
 		od->func_trickled_apply(p_delta, stream.alpha, db1, db2);
 	}
 }
 
 void ClientSynchronizer::remove_object_from_trickled_sync(NS::ObjectData *p_object_data) {
-	VecFunc::remove_unordered(trickled_sync_array, TrickledSyncInterpolationData(p_object_data,get_debugger()));
+	VecFunc::remove_unordered(trickled_sync_array, TrickledSyncInterpolationData(p_object_data, get_debugger()));
 }
 
 bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot, bool p_is_server_snapshot) {

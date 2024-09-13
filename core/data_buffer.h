@@ -112,7 +112,6 @@ public:
 	};
 
 private:
-	class SceneSynchronizerDebugger *debugger = nullptr;
 	int metadata_size = 0;
 	int bit_offset = 0;
 	int bit_size = 0;
@@ -127,12 +126,11 @@ private:
 
 public:
 	DataBuffer() = default; // Use this with care: Not initialising the debugger will cause a crash.
-	DataBuffer(class SceneSynchronizerDebugger &p_debugger);
-	DataBuffer(class SceneSynchronizerDebugger &p_debugger, const DataBuffer &p_other);
-	DataBuffer(class SceneSynchronizerDebugger &p_debugger, const BitArray &p_buffer);
+	DataBuffer(const DataBuffer &p_other);
+	DataBuffer(const BitArray &p_buffer);
 
 	class SceneSynchronizerDebugger &get_debugger() const {
-		return *debugger;
+		return buffer.get_debugger();
 	}
 
 	//DataBuffer &operator=(DataBuffer &&p_other);
@@ -150,7 +148,7 @@ public:
 	}
 
 	/// Begin write.
-	void begin_write(int p_metadata_size);
+	void begin_write(class SceneSynchronizerDebugger &p_debugger, int p_metadata_size);
 
 	/// Make sure the buffer takes least space possible.
 	void dry();
@@ -176,7 +174,7 @@ public:
 	void skip(int p_bits);
 
 	/// Begin read.
-	void begin_read();
+	void begin_read(class SceneSynchronizerDebugger &p_debugger);
 
 	bool is_buffer_failed() const {
 		return buffer_failed;

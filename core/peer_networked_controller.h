@@ -82,8 +82,7 @@ public:
 	~PeerNetworkedController();
 
 public: // ---------------------------------------------------------------- APIs
-	class SceneSynchronizerDebugger &get_debugger();
-	const class SceneSynchronizerDebugger &get_debugger() const;
+	class SceneSynchronizerDebugger &get_debugger() const;
 
 	void notify_controllable_objects_changed();
 
@@ -174,6 +173,12 @@ struct FrameInput {
 	std::uint16_t buffer_size_bit = 0;
 	FrameIndex similarity = FrameIndex::NONE;
 
+	FrameInput() = default;
+
+	FrameInput(SceneSynchronizerDebugger &p_debugger):
+		inputs_buffer(p_debugger) {
+	}
+
 	bool operator==(const FrameInput &p_other) const {
 		return p_other.id == id;
 	}
@@ -187,6 +192,10 @@ struct Controller {
 	}
 
 	virtual ~Controller() = default;
+
+	SceneSynchronizerDebugger &get_debugger() const {
+		return peer_controller->get_debugger();
+	}
 
 	virtual void ready() {
 	}
