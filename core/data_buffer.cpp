@@ -778,8 +778,8 @@ void DataBuffer::add_normalized_vector2(T x, T y, CompressionLevel p_compression
 #ifdef DEBUG_DATA_BUFFER
 	{
 		const T decompressed_angle = (decompress_unit_float<T>(compressed_angle, max_value) * T(M_TAU)) - T(M_PI);
-		const float read_x = std::cos(decompressed_angle) * static_cast<T>(is_not_zero);
-		const float read_y = std::sin(decompressed_angle) * static_cast<T>(is_not_zero);
+		const T read_x = std::cos(decompressed_angle) * static_cast<T>(is_not_zero);
+		const T read_y = std::sin(decompressed_angle) * static_cast<T>(is_not_zero);
 		DEB_WRITE(DATA_TYPE_NORMALIZED_VECTOR2, p_compression_level, "X: " + std::to_string(read_x) + " Y: " + std::to_string(read_y));
 	}
 #endif

@@ -122,7 +122,7 @@ def create_layout():
 		table_status_header.append("End ("+dir+")")
 		table_status_widths.append(30)
 
-	table_status = sg.Table([], table_status_header, key="TABLE_STATUS", justification='left', size=(None, None), expand_x=True, expand_y=True, auto_size_columns=True, col_widths=table_status_widths, vertical_scroll_only=False, num_rows=38)
+	table_status = sg.Table([], table_status_header, key="TABLE_STATUS", justification='left', expand_x=True, expand_y=True, auto_size_columns=False, col_widths=table_status_widths, vertical_scroll_only=False, num_rows=38)
 	table_status = sg.Frame("States", layout=[[table_status]], vertical_alignment="top", expand_x=True, expand_y=True)
 
 	# Messages table
@@ -196,20 +196,20 @@ while True:
 					frame_data_json = load_json(frame_file_path)
 					frame_data[dir] = frame_data_json
 
-					for node_path in frame_data_json["begin_state"]:
-						if node_path not in nodes_list:
+					for object_name in frame_data_json["begin_state"]:
+						if object_name not in nodes_list:
 							# Add this node to the nodelist
-							nodes_list.append(node_path)
+							nodes_list.append(object_name)
 
-					for node_path in frame_data_json["end_state"]:
-						if node_path not in nodes_list:
+					for object_name in frame_data_json["end_state"]:
+						if object_name not in nodes_list:
 							# Add this node to the nodelist
-							nodes_list.append(node_path)
+							nodes_list.append(object_name)
 
-					for node_path in frame_data_json["node_log"]:
-						if node_path not in nodes_list:
+					for object_name in frame_data_json["node_log"]:
+						if object_name not in nodes_list:
 							# Add this node to the nodelist
-							nodes_list.append(node_path)
+							nodes_list.append(object_name)
 
 
 			# Update the node list.
@@ -247,21 +247,21 @@ while True:
 
 			selected_nodes = event_values["NODE_LIST"]
 
-			for node_path in selected_nodes:
+			for object_name in selected_nodes:
 
 				# First collects the var names
 				vars_names = ["***"]
 				for dir in directories:
 					if dir in frame_data:
 						if "begin_state" in frame_data[dir]:
-							if node_path in frame_data[dir]["begin_state"]:
-								for var_name in frame_data[dir]["begin_state"][node_path]:
+							if object_name in frame_data[dir]["begin_state"]:
+								for var_name in frame_data[dir]["begin_state"][object_name]:
 									if var_name not in vars_names:
 										vars_names.append(var_name)
 
 						if "end_state" in frame_data[dir]:
-							if node_path in frame_data[dir]["end_state"]:
-								for var_name in frame_data[dir]["end_state"][node_path]:
+							if object_name in frame_data[dir]["end_state"]:
+								for var_name in frame_data[dir]["end_state"][object_name]:
 									if var_name not in vars_names:
 										vars_names.append(var_name)
 
@@ -277,7 +277,7 @@ while True:
 					# Special rows
 					if var_name == "***":
 						# This is a special row to signal the start of a new node data
-						row[0] = node_path
+						row[0] = object_name
 						states_table_values.append(row)
 						states_row_colors.append((row_index, "black"))
 						continue
@@ -292,16 +292,16 @@ while True:
 					for dir_i, dir_name in enumerate(directories):
 						if dir_name in frame_data:
 							if "begin_state" in frame_data[dir_name]:
-								if node_path in frame_data[dir_name]["begin_state"]:
-									if var_name in frame_data[dir_name]["begin_state"][node_path]:
+								if object_name in frame_data[dir_name]["begin_state"]:
+									if var_name in frame_data[dir_name]["begin_state"][object_name]:
 										#print(1, " + (", instances_count, " * 0) + ", dir_i)
-										row[1 + (instances_count * 0) + dir_i] = str(frame_data[dir_name]["begin_state"][node_path][var_name])
+										row[1 + (instances_count * 0) + dir_i] = str(frame_data[dir_name]["begin_state"][object_name][var_name])
 
 							if "end_state" in frame_data[dir_name]:
-								if node_path in frame_data[dir_name]["end_state"]:
-									if var_name in frame_data[dir_name]["end_state"][node_path]:
+								if object_name in frame_data[dir_name]["end_state"]:
+									if var_name in frame_data[dir_name]["end_state"][object_name]:
 										#print(1, " + (", instances_count, " * 1) + ", dir_i)
-										row[1 + (instances_count * 1) + dir_i] = str(frame_data[dir_name]["end_state"][node_path][var_name])
+										row[1 + (instances_count * 1) + dir_i] = str(frame_data[dir_name]["end_state"][object_name][var_name])
 
 					# Check if different, so mark a worning.
 					for state_index in range(2):
@@ -318,15 +318,15 @@ while True:
 				for dir_name in directories:
 					if dir_name in frame_data:
 						if "node_log" in frame_data[dir_name]:
-							if node_path in frame_data[dir_name]["node_log"]:
+							if object_name in frame_data[dir_name]["node_log"]:
 
 								table_logs[dir_name] = table_logs.get(dir_name, [])
 								log_row_colors[dir_name] = log_row_colors.get(dir_name, [])
 
-								table_logs[dir_name] += [["", node_path]]
+								table_logs[dir_name] += [["", object_name]]
 								log_row_colors[dir_name] += [(len(table_logs[dir_name]) - 1, "black")]
 
-								for val in frame_data[dir_name]["node_log"][node_path]:
+								for val in frame_data[dir_name]["node_log"][object_name]:
 
 									# Append the log
 									table_logs[dir_name] += [["{:4d}".format(val["i"]), val["m"]]]

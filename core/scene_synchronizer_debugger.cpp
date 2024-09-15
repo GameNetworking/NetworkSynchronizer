@@ -15,8 +15,6 @@
 #include "../scene_synchronizer.h"
 
 NS_NAMESPACE_BEGIN
-SceneSynchronizerDebugger *SceneSynchronizerDebugger::the_singleton = nullptr;
-
 SceneSynchronizerDebugger::SceneSynchronizerDebugger() {
 #ifdef NS_DEBUG_ENABLED
 	frame_dump_storage = new SceneSynchronizerDebuggerJsonStorage;
@@ -242,33 +240,39 @@ std::string compression_level_to_string(uint32_t p_type) {
 #endif
 
 #ifdef NS_DEBUG_ENABLED
-void dump_tracked_objects(const NS::SceneSynchronizerBase *p_scene_sync, nlohmann::json::object_t &p_dump) {
+void dump_tracked_objects(const SceneSynchronizerBase *p_scene_sync, nlohmann::json::object_t &p_dump) {
 	p_dump.clear();
 
-	/*
-	for (uint32_t i = 0; i < tracked_nodes.size(); i += 1) {
+	for (ObjectData *od : p_scene_sync->get_sorted_objects_data()) {
 		nlohmann::json object_dump;
 
-		std::string node_path = String(tracked_nodes[i].node->get_path()).utf8().ptr();
-		object_dump["node_path"] = node_path;
+		const std::string object_name = p_scene_sync->get_synchronizer_manager().fetch_object_name(od->app_object_handle);
+		object_dump["object_name"] = object_name;
 
-		for (List<PropertyInfo>::Element *e = tracked_nodes[i].properties->front(); e; e = e->next()) {
+		for (VarDescriptor &var_desc : od->vars) {
 			std::string prefix;
-			// TODO the below cast is an unsafe cast. Please refactor this.
-			if (p_scene_sync->is_variable_registered(p_scene_sync->find_object_local_id({ reinterpret_cast<std::intptr_t>(tracked_nodes[i].node) }), std::string(e->get().name.utf8()))) {
+			// Notice at the moment we are reading only the registered vars, so this is always true.
+			// In the past we were also reading all other variables associated to this class.
+			const bool is_variable_registered_as_sync = true;
+			if (is_variable_registered_as_sync) {
 				prefix = "* ";
 			}
 
-			object_dump[prefix + String(e->get().name).utf8().ptr() + "::" + type_to_string(e->get().type)] = tracked_nodes[i].node->get(e->get().name).stringify().utf8().ptr();
+			VarData value;
+			var_desc.get_func(
+					p_scene_sync->get_synchronizer_manager(),
+					od->app_object_handle,
+					var_desc.var.name,
+					value);
+			object_dump[prefix + var_desc.var.name + "::" + std::to_string(var_desc.type)] = p_scene_sync->var_data_stringify(value, true);
 		}
 
-		p_dump[node_path] = object_dump;
+		p_dump[object_name] = object_dump;
 	}
-	*/
 }
 #endif
 
-void SceneSynchronizerDebugger::scene_sync_process_start(const NS::SceneSynchronizerBase *p_scene_sync) {
+void SceneSynchronizerDebugger::scene_sync_process_start(const SceneSynchronizerBase *p_scene_sync) {
 #ifdef NS_DEBUG_ENABLED
 	if (!dump_enabled) {
 		return;

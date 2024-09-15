@@ -25,8 +25,6 @@ public:
 };
 
 class SceneSynchronizerDebugger {
-	static SceneSynchronizerDebugger *the_singleton;
-
 public:
 	enum DataBufferDumpMode {
 		NONE,
@@ -47,7 +45,7 @@ private:
 	bool dump_enabled = false;
 	bool setup_done = false;
 
-	NS::FileSystem *file_system = nullptr;
+	FileSystem *file_system = nullptr;
 
 	uint32_t log_counter = 0;
 	std::string main_dump_directory_path;
@@ -70,9 +68,9 @@ public:
 
 	SceneSynchronizerDebugger &get_debugger() const;
 
-	void set_file_system(NS::FileSystem *p_file_system);
+	void set_file_system(FileSystem *p_file_system);
 
-	NS::FileSystem *get_file_system() const {
+	FileSystem *get_file_system() const {
 #ifdef NS_DEBUG_ENABLED
 		return file_system;
 #else
@@ -80,8 +78,8 @@ public:
 #endif
 	}
 
-	void set_log_level(NS::PrintMessageType p_log_level);
-	NS::PrintMessageType get_log_level() const;
+	void set_log_level(PrintMessageType p_log_level);
+	PrintMessageType get_log_level() const;
 
 	void set_dump_enabled(bool p_dump_enabled);
 	bool get_dump_enabled() const;
@@ -96,8 +94,8 @@ public:
 	void write_dump(int p_peer, uint32_t p_frame_index);
 	void start_new_frame();
 
-	void scene_sync_process_start(const NS::SceneSynchronizerBase *p_scene_sync);
-	void scene_sync_process_end(const NS::SceneSynchronizerBase *p_scene_sync);
+	void scene_sync_process_start(const SceneSynchronizerBase *p_scene_sync);
+	void scene_sync_process_end(const SceneSynchronizerBase *p_scene_sync);
 
 	void databuffer_operation_begin_record(int p_peer, DataBufferDumpMode p_mode);
 	void databuffer_operation_end_record();
@@ -108,7 +106,7 @@ public:
 	void notify_are_inputs_different_result(int p_peer, uint32_t p_other_frame_index, bool p_is_similar);
 
 	void print(
-			NS::PrintMessageType p_level,
+			PrintMessageType p_level,
 			const std::string &p_message,
 			const std::string &p_object_name = "GLOBAL",
 			bool p_force_print_to_log = false);

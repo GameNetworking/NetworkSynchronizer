@@ -1903,36 +1903,36 @@ void ServerSynchronizer::process(float p_delta) {
 		objects_relevancy_update_timer += p_delta;
 	}
 
-	scene_synchronizer->get_debugger().scene_sync_process_start(scene_synchronizer);
-
 	const int sub_process_count = fetch_sub_processes_count(p_delta);
 	for (int i = 0; i < sub_process_count; i++) {
 		epoch += 1;
+
+		scene_synchronizer->get_debugger().scene_sync_process_start(scene_synchronizer);
 
 		// Process the scene
 		scene_synchronizer->process_functions__execute();
 		scene_synchronizer->detect_and_signal_changed_variables(NetEventFlag::CHANGE);
 
 		process_snapshot_notificator();
+
+		scene_synchronizer->get_debugger().scene_sync_process_end(scene_synchronizer);
+
+#if NS_DEBUG_ENABLED
+		// Write the debug dump for each peer.
+		for (auto &peer_it : scene_synchronizer->peer_data) {
+			if make_unlikely(!peer_it.second.get_controller()) {
+				continue;
+			}
+
+			const FrameIndex current_input_id = peer_it.second.get_controller()->get_server_controller()->get_current_frame_index();
+			scene_synchronizer->get_debugger().write_dump(peer_it.first, current_input_id.id);
+		}
+		scene_synchronizer->get_debugger().start_new_frame();
+#endif
 	}
 
 	process_trickled_sync(p_delta);
 	update_peers_net_statistics(p_delta);
-
-	scene_synchronizer->get_debugger().scene_sync_process_end(scene_synchronizer);
-
-#if NS_DEBUG_ENABLED
-	// Write the debug dump for each peer.
-	for (auto &peer_it : scene_synchronizer->peer_data) {
-		if make_unlikely(!peer_it.second.get_controller()) {
-			continue;
-		}
-
-		const FrameIndex current_input_id = peer_it.second.get_controller()->get_server_controller()->get_current_frame_index();
-		scene_synchronizer->get_debugger().write_dump(peer_it.first, current_input_id.id);
-	}
-	scene_synchronizer->get_debugger().start_new_frame();
-#endif
 }
 
 void ServerSynchronizer::on_peer_connected(int p_peer_id) {
