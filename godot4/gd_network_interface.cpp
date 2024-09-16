@@ -295,7 +295,7 @@ void GdNetworkInterface::gd_rpc_receive(const Vector<uint8_t> &p_gd_buffer) {
 		db.get_buffer_mut().get_bytes_mut().push_back(b);
 	}
 
-	db.begin_read();
+	db.begin_read(get_debugger());
 	rpc_receive(
 			owner->get_multiplayer()->get_remote_sender_id(),
 			db);

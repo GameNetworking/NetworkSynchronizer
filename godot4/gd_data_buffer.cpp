@@ -272,7 +272,7 @@ Variant GdDataBuffer::add_variant(const Variant &p_input) {
 			"Was not possible encode the variant.");
 
 	NS::DataBuffer variant_db;
-	variant_db.begin_write(0);
+	variant_db.begin_write(get_debugger(), 0);
 	variant_db.add(len);
 	variant_db.make_room_pad_to_next_byte();
 	variant_db.make_room_in_bits(len * 8);

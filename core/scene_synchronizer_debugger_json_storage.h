@@ -2,6 +2,7 @@
 
 #include "json.hpp"
 
+namespace NS {
 struct SceneSynchronizerDebuggerJsonStorage {
 #ifdef NS_DEBUG_ENABLED
 	nlohmann::json::object_t frame_dump__begin_state;
@@ -30,4 +31,5 @@ struct SceneSynchronizerDebuggerJsonStorage {
 	bool frame_dump__has_warnings = false;
 	bool frame_dump__has_errors = false;
 #endif
+};
 };

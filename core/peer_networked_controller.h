@@ -4,6 +4,7 @@
 #include "data_buffer.h"
 #include "processor.h"
 #include "snapshot.h"
+
 #include <deque>
 
 NS_NAMESPACE_BEGIN
@@ -77,10 +78,12 @@ public: // -------------------------------------------------------------- Events
 	Processor<FrameIndex> event_input_missed;
 
 public:
-	PeerNetworkedController();
+	PeerNetworkedController(SceneSynchronizerBase &p_scene_synchronizer);
 	~PeerNetworkedController();
 
 public: // ---------------------------------------------------------------- APIs
+	class SceneSynchronizerDebugger &get_debugger() const;
+
 	void notify_controllable_objects_changed();
 
 	const std::vector<ObjectData *> &get_sorted_controllable_objects();
@@ -128,7 +131,7 @@ public: // -------------------------------------------------------------- Events
 public:
 	void set_inputs_buffer(const BitArray &p_new_buffer, uint32_t p_metadata_size_in_bit, uint32_t p_size_in_bit);
 
-	void setup_synchronizer(NS::SceneSynchronizerBase &p_synchronizer, int p_peer);
+	void setup_synchronizer(int p_peer);
 	void remove_synchronizer();
 
 	int get_authority_peer() const {
@@ -170,6 +173,12 @@ struct FrameInput {
 	std::uint16_t buffer_size_bit = 0;
 	FrameIndex similarity = FrameIndex::NONE;
 
+	FrameInput() = default;
+
+	FrameInput(SceneSynchronizerDebugger &p_debugger):
+		inputs_buffer(p_debugger) {
+	}
+
 	bool operator==(const FrameInput &p_other) const {
 		return p_other.id == id;
 	}
@@ -183,6 +192,10 @@ struct Controller {
 	}
 
 	virtual ~Controller() = default;
+
+	SceneSynchronizerDebugger &get_debugger() const {
+		return peer_controller->get_debugger();
+	}
 
 	virtual void ready() {
 	}

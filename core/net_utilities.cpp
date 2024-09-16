@@ -6,6 +6,10 @@
 #include "peer_networked_controller.h"
 #include "scene_synchronizer_debugger.h"
 
+NS::SceneSynchronizerDebugger &NS::SyncGroup::get_debugger() const {
+	return scene_sync->get_debugger();
+}
+
 void NS::SyncGroup::advance_timer_state_notifier(
 		const float p_delta,
 		const float p_frame_confirmation_timespan,
@@ -384,7 +388,7 @@ float NS::SyncGroup::get_trickled_update_rate(const NS::ObjectData *p_object_dat
 			return trickled_sync_objects[i].update_rate;
 		}
 	}
-	SceneSynchronizerDebugger::singleton()->print(ERROR, "NodeData " + p_object_data->get_object_name() + " not found into `trickled_sync_objects`.");
+	get_debugger().print(ERROR, "NodeData " + p_object_data->get_object_name() + " not found into `trickled_sync_objects`.");
 	return 0.0;
 }
 

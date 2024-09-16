@@ -31,12 +31,12 @@
 #ifdef DEBUG_DATA_BUFFER
 #define DEB_WRITE(dt, compression, input)                                                             \
 	if (debug_enabled) {                                                                              \
-		SceneSynchronizerDebugger::singleton()->databuffer_write(dt, compression, bit_offset, std::string(input).c_str()); \
+		get_debugger().databuffer_write(dt, compression, bit_offset, std::string(input).c_str()); \
 	}
 
 #define DEB_READ(dt, compression, input)                                                             \
 	if (debug_enabled) {                                                                             \
-		SceneSynchronizerDebugger::singleton()->databuffer_read(dt, compression, bit_offset, std::string(input).c_str()); \
+		get_debugger().databuffer_read(dt, compression, bit_offset, std::string(input).c_str()); \
 	}
 
 // Beware that the following two macros were written to make sure nested function call doesn't add debug calls,
@@ -100,8 +100,9 @@ void DataBuffer::copy(const BitArray &p_buffer) {
 	buffer = p_buffer;
 }
 
-void DataBuffer::begin_write(int p_metadata_size) {
+void DataBuffer::begin_write(SceneSynchronizerDebugger &p_debugger, int p_metadata_size) {
 	NS_ASSERT_COND_MSG(p_metadata_size >= 0, "Metadata size can't be negative");
+	buffer.set_debugger(p_debugger);
 	metadata_size = p_metadata_size;
 	bit_size = 0;
 	bit_offset = 0;
@@ -156,7 +157,8 @@ void DataBuffer::skip(int p_bits) {
 	bit_offset += p_bits;
 }
 
-void DataBuffer::begin_read() {
+void DataBuffer::begin_read(SceneSynchronizerDebugger &p_debugger) {
+	buffer.set_debugger(p_debugger);
 	bit_offset = 0;
 	is_reading = true;
 	buffer_failed = false;
@@ -488,7 +490,7 @@ void DataBuffer::add_real(double p_input, CompressionLevel p_compression_level) 
 		}
 		bit_offset += 64;
 
-		DEB_WRITE(DATA_TYPE_REAL, p_compression_level, std::to_string(p_input));
+		DEB_WRITE(DATA_TYPE_REAL, p_compression_level, std::to_string(fp64_from_bits(val)));
 	} else {
 		add_real(float(p_input), p_compression_level);
 	}
@@ -501,7 +503,7 @@ void DataBuffer::add_real(float p_input, CompressionLevel p_compression_level) {
 	}
 
 	if (p_compression_level == COMPRESSION_LEVEL_0) {
-		SceneSynchronizerDebugger::singleton()->print(WARNING, "The real(float) fall back to compression level 1 as the level 0 is for double compression.");
+		get_debugger().print(WARNING, "The real(float) fall back to compression level 1 as the level 0 is for double compression.");
 		p_compression_level = COMPRESSION_LEVEL_1;
 	}
 
@@ -512,6 +514,8 @@ void DataBuffer::add_real(float p_input, CompressionLevel p_compression_level) {
 			buffer_failed = true;
 		}
 		bit_offset += 32;
+
+		DEB_WRITE(DATA_TYPE_REAL, p_compression_level, std::to_string(fp32_from_bits(val)));
 	} else if (p_compression_level == COMPRESSION_LEVEL_2 || p_compression_level == COMPRESSION_LEVEL_3) {
 		std::uint16_t val = fp16_ieee_from_fp32_value(p_input);
 		make_room_in_bits(16);
@@ -519,12 +523,12 @@ void DataBuffer::add_real(float p_input, CompressionLevel p_compression_level) {
 			buffer_failed = true;
 		}
 		bit_offset += 16;
+
+		DEB_WRITE(DATA_TYPE_REAL, p_compression_level, std::to_string(fp16_ieee_to_fp32_value(val)));
 	} else {
 		// Unreachable.
 		NS_ASSERT_NO_ENTRY();
 	}
-
-	DEB_WRITE(DATA_TYPE_REAL, p_compression_level, std::to_string(p_input));
 }
 
 void DataBuffer::read_real(double &r_value, CompressionLevel p_compression_level) {
@@ -557,7 +561,7 @@ void DataBuffer::read_real(float &r_value, CompressionLevel p_compression_level)
 	}
 
 	if (p_compression_level == COMPRESSION_LEVEL_0) {
-		SceneSynchronizerDebugger::singleton()->print(WARNING, "The real(float) fall back to compression level 1 as the level 0 is for double compression.");
+		get_debugger().print(WARNING, "The real(float) fall back to compression level 1 as the level 0 is for double compression.");
 		p_compression_level = COMPRESSION_LEVEL_1;
 	}
 
@@ -771,7 +775,14 @@ void DataBuffer::add_normalized_vector2(T x, T y, CompressionLevel p_compression
 	NS_ASSERT_COND((metadata_size + bit_size) <= buffer.size_in_bits() && bit_offset <= buffer.size_in_bits());
 #endif
 
-	DEB_WRITE(DATA_TYPE_NORMALIZED_VECTOR2, p_compression_level, "X: " + std::to_string(x) + " Y: " + std::to_string(y));
+#ifdef DEBUG_DATA_BUFFER
+	{
+		const T decompressed_angle = (decompress_unit_float<T>(compressed_angle, max_value) * T(M_TAU)) - T(M_PI);
+		const T read_x = std::cos(decompressed_angle) * static_cast<T>(is_not_zero);
+		const T read_y = std::sin(decompressed_angle) * static_cast<T>(is_not_zero);
+		DEB_WRITE(DATA_TYPE_NORMALIZED_VECTOR2, p_compression_level, "X: " + std::to_string(read_x) + " Y: " + std::to_string(read_y));
+	}
+#endif
 }
 
 template void DataBuffer::read_normalized_vector2<float>(float &, float &, DataBuffer::CompressionLevel);
@@ -918,6 +929,7 @@ void DataBuffer::read_data_buffer(DataBuffer &r_db) {
 	}
 
 	NS_ASSERT_COND(!r_db.is_reading);
+	r_db.buffer.set_debugger(get_debugger());
 
 	bool using_compression_lvl_2 = false;
 	read(using_compression_lvl_2);
@@ -1039,43 +1051,43 @@ void DataBuffer::skip_buffer() {
 }
 
 int DataBuffer::get_bool_size() const {
-	return DataBuffer::get_bit_taken(DATA_TYPE_BOOL, COMPRESSION_LEVEL_0);
+	return get_bit_taken(DATA_TYPE_BOOL, COMPRESSION_LEVEL_0);
 }
 
 int DataBuffer::get_int_size(CompressionLevel p_compression) const {
-	return DataBuffer::get_bit_taken(DATA_TYPE_INT, p_compression);
+	return get_bit_taken(DATA_TYPE_INT, p_compression);
 }
 
 int DataBuffer::get_uint_size(CompressionLevel p_compression) const {
-	return DataBuffer::get_bit_taken(DATA_TYPE_UINT, p_compression);
+	return get_bit_taken(DATA_TYPE_UINT, p_compression);
 }
 
 int DataBuffer::get_real_size(CompressionLevel p_compression) const {
-	return DataBuffer::get_bit_taken(DATA_TYPE_REAL, p_compression);
+	return get_bit_taken(DATA_TYPE_REAL, p_compression);
 }
 
 int DataBuffer::get_positive_unit_real_size(CompressionLevel p_compression) const {
-	return DataBuffer::get_bit_taken(DATA_TYPE_POSITIVE_UNIT_REAL, p_compression);
+	return get_bit_taken(DATA_TYPE_POSITIVE_UNIT_REAL, p_compression);
 }
 
 int DataBuffer::get_unit_real_size(CompressionLevel p_compression) const {
-	return DataBuffer::get_bit_taken(DATA_TYPE_UNIT_REAL, p_compression);
+	return get_bit_taken(DATA_TYPE_UNIT_REAL, p_compression);
 }
 
 int DataBuffer::get_vector2_size(CompressionLevel p_compression) const {
-	return DataBuffer::get_bit_taken(DATA_TYPE_VECTOR2, p_compression);
+	return get_bit_taken(DATA_TYPE_VECTOR2, p_compression);
 }
 
 int DataBuffer::get_normalized_vector2_size(CompressionLevel p_compression) const {
-	return DataBuffer::get_bit_taken(DATA_TYPE_NORMALIZED_VECTOR2, p_compression);
+	return get_bit_taken(DATA_TYPE_NORMALIZED_VECTOR2, p_compression);
 }
 
 int DataBuffer::get_vector3_size(CompressionLevel p_compression) const {
-	return DataBuffer::get_bit_taken(DATA_TYPE_VECTOR3, p_compression);
+	return get_bit_taken(DATA_TYPE_VECTOR3, p_compression);
 }
 
 int DataBuffer::get_normalized_vector3_size(CompressionLevel p_compression) const {
-	return DataBuffer::get_bit_taken(DATA_TYPE_NORMALIZED_VECTOR3, p_compression);
+	return get_bit_taken(DATA_TYPE_NORMALIZED_VECTOR3, p_compression);
 }
 
 int DataBuffer::read_bool_size() {
@@ -1151,7 +1163,7 @@ int DataBuffer::read_buffer_size() {
 	return other_db_bit_size;
 }
 
-int DataBuffer::get_bit_taken(DataType p_data_type, CompressionLevel p_compression) {
+int DataBuffer::get_bit_taken(DataType p_data_type, CompressionLevel p_compression) const {
 	switch (p_data_type) {
 		case DATA_TYPE_BOOL:
 			// No matter what, 1 bit.

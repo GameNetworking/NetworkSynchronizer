@@ -66,7 +66,7 @@ void LocalNetwork::register_object(LocalNetworkInterface &p_interface) {
 	registered_objects.insert(std::make_pair(p_interface.get_owner_name(), &p_interface));
 }
 
-void LocalNetwork::rpc_send(std::string p_object_name, int p_peer_recipient, bool p_reliable, NS::DataBuffer &&p_data_buffer) {
+void LocalNetwork::rpc_send(std::string p_object_name, int p_peer_recipient, bool p_reliable, DataBuffer &&p_data_buffer) {
 	auto object_map_it = registered_objects.find(p_object_name);
 	NS_ASSERT_COND(object_map_it != registered_objects.end());
 
@@ -186,7 +186,7 @@ bool LocalNetworkInterface::is_local_peer_server() const {
 	return network->get_peer() == 1;
 }
 
-void LocalNetworkInterface::rpc_send(int p_peer_recipient, bool p_reliable, NS::DataBuffer &&p_data_buffer) {
+void LocalNetworkInterface::rpc_send(int p_peer_recipient, bool p_reliable, DataBuffer &&p_data_buffer) {
 	NS_ENSURE(network);
 	network->rpc_send(get_owner_name(), p_peer_recipient, p_reliable, std::move(p_data_buffer));
 }

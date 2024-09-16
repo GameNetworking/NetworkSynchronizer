@@ -2,13 +2,30 @@
 
 #include <vector>
 
+namespace NS {
+class SceneSynchronizerDebugger;
+}
+
 class BitArray {
+	NS::SceneSynchronizerDebugger *debugger = nullptr;
 	std::vector<std::uint8_t> bytes;
 
 public:
-	BitArray() = default;
-	BitArray(std::uint32_t p_initial_size_in_bit);
-	BitArray(const std::vector<std::uint8_t> &p_bytes);
+	BitArray() = default; // Use this with care: Not initializing the debugger will cause a crash
+	BitArray(const BitArray &p_other) = default;
+	BitArray(NS::SceneSynchronizerDebugger &p_debugger);
+	BitArray(NS::SceneSynchronizerDebugger &p_debugger, std::uint32_t p_initial_size_in_bit);
+	BitArray(NS::SceneSynchronizerDebugger &p_debugger, const std::vector<std::uint8_t> &p_bytes);
+
+	void operator=(const BitArray &p_other);
+
+	void set_debugger(NS::SceneSynchronizerDebugger &p_debugger) {
+		debugger = &p_debugger;
+	}
+
+	NS::SceneSynchronizerDebugger &get_debugger() const {
+		return *debugger;
+	}
 
 	const std::vector<std::uint8_t> &get_bytes() const {
 		return bytes;

@@ -2,7 +2,9 @@
 
 #include "core/network_interface.h"
 #include "core/object_data_storage.h"
+#include "core/scene_synchronizer_debugger.h"
 #include "core/processor.h"
+#include "core/net_utilities.h"
 #include "core/snapshot.h"
 #include <deque>
 #include <map>
@@ -30,7 +32,7 @@ public:
 #endif
 
 	/// Add object data and generates the `ObjectNetId` if allowed.
-	virtual void on_add_object_data(struct ObjectData &p_object_data) {
+	virtual void on_add_object_data(ObjectData &p_object_data) {
 	}
 
 	virtual void on_drop_object_data(ObjectData &p_object_data) {
@@ -56,7 +58,7 @@ public:
 			/// and contains the indices of the simulated objects info that you
 			/// can use to retrieve the ObjectData using `p_group->get_simulated_sync_objects()[index].od`.
 			const std::vector<std::size_t> &p_partial_update_simulated_objects_info_indices,
-			struct VarData &r_custom_data) {
+			VarData &r_custom_data) {
 		return false;
 	}
 
@@ -69,8 +71,8 @@ public:
 	/// from the server.
 	virtual bool snapshot_merge_custom_data_for_partial_update(
 			const std::vector<ObjectNetId> &p_partial_update_objects,
-			struct VarData &r_custom_data,
-			const struct VarData &p_custom_data_from_server_snapshot) {
+			VarData &r_custom_data,
+			const VarData &p_custom_data_from_server_snapshot) {
 		return false;
 	}
 
@@ -190,8 +192,8 @@ public:
 	};
 
 protected:
-	static void (*var_data_encode_func)(class DataBuffer &r_buffer, const NS::VarData &p_val);
-	static void (*var_data_decode_func)(NS::VarData &r_val, DataBuffer &p_buffer, std::uint8_t p_var_type);
+	static void (*var_data_encode_func)(class DataBuffer &r_buffer, const VarData &p_val);
+	static void (*var_data_decode_func)(VarData &r_val, DataBuffer &p_buffer, std::uint8_t p_var_type);
 	static bool (*var_data_compare_func)(const VarData &p_A, const VarData &p_B);
 	static std::string (*var_data_stringify_func)(const VarData &p_var_data, bool p_verbose);
 
@@ -353,8 +355,8 @@ public:
 
 public: // -------------------------------------------------------- Manager APIs
 	static void install_synchronizer(
-			void (*p_var_data_encode_func)(DataBuffer &r_buffer, const NS::VarData &p_val),
-			void (*p_var_data_decode_func)(NS::VarData &r_val, DataBuffer &p_buffer, std::uint8_t p_variable_type),
+			void (*p_var_data_encode_func)(DataBuffer &r_buffer, const VarData &p_val),
+			void (*p_var_data_decode_func)(VarData &r_val, DataBuffer &p_buffer, std::uint8_t p_variable_type),
 			bool (*p_var_data_compare_func)(const VarData &p_A, const VarData &p_B),
 			std::string (*p_var_data_stringify_func)(const VarData &p_var_data, bool p_verbose),
 			void (*p_print_line_func)(const std::string &p_str),
@@ -374,12 +376,12 @@ public: // -------------------------------------------------------- Manager APIs
 	void on_app_object_removed(ObjectHandle p_app_object_handle);
 
 public:
-	static void var_data_encode(DataBuffer &r_buffer, const NS::VarData &p_val, std::uint8_t p_variable_type);
-	static void var_data_decode(NS::VarData &r_val, DataBuffer &p_buffer, std::uint8_t p_variable_type);
+	static void var_data_encode(DataBuffer &r_buffer, const VarData &p_val, std::uint8_t p_variable_type);
+	static void var_data_decode(VarData &r_val, DataBuffer &p_buffer, std::uint8_t p_variable_type);
 	static bool var_data_compare(const VarData &p_A, const VarData &p_B);
 	static std::string var_data_stringify(const VarData &p_var_data, bool p_verbose = false);
 	static void __print_line(const std::string &p_str);
-	static void print_code_message(const char *p_function, const char *p_file, int p_line, const std::string &p_error, const std::string &p_message, NS::PrintMessageType p_type);
+	static void print_code_message(SceneSynchronizerDebugger *p_debugger, const char *p_function, const char *p_file, int p_line, const std::string &p_error, const std::string &p_message, NS::PrintMessageType p_type);
 	static void print_flush_stdout();
 
 	NS::NetworkInterface &get_network_interface() {
@@ -611,7 +613,7 @@ public: // ---------------------------------------------------------------- APIs
 	float sync_group_get_simulated_partial_update_timespan_seconds(ObjectLocalId p_id, SyncGroupId p_group_id) const;
 
 	/// Use `std::move()` to transfer `p_new_realtime_object` and `p_new_trickled_objects`.
-	void sync_group_replace_objects(SyncGroupId p_group_id, std::vector<NS::SyncGroup::SimulatedObjectInfo> &&p_new_realtime_objects, std::vector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_objects);
+	void sync_group_replace_objects(SyncGroupId p_group_id, std::vector<SyncGroup::SimulatedObjectInfo> &&p_new_realtime_objects, std::vector<SyncGroup::TrickledObjectInfo> &&p_new_trickled_objects);
 
 	void sync_group_remove_all_objects(SyncGroupId p_group_id);
 	void sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id);
@@ -668,6 +670,10 @@ public: // ---------------------------------------------------------------- APIs
 
 	const std::vector<SimulatedObjectInfo> *client_get_simulated_objects() const;
 	bool client_is_simulated_object(ObjectLocalId p_id) const;
+
+	SceneSynchronizerDebugger &get_debugger() const {
+		return network_interface->get_debugger();
+	};
 
 public: // ------------------------------------------------------------ INTERNAL
 	void try_fetch_unnamed_objects_data_names();
@@ -761,6 +767,10 @@ public:
 	}
 
 	virtual const std::vector<ObjectData *> &get_active_objects() const = 0;
+
+	SceneSynchronizerDebugger &get_debugger() const {
+		return scene_synchronizer->get_debugger();
+	}
 };
 
 class NoNetSynchronizer final : public Synchronizer {
@@ -798,7 +808,7 @@ class ServerSynchronizer final : public Synchronizer {
 	float objects_relevancy_update_timer = 0.0;
 	uint32_t epoch = 0;
 	/// This array contains a map between the peers and the relevant objects.
-	std::vector<NS::SyncGroup> sync_groups;
+	std::vector<SyncGroup> sync_groups;
 	std::vector<ObjectData *> active_objects;
 
 	enum class SnapshotObjectGeneratorMode {
@@ -832,7 +842,7 @@ public:
 
 	SyncGroupId sync_group_create();
 	/// IMPORTANT: The pointer returned is invalid at the end of the scope executing this function. Never store it.
-	const NS::SyncGroup *sync_group_get(SyncGroupId p_group_id) const;
+	const SyncGroup *sync_group_get(SyncGroupId p_group_id) const;
 
 	void sync_group_add_object(ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime);
 	void sync_group_remove_object(ObjectData *p_object_data, SyncGroupId p_group_id);
@@ -840,7 +850,7 @@ public:
 	void sync_group_set_simulated_partial_update_timespan_seconds(const ObjectData &p_object_data, SyncGroupId p_group_id, bool p_partial_update_enabled, float p_update_timespan);
 	bool sync_group_is_simulated_partial_updating(const ObjectData &p_object_data, SyncGroupId p_group_id) const;
 	float sync_group_get_simulated_partial_update_timespan_seconds(const ObjectData &p_object_data, SyncGroupId p_group_id) const;
-	void sync_group_replace_object(SyncGroupId p_group_id, std::vector<SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, std::vector<NS::SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes);
+	void sync_group_replace_object(SyncGroupId p_group_id, std::vector<SyncGroup::SimulatedObjectInfo> &&p_new_realtime_nodes, std::vector<SyncGroup::TrickledObjectInfo> &&p_new_trickled_nodes);
 	void sync_group_remove_all_objects(SyncGroupId p_group_id);
 	void sync_group_move_peer_to(int p_peer_id, SyncGroupId p_group_id);
 	void sync_group_update(int p_peer_id);
@@ -947,7 +957,7 @@ public:
 	std::vector<EndSyncEvent> sync_end_events;
 
 	struct TrickledSyncInterpolationData {
-		NS::ObjectData *od = nullptr;
+		ObjectData *od = nullptr;
 		DataBuffer past_epoch_buffer;
 		DataBuffer future_epoch_buffer;
 
@@ -956,16 +966,16 @@ public:
 		float epochs_timespan = 1.0;
 		float alpha = 0.0;
 
-		TrickledSyncInterpolationData() = default;
+		TrickledSyncInterpolationData() = delete;
 
 		TrickledSyncInterpolationData(const TrickledSyncInterpolationData &p_dss) :
 			od(p_dss.od),
+			past_epoch_buffer(p_dss.past_epoch_buffer),
+			future_epoch_buffer(p_dss.future_epoch_buffer),
 			past_epoch(p_dss.past_epoch),
 			future_epoch(p_dss.future_epoch),
 			epochs_timespan(p_dss.epochs_timespan),
 			alpha(p_dss.alpha) {
-			past_epoch_buffer.copy(p_dss.past_epoch_buffer);
-			future_epoch_buffer.copy(p_dss.future_epoch_buffer);
 		}
 
 		TrickledSyncInterpolationData &operator=(const TrickledSyncInterpolationData &p_dss) {
@@ -979,13 +989,19 @@ public:
 			return *this;
 		}
 
-		TrickledSyncInterpolationData(
-				NS::ObjectData *p_nd) :
-			od(p_nd) {
+		TrickledSyncInterpolationData(SceneSynchronizerDebugger &p_debugger) :
+			past_epoch_buffer(p_debugger),
+			future_epoch_buffer(p_debugger) {
+		}
+
+		TrickledSyncInterpolationData(ObjectData *p_nd, SceneSynchronizerDebugger &p_debugger) :
+			od(p_nd),
+			past_epoch_buffer(p_debugger),
+			future_epoch_buffer(p_debugger) {
 		}
 
 		TrickledSyncInterpolationData(
-				NS::ObjectData *p_nd,
+				ObjectData *p_nd,
 				DataBuffer p_past_epoch_buffer,
 				DataBuffer p_future_epoch_buffer) :
 			od(p_nd),

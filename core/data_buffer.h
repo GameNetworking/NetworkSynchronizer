@@ -125,9 +125,13 @@ private:
 #endif
 
 public:
-	DataBuffer() = default;
+	DataBuffer() = default; // Use this with care: Not initialising the debugger will cause a crash.
 	DataBuffer(const DataBuffer &p_other);
 	DataBuffer(const BitArray &p_buffer);
+
+	class SceneSynchronizerDebugger &get_debugger() const {
+		return buffer.get_debugger();
+	}
 
 	//DataBuffer &operator=(DataBuffer &&p_other);
 	bool operator==(const DataBuffer &p_other) const;
@@ -144,7 +148,7 @@ public:
 	}
 
 	/// Begin write.
-	void begin_write(int p_metadata_size);
+	void begin_write(class SceneSynchronizerDebugger &p_debugger, int p_metadata_size);
 
 	/// Make sure the buffer takes least space possible.
 	void dry();
@@ -170,7 +174,7 @@ public:
 	void skip(int p_bits);
 
 	/// Begin read.
-	void begin_read();
+	void begin_read(class SceneSynchronizerDebugger &p_debugger);
 
 	bool is_buffer_failed() const {
 		return buffer_failed;
@@ -379,7 +383,7 @@ public:
 	int read_normalized_vector3_size(CompressionLevel p_compression);
 	int read_buffer_size();
 
-	static int get_bit_taken(DataType p_data_type, CompressionLevel p_compression);
+	int get_bit_taken(DataType p_data_type, CompressionLevel p_compression) const;
 	template <typename T>
 	static T get_real_epsilon(DataType p_data_type, CompressionLevel p_compression);
 

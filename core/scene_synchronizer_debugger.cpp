@@ -8,41 +8,28 @@
 #endif
 
 #include "data_buffer.h"
-#include "net_utilities.h"
 #include "scene_synchronizer_debugger_json_storage.h"
 
 #endif
 
 #include "../scene_synchronizer.h"
 
-SceneSynchronizerDebugger *SceneSynchronizerDebugger::the_singleton = nullptr;
-
-SceneSynchronizerDebugger *SceneSynchronizerDebugger::singleton() {
-	return the_singleton;
-}
-
-void SceneSynchronizerDebugger::__set_singleton(SceneSynchronizerDebugger *p_singleton) {
-	the_singleton = p_singleton;
-}
-
+NS_NAMESPACE_BEGIN
 SceneSynchronizerDebugger::SceneSynchronizerDebugger() {
-	if (the_singleton == nullptr) {
-		the_singleton = this;
-	}
 #ifdef NS_DEBUG_ENABLED
 	frame_dump_storage = new SceneSynchronizerDebuggerJsonStorage;
 #endif
 }
 
 SceneSynchronizerDebugger::~SceneSynchronizerDebugger() {
-	if (the_singleton == this) {
-		the_singleton = nullptr;
-	}
-
 #ifdef NS_DEBUG_ENABLED
 	delete frame_dump_storage;
 	frame_dump_storage = nullptr;
 #endif
+}
+
+SceneSynchronizerDebugger &SceneSynchronizerDebugger::get_debugger() const {
+	return *const_cast<SceneSynchronizerDebugger *>(this);
 }
 
 void SceneSynchronizerDebugger::set_file_system(NS::FileSystem *p_file_system) {
@@ -97,7 +84,7 @@ void SceneSynchronizerDebugger::prepare_dumping(int p_peer) {
 		return;
 	}
 
-	NS_ENSURE_MSG(!file_system, "Please set the FileSystem using the function set_file_system().");
+	NS_ENSURE_MSG(file_system, "Please set the FileSystem using the function set_file_system().");
 
 	// Prepare the dir.
 	{
@@ -124,7 +111,7 @@ void SceneSynchronizerDebugger::prepare_dumping(int p_peer) {
 void SceneSynchronizerDebugger::setup_debugger_python_ui() {
 #ifdef UI_DEBUGGER_ENABLED
 #ifdef NS_DEBUG_ENABLED
-	NS_ENSURE_MSG(!file_system, "Please set the FileSystem using the function set_file_system().");
+	NS_ENSURE_MSG(file_system, "Please set the FileSystem using the function set_file_system().");
 
 	// Verify if file exists.
 	const std::string path = main_dump_directory_path + "/debugger.py";
@@ -151,7 +138,7 @@ void SceneSynchronizerDebugger::write_dump(int p_peer, uint32_t p_frame_index) {
 		return;
 	}
 
-	NS_ENSURE_MSG(!file_system, "Please set the FileSystem using the function set_file_system().");
+	NS_ENSURE_MSG(file_system, "Please set the FileSystem using the function set_file_system().");
 
 	std::string file_path = "";
 	{
@@ -207,94 +194,6 @@ void SceneSynchronizerDebugger::start_new_frame() {
 }
 
 #ifdef NS_DEBUG_ENABLED
-/*
-std::string type_to_string(Variant::Type p_type) {
-	switch (p_type) {
-		case Variant::NIL:
-			return "NIL";
-		case Variant::BOOL:
-			return "BOOL";
-		case Variant::INT:
-			return "INT";
-		case Variant::FLOAT:
-			return "FLOAT";
-		case Variant::STRING:
-			return "STRING";
-		case Variant::VECTOR2:
-			return "VECTOR2";
-		case Variant::VECTOR2I:
-			return "VECTOR2I";
-		case Variant::RECT2:
-			return "RECT2";
-		case Variant::RECT2I:
-			return "RECT2I";
-		case Variant::VECTOR3:
-			return "VECTOR3";
-		case Variant::VECTOR3I:
-			return "VECTOR3I";
-		case Variant::TRANSFORM2D:
-			return "TRANSFORM2D";
-		case Variant::VECTOR4:
-			return "VECTOR4";
-		case Variant::VECTOR4I:
-			return "VECTOR4I";
-		case Variant::PLANE:
-			return "PLANE";
-		case Variant::QUATERNION:
-			return "QUATERNION";
-		case Variant::AABB:
-			return "AABB";
-		case Variant::BASIS:
-			return "BASIS";
-		case Variant::TRANSFORM3D:
-			return "TRANSFORM3D";
-		case Variant::PROJECTION:
-			return "PROJECTION";
-		case Variant::COLOR:
-			return "COLOR";
-		case Variant::STRING_NAME:
-			return "STRING_NAME";
-		case Variant::NODE_PATH:
-			return "NODE_PATH";
-		case Variant::RID:
-			return "RID";
-		case Variant::OBJECT:
-			return "OBJECT";
-		case Variant::CALLABLE:
-			return "CALLABLE";
-		case Variant::SIGNAL:
-			return "SIGNAL";
-		case Variant::DICTIONARY:
-			return "DICTIONARY";
-		case Variant::ARRAY:
-			return "ARRAY";
-		case Variant::PACKED_BYTE_ARRAY:
-			return "PACKED_BYTE_ARRAY";
-		case Variant::PACKED_INT32_ARRAY:
-			return "PACKED_INT32_ARRAY";
-		case Variant::PACKED_INT64_ARRAY:
-			return "PACKED_INT64_ARRAY";
-		case Variant::PACKED_FLOAT32_ARRAY:
-			return "PACKED_FLOAT32_ARRAY";
-		case Variant::PACKED_FLOAT64_ARRAY:
-			return "PACKED_FLOAT64_ARRAY";
-		case Variant::PACKED_STRING_ARRAY:
-			return "PACKED_STRING_ARRAY";
-		case Variant::PACKED_VECTOR2_ARRAY:
-			return "PACKED_VECTOR2_ARRAY";
-		case Variant::PACKED_VECTOR3_ARRAY:
-			return "PACKED_VECTOR3_ARRAY";
-		case Variant::PACKED_COLOR_ARRAY:
-			return "PACKED_COLOR_ARRAY";
-		case Variant::PACKED_VECTOR4_ARRAY:
-			return "PACKED_VECTOR4_ARRAY";
-		case Variant::VARIANT_MAX:
-			return "VARIANT_MAX";
-	}
-	return "";
-}
-*/
-
 std::string data_type_to_string(uint32_t p_type) {
 	switch (p_type) {
 		case NS::DataBuffer::DATA_TYPE_BOOL:
@@ -341,33 +240,55 @@ std::string compression_level_to_string(uint32_t p_type) {
 #endif
 
 #ifdef NS_DEBUG_ENABLED
-void dump_tracked_objects(const NS::SceneSynchronizerBase *p_scene_sync, nlohmann::json::object_t &p_dump) {
+void dump_tracked_objects(SceneSynchronizerBase &p_scene_sync, nlohmann::json::object_t &p_dump) {
 	p_dump.clear();
 
-	/*
-	for (uint32_t i = 0; i < tracked_nodes.size(); i += 1) {
+	for (ObjectData *od : p_scene_sync.get_sorted_objects_data()) {
 		nlohmann::json object_dump;
 
-		std::string node_path = String(tracked_nodes[i].node->get_path()).utf8().ptr();
-		object_dump["node_path"] = node_path;
+		const std::string object_name = p_scene_sync.get_synchronizer_manager().fetch_object_name(od->app_object_handle);
+		object_dump["object_name"] = object_name;
 
-		for (List<PropertyInfo>::Element *e = tracked_nodes[i].properties->front(); e; e = e->next()) {
+		for (VarDescriptor &var_desc : od->vars) {
 			std::string prefix;
-			// TODO the below cast is an unsafe cast. Please refactor this.
-			if (p_scene_sync->is_variable_registered(p_scene_sync->find_object_local_id({ reinterpret_cast<std::intptr_t>(tracked_nodes[i].node) }), std::string(e->get().name.utf8()))) {
+			// Notice at the moment we are reading only the registered vars, so this is always true.
+			// In the past we were also reading all other variables associated to this class.
+			const bool is_variable_registered_as_sync = true;
+			if (is_variable_registered_as_sync) {
 				prefix = "* ";
 			}
 
-			object_dump[prefix + String(e->get().name).utf8().ptr() + "::" + type_to_string(e->get().type)] = tracked_nodes[i].node->get(e->get().name).stringify().utf8().ptr();
+			VarData value;
+			var_desc.get_func(
+					p_scene_sync.get_synchronizer_manager(),
+					od->app_object_handle,
+					var_desc.var.name,
+					value);
+			object_dump[prefix + var_desc.var.name + "::" + std::to_string(var_desc.type)] = p_scene_sync.var_data_stringify(value, true);
 		}
 
-		p_dump[node_path] = object_dump;
+		p_dump[object_name] = object_dump;
 	}
-	*/
+
+	// Data buffer.
+	{
+		nlohmann::json object_dump;
+
+		VarData custom_data;
+		const bool has_custom_data = p_scene_sync.get_synchronizer_manager().snapshot_get_custom_data(
+				p_scene_sync.is_client() ? nullptr : p_scene_sync.sync_group_get(SyncGroupId::GLOBAL),
+				false,
+				std::vector<size_t>(),
+				custom_data);
+		if (has_custom_data) {
+			object_dump["Buffer"] = p_scene_sync.var_data_stringify(custom_data, true);
+		}
+		p_dump["CustomData"] = object_dump;
+	}
 }
 #endif
 
-void SceneSynchronizerDebugger::scene_sync_process_start(const NS::SceneSynchronizerBase *p_scene_sync) {
+void SceneSynchronizerDebugger::scene_sync_process_start(SceneSynchronizerBase &p_scene_sync) {
 #ifdef NS_DEBUG_ENABLED
 	if (!dump_enabled) {
 		return;
@@ -377,7 +298,7 @@ void SceneSynchronizerDebugger::scene_sync_process_start(const NS::SceneSynchron
 #endif
 }
 
-void SceneSynchronizerDebugger::scene_sync_process_end(const NS::SceneSynchronizerBase *p_scene_sync) {
+void SceneSynchronizerDebugger::scene_sync_process_end(SceneSynchronizerBase &p_scene_sync) {
 #ifdef NS_DEBUG_ENABLED
 	if (!dump_enabled) {
 		return;
@@ -527,3 +448,5 @@ void SceneSynchronizerDebugger::__add_message(const std::string &p_message, cons
 	log_counter += 1;
 #endif
 }
+
+NS_NAMESPACE_END

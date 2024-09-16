@@ -30,7 +30,7 @@ struct PendingPacket {
 	float delay = 0.0;
 	int peer_recipient = -1;
 	std::string object_name;
-	NS::DataBuffer data_buffer;
+	DataBuffer data_buffer;
 };
 
 class LocalNetwork {
@@ -48,8 +48,8 @@ class LocalNetwork {
 public:
 	LocalNetworkProps *network_properties = nullptr;
 
-	NS::Processor<int> connected_event;
-	NS::Processor<int> disconnected_event;
+	Processor<int> connected_event;
+	Processor<int> disconnected_event;
 
 public:
 	int get_peer() const;
