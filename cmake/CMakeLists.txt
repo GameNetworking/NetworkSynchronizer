@@ -24,7 +24,7 @@ option(USE_STATIC_MSVC_RUNTIME_LIBRARY "Use the static MSVC runtime library" ON)
 # Windows Store only supports the DLL version
 option(BUILD_MSVC_MD "In MSVC build the library using MD." ON)
 
-# TODO please turn this off by default
+# Enables the debugger UI. Allows to debug the data sent and received by any peers to identify bugs.
 option(ENABLE_DEBUGGER_UI "Enables the debugger UI." OFF)
 
 if(ENABLE_DEBUGGER_UI)
