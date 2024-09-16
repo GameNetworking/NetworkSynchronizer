@@ -94,8 +94,8 @@ public:
 	void write_dump(int p_peer, uint32_t p_frame_index);
 	void start_new_frame();
 
-	void scene_sync_process_start(const SceneSynchronizerBase *p_scene_sync);
-	void scene_sync_process_end(const SceneSynchronizerBase *p_scene_sync);
+	void scene_sync_process_start(SceneSynchronizerBase &p_scene_sync);
+	void scene_sync_process_end(SceneSynchronizerBase &p_scene_sync);
 
 	void databuffer_operation_begin_record(int p_peer, DataBufferDumpMode p_mode);
 	void databuffer_operation_end_record();

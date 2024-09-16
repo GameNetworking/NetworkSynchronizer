@@ -1833,13 +1833,13 @@ void NoNetSynchronizer::process(float p_delta) {
 		const uint32_t frame_index = frame_count;
 		frame_count += 1;
 
-		scene_synchronizer->get_debugger().scene_sync_process_start(scene_synchronizer);
+		scene_synchronizer->get_debugger().scene_sync_process_start(*scene_synchronizer);
 
 		// Process the scene.
 		scene_synchronizer->process_functions__execute();
 		scene_synchronizer->detect_and_signal_changed_variables(NetEventFlag::CHANGE);
 
-		scene_synchronizer->get_debugger().scene_sync_process_end(scene_synchronizer);
+		scene_synchronizer->get_debugger().scene_sync_process_end(*scene_synchronizer);
 		scene_synchronizer->get_debugger().write_dump(0, frame_index);
 		scene_synchronizer->get_debugger().start_new_frame();
 	}
@@ -1907,7 +1907,7 @@ void ServerSynchronizer::process(float p_delta) {
 	for (int i = 0; i < sub_process_count; i++) {
 		epoch += 1;
 
-		scene_synchronizer->get_debugger().scene_sync_process_start(scene_synchronizer);
+		scene_synchronizer->get_debugger().scene_sync_process_start(*scene_synchronizer);
 
 		// Process the scene
 		scene_synchronizer->process_functions__execute();
@@ -1915,7 +1915,7 @@ void ServerSynchronizer::process(float p_delta) {
 
 		process_snapshot_notificator();
 
-		scene_synchronizer->get_debugger().scene_sync_process_end(scene_synchronizer);
+		scene_synchronizer->get_debugger().scene_sync_process_end(*scene_synchronizer);
 
 #if NS_DEBUG_ENABLED
 		// Write the debug dump for each peer.
@@ -3441,7 +3441,7 @@ void ClientSynchronizer::process_simulation(float p_delta) {
 		NS_PROFILE_NAMED_WITH_INFO("PROCESS", sub_perf_info)
 #endif
 		scene_synchronizer->get_debugger().print(VERBOSE, "ClientSynchronizer::process::sub_process " + std::to_string(sub_ticks), scene_synchronizer->get_network_interface().get_owner_name());
-		scene_synchronizer->get_debugger().scene_sync_process_start(scene_synchronizer);
+		scene_synchronizer->get_debugger().scene_sync_process_start(*scene_synchronizer);
 
 		// Process the scene.
 		scene_synchronizer->process_functions__execute();
@@ -3453,7 +3453,7 @@ void ClientSynchronizer::process_simulation(float p_delta) {
 		}
 
 		sub_ticks -= 1;
-		scene_synchronizer->get_debugger().scene_sync_process_end(scene_synchronizer);
+		scene_synchronizer->get_debugger().scene_sync_process_end(*scene_synchronizer);
 
 #if NS_DEBUG_ENABLED
 		if (sub_ticks > 0) {

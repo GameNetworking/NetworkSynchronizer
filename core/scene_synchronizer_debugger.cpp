@@ -240,13 +240,13 @@ std::string compression_level_to_string(uint32_t p_type) {
 #endif
 
 #ifdef NS_DEBUG_ENABLED
-void dump_tracked_objects(const SceneSynchronizerBase *p_scene_sync, nlohmann::json::object_t &p_dump) {
+void dump_tracked_objects(SceneSynchronizerBase &p_scene_sync, nlohmann::json::object_t &p_dump) {
 	p_dump.clear();
 
-	for (ObjectData *od : p_scene_sync->get_sorted_objects_data()) {
+	for (ObjectData *od : p_scene_sync.get_sorted_objects_data()) {
 		nlohmann::json object_dump;
 
-		const std::string object_name = p_scene_sync->get_synchronizer_manager().fetch_object_name(od->app_object_handle);
+		const std::string object_name = p_scene_sync.get_synchronizer_manager().fetch_object_name(od->app_object_handle);
 		object_dump["object_name"] = object_name;
 
 		for (VarDescriptor &var_desc : od->vars) {
@@ -260,19 +260,35 @@ void dump_tracked_objects(const SceneSynchronizerBase *p_scene_sync, nlohmann::j
 
 			VarData value;
 			var_desc.get_func(
-					p_scene_sync->get_synchronizer_manager(),
+					p_scene_sync.get_synchronizer_manager(),
 					od->app_object_handle,
 					var_desc.var.name,
 					value);
-			object_dump[prefix + var_desc.var.name + "::" + std::to_string(var_desc.type)] = p_scene_sync->var_data_stringify(value, true);
+			object_dump[prefix + var_desc.var.name + "::" + std::to_string(var_desc.type)] = p_scene_sync.var_data_stringify(value, true);
 		}
 
 		p_dump[object_name] = object_dump;
 	}
+
+	// Data buffer.
+	{
+		nlohmann::json object_dump;
+
+		VarData custom_data;
+		const bool has_custom_data = p_scene_sync.get_synchronizer_manager().snapshot_get_custom_data(
+				p_scene_sync.is_client() ? nullptr : p_scene_sync.sync_group_get(SyncGroupId::GLOBAL),
+				false,
+				std::vector<size_t>(),
+				custom_data);
+		if (has_custom_data) {
+			object_dump["Buffer"] = p_scene_sync.var_data_stringify(custom_data, true);
+		}
+		p_dump["CustomData"] = object_dump;
+	}
 }
 #endif
 
-void SceneSynchronizerDebugger::scene_sync_process_start(const SceneSynchronizerBase *p_scene_sync) {
+void SceneSynchronizerDebugger::scene_sync_process_start(SceneSynchronizerBase &p_scene_sync) {
 #ifdef NS_DEBUG_ENABLED
 	if (!dump_enabled) {
 		return;
@@ -282,7 +298,7 @@ void SceneSynchronizerDebugger::scene_sync_process_start(const SceneSynchronizer
 #endif
 }
 
-void SceneSynchronizerDebugger::scene_sync_process_end(const NS::SceneSynchronizerBase *p_scene_sync) {
+void SceneSynchronizerDebugger::scene_sync_process_end(SceneSynchronizerBase &p_scene_sync) {
 #ifdef NS_DEBUG_ENABLED
 	if (!dump_enabled) {
 		return;
