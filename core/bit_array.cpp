@@ -4,6 +4,7 @@
 #include <string.h> // Needed to include `memset` in linux.
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 
 BitArray::BitArray(NS::SceneSynchronizerDebugger &p_debugger):
 	debugger(&p_debugger) {

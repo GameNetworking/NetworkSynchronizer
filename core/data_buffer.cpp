@@ -7,6 +7,7 @@
 
 // Using explicit declaration because std::numeric_limits<int16_t>::max() etc..
 // may return different value depending on the compiler used.
+#if defined(_WIN32) || defined(_WIN64)
 #define NS__INT8_MIN (-127i8 - 1)
 #define NS__INT16_MIN (-32767i16 - 1)
 #define NS__INT32_MIN (-2147483647i32 - 1)
@@ -19,6 +20,20 @@
 #define NS__UINT16_MAX 0xffffui16
 #define NS__UINT32_MAX 0xffffffffui32
 #define NS__UINT64_MAX 0xffffffffffffffffui64
+#else
+#define NS__INT8_MIN (-128)
+#define NS__INT16_MIN (-32767-1)
+#define NS__INT32_MIN (-2147483647-1)
+#define NS__INT64_MIN (-__INT64_C(9223372036854775807)-1)
+#define NS__INT8_MAX (127)
+#define NS__INT16_MAX (32767)
+#define NS__INT32_MAX (2147483647)
+#define NS__INT64_MAX (__INT64_C(9223372036854775807))
+#define NS__UINT8_MAX (255)
+#define NS__UINT16_MAX (65535)
+#define NS__UINT32_MAX (4294967295U)
+#define NS__UINT64_MAX (__UINT64_C(18446744073709551615))
+#endif
 
 #ifdef NS_DEBUG_ENABLED
 #define DEBUG_DATA_BUFFER
