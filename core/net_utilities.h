@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <map>
+#include <limits>
 
 #ifdef TRACY_ENABLE
 

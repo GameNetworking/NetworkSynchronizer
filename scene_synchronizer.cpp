@@ -579,7 +579,7 @@ VarId SceneSynchronizerBase::get_variable_id(ObjectLocalId p_id, const std::stri
 	NS_ENSURE_V(p_variable != "", VarId::NONE);
 
 	NS::ObjectData *od = get_object_data(p_id);
-	NS_ENSURE_V_MSG(od, VarId::NONE, "This node " + od->get_object_name() + "is not registered.");
+	NS_ENSURE_V_MSG(od, VarId::NONE, "This node " + p_id + "is not registered.");
 
 	return od->find_variable_id(p_variable);
 }

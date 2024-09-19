@@ -4,6 +4,7 @@
 #include "fp16.h"
 #include "net_math.h"
 #include "scene_synchronizer_debugger.h"
+#include <cstring> // memcpy
 
 #ifdef NS_DEBUG_ENABLED
 #define DEBUG_DATA_BUFFER

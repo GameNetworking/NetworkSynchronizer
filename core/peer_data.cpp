@@ -1,6 +1,7 @@
 #include "peer_data.h"
 
 #include <algorithm>
+#include <cmath>
 
 void NS::PeerData::set_latency(float p_latency) {
 	compressed_latency = (std::uint8_t)std::round(std::clamp(p_latency, 0.f, 1000.0f) / 4.0f);

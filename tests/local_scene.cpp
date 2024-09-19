@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <cstring>
 
 NS_NAMESPACE_BEGIN
 LocalSceneObject::~LocalSceneObject() {

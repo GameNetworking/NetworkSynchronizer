@@ -5,6 +5,8 @@
 #include "scene_synchronizer_debugger.h"
 #include <algorithm>
 #include <string>
+#include <cmath>
+#include <cstring>
 
 // The INPUT METADATA stores the input buffer size uint16_t.
 #define METADATA_SIZE (16)

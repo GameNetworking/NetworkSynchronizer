@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <cstdint>
 
 std::string operator+(const char *p_chr, const std::string &p_str);
 
