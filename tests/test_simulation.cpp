@@ -283,7 +283,7 @@ public:
 	}
 
 	float rand_range(float M, float N) {
-		return M + (rand() / (RAND_MAX / (N - M)));
+		return M + (rand() / (float(RAND_MAX) / (N - M)));
 	}
 
 	void do_test() {
