@@ -36,6 +36,8 @@ public:
 
 class LocalSceneSynchronizer : public SceneSynchronizer<LocalSceneObject, LocalNetworkInterface>, public SynchronizerManager, public LocalSceneObject {
 public:
+	ObjectLocalId local_id;
+
 	LocalSceneSynchronizer(bool p_disable_sub_ticking = false);
 	virtual ~LocalSceneSynchronizer();
 

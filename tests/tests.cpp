@@ -6,6 +6,7 @@
 #include "test_processor.h"
 #include "test_scene_synchronizer.h"
 #include "test_simulation.h"
+#include "test_switch_controller.h"
 
 void NS_Test::test_all() {
 	NS::LocalSceneSynchronizer::install_local_scene_sync();
@@ -16,6 +17,7 @@ void NS_Test::test_all() {
 	test_scene_synchronizer();
 	test_simulation();
 	test_doll_simulation();
+	test_switch_controller();
 
 	NS::LocalSceneSynchronizer::uninstall_local_scene_sync();
 }
