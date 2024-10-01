@@ -1980,7 +1980,7 @@ void ServerSynchronizer::on_object_data_name_known(ObjectData &p_object_data) {
 	}
 }
 
-void ServerSynchronizer::on_object_data_controller_changed(NS::ObjectData *p_object_data, int p_previous_controlling_peer) {
+void ServerSynchronizer::on_object_data_controller_changed(ObjectData *p_object_data, int p_previous_controlling_peer) {
 	if (p_object_data->get_controlled_by_peer() == p_previous_controlling_peer) {
 		return;
 	}
@@ -1994,7 +1994,7 @@ void ServerSynchronizer::on_object_data_controller_changed(NS::ObjectData *p_obj
 	}
 }
 
-void ServerSynchronizer::on_variable_added(NS::ObjectData *p_object_data, const std::string &p_var_name) {
+void ServerSynchronizer::on_variable_added(ObjectData *p_object_data, const std::string &p_var_name) {
 #ifdef NS_DEBUG_ENABLED
 	// Can't happen on server
 	NS_ASSERT_COND(!scene_synchronizer->is_recovered());
