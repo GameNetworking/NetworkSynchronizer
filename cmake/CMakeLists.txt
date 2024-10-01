@@ -132,6 +132,7 @@ set(NS_SRC_FILES
 	${NS_ROOT}/core/var_data.h
 	${NS_ROOT}/core/var_data.cpp
 	
+	# TODO disable tests in shipping builds.
 	# Test
 	${NS_ROOT}/tests/local_network.cpp
 	${NS_ROOT}/tests/local_network.h
@@ -149,6 +150,8 @@ set(NS_SRC_FILES
 	${NS_ROOT}/tests/test_scene_synchronizer.h
 	${NS_ROOT}/tests/test_simulation.cpp
 	${NS_ROOT}/tests/test_simulation.h
+	${NS_ROOT}/tests/test_switch_controller.cpp
+	${NS_ROOT}/tests/test_switch_controller.h
 	${NS_ROOT}/tests/tests.cpp
 	${NS_ROOT}/tests/tests.h
 )

@@ -126,7 +126,8 @@ void LocalSceneSynchronizer::on_scene_entry() {
 	register_app_object(to_handle(this));
 }
 
-void LocalSceneSynchronizer::setup_synchronizer(class LocalSceneSynchronizer &p_scene_sync, ObjectLocalId p_id) {
+void LocalSceneSynchronizer::setup_synchronizer(LocalSceneSynchronizer &p_scene_sync, ObjectLocalId p_id) {
+	local_id = p_id;
 }
 
 void LocalSceneSynchronizer::on_scene_exit() {
