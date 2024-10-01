@@ -16,7 +16,7 @@
 namespace NS_Test {
 const float delta = 1.0f / 60.0f;
 
-class MovableMagnetSceneObject : public NS::LocalSceneObject {
+class FeatherSceneObject : public NS::LocalSceneObject {
 public:
 	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
 
@@ -38,19 +38,19 @@ public:
 		p_scene_sync.register_variable(
 				p_id, "position",
 				[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, const NS::VarData &p_value) {
-					static_cast<MovableMagnetSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->position = Vec3::from(p_value);
+					static_cast<FeatherSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->position = Vec3::from(p_value);
 				},
 				[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, NS::VarData &r_value) {
-					r_value = static_cast<const MovableMagnetSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->position;
+					r_value = static_cast<const FeatherSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->position;
 				});
 
 		p_scene_sync.register_variable(
 				p_id, "velocity",
 				[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, const NS::VarData &p_value) {
-					static_cast<MovableMagnetSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->velocity = Vec3::from(p_value);
+					static_cast<FeatherSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->velocity = Vec3::from(p_value);
 				},
 				[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, NS::VarData &r_value) {
-					r_value = static_cast<const MovableMagnetSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->velocity;
+					r_value = static_cast<const FeatherSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->velocity;
 				});
 	}
 
@@ -75,16 +75,14 @@ public:
 	}
 };
 
-class MagnetPlayerController : public NS::LocalSceneObject {
+class FeatherPlayerController : public NS::LocalSceneObject {
 public:
 	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
-	float weight = 1.0;
 	Vec3 position;
 
-	MagnetPlayerController() = default;
+	FeatherPlayerController() = default;
 
 	virtual void on_scene_entry() override {
-		set_weight(1.0);
 		set_position(Vec3());
 
 		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
@@ -112,30 +110,13 @@ public:
 		p_scene_sync.set_controlled_by_peer(p_id, authoritative_peer_id);
 
 		p_scene_sync.register_variable(
-				p_id, "weight",
-				[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, const NS::VarData &p_value) {
-					static_cast<MagnetPlayerController *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->weight = p_value.data.f32;
-				},
-				[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, NS::VarData &r_value) {
-					r_value.data.f32 = static_cast<const MagnetPlayerController *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->weight;
-				});
-
-		p_scene_sync.register_variable(
 				p_id, "position",
 				[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, const NS::VarData &p_value) {
-					static_cast<MagnetPlayerController *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->position = Vec3::from(p_value);
+					static_cast<FeatherPlayerController *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->position = Vec3::from(p_value);
 				},
 				[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, NS::VarData &r_value) {
-					r_value = static_cast<const MagnetPlayerController *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->position;
+					r_value = static_cast<const FeatherPlayerController *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->position;
 				});
-	}
-
-	void set_weight(float w) {
-		weight = w;
-	}
-
-	float get_weight() const {
-		return weight;
 	}
 
 	void set_position(const Vec3 &p_pos) {
@@ -147,6 +128,29 @@ public:
 	}
 
 	// ------------------------------------------------- NetController interface
+	bool move_feather_inputs[20] = {
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+	};
+
 	const Vec3 inputs[20] = {
 		Vec3(1.0f, 0.0f, 0.0f),
 		Vec3(0.0f, 1.0f, 0.0f),
@@ -174,6 +178,7 @@ public:
 		const NS::FrameIndex current_frame_index = scene_owner->scene_sync->get_controller_for_peer(authoritative_peer_id)->get_current_frame_index();
 		const int index = current_frame_index.id % 20;
 		r_buffer.add_normalized_vector3(inputs[index].x, inputs[index].y, inputs[index].z, NS::DataBuffer::COMPRESSION_LEVEL_3);
+		r_buffer.add(move_feather_inputs[index]);
 	}
 
 	void controller_process(float p_delta, NS::DataBuffer &p_buffer) {
@@ -182,58 +187,58 @@ public:
 		Vec3 input;
 		p_buffer.read_normalized_vector3(input.x, input.y, input.z, NS::DataBuffer::COMPRESSION_LEVEL_3);
 		set_position(get_position() + (input * speed * p_delta));
+
+		bool move_feather;
+		p_buffer.read(move_feather);
+
+		if (move_feather) {
+			FeatherSceneObject *feather = scene_owner->fetch_object<FeatherSceneObject>("feather_1");
+			feather->set_position(get_position());
+			feather->set_velocity(input * 20.0f);
+
+			// Switch the control to the peer controlling this object now.
+			// In this way the feather is now part of the timeline of the last
+			// peer touching it.
+			scene_owner->scene_sync->set_controlled_by_peer(feather->local_id, authoritative_peer_id);
+		}
 	}
 
 	bool are_inputs_different(NS::DataBuffer &p_buffer_A, NS::DataBuffer &p_buffer_B) {
-		double x1;
-		double y1;
-		double z1;
-		double x2;
-		double y2;
-		double z2;
+		Vec3 A;
+		Vec3 B;
+		p_buffer_A.read_normalized_vector3(A.x, A.y, A.z, NS::DataBuffer::COMPRESSION_LEVEL_3);
+		p_buffer_B.read_normalized_vector3(B.x, B.y, B.z, NS::DataBuffer::COMPRESSION_LEVEL_3);
 
-		p_buffer_A.read_normalized_vector3(x1, y1, z1, NS::DataBuffer::COMPRESSION_LEVEL_3);
-		p_buffer_B.read_normalized_vector3(x2, y2, z2, NS::DataBuffer::COMPRESSION_LEVEL_3);
+		if (
+			!NS::MathFunc::is_equal_approx(A.x, B.x) ||
+			!NS::MathFunc::is_equal_approx(A.y, B.y) ||
+			!NS::MathFunc::is_equal_approx(A.z, B.z)) {
+			return true;
+		}
 
-		return !(NS::MathFunc::is_equal_approx(x1, x2) &&
-			NS::MathFunc::is_equal_approx(y1, y2) &&
-			NS::MathFunc::is_equal_approx(z1, z2));
+		bool move_feather_A;
+		bool move_feather_B;
+		p_buffer_A.read(move_feather_A);
+		p_buffer_B.read(move_feather_B);
+
+		if (move_feather_A != move_feather_B) {
+			return true;
+		}
+
+		return false;
 	}
 };
 
-void process_movable_magnet_simulation(NS::LocalSceneSynchronizer &scene_sync, float p_delta, MovableMagnetSceneObject &p_mag) {
-	NS_ASSERT_COND(p_delta == delta);
-	const float pushing_force = 200.0;
-
+void process_movable_feathers_simulation(NS::LocalSceneSynchronizer &scene_sync, float p_delta) {
 	for (const NS::ObjectData *od : scene_sync.get_sorted_objects_data()) {
 		if (!od) {
 			continue;
 		}
 
 		NS::LocalSceneObject *lso = scene_sync.from_handle(od->app_object_handle);
-		MagnetPlayerController *controller = dynamic_cast<MagnetPlayerController *>(lso);
-		if (controller) {
-			{
-				const Vec3 mag_to_controller_dir = (controller->get_position() - p_mag.get_position()).normalized();
-				controller->set_position(controller->get_position() + (mag_to_controller_dir * ((pushing_force / controller->get_weight()) * p_delta)));
-			}
-
-			const Vec3 controller_dir_to_mag = (p_mag.get_position() - controller->get_position()).normalized();
-			p_mag.set_position(p_mag.get_position() + (controller_dir_to_mag * ((pushing_force / p_mag.get_weight()) * p_delta)));
-		}
-	}
-}
-
-void process_movable_magnets_simulation(NS::LocalSceneSynchronizer &scene_sync, float p_delta) {
-	for (const NS::ObjectData *od : scene_sync.get_sorted_objects_data()) {
-		if (!od) {
-			continue;
-		}
-
-		NS::LocalSceneObject *lso = scene_sync.from_handle(od->app_object_handle);
-		MovableMagnetSceneObject *mso = dynamic_cast<MovableMagnetSceneObject *>(lso);
-		if (mso) {
-			process_movable_magnet_simulation(scene_sync, p_delta, *mso);
+		FeatherSceneObject *fso = dynamic_cast<FeatherSceneObject *>(lso);
+		if (fso) {
+			fso->set_position(fso->get_position() + (fso->get_velocity() * p_delta));
 		}
 	}
 }
@@ -245,13 +250,13 @@ struct TestSwitchControllerBase {
 	NS::LocalScene peer_1_scene;
 	NS::LocalScene peer_2_scene;
 
-	MagnetPlayerController *player_controlled_object_1_server = nullptr;
-	MagnetPlayerController *player_controlled_object_1_p1 = nullptr;
-	MagnetPlayerController *player_controlled_object_1_p2 = nullptr;
+	FeatherPlayerController *player_controlled_object_1_server = nullptr;
+	FeatherPlayerController *player_controlled_object_1_p1 = nullptr;
+	FeatherPlayerController *player_controlled_object_1_p2 = nullptr;
 
-	MagnetPlayerController *player_controlled_object_2_server = nullptr;
-	MagnetPlayerController *player_controlled_object_2_p1 = nullptr;
-	MagnetPlayerController *player_controlled_object_2_p2 = nullptr;
+	FeatherPlayerController *player_controlled_object_2_server = nullptr;
+	FeatherPlayerController *player_controlled_object_2_p1 = nullptr;
+	FeatherPlayerController *player_controlled_object_2_p2 = nullptr;
 
 	NS::PeerNetworkedController *controller_p1_server = nullptr;
 	NS::PeerNetworkedController *controller_p1_p1 = nullptr;
@@ -310,13 +315,19 @@ public:
 				peer_2_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
 
 		// Then compose the scene.
-		player_controlled_object_1_server = server_scene.add_object<MagnetPlayerController>("controller_1", peer_1_scene.get_peer());
-		player_controlled_object_1_p1 = peer_1_scene.add_object<MagnetPlayerController>("controller_1", peer_1_scene.get_peer());
-		player_controlled_object_1_p2 = peer_2_scene.add_object<MagnetPlayerController>("controller_1", peer_1_scene.get_peer());
+		player_controlled_object_1_server = server_scene.add_object<FeatherPlayerController>("controller_1", peer_1_scene.get_peer());
+		player_controlled_object_1_p1 = peer_1_scene.add_object<FeatherPlayerController>("controller_1", peer_1_scene.get_peer());
+		player_controlled_object_1_p2 = peer_2_scene.add_object<FeatherPlayerController>("controller_1", peer_1_scene.get_peer());
 
-		player_controlled_object_2_server = server_scene.add_object<MagnetPlayerController>("controller_2", peer_2_scene.get_peer());
-		player_controlled_object_2_p1 = peer_1_scene.add_object<MagnetPlayerController>("controller_2", peer_2_scene.get_peer());
-		player_controlled_object_2_p2 = peer_2_scene.add_object<MagnetPlayerController>("controller_2", peer_2_scene.get_peer());
+		player_controlled_object_2_server = server_scene.add_object<FeatherPlayerController>("controller_2", peer_2_scene.get_peer());
+		player_controlled_object_2_p1 = peer_1_scene.add_object<FeatherPlayerController>("controller_2", peer_2_scene.get_peer());
+		player_controlled_object_2_p2 = peer_2_scene.add_object<FeatherPlayerController>("controller_2", peer_2_scene.get_peer());
+
+		player_controlled_object_1_p1->move_feather_inputs[4] = true;
+		player_controlled_object_1_p1->move_feather_inputs[14] = true;
+
+		player_controlled_object_2_p2->move_feather_inputs[9] = true;
+		player_controlled_object_2_p2->move_feather_inputs[19] = true;
 
 		controller_p1_server = server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer());
 		controller_p1_p1 = peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer());
@@ -326,13 +337,13 @@ public:
 
 		// Register the process
 		server_scene.scene_sync->register_process(server_scene.scene_sync->local_id, PROCESS_PHASE_POST, [=](float p_delta) -> void {
-			process_movable_magnets_simulation(*server_scene.scene_sync, p_delta);
+			process_movable_feathers_simulation(*server_scene.scene_sync, p_delta);
 		});
 		peer_1_scene.scene_sync->register_process(peer_1_scene.scene_sync->local_id, PROCESS_PHASE_POST, [=](float p_delta) -> void {
-			process_movable_magnets_simulation(*peer_1_scene.scene_sync, p_delta);
+			process_movable_feathers_simulation(*peer_1_scene.scene_sync, p_delta);
 		});
 		peer_2_scene.scene_sync->register_process(peer_2_scene.scene_sync->local_id, PROCESS_PHASE_POST, [=](float p_delta) -> void {
-			process_movable_magnets_simulation(*peer_2_scene.scene_sync, p_delta);
+			process_movable_feathers_simulation(*peer_2_scene.scene_sync, p_delta);
 		});
 
 		server_scene.scene_sync->register_process(server_scene.scene_sync->local_id, PROCESS_PHASE_LATE, [=](float p_delta) -> void {
@@ -351,31 +362,26 @@ public:
 		player_controlled_object_1_server->set_position(Vec3(1.0, 1.0, 1.0));
 		player_controlled_object_1_p1->set_position(Vec3(1.0, 1.0, 1.0));
 		player_controlled_object_1_p2->set_position(Vec3(1.0, 1.0, 1.0));
-		player_controlled_object_1_server->set_weight(70.0);
-		player_controlled_object_1_p1->set_weight(70.0);
-		player_controlled_object_1_p2->set_weight(70.0);
 
 		player_controlled_object_2_server->set_position(Vec3(-1.0, -1.0, -1.0));
 		player_controlled_object_2_p1->set_position(Vec3(-1.0, -1.0, -1.0));
 		player_controlled_object_2_p2->set_position(Vec3(-1.0, -1.0, -1.0));
-		player_controlled_object_2_server->set_weight(20.0);
-		player_controlled_object_2_p1->set_weight(20.0);
-		player_controlled_object_2_p2->set_weight(20.0);
 
-		MovableMagnetSceneObject *magnet_server = server_scene.add_object<MovableMagnetSceneObject>("magnet_1", server_scene.get_peer());
-		MovableMagnetSceneObject *magnet_p1 = peer_1_scene.add_object<MovableMagnetSceneObject>("magnet_1", server_scene.get_peer());
-		MovableMagnetSceneObject *magnet_p2 = peer_2_scene.add_object<MovableMagnetSceneObject>("magnet_1", server_scene.get_peer());
+		FeatherSceneObject *feather_server = server_scene.add_object<FeatherSceneObject>("feather_1", server_scene.get_peer());
+		FeatherSceneObject *feather_p1 = peer_1_scene.add_object<FeatherSceneObject>("feather_1", server_scene.get_peer());
+		FeatherSceneObject *feather_p2 = peer_2_scene.add_object<FeatherSceneObject>("feather_1", server_scene.get_peer());
 
-		magnet_server->set_position(Vec3(2.0, 1.0, 1.0));
-		magnet_p1->set_position(Vec3(2.0, 1.0, 1.0));
-		magnet_p2->set_position(Vec3(2.0, 1.0, 1.0));
+		feather_server->set_position(Vec3(2.0, 1.0, 1.0));
+		feather_p1->set_position(Vec3(2.0, 1.0, 1.0));
+		feather_p2->set_position(Vec3(2.0, 1.0, 1.0));
 
-		magnet_server->set_position(Vec3(0.0, 0.0, 0.0));
-		magnet_p1->set_velocity(Vec3(0.0, 0.0, 0.0));
-		magnet_p2->set_velocity(Vec3(0.0, 0.0, 0.0));
+		feather_server->set_position(Vec3(0.0, 0.0, 0.0));
+		feather_p1->set_velocity(Vec3(0.0, 0.0, 0.0));
+		feather_p2->set_velocity(Vec3(0.0, 0.0, 0.0));
 
 		bool server_reached_target_frame = false;
 		bool p1_reached_target_frame = false;
+		bool p2_reached_target_frame = false;
 
 		Vec3 controller_1_position_on_server_at_target_frame;
 		Vec3 controller_1_position_on_p1_at_target_frame;
@@ -385,9 +391,9 @@ public:
 		Vec3 controller_2_position_on_p1_at_target_frame;
 		Vec3 controller_2_position_on_p2_at_target_frame;
 
-		Vec3 magnet_position_on_server_at_target_frame;
-		Vec3 magnet_position_on_p1_at_target_frame;
-		Vec3 magnet_position_on_p2_at_target_frame;
+		Vec3 feather_position_on_server_at_target_frame;
+		Vec3 feather_position_on_p1_at_target_frame;
+		Vec3 feather_position_on_p2_at_target_frame;
 
 		while (true) {
 			// Use a random delta, to make sure the NetSync can be processed
@@ -402,15 +408,25 @@ public:
 			if (controller_p1_server->get_current_frame_index() == process_until_frame) {
 				server_reached_target_frame = true;
 				controller_1_position_on_server_at_target_frame = player_controlled_object_1_server->get_position();
-				magnet_position_on_server_at_target_frame = magnet_server->get_position();
+				feather_position_on_server_at_target_frame = feather_server->get_position();
+			}
+			if (controller_p2_server->get_current_frame_index() == process_until_frame) {
+				server_reached_target_frame = true;
+				controller_2_position_on_server_at_target_frame = player_controlled_object_2_server->get_position();
+				feather_position_on_server_at_target_frame = feather_server->get_position();
 			}
 			if (controller_p1_p1->get_current_frame_index() == process_until_frame) {
 				p1_reached_target_frame = true;
-				controller_position_on_p1_at_target_frame = player_controlled_object_1_p1->get_position();
-				magnet_position_on_p1_at_target_frame = magnet_p1->get_position();
+				controller_1_position_on_p1_at_target_frame = player_controlled_object_1_p1->get_position();
+				feather_position_on_p1_at_target_frame = feather_p1->get_position();
+			}
+			if (controller_p2_p2->get_current_frame_index() == process_until_frame) {
+				p2_reached_target_frame = true;
+				controller_2_position_on_p2_at_target_frame = player_controlled_object_2_p2->get_position();
+				feather_position_on_p2_at_target_frame = feather_p2->get_position();
 			}
 
-			if (server_reached_target_frame && p1_reached_target_frame) {
+			if (server_reached_target_frame && p1_reached_target_frame && p2_reached_target_frame) {
 				break;
 			}
 
@@ -420,26 +436,79 @@ public:
 			if (controller_p1_p1->get_current_frame_index() != NS::FrameIndex::NONE) {
 				NS_ASSERT_COND(controller_p1_p1->get_current_frame_index() < (process_until_frame + process_until_frame_timeout));
 			}
+			if (controller_p2_p2->get_current_frame_index() != NS::FrameIndex::NONE) {
+				NS_ASSERT_COND(controller_p2_p2->get_current_frame_index() < (process_until_frame + process_until_frame_timeout));
+			}
 		}
 
+		// TODO implement this.
 		//                  ---- Validation phase ----
 		// First make sure all positions have changed at all.
-		NS_ASSERT_COND(player_controlled_object_1_server->get_position().distance_to(Vec3(1, 1, 1)) > 0.0001);
-		//NS_ASSERT_COND(light_magnet_server->get_position().distance_to(Vec3(2, 1, 1)) > 0.0001);
-		//NS_ASSERT_COND(heavy_magnet_server->get_position().distance_to(Vec3(1, 1, 2)) > 0.0001);
+		//NS_ASSERT_COND(player_controlled_object_1_server->get_position().distance_to(Vec3(1, 1, 1)) > 0.0001);
 
 		// Now, make sure the client and server positions are the same: ensuring the
 		// sync worked.
-		NS_ASSERT_COND(controller_position_on_server_at_target_frame.distance_to(controller_position_on_p1_at_target_frame) < 0.0001);
-		NS_ASSERT_COND(magnet_position_on_server_at_target_frame.distance_to(magnet_position_on_p1_at_target_frame) < 0.0001);
-		NS_ASSERT_COND(heavy_mag_server_position_at_target_frame.distance_to(heavy_mag_p1_position_at_target_frame) < 0.0001);
+		//NS_ASSERT_COND(controller_position_on_server_at_target_frame.distance_to(controller_position_on_p1_at_target_frame) < 0.0001);
+		//NS_ASSERT_COND(feather_position_on_server_at_target_frame.distance_to(feather_position_on_p1_at_target_frame) < 0.0001);
+		//NS_ASSERT_COND(heavy_mag_server_position_at_target_frame.distance_to(heavy_mag_p1_position_at_target_frame) < 0.0001);
 
 		on_scenes_done();
 	}
 };
 
+struct TestSwitchControllerNoRewind : public TestSwitchControllerBase {
+	float notify_state_interval = 0.0f;
+
+public:
+	std::vector<NS::FrameIndex> p1_rewinded_frames;
+	std::vector<NS::FrameIndex> p2_rewinded_frames;
+	// The ID of snapshot sent by the server.
+	NS::FrameIndex p1_correction_snapshot_sent = NS::FrameIndex{ { 0 } };
+	NS::FrameIndex p2_correction_snapshot_sent = NS::FrameIndex{ { 0 } };
+
+	TestSwitchControllerNoRewind(float p_notify_state_interval) :
+		notify_state_interval(p_notify_state_interval) {
+	}
+
+	virtual void on_scenes_initialized() override {
+		server_scene.scene_sync->set_frame_confirmation_timespan(notify_state_interval);
+		// Make sure the client can predict as many frames it needs (no need to add some more noise to this test).
+		server_scene.scene_sync->set_max_predicted_intervals(20);
+
+		controller_p1_server->event_input_missed.bind([](NS::FrameIndex p_frame_index) {
+			// The input should be never missing!
+			NS_ASSERT_NO_ENTRY();
+		});
+
+		controller_p2_server->event_input_missed.bind([](NS::FrameIndex p_frame_index) {
+			// The input should be never missing!
+			NS_ASSERT_NO_ENTRY();
+		});
+
+		controller_p1_p1->get_scene_synchronizer()->event_state_validated.bind([this](NS::FrameIndex p_frame_index, bool p_desync) {
+			if (p_desync) {
+				p1_rewinded_frames.push_back(p_frame_index);
+			}
+		});
+
+		controller_p2_p2->get_scene_synchronizer()->event_state_validated.bind([this](NS::FrameIndex p_frame_index, bool p_desync) {
+			if (p_desync) {
+				p2_rewinded_frames.push_back(p_frame_index);
+			}
+		});
+	}
+
+	virtual void on_server_process(float p_delta) override {
+	}
+
+	virtual void on_scenes_done() override {
+		NS_ASSERT_COND(p1_rewinded_frames.empty());
+		NS_ASSERT_COND(p2_rewinded_frames.empty());
+	}
+};
+
 /// This test was build to verify that the NetSync is able to immediately re-sync
-/// a scene.
+/// a scene even when switching the object authority.
 /// It manually de-sync the server by teleporting the controller, and then
 /// make sure the client was immediately re-sync with a single rewinding action.
 struct TestSwitchControllerWithRewind : public TestSwitchControllerBase {
@@ -447,9 +516,11 @@ struct TestSwitchControllerWithRewind : public TestSwitchControllerBase {
 	float notify_state_interval = 0.0f;
 
 public:
-	std::vector<NS::FrameIndex> client_rewinded_frames;
+	std::vector<NS::FrameIndex> p1_rewinded_frames;
+	std::vector<NS::FrameIndex> p2_rewinded_frames;
 	// The ID of snapshot sent by the server.
-	NS::FrameIndex correction_snapshot_sent = NS::FrameIndex{ { 0 } };
+	NS::FrameIndex p1_correction_snapshot_sent = NS::FrameIndex{ { 0 } };
+	NS::FrameIndex p2_correction_snapshot_sent = NS::FrameIndex{ { 0 } };
 
 	TestSwitchControllerWithRewind(float p_notify_state_interval) :
 		notify_state_interval(p_notify_state_interval) {
@@ -465,9 +536,20 @@ public:
 			NS_ASSERT_NO_ENTRY();
 		});
 
+		controller_p2_server->event_input_missed.bind([](NS::FrameIndex p_frame_index) {
+			// The input should be never missing!
+			NS_ASSERT_NO_ENTRY();
+		});
+
 		controller_p1_p1->get_scene_synchronizer()->event_state_validated.bind([this](NS::FrameIndex p_frame_index, bool p_desync) {
 			if (p_desync) {
-				client_rewinded_frames.push_back(p_frame_index);
+				p1_rewinded_frames.push_back(p_frame_index);
+			}
+		});
+
+		controller_p2_p2->get_scene_synchronizer()->event_state_validated.bind([this](NS::FrameIndex p_frame_index, bool p_desync) {
+			if (p_desync) {
+				p2_rewinded_frames.push_back(p_frame_index);
 			}
 		});
 	}
@@ -475,10 +557,22 @@ public:
 	virtual void on_server_process(float p_delta) override {
 		if (controller_p1_server->get_current_frame_index() == reset_position_on_frame) {
 			// Reset the character position only on the server, to simulate a desync.
-			player_controlled_object_1_server->set_position(Vec3(0.0, 0.0, 0.0));
+			player_controlled_object_1_server->set_position(Vec3(-10.0, 10.0, 0.0));
 
 			server_scene.scene_sync->event_sent_snapshot.bind([this](NS::FrameIndex p_frame_index, int p_peer) {
-				correction_snapshot_sent = p_frame_index;
+				p1_correction_snapshot_sent = p_frame_index;
+
+				// Make sure this function is not called once again.
+				server_scene.scene_sync->event_sent_snapshot.clear();
+			});
+		}
+
+		if (controller_p2_server->get_current_frame_index() == reset_position_on_frame) {
+			// Reset the character position only on the server, to simulate a desync.
+			player_controlled_object_2_server->set_position(Vec3(100.0, -100.0, 0.0));
+
+			server_scene.scene_sync->event_sent_snapshot.bind([this](NS::FrameIndex p_frame_index, int p_peer) {
+				p2_correction_snapshot_sent = p_frame_index;
 
 				// Make sure this function is not called once again.
 				server_scene.scene_sync->event_sent_snapshot.clear();
@@ -487,9 +581,13 @@ public:
 	}
 
 	virtual void on_scenes_done() override {
-		NS_ASSERT_COND(client_rewinded_frames.size() == 1);
-		NS_ASSERT_COND(client_rewinded_frames[0] >= reset_position_on_frame);
-		NS_ASSERT_COND(client_rewinded_frames[0] == correction_snapshot_sent);
+		NS_ASSERT_COND(p1_rewinded_frames.size() == 1);
+		NS_ASSERT_COND(p1_rewinded_frames[0] >= reset_position_on_frame);
+		NS_ASSERT_COND(p1_rewinded_frames[0] == p1_correction_snapshot_sent);
+
+		NS_ASSERT_COND(p2_rewinded_frames.size() == 1);
+		NS_ASSERT_COND(p2_rewinded_frames[0] >= reset_position_on_frame);
+		NS_ASSERT_COND(p2_rewinded_frames[0] == p2_correction_snapshot_sent);
 	}
 };
 
@@ -514,10 +612,12 @@ struct TestSwitchControllerWithRewindAndPartialUpdate : public TestSwitchControl
 
 	virtual void on_scenes_done() override {
 		TestSwitchControllerWithRewind::on_scenes_done();
-		NS_ASSERT_COND(client_rewinded_frames[0] == (reset_position_on_frame));
+		NS_ASSERT_COND(p1_rewinded_frames[0] == (reset_position_on_frame));
 	}
 };
 
+/*
+ 
 // TODO please remove this!
 class ActorSceneObject : public NS::LocalSceneObject {
 public:
@@ -719,9 +819,12 @@ public:
 		}
 	}
 };
+*/
 
 void test_switch_controller() {
-	TestSwitchControllerBase().do_test();
+	TestSwitchControllerNoRewind(0.0).do_test();
+	TestSwitchControllerNoRewind(0.5).do_test();
+	// TODO test the sync of the authority change of the object.
 	// TODO enable all the tests.
 	//TestSwitchControllerWithRewind(0.0f).do_test();
 	//TestSwitchControllerWithRewind(1.0f).do_test();

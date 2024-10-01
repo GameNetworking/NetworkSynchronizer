@@ -213,9 +213,9 @@ bool ObjectDataStorage::is_empty() const {
 
 void ObjectDataStorage::notify_set_controlled_by_peer(int p_old_peer, ObjectData &p_object) {
 	if (p_old_peer != -1) {
-		std::vector<ObjectData *> *objects = NS::MapFunc::get_or_null(objects_data_controlled_by_peers, p_old_peer);
+		std::vector<ObjectData *> *objects = MapFunc::get_or_null(objects_data_controlled_by_peers, p_old_peer);
 		if (objects) {
-			NS::VecFunc::remove_unordered(*objects, &p_object);
+			VecFunc::remove_unordered(*objects, &p_object);
 		}
 	}
 
@@ -224,7 +224,7 @@ void ObjectDataStorage::notify_set_controlled_by_peer(int p_old_peer, ObjectData
 				objects_data_controlled_by_peers,
 				p_object.get_controlled_by_peer(),
 				std::vector<ObjectData *>());
-		NS::VecFunc::insert_unique(objects_it->second, &p_object);
+		VecFunc::insert_unique(objects_it->second, &p_object);
 	}
 }
 

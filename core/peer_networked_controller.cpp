@@ -68,13 +68,17 @@ const std::vector<ObjectData *> &PeerNetworkedController::get_sorted_controllabl
 		const std::vector<ObjectData *> *controlled_objects = scene_synchronizer->get_peer_controlled_objects_data(get_authority_peer());
 		if (controlled_objects) {
 			for (ObjectData *controlled_object_data : *controlled_objects) {
-				if (is_player_controller()) {
-					if (controlled_object_data->realtime_sync_enabled_on_client) {
-						// This client is simulating it.
+				if (controlled_object_data->controller_funcs.collect_input &&
+					controlled_object_data->controller_funcs.are_inputs_different &&
+					controlled_object_data->controller_funcs.process) {
+					if (is_player_controller()) {
+						if (controlled_object_data->realtime_sync_enabled_on_client) {
+							// This client is simulating it.
+							_sorted_controllable_objects.push_back(controlled_object_data);
+						}
+					} else {
 						_sorted_controllable_objects.push_back(controlled_object_data);
 					}
-				} else {
-					_sorted_controllable_objects.push_back(controlled_object_data);
 				}
 			}
 		}

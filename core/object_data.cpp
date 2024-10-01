@@ -90,7 +90,7 @@ void ObjectData::setup_controller(
 	controller_funcs.process = p_process_func;
 }
 
-bool ObjectData::set_controlled_by_peer(class SceneSynchronizerBase &synchronizer, int p_peer) {
+bool ObjectData::set_controlled_by_peer(SceneSynchronizerBase &synchronizer, int p_peer) {
 	if (p_peer == controlled_by_peer) {
 		return false;
 	}
