@@ -1955,16 +1955,16 @@ void ServerSynchronizer::on_object_data_added(NS::ObjectData &p_object_data) {
 	NS_ASSERT_COND(p_object_data.get_net_id() != ObjectNetId::NONE);
 #endif
 
-	NS::VecFunc::insert_unique(active_objects, &p_object_data);
+	VecFunc::insert_unique(active_objects, &p_object_data);
 
 	sync_groups[SyncGroupId::GLOBAL.id].add_new_sync_object(&p_object_data, true);
 }
 
-void ServerSynchronizer::on_object_data_removed(NS::ObjectData &p_object_data) {
-	NS::VecFunc::remove_unordered(active_objects, &p_object_data);
+void ServerSynchronizer::on_object_data_removed(ObjectData &p_object_data) {
+	VecFunc::remove_unordered(active_objects, &p_object_data);
 
 	// Make sure to remove this `ObjectData` from any sync group.
-	for (NS::SyncGroup &group : sync_groups) {
+	for (SyncGroup &group : sync_groups) {
 		group.remove_sync_object(p_object_data);
 	}
 }
@@ -1975,7 +1975,7 @@ void ServerSynchronizer::on_object_data_name_known(ObjectData &p_object_data) {
 	NS_ASSERT_COND(p_object_data.get_net_id() != ObjectNetId::NONE);
 #endif
 
-	for (NS::SyncGroup &group : sync_groups) {
+	for (SyncGroup &group : sync_groups) {
 		group.notify_sync_object_name_is_known(p_object_data);
 	}
 }
@@ -1983,10 +1983,6 @@ void ServerSynchronizer::on_object_data_name_known(ObjectData &p_object_data) {
 void ServerSynchronizer::on_object_data_controller_changed(ObjectData *p_object_data, int p_previous_controlling_peer) {
 	if (p_object_data->get_controlled_by_peer() == p_previous_controlling_peer) {
 		return;
-	}
-
-	if (p_object_data->get_controlled_by_peer() > 0) {
-		notify_need_full_snapshot(p_object_data->get_controlled_by_peer(), true);
 	}
 
 	for (SyncGroup &sync_group : sync_groups) {
@@ -2342,7 +2338,11 @@ void ServerSynchronizer::generate_snapshot(
 	}
 
 	// Then insert the list of ALL simulated ObjectData, if changed.
-	if (p_group.is_realtime_node_list_changed() || p_force_full_snapshot) {
+	if (p_force_full_snapshot) {
+		// Since a full snapshot is needed, here we are packaging ALL the simulated nodes.
+		// Add a `TRUE` to signal the SyncGroup changed.
+		r_snapshot_db.add(true);
+		// Add a `TRUE` to specify this is a full update.
 		r_snapshot_db.add(true);
 
 		for (uint32_t i = 0; i < relevant_node_data.size(); i += 1) {
@@ -2355,7 +2355,42 @@ void ServerSynchronizer::generate_snapshot(
 
 		// Add `uint16_max to signal its end.
 		r_snapshot_db.add(ObjectNetId::NONE.id);
+	} else if (p_group.is_realtime_node_list_changed()) {
+		// This is an incremental update, so just package only the added or
+		// removed nodes.
+		// Add a `TRUE` to signal the SyncGroup changed.
+		r_snapshot_db.add(true);
+		// Add a `FALSE` to specify this is a PARTIAL update.
+		r_snapshot_db.add(false);
+
+		for (ObjectNetId added_to_sync_group_net_id : p_group.get_simulated_sync_objects_ADDED()) {
+			NS_ASSERT_COND(added_to_sync_group_net_id != ObjectNetId::NONE);
+			NS_ASSERT_COND(added_to_sync_group_net_id.id <= std::numeric_limits<uint16_t>::max());
+			const ObjectData *od = scene_synchronizer->get_object_data(added_to_sync_group_net_id, false);
+			if (od) {
+				// Add a `TRUE` to signal we have another ObjectNetId into this sync group.
+				r_snapshot_db.add(true);
+				r_snapshot_db.add(added_to_sync_group_net_id.id);
+				// Add a `TRUE` to signal this NetId was added into the sync group.
+				r_snapshot_db.add(true);
+				r_snapshot_db.add(od->get_controlled_by_peer());
+			}
+		}
+
+		for (ObjectNetId removed_from_sync_group_net_id : p_group.get_simulated_sync_objects_REMOVED()) {
+			NS_ASSERT_COND(removed_from_sync_group_net_id != ObjectNetId::NONE);
+			NS_ASSERT_COND(removed_from_sync_group_net_id.id <= std::numeric_limits<uint16_t>::max());
+			// Add a `TRUE` to signal we have another ObjectNetId into this sync group.
+			r_snapshot_db.add(true);
+			r_snapshot_db.add(removed_from_sync_group_net_id.id);
+			// Add a `FALSE` to signal this NetId was removed from the sync group.
+			r_snapshot_db.add(false);
+		}
+
+		// Add `FALSE` to signal the array end.
+		r_snapshot_db.add(false);
 	} else {
+		// Add a `FALSE` to signal the SyncGroup didn't change.
 		r_snapshot_db.add(false);
 	}
 
@@ -3472,9 +3507,10 @@ bool ClientSynchronizer::parse_sync_data(
 		void *p_user_pointer,
 		void (*p_notify_update_mode)(void *p_user_pointer, bool p_is_partial_update),
 		void (*p_custom_data_parse)(void *p_user_pointer, VarData &&p_custom_data),
-		void (*p_object_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
+		void (*p_object_parse)(void *p_user_pointer, ObjectData *p_object_data),
 		bool (*p_peers_frame_index_parse)(void *p_user_pointer, std::map<int, FrameIndexWithMeta> &&p_frames_index),
-		void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, VarData &&p_value),
+		void (*p_variable_parse)(void *p_user_pointer, ObjectData *p_object_data, VarId p_var_id, VarData &&p_value),
+		void (*p_simulated_object_add_or_remove_parse)(void *p_user_pointer, bool p_add, SimulatedObjectInfo &&p_simulated_objects),
 		void (*p_simulated_objects_parse)(void *p_user_pointer, std::vector<SimulatedObjectInfo> &&p_simulated_objects)) {
 	NS_PROFILE
 
@@ -3511,28 +3547,65 @@ bool ClientSynchronizer::parse_sync_data(
 		p_snapshot.read(has_active_list_array);
 		NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as the `has_active_list_array` boolean expected is not set.");
 		if (has_active_list_array) {
-			std::vector<SimulatedObjectInfo> sd_simulated_objects;
-			sd_simulated_objects.reserve(scene_synchronizer->get_all_object_data().size());
+			// Fetch the update type (FULL | PARTIAL)
+			bool is_full_update;
+			p_snapshot.read(is_full_update);
+			NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as the `is_full_update` boolean expected is not set.");
 
-			// Fetch the array.
-			while (true) {
-				ObjectNetId id;
-				p_snapshot.read(id.id);
-				NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `ObjectNetId` failed.");
+			if (is_full_update) {
+				std::vector<SimulatedObjectInfo> sd_simulated_objects;
+				sd_simulated_objects.reserve(scene_synchronizer->get_all_object_data().size());
 
-				if (id == ObjectNetId::NONE) {
-					// The end.
-					break;
+				// Fetch the array.
+				while (true) {
+					ObjectNetId id;
+					p_snapshot.read(id.id);
+					NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `ObjectNetId` failed.");
+
+					if (id == ObjectNetId::NONE) {
+						// The end.
+						break;
+					}
+
+					int controlled_by_peer;
+					p_snapshot.read(controlled_by_peer);
+					NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `controlled_by_peer` failed.");
+
+					sd_simulated_objects.push_back(SimulatedObjectInfo(id, controlled_by_peer));
 				}
 
-				int controlled_by_peer;
-				p_snapshot.read(controlled_by_peer);
-				NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `controlled_by_peer` failed.");
+				p_simulated_objects_parse(p_user_pointer, std::move(sd_simulated_objects));
+			} else {
+				// Fetch the array.
+				while (true) {
+					bool has_net_id;
+					p_snapshot.read(has_net_id);
+					NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `has_net_id` failed.");
 
-				sd_simulated_objects.push_back(SimulatedObjectInfo(id, controlled_by_peer));
+					if (!has_net_id) {
+						// We reached the end of the array.
+						break;
+					}
+
+					ObjectNetId id;
+					p_snapshot.read(id.id);
+					NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `ObjectNetId` failed.");
+					get_debugger().print(ERROR, id); // TODO remove.
+
+					bool was_added;
+					p_snapshot.read(was_added);
+					NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `was_added` failed.");
+
+					int controlled_by_peer = -1;
+					if (was_added) {
+						// Fetch the controlling peer
+						p_snapshot.read(controlled_by_peer);
+						NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as fetching `controlled_by_peer` failed.");
+					}
+
+					p_simulated_object_add_or_remove_parse(p_user_pointer, was_added, SimulatedObjectInfo(id, controlled_by_peer));
+				}
 			}
-
-			p_simulated_objects_parse(p_user_pointer, std::move(sd_simulated_objects));
 		}
 	}
 
@@ -3981,7 +4054,7 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot, bool p_is_server
 			},
 
 			// Parse variable:
-			[](void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, VarData &&p_value) {
+			[](void *p_user_pointer, ObjectData *p_object_data, VarId p_var_id, VarData &&p_value) {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
 
 				if (p_object_data->vars.size() != uint32_t(pd->snapshot.object_vars[p_object_data->get_net_id().id].size())) {
@@ -3992,7 +4065,18 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot, bool p_is_server
 				pd->snapshot.object_vars[p_object_data->get_net_id().id][p_var_id.id].emplace(std::move(p_value));
 			},
 
-			// Parse node activation:
+			// Parse object activation:
+			[](void *p_user_pointer, bool p_add, SimulatedObjectInfo &&p_simulated_objects) {
+				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
+				if (p_add) {
+					VecFunc::insert_unique(pd->snapshot.simulated_objects, std::move(p_simulated_objects));
+				} else {
+					VecFunc::remove_unordered(pd->snapshot.simulated_objects, p_simulated_objects);
+				}
+				pd->snapshot.is_just_updated_simulated_objects = true;
+			},
+
+			// Parse objects activation:
 			[](void *p_user_pointer, std::vector<SimulatedObjectInfo> &&p_simulated_objects) {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
 				pd->snapshot.simulated_objects = std::move(p_simulated_objects);

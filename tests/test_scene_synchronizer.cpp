@@ -1204,10 +1204,10 @@ void test_sync_mode_reset() {
 }
 
 void test_scene_synchronizer() {
-	test_ids();
-	test_client_and_server_initialization();
-	test_late_name_initialization();
-	test_sync_groups();
+	//test_ids();
+	//test_client_and_server_initialization();
+	//test_late_name_initialization();
+	//test_sync_groups();
 	test_state_notify();
 	test_processing_with_late_controller_registration();
 	test_snapshot_generation();

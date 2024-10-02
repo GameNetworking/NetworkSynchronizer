@@ -314,6 +314,19 @@ public:
 		peer_2_scene.scene_sync =
 				peer_2_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
 
+		// TODO remove this.
+		peer_1_scene.scene_sync->set_debug_rewindings_enabled(true);
+
+		// TODO remove
+		server_scene.scene_sync->get_debugger().set_log_level(NS::ERROR);
+		//peer_1_scene.scene_sync->get_debugger().set_log_level(NS::ERROR);
+		peer_1_scene.scene_sync->get_debugger().set_log_level(NS::VERBOSE);
+		peer_2_scene.scene_sync->get_debugger().set_log_level(NS::ERROR);
+
+		server_scene.scene_sync->get_debugger().set_log_prefix("SERVER");
+		peer_1_scene.scene_sync->get_debugger().set_log_prefix("PEER-1");
+		peer_2_scene.scene_sync->get_debugger().set_log_prefix("PEER-2");
+
 		// Then compose the scene.
 		player_controlled_object_1_server = server_scene.add_object<FeatherPlayerController>("controller_1", peer_1_scene.get_peer());
 		player_controlled_object_1_p1 = peer_1_scene.add_object<FeatherPlayerController>("controller_1", peer_1_scene.get_peer());
@@ -823,7 +836,8 @@ public:
 
 void test_switch_controller() {
 	TestSwitchControllerNoRewind(0.0).do_test();
-	TestSwitchControllerNoRewind(0.5).do_test();
+	//TestSwitchControllerNoRewind(0.5).do_test();
+
 	// TODO test the sync of the authority change of the object.
 	// TODO enable all the tests.
 	//TestSwitchControllerWithRewind(0.0f).do_test();

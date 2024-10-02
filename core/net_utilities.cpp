@@ -58,7 +58,7 @@ void NS::SyncGroup::force_state_notify() {
 }
 
 bool NS::SyncGroup::is_realtime_node_list_changed() const {
-	return simulated_sync_objects_list_changed;
+	return simulated_sync_objects_ADDED.size() > 0 || simulated_sync_objects_REMOVED.size() > 0;
 }
 
 bool NS::SyncGroup::is_trickled_node_list_changed() const {
@@ -108,18 +108,19 @@ void NS::SyncGroup::mark_changes_as_notified(bool p_is_partial_update, const std
 		tso._unknown = false;
 	}
 
-	simulated_sync_objects_list_changed = false;
+	simulated_sync_objects_ADDED.clear();
+	simulated_sync_objects_REMOVED.clear();
 	trickled_sync_objects_list_changed = false;
 	peers_with_newly_calculated_latency.clear();
 }
 
 void NS::SyncGroup::add_listening_peer(int p_peer) {
-	NS::VecFunc::insert_unique(listening_peers, p_peer);
+	VecFunc::insert_unique(listening_peers, p_peer);
 	notify_simulating_peers_about_listener_status(p_peer, true);
 }
 
 void NS::SyncGroup::remove_listening_peer(int p_peer) {
-	NS::VecFunc::remove_unordered(listening_peers, p_peer);
+	VecFunc::remove_unordered(listening_peers, p_peer);
 	notify_simulating_peers_about_listener_status(p_peer, false);
 }
 
@@ -143,8 +144,8 @@ std::size_t NS::SyncGroup::add_new_sync_object(ObjectData *p_object_data, bool p
 		// This is a controller with an associated peer, update the networked_peer list.
 		// Regardless if it's simulated or not.
 		const int peer = p_object_data->get_controlled_by_peer();
-		if (NS::VecFunc::insert_unique(networked_peers, peer)) {
-			NS::VecFunc::insert_unique(peers_with_newly_calculated_latency, peer);
+		if (VecFunc::insert_unique(networked_peers, peer)) {
+			VecFunc::insert_unique(peers_with_newly_calculated_latency, peer);
 		}
 	}
 
@@ -155,7 +156,8 @@ std::size_t NS::SyncGroup::add_new_sync_object(ObjectData *p_object_data, bool p
 		if (index == VecFunc::index_none()) {
 			index = simulated_sync_objects.size();
 			simulated_sync_objects.push_back(p_object_data);
-			simulated_sync_objects_list_changed = true;
+			VecFunc::insert_unique(simulated_sync_objects_ADDED, p_object_data->get_net_id());
+			VecFunc::remove_unordered(simulated_sync_objects_REMOVED, p_object_data->get_net_id());
 			partial_update_simulated_sync_objects_changed = true;
 
 			SimulatedObjectInfo &info = simulated_sync_objects[index];
@@ -221,9 +223,10 @@ void NS::SyncGroup::remove_sync_object(std::size_t p_index, bool p_is_simulated)
 	}
 
 	if (p_is_simulated) {
-		VecFunc::remove_at_unordered(simulated_sync_objects, p_index);
-		simulated_sync_objects_list_changed = true;
+		VecFunc::remove_unordered(simulated_sync_objects_ADDED, simulated_sync_objects[p_index].od->get_net_id());
+		VecFunc::insert_unique(simulated_sync_objects_REMOVED, simulated_sync_objects[p_index].od->get_net_id());
 		partial_update_simulated_sync_objects_changed = true;
+		VecFunc::remove_at_unordered(simulated_sync_objects, p_index);
 	} else {
 		VecFunc::remove_at_unordered(trickled_sync_objects, p_index);
 		trickled_sync_objects_list_changed = true;
@@ -306,8 +309,11 @@ void NS::SyncGroup::replace_objects(std::vector<SimulatedObjectInfo> &&p_new_sim
 
 void NS::SyncGroup::remove_all_nodes() {
 	if (!simulated_sync_objects.empty()) {
+		simulated_sync_objects_ADDED.clear();
+		for (const SimulatedObjectInfo &soi : simulated_sync_objects) {
+			VecFunc::insert_unique(simulated_sync_objects_REMOVED, soi.od->get_net_id());
+		}
 		simulated_sync_objects.clear();
-		simulated_sync_objects_list_changed = true;
 		partial_update_simulated_sync_objects_changed = true;
 	}
 
@@ -402,12 +408,12 @@ void NS::SyncGroup::sort_trickled_node_by_update_priority() {
 }
 
 void NS::SyncGroup::notify_peer_has_newly_calculated_latency(int p_peer) {
-	if (NS::VecFunc::has(networked_peers, p_peer)) {
-		NS::VecFunc::insert_unique(peers_with_newly_calculated_latency, p_peer);
+	if (VecFunc::has(networked_peers, p_peer)) {
+		VecFunc::insert_unique(peers_with_newly_calculated_latency, p_peer);
 	}
 }
 
-void NS::SyncGroup::notify_controller_changed(NS::ObjectData *p_object_data, int p_previous_controlling_peer) {
+void NS::SyncGroup::notify_controller_changed(ObjectData *p_object_data, int p_previous_controlling_peer) {
 	if (p_object_data->get_controlled_by_peer() == p_previous_controlling_peer) {
 		return;
 	}
@@ -432,9 +438,15 @@ void NS::SyncGroup::notify_controller_changed(NS::ObjectData *p_object_data, int
 				update_listeners_to_simulating_peer(peer, true);
 			}
 
-			if (NS::VecFunc::insert_unique(networked_peers, peer)) {
-				NS::VecFunc::insert_unique(peers_with_newly_calculated_latency, peer);
+			if (VecFunc::insert_unique(networked_peers, peer)) {
+				VecFunc::insert_unique(peers_with_newly_calculated_latency, peer);
 			}
+		}
+
+		if (is_simulated) {
+			// Mark this net ID as added so on the next state update it's included
+			// in the snapshot and the client is updated about the new controlling peer.
+			VecFunc::insert_unique(simulated_sync_objects_ADDED, p_object_data->get_net_id());
 		}
 	}
 }
@@ -490,8 +502,8 @@ void NS::SyncGroup::validate_peer_association(int p_peer) {
 	}
 
 	if (!is_networking) {
-		NS::VecFunc::remove_unordered(networked_peers, p_peer);
-		NS::VecFunc::remove_unordered(peers_with_newly_calculated_latency, p_peer);
+		VecFunc::remove_unordered(networked_peers, p_peer);
+		VecFunc::remove_unordered(peers_with_newly_calculated_latency, p_peer);
 	}
 }
 

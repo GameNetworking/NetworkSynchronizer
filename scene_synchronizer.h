@@ -745,22 +745,22 @@ public:
 	virtual void on_peer_disconnected(int p_peer_id) {
 	}
 
-	virtual void on_object_data_added(NS::ObjectData &p_object_data) {
+	virtual void on_object_data_added(ObjectData &p_object_data) {
 	}
 
-	virtual void on_object_data_removed(NS::ObjectData &p_object_data) {
+	virtual void on_object_data_removed(ObjectData &p_object_data) {
 	}
 
 	virtual void on_object_data_name_known(ObjectData &p_object_data) {
 	}
 
-	virtual void on_object_data_controller_changed(NS::ObjectData *p_object_data, int p_previous_controlling_peer) {
+	virtual void on_object_data_controller_changed(ObjectData *p_object_data, int p_previous_controlling_peer) {
 	}
 
-	virtual void on_variable_added(NS::ObjectData *p_object_data, const std::string &p_var_name) {
+	virtual void on_variable_added(ObjectData *p_object_data, const std::string &p_var_name) {
 	}
 
-	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) {
+	virtual void on_variable_changed(ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) {
 	}
 
 	virtual void on_controller_reset(PeerNetworkedController &p_controller) {
@@ -830,7 +830,7 @@ public:
 	virtual void on_object_data_added(NS::ObjectData &p_object_data) override;
 	virtual void on_object_data_removed(NS::ObjectData &p_object_data) override;
 	virtual void on_object_data_name_known(ObjectData &p_object_data) override;
-	virtual void on_object_data_controller_changed(NS::ObjectData *p_object_data, int p_previous_controlling_peer) override;
+	virtual void on_object_data_controller_changed(ObjectData *p_object_data, int p_previous_controlling_peer) override;
 	virtual void on_variable_added(NS::ObjectData *p_object_data, const std::string &p_var_name) override;
 	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) override;
 
@@ -1040,6 +1040,7 @@ public:
 			// and it's up to the calling function doint it.
 			bool (*p_peers_frame_index_parse)(void *p_user_pointer, std::map<int, FrameIndexWithMeta> &&p_frames_index),
 			void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, VarData &&p_value),
+			void (*p_simulated_object_add_or_remove_parse)(void *p_user_pointer, bool p_add, SimulatedObjectInfo &&p_simulated_objects),
 			void (*p_simulated_objects_parse)(void *p_user_pointer, std::vector<SimulatedObjectInfo> &&p_simulated_objects));
 
 	void set_enabled(bool p_enabled);
