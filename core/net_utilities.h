@@ -290,6 +290,7 @@ public:
 		bool unknown = false;
 		std::vector<VarId> unknown_vars;
 		std::vector<VarId> vars;
+		bool controlling_peer_changed = false;
 	};
 
 	struct SimulatedObjectInfo {
@@ -355,7 +356,8 @@ public:
 	class SceneSynchronizerBase *scene_sync = nullptr;
 
 private:
-	bool simulated_sync_objects_list_changed = false;
+	std::vector<ObjectNetId> simulated_sync_objects_ADDED;
+	std::vector<ObjectNetId> simulated_sync_objects_REMOVED;
 	std::vector<SimulatedObjectInfo> simulated_sync_objects;
 
 	bool partial_update_simulated_sync_objects_changed = false;
@@ -394,6 +396,15 @@ public:
 	void force_state_notify();
 
 	bool is_realtime_node_list_changed() const;
+
+	const std::vector<ObjectNetId> &get_simulated_sync_objects_ADDED() const {
+		return simulated_sync_objects_ADDED;
+	}
+
+	const std::vector<ObjectNetId> &get_simulated_sync_objects_REMOVED() const {
+		return simulated_sync_objects_REMOVED;
+	}
+
 	bool is_trickled_node_list_changed() const;
 	const std::vector<int> get_peers_with_newly_calculated_latency() const;
 

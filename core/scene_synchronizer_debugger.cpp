@@ -409,17 +409,17 @@ void SceneSynchronizerDebugger::print(NS::PrintMessageType p_level, const std::s
 		frame_dump_storage->frame_dump__has_errors = true;
 	}
 
-	const std::string log_level_str = NS::get_log_level_txt(p_level);
+	const std::string log_level_str = get_log_level_txt(p_level);
 
 	if ((log_level <= p_level) || p_force_print_to_log) {
-		NS::SceneSynchronizerBase::__print_line(log_level_str + "[" + p_object_name + "] " + p_message);
+		SceneSynchronizerBase::__print_line("[" + log_prefix + "]" + log_level_str + "[" + p_object_name + "] " + p_message);
 	}
 
 	__add_message(log_level_str + p_message, p_object_name);
 #else
 	if ((log_level <= p_level) || p_force_print_to_log) {
 		const std::string log_level_str = NS::get_log_level_txt(p_level);
-		NS::SceneSynchronizerBase::__print_line(log_level_str + "[" + p_object_name + "] " + p_message);
+		NS::SceneSynchronizerBase::__print_line("[" + log_prefix + "]" + log_level_str + "[" + p_object_name + "] " + p_message);
 	}
 #endif
 }

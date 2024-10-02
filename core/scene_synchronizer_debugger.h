@@ -39,6 +39,7 @@ public:
 	};
 
 private:
+	std::string log_prefix = "";
 	PrintMessageType log_level = NS::PrintMessageType::ERROR;
 
 #ifdef NS_DEBUG_ENABLED
@@ -76,6 +77,14 @@ public:
 #else
 		return nullptr;
 #endif
+	}
+
+	void set_log_prefix(const std::string &p_prefix) {
+		log_prefix = p_prefix;
+	}
+
+	const std::string &get_log_prefix() const {
+		return log_prefix;
 	}
 
 	void set_log_level(PrintMessageType p_log_level);

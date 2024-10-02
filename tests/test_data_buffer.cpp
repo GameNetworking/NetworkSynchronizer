@@ -309,6 +309,116 @@ inline std::vector<std::tuple<T, T, T>> vector_3_values(NS::DataBuffer::Compress
 	return values;
 }
 
+void test_data_buffer_unaligned_write_read() {
+	NS::DataBuffer db;
+	db.begin_write(debugger, 0);
+
+	NS_ASSERT_COND(!db.is_buffer_failed());
+
+	const bool v1 = false;
+	const bool v2 = true;
+	const bool v3 = false;
+	const bool v4 = true;
+	const std::uint16_t v5 = 2;
+	const bool v6 = true;
+	const int v7 = 2;
+	const bool v8 = false;
+	const bool v9 = true;
+	const int v10 = 2;
+	const std::uint8_t v11 = 0;
+
+	db.add(v1);
+	NS_ASSERT_COND(!db.is_buffer_failed());
+
+	db.add(v2);
+	NS_ASSERT_COND(!db.is_buffer_failed());
+
+	db.add(v3);
+	NS_ASSERT_COND(!db.is_buffer_failed());
+
+	db.add(v4);
+	NS_ASSERT_COND(!db.is_buffer_failed());
+
+	db.add(v5);
+	NS_ASSERT_COND(!db.is_buffer_failed());
+
+	db.add(v6);
+	NS_ASSERT_COND(!db.is_buffer_failed());
+
+	db.add(v7);
+	NS_ASSERT_COND(!db.is_buffer_failed());
+
+	db.add(v8);
+	NS_ASSERT_COND(!db.is_buffer_failed());
+
+	db.add(v9);
+	NS_ASSERT_COND(!db.is_buffer_failed());
+
+	db.add(v10);
+	NS_ASSERT_COND(!db.is_buffer_failed());
+
+	db.add(v11);
+	NS_ASSERT_COND(!db.is_buffer_failed());
+
+	db.begin_read(debugger);
+
+	bool o1;
+	bool o2;
+	bool o3;
+	bool o4;
+	std::uint16_t o5 = std::numeric_limits<std::uint16_t>::max();
+	bool o6;
+	int o7;
+	bool o8;
+	bool o9;
+	int o10;
+	std::uint8_t o11;
+
+	db.read(o1);
+	NS_ASSERT_COND(!db.is_buffer_failed());
+	NS_ASSERT_COND(v1 == o1);
+
+	db.read(o2);
+	NS_ASSERT_COND(!db.is_buffer_failed());
+	NS_ASSERT_COND(v2 == o2);
+
+	db.read(o3);
+	NS_ASSERT_COND(!db.is_buffer_failed());
+	NS_ASSERT_COND(v3 == o3);
+
+	db.read(o4);
+	NS_ASSERT_COND(!db.is_buffer_failed());
+	NS_ASSERT_COND(v4 == o4);
+
+	db.read(o5);
+	NS_ASSERT_COND(!db.is_buffer_failed());
+	NS_ASSERT_COND(v5 == o5);
+
+	db.read(o6);
+	NS_ASSERT_COND(!db.is_buffer_failed());
+	NS_ASSERT_COND(v6 == o6);
+
+	db.read(o7);
+	NS_ASSERT_COND(!db.is_buffer_failed());
+	NS_ASSERT_COND(v7 == o7);
+
+	db.read(o8);
+	NS_ASSERT_COND(!db.is_buffer_failed());
+	NS_ASSERT_COND(v8 == o8);
+
+	db.read(o9);
+	NS_ASSERT_COND(!db.is_buffer_failed());
+	NS_ASSERT_COND(v9 == o9);
+
+	db.read(o10);
+	NS_ASSERT_COND(!db.is_buffer_failed());
+	NS_ASSERT_COND(v10 == o10);
+
+	db.read(o11);
+	NS_ASSERT_COND(!db.is_buffer_failed());
+	NS_ASSERT_COND(v11 == o11);
+}
+
 void test_data_buffer_string() {
 	NS::DataBuffer db;
 	db.begin_write(debugger, 0);
@@ -906,4 +1016,5 @@ void NS_Test::test_data_buffer() {
 	test_data_buffer_skip();
 	test_data_buffer_writing_failing();
 	test_data_buffer_reading_failing();
+	test_data_buffer_unaligned_write_read();
 }
