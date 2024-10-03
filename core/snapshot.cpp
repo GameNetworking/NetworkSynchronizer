@@ -68,7 +68,7 @@ bool compare_vars(
 
 				if (r_differences_info) {
 					r_differences_info->push_back(
-							"[NO REWIND] Difference found on var #" + std::to_string(var_index) + " " + p_object_data.vars[var_index].var.name + " " +
+							"[NO REWIND] Difference found on var #" + std::to_string(var_index) + " name `" + p_object_data.vars[var_index].var.name + "`. " +
 							"Server value: `" + NS::SceneSynchronizerBase::var_data_stringify(s_vars[var_index].value()) + "` " +
 							"Client value: `" + NS::SceneSynchronizerBase::var_data_stringify(c_vars[var_index].value()) + "`.");
 				}
@@ -76,7 +76,7 @@ bool compare_vars(
 				// The vars are different.
 				if (r_differences_info) {
 					r_differences_info->push_back(
-							"Difference found on var #" + std::to_string(var_index) + " " + p_object_data.vars[var_index].var.name + " " +
+							"Difference found on var #" + std::to_string(var_index) + " name `" + p_object_data.vars[var_index].var.name + "` " +
 							"Server value: `" + NS::SceneSynchronizerBase::var_data_stringify(s_vars[var_index].value()) + "` " +
 							"Client value: `" + NS::SceneSynchronizerBase::var_data_stringify(c_vars[var_index].value()) + "`.");
 				}
@@ -197,7 +197,7 @@ bool NS::Snapshot::compare(
 
 	// TODO instead to iterate over all the object_vars, iterate over the simulated. This will make it save a bunch of time.
 	for (ObjectNetId net_object_id = ObjectNetId{ { 0 } }; net_object_id < ObjectNetId{ { ObjectNetId::IdType(p_snap_A.object_vars.size()) } }; net_object_id += 1) {
-		const NS::ObjectData *rew_object_data = scene_synchronizer.get_object_data(net_object_id);
+		const ObjectData *rew_object_data = scene_synchronizer.get_object_data(net_object_id);
 		if (rew_object_data == nullptr || rew_object_data->realtime_sync_enabled_on_client == false) {
 			continue;
 		}
@@ -213,7 +213,7 @@ bool NS::Snapshot::compare(
 		bool are_nodes_different = false;
 		if (net_object_id >= ObjectNetId{ { ObjectNetId::IdType(p_snap_B.object_vars.size()) } }) {
 			if (r_differences_info) {
-				r_differences_info->push_back("Difference detected: The B snapshot doesn't contain this node: " + rew_object_data->get_object_name());
+				r_differences_info->push_back("Difference detected because the snapshot B doesn't contain this object: " + rew_object_data->get_object_name());
 			}
 #ifdef NS_DEBUG_ENABLED
 			is_equal = false;
@@ -231,7 +231,7 @@ bool NS::Snapshot::compare(
 
 			if (are_nodes_different) {
 				if (r_differences_info) {
-					r_differences_info->push_back("Difference detected: The node status on snapshot B is different. NODE: " + rew_object_data->get_object_name());
+					r_differences_info->push_back("Difference detected on snapshot B. OBJECT NAME: " + rew_object_data->get_object_name());
 				}
 #ifdef NS_DEBUG_ENABLED
 				is_equal = false;
