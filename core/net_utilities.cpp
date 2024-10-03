@@ -413,25 +413,25 @@ void NS::SyncGroup::notify_peer_has_newly_calculated_latency(int p_peer) {
 	}
 }
 
-void NS::SyncGroup::notify_controller_changed(ObjectData *p_object_data, int p_previous_controlling_peer) {
-	if (p_object_data->get_controlled_by_peer() == p_previous_controlling_peer) {
+void NS::SyncGroup::notify_controller_changed(ObjectData &p_object_data, int p_previous_controlling_peer) {
+	if (p_object_data.get_controlled_by_peer() == p_previous_controlling_peer) {
 		return;
 	}
 
 	bool is_in_this_sync_group = false;
 	bool is_simulated = false;
-	if (find_simulated(*p_object_data) != VecFunc::index_none()) {
+	if (find_simulated(p_object_data) != VecFunc::index_none()) {
 		is_in_this_sync_group = true;
 		is_simulated = true;
-	} else if (find_trickled(*p_object_data) != VecFunc::index_none()) {
+	} else if (find_trickled(p_object_data) != VecFunc::index_none()) {
 		is_in_this_sync_group = true;
 	}
 
 	if (is_in_this_sync_group) {
 		validate_peer_association(p_previous_controlling_peer);
 
-		if (p_object_data->get_controlled_by_peer() > 0) {
-			const int peer = p_object_data->get_controlled_by_peer();
+		if (p_object_data.get_controlled_by_peer() > 0) {
+			const int peer = p_object_data.get_controlled_by_peer();
 
 			if (is_simulated) {
 				VecFunc::insert_unique(simulating_peers, peer);
@@ -446,7 +446,7 @@ void NS::SyncGroup::notify_controller_changed(ObjectData *p_object_data, int p_p
 		if (is_simulated) {
 			// Mark this net ID as added so on the next state update it's included
 			// in the snapshot and the client is updated about the new controlling peer.
-			VecFunc::insert_unique(simulated_sync_objects_ADDED, p_object_data->get_net_id());
+			VecFunc::insert_unique(simulated_sync_objects_ADDED, p_object_data.get_net_id());
 		}
 	}
 }

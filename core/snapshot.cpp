@@ -129,7 +129,7 @@ void NS::Snapshot::copy(const Snapshot &p_other) {
 }
 
 bool NS::Snapshot::compare(
-		const NS::SceneSynchronizerBase &scene_synchronizer,
+		const SceneSynchronizerBase &scene_synchronizer,
 		const Snapshot &p_snap_A,
 		const Snapshot &p_snap_B,
 		const int p_skip_objects_not_controlled_by_peer,
@@ -144,7 +144,7 @@ bool NS::Snapshot::compare(
 	bool is_equal = true;
 #endif
 
-	// Compares the simualted object first.
+	// Compares the simualated object first.
 	if (p_snap_A.simulated_objects.size() != p_snap_B.simulated_objects.size()) {
 		if (r_differences_info) {
 			r_differences_info->push_back("Difference detected: simulated_object count is different snapA: " + std::to_string(p_snap_A.simulated_objects.size()) + " snapB: " + std::to_string(p_snap_B.simulated_objects.size()) + ".");

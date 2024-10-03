@@ -114,7 +114,7 @@ bool ObjectData::set_controlled_by_peer(SceneSynchronizerBase &synchronizer, int
 	}
 
 	if (synchronizer.get_synchronizer_internal()) {
-		synchronizer.get_synchronizer_internal()->on_object_data_controller_changed(this, old_peer);
+		synchronizer.get_synchronizer_internal()->on_object_data_controller_changed(*this, old_peer);
 	}
 
 	return true;
