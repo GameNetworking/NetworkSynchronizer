@@ -754,7 +754,7 @@ public:
 	virtual void on_object_data_name_known(ObjectData &p_object_data) {
 	}
 
-	virtual void on_object_data_controller_changed(ObjectData *p_object_data, int p_previous_controlling_peer) {
+	virtual void on_object_data_controller_changed(ObjectData &p_object_data, int p_previous_controlling_peer) {
 	}
 
 	virtual void on_variable_added(ObjectData *p_object_data, const std::string &p_var_name) {
@@ -830,7 +830,7 @@ public:
 	virtual void on_object_data_added(NS::ObjectData &p_object_data) override;
 	virtual void on_object_data_removed(NS::ObjectData &p_object_data) override;
 	virtual void on_object_data_name_known(ObjectData &p_object_data) override;
-	virtual void on_object_data_controller_changed(ObjectData *p_object_data, int p_previous_controlling_peer) override;
+	virtual void on_object_data_controller_changed(ObjectData &p_object_data, int p_previous_controlling_peer) override;
 	virtual void on_variable_added(NS::ObjectData *p_object_data, const std::string &p_var_name) override;
 	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) override;
 
@@ -838,6 +838,7 @@ public:
 		return active_objects;
 	}
 
+	void notify_need_snapshot_asap(int p_peer);
 	void notify_need_full_snapshot(int p_peer, bool p_notify_ASAP);
 
 	SyncGroupId sync_group_create();

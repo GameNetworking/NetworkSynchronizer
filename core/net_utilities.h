@@ -453,7 +453,7 @@ public:
 
 	void notify_peer_has_newly_calculated_latency(int p_peer);
 
-	void notify_controller_changed(ObjectData *p_object_data, int p_previous_controlling_peer);
+	void notify_controller_changed(ObjectData &p_object_data, int p_previous_controlling_peer);
 
 	// Used when a new listener is added or removed.
 	void notify_simulating_peers_about_listener_status(int p_peer_listener, bool p_simulating);

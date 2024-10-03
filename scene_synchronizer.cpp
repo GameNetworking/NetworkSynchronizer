@@ -1980,9 +1980,17 @@ void ServerSynchronizer::on_object_data_name_known(ObjectData &p_object_data) {
 	}
 }
 
-void ServerSynchronizer::on_object_data_controller_changed(ObjectData *p_object_data, int p_previous_controlling_peer) {
-	if (p_object_data->get_controlled_by_peer() == p_previous_controlling_peer) {
+void ServerSynchronizer::on_object_data_controller_changed(ObjectData &p_object_data, int p_previous_controlling_peer) {
+	if (p_object_data.get_controlled_by_peer() == p_previous_controlling_peer) {
 		return;
+	}
+
+	if (p_object_data.get_controlled_by_peer() > 0) {
+		// NOTE 1: Notify the peer ASAP about the new controlling object.
+		// NOTE 2: The simulation list on the client is always updated by the server
+		//         because the server has the info in which group the object is
+		//         and for the client is impossible to infer that information.
+		notify_need_snapshot_asap(p_object_data.get_controlled_by_peer());
 	}
 
 	for (SyncGroup &sync_group : sync_groups) {
@@ -2019,6 +2027,12 @@ void ServerSynchronizer::on_variable_changed(NS::ObjectData *p_object_data, VarI
 	}
 }
 
+void ServerSynchronizer::notify_need_snapshot_asap(int p_peer) {
+	PeerServerData *psd = MapFunc::get_or_null(peers_data, p_peer);
+	NS_ENSURE(psd);
+	psd->force_notify_snapshot = true;
+}
+
 void ServerSynchronizer::notify_need_full_snapshot(int p_peer, bool p_notify_ASAP) {
 	PeerServerData *psd = MapFunc::get_or_null(peers_data, p_peer);
 	NS_ENSURE(psd);
@@ -2042,14 +2056,14 @@ const SyncGroup *ServerSynchronizer::sync_group_get(SyncGroupId p_group_id) cons
 	return &sync_groups[p_group_id.id];
 }
 
-void ServerSynchronizer::sync_group_add_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime) {
+void ServerSynchronizer::sync_group_add_object(ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime) {
 	NS_ENSURE(p_object_data);
 	NS_ENSURE_MSG(p_group_id.id < sync_groups.size(), "The group id `" + p_group_id + "` doesn't exist.");
 	NS_ENSURE_MSG(p_group_id != SyncGroupId::GLOBAL, "You can't change this SyncGroup in any way. Create a new one.");
 	sync_groups[p_group_id.id].add_new_sync_object(p_object_data, p_realtime);
 }
 
-void ServerSynchronizer::sync_group_remove_object(NS::ObjectData *p_object_data, SyncGroupId p_group_id) {
+void ServerSynchronizer::sync_group_remove_object(ObjectData *p_object_data, SyncGroupId p_group_id) {
 	NS_ENSURE_MSG(p_group_id.id < sync_groups.size(), "The group id `" + (p_group_id) + "` doesn't exist.");
 	NS_ENSURE(p_object_data);
 	NS_ENSURE_MSG(p_group_id != SyncGroupId::GLOBAL, "You can't change this SyncGroup in any way. Create a new one.");
@@ -2311,6 +2325,7 @@ void ServerSynchronizer::process_snapshot_notificator() {
 			}
 		}
 
+		// TODO ensure the changes are tracked per peer, avoiding to send redundant information.
 		if (notify_state) {
 			// The state got notified, mark this as checkpoint so the next state
 			// will contains only the changed variables.

@@ -339,8 +339,8 @@ public:
 		player_controlled_object_1_p1->move_feather_inputs[4] = true;
 		player_controlled_object_1_p1->move_feather_inputs[14] = true;
 
-		player_controlled_object_2_p2->move_feather_inputs[9] = true;
-		player_controlled_object_2_p2->move_feather_inputs[19] = true;
+		//player_controlled_object_2_p2->move_feather_inputs[9] = true;
+		//player_controlled_object_2_p2->move_feather_inputs[19] = true;
 
 		controller_p1_server = server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer());
 		controller_p1_p1 = peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer());
