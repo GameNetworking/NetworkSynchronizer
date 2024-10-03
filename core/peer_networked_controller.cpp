@@ -1484,14 +1484,25 @@ void DollController::copy_controlled_objects_snapshot(
 		bool p_store_even_when_doll_is_not_processing) {
 	NS_PROFILE
 	const FrameIndexWithMeta doll_executed_input_meta = MapFunc::at(p_snapshot.peers_frames_index, peer_controller->get_authority_peer(), FrameIndexWithMeta());
-	const std::vector<ObjectData *> *controlled_objects = peer_controller->scene_synchronizer->get_peer_controlled_objects_data(peer_controller->get_authority_peer());
+
+	std::vector<ObjectData *> controlled_objects;
+	for (const SimulatedObjectInfo &sim_object : p_snapshot.simulated_objects) {
+		if (sim_object.controlled_by_peer == peer_controller->get_authority_peer()) {
+			ObjectData *object_data = peer_controller->scene_synchronizer->get_object_data(sim_object.net_id);
+			if (object_data) {
+				controlled_objects.push_back(peer_controller->scene_synchronizer->get_object_data(sim_object.net_id));
+			} else {
+				get_debugger().print(WARNING, "The object data with ID `" + sim_object.net_id + "` was not found, but it's expected to be found as this peer is simulating and controlling it. If this happens too many times and the game miss behave, this might be something to investigate.");
+			}
+		}
+	}
 
 	if (!p_store_even_when_doll_is_not_processing) {
 		if (doll_executed_input_meta.frame_index == FrameIndex::NONE) {
 			// Nothing to store.
 			return;
 		}
-		if (!controlled_objects || controlled_objects->size() <= 0) {
+		if (controlled_objects.size() <= 0) {
 			// Nothing to store for this doll.
 			return;
 		}
@@ -1516,7 +1527,7 @@ void DollController::copy_controlled_objects_snapshot(
 	// Extracts the data from the snapshot.
 	MapFunc::assign(snap->data.peers_frames_index, peer_controller->get_authority_peer(), doll_executed_input_meta);
 
-	if (!controlled_objects || controlled_objects->size() <= 0) {
+	if (controlled_objects.size() <= 0) {
 		// Nothing to store for this doll.
 		return;
 	}
@@ -1524,7 +1535,7 @@ void DollController::copy_controlled_objects_snapshot(
 	// Find the biggest ID to initialize the snapshot.
 	{
 		ObjectNetId biggest_id = ObjectNetId{ { 0 } };
-		for (ObjectData *object_data : *controlled_objects) {
+		for (ObjectData *object_data : controlled_objects) {
 			if (object_data->get_net_id() > biggest_id) {
 				biggest_id = object_data->get_net_id();
 			}
@@ -1535,7 +1546,7 @@ void DollController::copy_controlled_objects_snapshot(
 	snap->data.simulated_objects.clear();
 
 	// Now store the vars info.
-	for (ObjectData *object_data : *controlled_objects) {
+	for (ObjectData *object_data : controlled_objects) {
 		if (!VecFunc::has(p_snapshot.simulated_objects, object_data->get_net_id())) {
 			// This object was not simulated.
 			continue;
