@@ -880,7 +880,6 @@ public:
 			const ObjectData *p_object_data,
 			SnapshotObjectGeneratorMode p_mode,
 			const SyncGroup::Change &p_change,
-			std::vector<int> &r_frame_index_added_for_peer,
 			DataBuffer &r_snapshot_db) const;
 
 	void process_trickled_sync(float p_delta);
@@ -1025,6 +1024,7 @@ public:
 	virtual void process(float p_delta) override;
 	virtual void on_object_data_added(NS::ObjectData &p_object_data) override;
 	virtual void on_object_data_removed(NS::ObjectData &p_object_data) override;
+	virtual void on_object_data_name_known(ObjectData &p_object_data) override;
 	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) override;
 	void signal_end_sync_changed_variables_events();
 	virtual void on_controller_reset(PeerNetworkedController &p_controller) override;

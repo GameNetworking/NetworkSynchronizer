@@ -31,7 +31,7 @@ public:
 	virtual void on_scene_exit() {
 	}
 
-	NS::ObjectLocalId find_local_id() const;
+	ObjectLocalId find_local_id() const;
 };
 
 class LocalSceneSynchronizer : public SceneSynchronizer<LocalSceneObject, LocalNetworkInterface>, public SynchronizerManager, public LocalSceneObject {
