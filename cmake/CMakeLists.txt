@@ -70,7 +70,7 @@ if (MSVC)
 	
     # Set compiler flags for various configurations
     if (NOT OVERRIDE_CXX_FLAGS)
-    	set(CMAKE_CXX_FLAGS_DEBUG "/MDd /GS /Od /Ob0 /RTC1")
+    	set(CMAKE_CXX_FLAGS_DEBUG "/MDd /Zi /GS /Od /Ob0 /RTC1")
         if (BUILD_MSVC_MD)
     	    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd")
 	        set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MDd")
@@ -84,7 +84,7 @@ else()
 	endif()
 	
 	if (NOT OVERRIDE_CXX_FLAGS)
-		set(CMAKE_CXX_FLAGS_DEBUG "")
+		set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
 		set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 	endif()
 	set(CMAKE_CXX_FLAGS_DISTRIBUTION "${CMAKE_CXX_FLAGS_RELEASE}")
