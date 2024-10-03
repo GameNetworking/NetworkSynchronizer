@@ -248,8 +248,9 @@ void test_late_name_initialization() {
 
 	// Assert that the server position is now sync on the client.
 	// NOTICE: This is using equal_approx with such big approximation (5.0)
-	// because we are no comparing the exact frame, so we expect the position
-	// not to be exactly the same. What's important is that the client was reconcilied.
+	// because it's not comparing the exact frame, so we expect the position
+	// to be different.
+	// However, what's important is that the client was reconciled.
 	NS_ASSERT_COND(NS::MathFunc::is_equal_approx(controller_p1_server->position.data.f32, -439.0f, 5.0f));
 	NS_ASSERT_COND(NS::MathFunc::is_equal_approx(controller_p1_client->position.data.f32, controller_p1_server->position.data.f32, delta * 2.0f));
 
