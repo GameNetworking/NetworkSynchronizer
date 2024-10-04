@@ -568,9 +568,9 @@ struct TestSwitchControllerNoRewindMultipleSwitch : public TestSwitchControllerN
 };
 
 void test_switch_controller() {
-	TestSwitchControllerNoRewindSingleSwitch(0.0).do_test();
-	TestSwitchControllerNoRewindSingleSwitch(0.1).do_test();
-	TestSwitchControllerNoRewindSingleSwitch(0.5).do_test();
-	TestSwitchControllerNoRewindSingleSwitch(1.0).do_test();
+	TestSwitchControllerNoRewindSingleSwitch(0.0f).do_test();
+	TestSwitchControllerNoRewindSingleSwitch(0.1f).do_test();
+	TestSwitchControllerNoRewindSingleSwitch(0.5f).do_test();
+	TestSwitchControllerNoRewindSingleSwitch(1.0f).do_test();
 }
 }; //namespace NS_Test
