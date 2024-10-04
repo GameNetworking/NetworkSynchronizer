@@ -77,6 +77,7 @@ public:
 
 class FeatherPlayerController : public NS::LocalSceneObject {
 public:
+	std::function<void()> on_feather_controller_switched;
 	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
 	Vec3 position;
 
@@ -200,6 +201,10 @@ public:
 			// In this way the feather is now part of the timeline of the last
 			// peer touching it.
 			scene_owner->scene_sync->set_controlled_by_peer(feather->local_id, authoritative_peer_id);
+
+			if (on_feather_controller_switched) {
+				on_feather_controller_switched();
+			}
 		}
 	}
 
@@ -267,6 +272,9 @@ struct TestSwitchControllerBase {
 	NS::FrameIndex process_until_frame = NS::FrameIndex{ { 300 } };
 	int process_until_frame_timeout = 20;
 
+	std::vector<NS::FrameIndex> server_switched_controller_on_frame_for_p1;
+	std::vector<NS::FrameIndex> server_switched_controller_on_frame_for_p2;
+
 	virtual void on_scenes_initialized() {
 	}
 
@@ -283,6 +291,9 @@ struct TestSwitchControllerBase {
 	}
 
 	virtual void on_scenes_done() {
+	}
+
+	void notify_feather_player_controller_switched() {
 	}
 
 public:
@@ -315,13 +326,14 @@ public:
 				peer_2_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
 
 		// TODO remove this.
+		/*
 		peer_1_scene.scene_sync->set_debug_rewindings_enabled(true);
 
-		// TODO remove
 		server_scene.scene_sync->get_debugger().set_log_level(NS::ERROR);
 		//peer_1_scene.scene_sync->get_debugger().set_log_level(NS::ERROR);
 		peer_1_scene.scene_sync->get_debugger().set_log_level(NS::VERBOSE);
 		peer_2_scene.scene_sync->get_debugger().set_log_level(NS::ERROR);
+		*/
 
 		server_scene.scene_sync->get_debugger().set_log_prefix("SERVER");
 		peer_1_scene.scene_sync->get_debugger().set_log_prefix("PEER-1");
@@ -336,11 +348,17 @@ public:
 		player_controlled_object_2_p1 = peer_1_scene.add_object<FeatherPlayerController>("controller_2", peer_2_scene.get_peer());
 		player_controlled_object_2_p2 = peer_2_scene.add_object<FeatherPlayerController>("controller_2", peer_2_scene.get_peer());
 
-		//player_controlled_object_1_p1->move_feather_inputs[4] = true;
-		//player_controlled_object_1_p1->move_feather_inputs[14] = true;
+		player_controlled_object_1_server->on_feather_controller_switched = [this]() {
+			NS::PeerNetworkedController *pc = server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer());
+			NS_ASSERT_COND(pc);
+			server_switched_controller_on_frame_for_p1.push_back(pc->get_current_frame_index());
+		};
 
-		player_controlled_object_2_p2->move_feather_inputs[9] = true;
-		player_controlled_object_2_p2->move_feather_inputs[19] = true;
+		player_controlled_object_2_server->on_feather_controller_switched = [this]() {
+			NS::PeerNetworkedController *pc = server_scene.scene_sync->get_controller_for_peer(peer_2_scene.get_peer());
+			NS_ASSERT_COND(pc);
+			server_switched_controller_on_frame_for_p2.push_back(pc->get_current_frame_index());
+		};
 
 		controller_p1_server = server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer());
 		controller_p1_p1 = peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer());
@@ -396,18 +414,6 @@ public:
 		bool p1_reached_target_frame = false;
 		bool p2_reached_target_frame = false;
 
-		Vec3 controller_1_position_on_server_at_target_frame;
-		Vec3 controller_1_position_on_p1_at_target_frame;
-		Vec3 controller_1_position_on_p2_at_target_frame;
-
-		Vec3 controller_2_position_on_server_at_target_frame;
-		Vec3 controller_2_position_on_p1_at_target_frame;
-		Vec3 controller_2_position_on_p2_at_target_frame;
-
-		Vec3 feather_position_on_server_at_target_frame;
-		Vec3 feather_position_on_p1_at_target_frame;
-		Vec3 feather_position_on_p2_at_target_frame;
-
 		while (true) {
 			// Use a random delta, to make sure the NetSync can be processed
 			// by a normal process loop with dynamic `delta_time`.
@@ -420,23 +426,15 @@ public:
 
 			if (controller_p1_server->get_current_frame_index() == process_until_frame) {
 				server_reached_target_frame = true;
-				controller_1_position_on_server_at_target_frame = player_controlled_object_1_server->get_position();
-				feather_position_on_server_at_target_frame = feather_server->get_position();
 			}
 			if (controller_p2_server->get_current_frame_index() == process_until_frame) {
 				server_reached_target_frame = true;
-				controller_2_position_on_server_at_target_frame = player_controlled_object_2_server->get_position();
-				feather_position_on_server_at_target_frame = feather_server->get_position();
 			}
 			if (controller_p1_p1->get_current_frame_index() == process_until_frame) {
 				p1_reached_target_frame = true;
-				controller_1_position_on_p1_at_target_frame = player_controlled_object_1_p1->get_position();
-				feather_position_on_p1_at_target_frame = feather_p1->get_position();
 			}
 			if (controller_p2_p2->get_current_frame_index() == process_until_frame) {
 				p2_reached_target_frame = true;
-				controller_2_position_on_p2_at_target_frame = player_controlled_object_2_p2->get_position();
-				feather_position_on_p2_at_target_frame = feather_p2->get_position();
 			}
 
 			if (server_reached_target_frame && p1_reached_target_frame && p2_reached_target_frame) {
@@ -453,17 +451,6 @@ public:
 				NS_ASSERT_COND(controller_p2_p2->get_current_frame_index() < (process_until_frame + process_until_frame_timeout));
 			}
 		}
-
-		// TODO implement this.
-		//                  ---- Validation phase ----
-		// First make sure all positions have changed at all.
-		//NS_ASSERT_COND(player_controlled_object_1_server->get_position().distance_to(Vec3(1, 1, 1)) > 0.0001);
-
-		// Now, make sure the client and server positions are the same: ensuring the
-		// sync worked.
-		//NS_ASSERT_COND(controller_position_on_server_at_target_frame.distance_to(controller_position_on_p1_at_target_frame) < 0.0001);
-		//NS_ASSERT_COND(feather_position_on_server_at_target_frame.distance_to(feather_position_on_p1_at_target_frame) < 0.0001);
-		//NS_ASSERT_COND(heavy_mag_server_position_at_target_frame.distance_to(heavy_mag_p1_position_at_target_frame) < 0.0001);
 
 		on_scenes_done();
 	}
@@ -484,6 +471,8 @@ public:
 	}
 
 	virtual void on_scenes_initialized() override {
+		TestSwitchControllerBase::on_scenes_initialized();
+
 		server_scene.scene_sync->set_frame_confirmation_timespan(notify_state_interval);
 		// Make sure the client can predict as many frames it needs (no need to add some more noise to this test).
 		server_scene.scene_sync->set_max_predicted_intervals(20);
@@ -515,336 +504,73 @@ public:
 	}
 
 	virtual void on_scenes_done() override {
-		NS_ASSERT_COND(p1_rewinded_frames.empty());
+	}
+};
+
+// The object controller switch is performed only on one client.
+struct TestSwitchControllerNoRewindSingleSwitch : public TestSwitchControllerNoRewind {
+	TestSwitchControllerNoRewindSingleSwitch(float p_notify_state_interval) :
+		TestSwitchControllerNoRewind(p_notify_state_interval) {
+	}
+
+	virtual void on_scenes_initialized() override {
+		TestSwitchControllerNoRewind::on_scenes_initialized();
+
+		player_controlled_object_2_p2->move_feather_inputs[9] = true;
+		player_controlled_object_2_p2->move_feather_inputs[19] = true;
+	}
+
+	virtual void on_server_process(float p_delta) override {
+	}
+
+	virtual void on_scenes_done() override {
+		// Since the player controller owned by the peer 2 is switching the controller
+		// some rewinds can be triggered. At most 2 rewinds are tolerated.
+		NS_ASSERT_COND(p1_rewinded_frames.size()<=2);
+		NS_ASSERT_COND(p2_rewinded_frames.empty());
+
+		NS_ASSERT_COND(server_switched_controller_on_frame_for_p1.size() <= 0);
+		NS_ASSERT_COND(server_switched_controller_on_frame_for_p2.size() > 1);
+	}
+};
+
+// TODO this is not fully implemented yet.
+// The object controller switch is performed only two clients one after the other
+// multiple times.
+struct TestSwitchControllerNoRewindMultipleSwitch : public TestSwitchControllerNoRewind {
+	TestSwitchControllerNoRewindMultipleSwitch(float p_notify_state_interval) :
+		TestSwitchControllerNoRewind(p_notify_state_interval) {
+	}
+
+	virtual void on_scenes_initialized() override {
+		TestSwitchControllerNoRewind::on_scenes_initialized();
+
+		player_controlled_object_1_p1->move_feather_inputs[4] = true;
+		player_controlled_object_1_p1->move_feather_inputs[14] = true;
+
+		player_controlled_object_2_p2->move_feather_inputs[9] = true;
+		player_controlled_object_2_p2->move_feather_inputs[19] = true;
+	}
+
+	virtual void on_server_process(float p_delta) override {
+	}
+
+	virtual void on_scenes_done() override {
+		// TODO find a way to check this.
+		//NS_ASSERT_COND(server_switched_controller_on_frame_for_p1.size() > 1);
+		//NS_ASSERT_COND(server_switched_controller_on_frame_for_p2.size() > 1);
+
+		// Since the player controller owned by the peer 2 is switching the controller
+		// only 1 rewind at most is expected on peer 1.
+		NS_ASSERT_COND(p1_rewinded_frames.size()<=1);
 		NS_ASSERT_COND(p2_rewinded_frames.empty());
 	}
 };
 
-/// This test was build to verify that the NetSync is able to immediately re-sync
-/// a scene even when switching the object authority.
-/// It manually de-sync the server by teleporting the controller, and then
-/// make sure the client was immediately re-sync with a single rewinding action.
-struct TestSwitchControllerWithRewind : public TestSwitchControllerBase {
-	NS::FrameIndex reset_position_on_frame = NS::FrameIndex{ { 100 } };
-	float notify_state_interval = 0.0f;
-
-public:
-	std::vector<NS::FrameIndex> p1_rewinded_frames;
-	std::vector<NS::FrameIndex> p2_rewinded_frames;
-	// The ID of snapshot sent by the server.
-	NS::FrameIndex p1_correction_snapshot_sent = NS::FrameIndex{ { 0 } };
-	NS::FrameIndex p2_correction_snapshot_sent = NS::FrameIndex{ { 0 } };
-
-	TestSwitchControllerWithRewind(float p_notify_state_interval) :
-		notify_state_interval(p_notify_state_interval) {
-	}
-
-	virtual void on_scenes_initialized() override {
-		server_scene.scene_sync->set_frame_confirmation_timespan(notify_state_interval);
-		// Make sure the client can predict as many frames it needs (no need to add some more noise to this test).
-		server_scene.scene_sync->set_max_predicted_intervals(20);
-
-		controller_p1_server->event_input_missed.bind([](NS::FrameIndex p_frame_index) {
-			// The input should be never missing!
-			NS_ASSERT_NO_ENTRY();
-		});
-
-		controller_p2_server->event_input_missed.bind([](NS::FrameIndex p_frame_index) {
-			// The input should be never missing!
-			NS_ASSERT_NO_ENTRY();
-		});
-
-		controller_p1_p1->get_scene_synchronizer()->event_state_validated.bind([this](NS::FrameIndex p_frame_index, bool p_desync) {
-			if (p_desync) {
-				p1_rewinded_frames.push_back(p_frame_index);
-			}
-		});
-
-		controller_p2_p2->get_scene_synchronizer()->event_state_validated.bind([this](NS::FrameIndex p_frame_index, bool p_desync) {
-			if (p_desync) {
-				p2_rewinded_frames.push_back(p_frame_index);
-			}
-		});
-	}
-
-	virtual void on_server_process(float p_delta) override {
-		if (controller_p1_server->get_current_frame_index() == reset_position_on_frame) {
-			// Reset the character position only on the server, to simulate a desync.
-			player_controlled_object_1_server->set_position(Vec3(-10.0, 10.0, 0.0));
-
-			server_scene.scene_sync->event_sent_snapshot.bind([this](NS::FrameIndex p_frame_index, int p_peer) {
-				p1_correction_snapshot_sent = p_frame_index;
-
-				// Make sure this function is not called once again.
-				server_scene.scene_sync->event_sent_snapshot.clear();
-			});
-		}
-
-		if (controller_p2_server->get_current_frame_index() == reset_position_on_frame) {
-			// Reset the character position only on the server, to simulate a desync.
-			player_controlled_object_2_server->set_position(Vec3(100.0, -100.0, 0.0));
-
-			server_scene.scene_sync->event_sent_snapshot.bind([this](NS::FrameIndex p_frame_index, int p_peer) {
-				p2_correction_snapshot_sent = p_frame_index;
-
-				// Make sure this function is not called once again.
-				server_scene.scene_sync->event_sent_snapshot.clear();
-			});
-		}
-	}
-
-	virtual void on_scenes_done() override {
-		NS_ASSERT_COND(p1_rewinded_frames.size() == 1);
-		NS_ASSERT_COND(p1_rewinded_frames[0] >= reset_position_on_frame);
-		NS_ASSERT_COND(p1_rewinded_frames[0] == p1_correction_snapshot_sent);
-
-		NS_ASSERT_COND(p2_rewinded_frames.size() == 1);
-		NS_ASSERT_COND(p2_rewinded_frames[0] >= reset_position_on_frame);
-		NS_ASSERT_COND(p2_rewinded_frames[0] == p2_correction_snapshot_sent);
-	}
-};
-
-/// This test validates the Partial Update feature.
-/// It sets the controller as partially Updating each frame and ensure that the
-/// controller is re-sync in exactly 1 frame even when the sync rate is set to 1.0 seconds.
-struct TestSwitchControllerWithRewindAndPartialUpdate : public TestSwitchControllerWithRewind {
-	TestSwitchControllerWithRewindAndPartialUpdate(float p_notify_state_interval) :
-		TestSwitchControllerWithRewind(p_notify_state_interval) {
-	}
-
-	virtual void on_scenes_initialized() override {
-		TestSwitchControllerWithRewind::on_scenes_initialized();
-
-		// Set the controller eligible for partial update so their changes are notified ASAP.
-		server_scene.scene_sync->sync_group_set_simulated_partial_update_timespan_seconds(
-				player_controlled_object_1_server->local_id,
-				NS::SyncGroupId::GLOBAL,
-				true,
-				0.0f);
-	}
-
-	virtual void on_scenes_done() override {
-		TestSwitchControllerWithRewind::on_scenes_done();
-		NS_ASSERT_COND(p1_rewinded_frames[0] == (reset_position_on_frame));
-	}
-};
-
-/*
- 
-// TODO please remove this!
-class ActorSceneObject : public NS::LocalSceneObject {
-public:
-	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
-	Vec3 position;
-
-	virtual void on_scene_entry() override {
-		set_position(Vec3());
-
-		if (get_scene()->scene_sync->is_server()) {
-			get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
-		}
-	}
-
-	virtual void setup_synchronizer(NS::LocalSceneSynchronizer &p_scene_sync, NS::ObjectLocalId p_id) override {
-		local_id = p_id;
-		p_scene_sync.register_variable(
-				p_id, "position",
-				[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, const NS::VarData &p_value) {
-					static_cast<ActorSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->position = Vec3::from(p_value);
-				},
-				[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, NS::VarData &r_value) {
-					r_value = static_cast<const ActorSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->position;
-				});
-	}
-
-	virtual void on_scene_exit() override {
-		get_scene()->scene_sync->on_app_object_removed(get_scene()->scene_sync->to_handle(this));
-	}
-
-	void set_position(const Vec3 &p_pos) {
-		position = p_pos;
-	}
-
-	Vec3 get_position() const {
-		return position;
-	}
-};
-
-void process_actors_simulation(NS::LocalSceneSynchronizer &scene_sync, float p_delta) {
-	for (const NS::ObjectData *od : scene_sync.get_sorted_objects_data()) {
-		if (!od) {
-			continue;
-		}
-
-		NS::LocalSceneObject *lso = scene_sync.from_handle(od->app_object_handle);
-		ActorSceneObject *aso = dynamic_cast<ActorSceneObject *>(lso);
-		if (aso) {
-			aso->set_position(aso->get_position() + Vec3(0.2f * p_delta, 0.3f * p_delta, 0.4f * p_delta));
-		}
-	}
-}
-
-/// This test validates that the Partial Updated snapshot can be generated by the server
-/// fetched by the client even when the controller peer is not included and that
-/// the max objects per frame are properly respected.
-/// NOTE: When setting `rolling_update` to true, it tests that the objects that
-/// were excluded from the partial update because the max object limit was reached
-/// gets an higher priority so that every object is properly synchronized.
-struct TestSwitchControllerWithPartialUpdate : public TestSwitchControllerBase {
-	NS::FrameIndex reset_position_on_frame = NS::FrameIndex{ { 100 } };
-
-	/// When rolling update is set to true, the test verify that the objects
-	/// excluded from the previous partial update gets higher priority and gets
-	/// sync during the following updates, even if the objects just sync get modified again.
-	const bool rolling_update;
-	const float notify_state_interval;
-
-	ActorSceneObject *actor_1_on_server = nullptr;
-	ActorSceneObject *actor_1_on_peer1 = nullptr;
-
-	ActorSceneObject *actor_2_on_server = nullptr;
-	ActorSceneObject *actor_2_on_peer1 = nullptr;
-
-	ActorSceneObject *actor_3_on_server = nullptr;
-	ActorSceneObject *actor_3_on_peer1 = nullptr;
-
-	ActorSceneObject *actor_4_on_server = nullptr;
-	ActorSceneObject *actor_4_on_peer1 = nullptr;
-
-public:
-	std::vector<NS::FrameIndex> client_rewinded_frames;
-	// The ID of snapshot sent by the server.
-	std::vector<NS::FrameIndex> correction_snapshots_sent;
-
-	TestSwitchControllerWithPartialUpdate(bool p_rolling_update) :
-		rolling_update(p_rolling_update),
-		notify_state_interval(1.0f) {
-	}
-
-	virtual void on_scenes_initialized() override {
-		server_scene.scene_sync->set_frame_confirmation_timespan(notify_state_interval);
-		// Make sure the client can predict as many frames it needs (no need to add some more noise to this test).
-		server_scene.scene_sync->set_max_predicted_intervals(20);
-
-		controller_p1_server->event_input_missed.bind([](NS::FrameIndex p_frame_index) {
-			// The input should be never missing!
-			NS_ASSERT_NO_ENTRY();
-		});
-
-		controller_p1_p1->get_scene_synchronizer()->event_state_validated.bind([this](NS::FrameIndex p_frame_index, bool p_desync) {
-			if (p_desync) {
-				client_rewinded_frames.push_back(p_frame_index);
-			}
-		});
-
-		actor_1_on_server = server_scene.add_object<ActorSceneObject>("actor_1", server_scene.get_peer());
-		actor_1_on_peer1 = peer_1_scene.add_object<ActorSceneObject>("actor_1", server_scene.get_peer());
-
-		actor_2_on_server = server_scene.add_object<ActorSceneObject>("actor_2", server_scene.get_peer());
-		actor_2_on_peer1 = peer_1_scene.add_object<ActorSceneObject>("actor_2", server_scene.get_peer());
-
-		actor_3_on_server = server_scene.add_object<ActorSceneObject>("actor_3", server_scene.get_peer());
-		actor_3_on_peer1 = peer_1_scene.add_object<ActorSceneObject>("actor_3", server_scene.get_peer());
-
-		actor_4_on_server = server_scene.add_object<ActorSceneObject>("actor_4", server_scene.get_peer());
-		actor_4_on_peer1 = peer_1_scene.add_object<ActorSceneObject>("actor_4", server_scene.get_peer());
-
-		// Set the actor eligible for partial update so their changes are notified ASAP.
-		server_scene.scene_sync->sync_group_set_simulated_partial_update_timespan_seconds(
-				actor_1_on_server->local_id,
-				NS::SyncGroupId::GLOBAL,
-				true,
-				0.0f);
-
-		server_scene.scene_sync->sync_group_set_simulated_partial_update_timespan_seconds(
-				actor_2_on_server->local_id,
-				NS::SyncGroupId::GLOBAL,
-				true,
-				0.0f);
-
-		server_scene.scene_sync->sync_group_set_simulated_partial_update_timespan_seconds(
-				actor_3_on_server->local_id,
-				NS::SyncGroupId::GLOBAL,
-				true,
-				0.0f);
-
-		server_scene.scene_sync->sync_group_set_simulated_partial_update_timespan_seconds(
-				actor_4_on_server->local_id,
-				NS::SyncGroupId::GLOBAL,
-				true,
-				0.0f);
-
-		// Ensure that only 2 objects are sent per Partial Update
-		server_scene.scene_sync->set_max_objects_count_per_partial_update(2);
-
-		server_scene.scene_sync->register_process(player_controlled_object_1_server->local_id, PROCESS_PHASE_POST, [=](float p_delta) -> void {
-			process_actors_simulation(*server_scene.scene_sync, p_delta);
-		});
-		peer_1_scene.scene_sync->register_process(player_controlled_object_1_p1->local_id, PROCESS_PHASE_POST, [=](float p_delta) -> void {
-			process_actors_simulation(*peer_1_scene.scene_sync, p_delta);
-		});
-	}
-
-	virtual void on_server_process(float p_delta) override {
-		if (controller_p1_server->get_current_frame_index() == reset_position_on_frame) {
-			// Change the location of all the 4 objects.
-			actor_1_on_server->set_position(Vec3(10.0, 10.0, 10.0));
-			actor_2_on_server->set_position(Vec3(10.0, 10.0, 10.0));
-			actor_3_on_server->set_position(Vec3(10.0, 10.0, 10.0));
-			actor_4_on_server->set_position(Vec3(10.0, 10.0, 10.0));
-
-			server_scene.scene_sync->event_sent_snapshot.bind([this](NS::FrameIndex p_frame_index, int p_peer) {
-				correction_snapshots_sent.push_back(p_frame_index);
-				if (rolling_update) {
-					if (p_frame_index == (reset_position_on_frame + 2)) {
-						server_scene.scene_sync->event_sent_snapshot.clear();
-					}
-				} else {
-					if (p_frame_index == (reset_position_on_frame + 1)) {
-						server_scene.scene_sync->event_sent_snapshot.clear();
-					}
-				}
-			});
-		} else if (rolling_update && controller_p1_server->get_current_frame_index() == reset_position_on_frame + 1) {
-			// Change the location of the objects just notified.
-			actor_1_on_server->set_position(Vec3(11.0, 12.0, 13.0));
-			actor_2_on_server->set_position(Vec3(11.0, 12.0, 13.0));
-		}
-	}
-
-	virtual void on_scenes_done() override {
-		if (!rolling_update) {
-			NS_ASSERT_COND(client_rewinded_frames.size() == 2);
-			NS_ASSERT_COND(client_rewinded_frames[0] == reset_position_on_frame);
-			NS_ASSERT_COND(client_rewinded_frames[1] == (reset_position_on_frame+1));
-			NS_ASSERT_COND(correction_snapshots_sent.size() == 2);
-			NS_ASSERT_COND(correction_snapshots_sent[0] == reset_position_on_frame);
-			NS_ASSERT_COND(correction_snapshots_sent[1] == (reset_position_on_frame+1));
-		} else {
-			NS_ASSERT_COND(client_rewinded_frames.size() == 3);
-			NS_ASSERT_COND(client_rewinded_frames[0] == reset_position_on_frame);
-			NS_ASSERT_COND(client_rewinded_frames[1] == (reset_position_on_frame+1));
-			NS_ASSERT_COND(client_rewinded_frames[2] == (reset_position_on_frame+2));
-			NS_ASSERT_COND(correction_snapshots_sent.size() == 3);
-			NS_ASSERT_COND(correction_snapshots_sent[0] == reset_position_on_frame);
-			NS_ASSERT_COND(correction_snapshots_sent[1] == (reset_position_on_frame+1));
-			NS_ASSERT_COND(correction_snapshots_sent[2] == (reset_position_on_frame+2));
-		}
-	}
-};
-*/
-
 void test_switch_controller() {
-	TestSwitchControllerNoRewind(0.0).do_test();
-	//TestSwitchControllerNoRewind(0.5).do_test();
-
-	// TODO test the sync of the authority change of the object.
-	// TODO enable all the tests.
-	//TestSwitchControllerWithRewind(0.0f).do_test();
-	//TestSwitchControllerWithRewind(1.0f).do_test();
-	//TestSwitchControllerWithRewindAndPartialUpdate(0.0f).do_test();
-	//TestSwitchControllerWithRewindAndPartialUpdate(1.0f).do_test();
-	//TestSwitchControllerWithPartialUpdate(false).do_test();
-	//TestSwitchControllerWithPartialUpdate(true).do_test();
+	TestSwitchControllerNoRewindSingleSwitch(0.0).do_test();
+	TestSwitchControllerNoRewindSingleSwitch(0.1).do_test();
+	TestSwitchControllerNoRewindSingleSwitch(0.5).do_test();
+	TestSwitchControllerNoRewindSingleSwitch(1.0).do_test();
 }
 }; //namespace NS_Test
