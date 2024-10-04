@@ -288,7 +288,6 @@ struct SyncGroup {
 public:
 	struct Change {
 		bool unknown = false;
-		std::vector<VarId> unknown_vars; // TODO this is not any longer needed. Please remove it.
 		std::vector<VarId> vars;
 		bool controlling_peer_changed = false;
 	};

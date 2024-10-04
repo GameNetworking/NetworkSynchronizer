@@ -31,7 +31,6 @@ void NS::SyncGroup::advance_timer_state_notifier(
 				simulated_sync_objects[index].last_partial_update_timer >= simulated_sync_objects[index].partial_update_timespan_sec
 				&& r_partial_update_simulated_objects_info_indices.size() < p_max_objects_count_per_partial_update
 				&& (simulated_sync_objects[index].change.unknown
-					|| simulated_sync_objects[index].change.unknown_vars.size() > 0
 					|| simulated_sync_objects[index].change.vars.size() > 0)) {
 				r_partial_update_simulated_objects_info_indices.push_back(index);
 				simulated_sync_objects[index].last_partial_update_timer = 0.0f;
@@ -88,7 +87,6 @@ void NS::SyncGroup::mark_changes_as_notified(bool p_is_partial_update, const std
 
 		for (const std::size_t index : p_partial_update_simulated_objects_info_indices) {
 			simulated_sync_objects[index].change.unknown = false;
-			simulated_sync_objects[index].change.unknown_vars.clear();
 			simulated_sync_objects[index].change.vars.clear();
 		}
 	} else {
@@ -98,7 +96,6 @@ void NS::SyncGroup::mark_changes_as_notified(bool p_is_partial_update, const std
 		// Mark all the simulated objects as updated
 		for (auto &sso : simulated_sync_objects) {
 			sso.change.unknown = false;
-			sso.change.unknown_vars.clear();
 			sso.change.vars.clear();
 		}
 	}
@@ -327,7 +324,6 @@ void NS::SyncGroup::notify_new_variable(ObjectData *p_object_data, VarId p_var_i
 	const std::size_t index = find_simulated(*p_object_data);
 	if (index != VecFunc::index_none()) {
 		VecFunc::insert_unique(simulated_sync_objects[index].change.vars, p_var_id);
-		VecFunc::insert_unique(simulated_sync_objects[index].change.unknown_vars, p_var_id);
 	}
 }
 
