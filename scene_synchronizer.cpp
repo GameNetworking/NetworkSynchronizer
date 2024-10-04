@@ -2954,6 +2954,11 @@ void ClientSynchronizer::store_controllers_snapshot(
 		const RollingUpdateSnapshot &p_snapshot) {
 	// Put the parsed snapshot into the queue.
 
+	if make_unlikely(!scene_synchronizer->synchronizer_manager->can_client_store_server_snapshot(p_snapshot)) {
+		// Do not store this snapshot.
+		return;
+	}
+
 	if (p_snapshot.input_id == FrameIndex::NONE) {
 		scene_synchronizer->get_debugger().print(VERBOSE, "The Client received the server snapshot WITHOUT `input_id`.", scene_synchronizer->get_network_interface().get_owner_name());
 		// The controller node is not registered so just assume this snapshot is the most up-to-date.

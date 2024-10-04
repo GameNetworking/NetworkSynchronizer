@@ -89,6 +89,12 @@ public:
 	/// NOTICE: The name must be unique across all the peers!
 	virtual std::string fetch_object_name(ObjectHandle p_app_object_handle) const = 0;
 	virtual void setup_synchronizer_for(ObjectHandle p_app_object_handle, ObjectLocalId p_id) = 0;
+
+	/// This allows the client to drop a server snapshot.
+	/// This is for advanced use and allows to skip some snapshots based on some criteria.
+	virtual bool can_client_store_server_snapshot(const RollingUpdateSnapshot &p_snapshot) const {
+		return true;
+	}
 };
 
 struct LagCompensationSettings {
@@ -328,7 +334,9 @@ protected: // -------------------------------------------------------- Internals
 	bool debug_log_nodes_relevancy_update = false;
 
 public: // -------------------------------------------------------------- Events
+	/// Called when the SceneSync starts to synchronize the objects.
 	Processor<> event_sync_started;
+	/// Is called when the synchronization is paused.
 	Processor<> event_sync_paused;
 	Processor<const Settings &> event_settings_changed;
 	Processor<int /*p_peer*/, bool /*p_connected*/, bool /*p_enabled*/> event_peer_status_updated;
