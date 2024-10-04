@@ -533,7 +533,7 @@ struct TestSwitchControllerNoRewindSingleSwitch : public TestSwitchControllerNoR
 		NS_ASSERT_COND(server_switched_controller_on_frame_for_p2.size() > 1);
 	}
 };
-
+ 
 // TODO this is not fully implemented yet.
 // The object controller switch is performed only two clients one after the other
 // multiple times.
