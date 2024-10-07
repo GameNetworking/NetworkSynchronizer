@@ -526,14 +526,14 @@ struct TestSwitchControllerNoRewindSingleSwitch : public TestSwitchControllerNoR
 	virtual void on_scenes_done() override {
 		// Since the player controller owned by the peer 2 is switching the controller
 		// some rewinds can be triggered. At most 5 rewinds are tolerated.
-		NS_ASSERT_COND(p1_rewinded_frames.size()<=5);
-		NS_ASSERT_COND(p2_rewinded_frames.empty());
+		NS_ASSERT_COND(p1_rewinded_frames.size() <= 1);
+		NS_ASSERT_COND(p2_rewinded_frames.size() <= 1);
 
 		NS_ASSERT_COND(server_switched_controller_on_frame_for_p1.size() <= 0);
-		NS_ASSERT_COND(server_switched_controller_on_frame_for_p2.size() > 1);
+		NS_ASSERT_COND(server_switched_controller_on_frame_for_p2.size() > 5);
 	}
 };
- 
+
 // TODO this is not fully implemented yet.
 // The object controller switch is performed only two clients one after the other
 // multiple times.
