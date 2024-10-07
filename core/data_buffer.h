@@ -176,6 +176,11 @@ public:
 	/// Begin read.
 	void begin_read(class SceneSynchronizerDebugger &p_debugger);
 
+	/// Returns true during reading when the buffer was entirely read.
+	bool is_end_of_buffer() const {
+		return is_reading && bit_offset >= bit_size;
+	}
+
 	bool is_buffer_failed() const {
 		return buffer_failed;
 	}
