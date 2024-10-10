@@ -178,7 +178,7 @@ void SceneSynchronizerBase::var_data_encode(DataBuffer &r_buffer, const NS::VarD
 	var_data_encode_func(r_buffer, p_val);
 }
 
-void SceneSynchronizerBase::var_data_decode(NS::VarData &r_val, DataBuffer &p_buffer, std::uint8_t p_variable_type) {
+void SceneSynchronizerBase::var_data_decode(VarData &r_val, DataBuffer &p_buffer, std::uint8_t p_variable_type) {
 	NS_PROFILE
 	var_data_decode_func(r_val, p_buffer, p_variable_type);
 #ifdef NS_DEBUG_ENABLED
@@ -2454,6 +2454,9 @@ void ServerSynchronizer::generate_snapshot(
 			is_partial_update,
 			p_partial_update_simulated_objects_info_indices,
 			vd)) {
+#ifdef NS_DEBUG_ENABLED
+		NS_ASSERT_COND_MSG(vd.type == scene_synchronizer->synchronizer_manager->snapshot_get_custom_data_type(), "Ensure the custom data type equals the one returned by `snapshot_get_custom_data_type`.");
+#endif
 		r_snapshot_db.add(true);
 		SceneSynchronizerBase::var_data_encode(r_snapshot_db, vd, scene_synchronizer->synchronizer_manager->snapshot_get_custom_data_type());
 	} else {
@@ -4191,6 +4194,11 @@ void ClientSynchronizer::update_client_snapshot(Snapshot &r_snapshot) {
 	{
 		NS_PROFILE_NAMED("Fetch `custom_data`");
 		r_snapshot.has_custom_data = scene_synchronizer->synchronizer_manager->snapshot_get_custom_data(nullptr, false, std::vector<std::size_t>(), r_snapshot.custom_data);
+#ifdef NS_DEBUG_ENABLED
+		if (r_snapshot.has_custom_data) {
+			NS_ASSERT_COND_MSG(r_snapshot.custom_data.type == scene_synchronizer->synchronizer_manager->snapshot_get_custom_data_type(), "Ensure the custom data type equals the one returned by `snapshot_get_custom_data_type`.");
+		}
+#endif
 	}
 
 	// Make sure we have room for all the NodeData.
