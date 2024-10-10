@@ -159,6 +159,14 @@ void insert_at_position_expand(std::vector<V> &r_vec, std::size_t p_index, const
 	r_vec[p_index] = p_val;
 }
 
+
+// Insert the value in a sorted vector. Returns true if the value was inserted, returns false if the element was already into the array.
+template <class V, typename T>
+void insert_sorted(std::vector<V> &r_vec, const T &p_value) {
+	auto it = std::lower_bound(r_vec.begin(), r_vec.end(), p_value);
+	r_vec.insert(it, p_value);
+}
+
 // Returns the value at index or if the vector is smaller expands it using the
 // default value and then returns the element at index.
 template <class V, typename T>
