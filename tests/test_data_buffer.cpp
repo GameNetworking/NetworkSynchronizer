@@ -5,6 +5,8 @@
 #include "../core/net_math.h"
 #include "../core/scene_synchronizer_debugger.h"
 
+#include <tuple>
+
 NS::SceneSynchronizerDebugger debugger;
 
 inline std::vector<std::int64_t> int_values(NS::DataBuffer::CompressionLevel p_compression_level) {
