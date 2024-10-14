@@ -21,6 +21,12 @@ void NS::SyncGroup::advance_timer_state_notifier(
 	r_send_update = state_notifier_timer >= p_frame_confirmation_timespan;
 	if (r_send_update) {
 		state_notifier_timer = 0.0;
+
+		// Ensure the time is cleared for the last partial updates too, to ensure
+		// the updates arrive with correct time.
+		for (std::size_t index : partial_update_simulated_sync_objects) {
+			simulated_sync_objects[index].last_partial_update_timer = 0.f;
+		}
 	} else {
 		// No state update, verify if this SyncGroup does partial updates.
 		update_partial_update_list();
