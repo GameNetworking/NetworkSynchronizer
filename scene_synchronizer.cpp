@@ -145,6 +145,8 @@ void SceneSynchronizerBase::conclude() {
 	rpc_handler_trickled_sync_data.reset();
 	rpc_handle_notify_netstats.reset();
 	rpc_handle_receive_input.reset();
+
+	time_bank = 0.0;
 }
 
 void SceneSynchronizerBase::process(float p_delta) {
@@ -1152,6 +1154,7 @@ void SceneSynchronizerBase::init_synchronizer(bool p_was_generating_ids) {
 	}
 
 	synchronizer_manager->on_init_synchronizer(p_was_generating_ids);
+	time_bank = 0.0;
 }
 
 void SceneSynchronizerBase::uninit_synchronizer() {
@@ -1553,6 +1556,15 @@ FrameIndex SceneSynchronizerBase::client_get_last_checked_frame_index() const {
 	return static_cast<ClientSynchronizer *>(synchronizer)->last_checked_input;
 }
 
+int SceneSynchronizerBase::fetch_sub_processes_count(float p_delta) {
+	time_bank += p_delta;
+	const float sub_frames = std::floor(time_bank * static_cast<float>(get_frames_per_seconds()));
+	time_bank -= sub_frames / static_cast<float>(get_frames_per_seconds());
+	// Clamp the maximum possible frames that we can process on a single frame.
+	// This is a guard to make sure we do not process way too many frames on a single frame.
+	return std::min(static_cast<int>(get_max_sub_process_per_frame()), static_cast<int>(sub_frames));
+}
+
 bool SceneSynchronizerBase::is_server() const {
 	return synchronizer_type == SYNCHRONIZER_TYPE_SERVER;
 }
@@ -1814,7 +1826,6 @@ NoNetSynchronizer::NoNetSynchronizer(SceneSynchronizerBase *p_node) :
 }
 
 void NoNetSynchronizer::clear() {
-	time_bank = 0.0;
 	enabled = true;
 	frame_count = 0;
 }
@@ -1824,7 +1835,7 @@ void NoNetSynchronizer::process(float p_delta) {
 		return;
 	}
 
-	const int sub_process_count = fetch_sub_processes_count(p_delta);
+	const int sub_process_count = scene_synchronizer->fetch_sub_processes_count(p_delta);
 	for (int i = 0; i < sub_process_count; i++) {
 		scene_synchronizer->get_debugger().print(VERBOSE, "NoNetSynchronizer::process", scene_synchronizer->get_network_interface().get_owner_name());
 
@@ -1870,22 +1881,12 @@ bool NoNetSynchronizer::is_enabled() const {
 	return enabled;
 }
 
-int NoNetSynchronizer::fetch_sub_processes_count(float p_delta) {
-	time_bank += p_delta;
-	const float sub_frames = std::floor(time_bank * static_cast<float>(scene_synchronizer->get_frames_per_seconds()));
-	time_bank -= sub_frames / static_cast<float>(scene_synchronizer->get_frames_per_seconds());
-	// Clamp the maximum possible frames that we can process on a single frame.
-	// This is a guard to make sure we do not process way too many frames on a single frame.
-	return std::min(static_cast<int>(scene_synchronizer->get_max_sub_process_per_frame()), static_cast<int>(sub_frames));
-}
-
 ServerSynchronizer::ServerSynchronizer(SceneSynchronizerBase *p_node) :
 	Synchronizer(p_node) {
 	NS_ASSERT_COND(NS::SyncGroupId::GLOBAL == sync_group_create());
 }
 
 void ServerSynchronizer::clear() {
-	time_bank = 0.0;
 	objects_relevancy_update_timer = 0.0;
 	// Release the internal memory.
 	sync_groups.clear();
@@ -1901,7 +1902,7 @@ void ServerSynchronizer::process(float p_delta) {
 		objects_relevancy_update_timer += p_delta;
 	}
 
-	const int sub_process_count = fetch_sub_processes_count(p_delta);
+	const int sub_process_count = scene_synchronizer->fetch_sub_processes_count(p_delta);
 	for (int i = 0; i < sub_process_count; i++) {
 		epoch += 1;
 
@@ -2764,15 +2765,6 @@ void ServerSynchronizer::send_net_stat_to_peer(int p_peer, PeerData &p_peer_data
 			db);
 }
 
-int ServerSynchronizer::fetch_sub_processes_count(float p_delta) {
-	time_bank += p_delta;
-	const float sub_frames = std::floor(time_bank * static_cast<float>(scene_synchronizer->get_frames_per_seconds()));
-	time_bank -= sub_frames / static_cast<float>(scene_synchronizer->get_frames_per_seconds());
-	// Clamp the maximum possible frames that we can process on a single frame.
-	// This is a guard to make sure we do not process way too many frames on a single frame.
-	return std::min(static_cast<int>(scene_synchronizer->get_max_sub_process_per_frame()), static_cast<int>(sub_frames));
-}
-
 ClientSynchronizer::ClientSynchronizer(SceneSynchronizerBase *p_node) :
 	Synchronizer(p_node) {
 	clear();
@@ -3450,15 +3442,8 @@ int ClientSynchronizer::calculates_sub_ticks(const float p_delta) {
 	// Calculates the pretended delta.
 	pretended_delta = p_delta + (frame_acceleration_delta * NS::sign(acceleration_fps_speed));
 
-	// Add the current delta to the bank
-	time_bank += pretended_delta;
-
-	const int sub_ticks = (int)std::floor(time_bank * static_cast<float>(scene_synchronizer->get_frames_per_seconds()));
-
-	time_bank -= static_cast<float>(sub_ticks) / static_cast<float>(scene_synchronizer->get_frames_per_seconds());
-	if make_unlikely(time_bank < 0.0f) {
-		time_bank = 0.0f;
-	}
+	// Fetch the process count using the pretended delta.
+	const int sub_ticks = scene_synchronizer->fetch_sub_processes_count(pretended_delta);
 
 #ifdef NS_DEBUG_ENABLED
 	if (scene_synchronizer->disable_client_sub_ticks) {
@@ -3480,7 +3465,7 @@ int ClientSynchronizer::calculates_sub_ticks(const float p_delta) {
 			" acceleration_fps_speed: " + std::to_string(acceleration_fps_speed) +
 			" acceleration_fps_timer: " + std::to_string(acceleration_fps_timer) +
 			" pretended_delta: " + std::to_string(pretended_delta) +
-			" time_bank: " + std::to_string(time_bank) +
+			" time_bank: " + std::to_string(scene_synchronizer->get_time_bank()) +
 			")");
 
 	return sub_ticks;

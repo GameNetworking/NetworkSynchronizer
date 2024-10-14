@@ -333,6 +333,8 @@ protected: // -------------------------------------------------------- Internals
 	bool debug_server_speedup = false;
 	bool debug_log_nodes_relevancy_update = false;
 
+	float time_bank = 0.0;
+
 public: // -------------------------------------------------------------- Events
 	/// Called when the SceneSync starts to synchronize the objects.
 	Processor<> event_sync_started;
@@ -683,6 +685,10 @@ public: // ---------------------------------------------------------------- APIs
 		return network_interface->get_debugger();
 	};
 
+	float get_time_bank() const {
+		return time_bank;
+	}
+
 public: // ------------------------------------------------------------ INTERNAL
 	void try_fetch_unnamed_objects_data_names();
 	void update_objects_relevancy();
@@ -723,6 +729,8 @@ public: // ------------------------------------------------------------ INTERNAL
 	void notify_object_data_net_id_changed(ObjectData &p_object_data);
 
 	FrameIndex client_get_last_checked_frame_index() const;
+
+	int fetch_sub_processes_count(float p_delta);
 
 public:
 	/// Returns true if this peer is server.
@@ -784,7 +792,6 @@ public:
 class NoNetSynchronizer final : public Synchronizer {
 	friend class SceneSynchronizerBase;
 
-	float time_bank = 0.0;
 	bool enabled = true;
 	uint32_t frame_count = 0;
 	std::vector<ObjectData *> active_objects;
@@ -803,8 +810,6 @@ public:
 
 	void set_enabled(bool p_enabled);
 	bool is_enabled() const;
-
-	int fetch_sub_processes_count(float p_delta);
 };
 
 class ServerSynchronizer final : public Synchronizer {
@@ -812,7 +817,6 @@ class ServerSynchronizer final : public Synchronizer {
 
 	std::map<int, NS::PeerServerData> peers_data;
 
-	float time_bank = 0.0;
 	float objects_relevancy_update_timer = 0.0;
 	uint32_t epoch = 0;
 	/// This array contains a map between the peers and the relevant objects.
@@ -893,15 +897,12 @@ public:
 	void process_trickled_sync(float p_delta);
 	void update_peers_net_statistics(float p_delta);
 	void send_net_stat_to_peer(int p_peer, PeerData &p_peer_data);
-
-	int fetch_sub_processes_count(float p_delta);
 };
 
 class ClientSynchronizer final : public Synchronizer {
 	friend class SceneSynchronizerBase;
 
 public:
-	float time_bank = 0.0;
 	float acceleration_fps_speed = 0.0;
 	float acceleration_fps_timer = 0.0;
 	float pretended_delta = 1.0;
