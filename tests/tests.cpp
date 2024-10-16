@@ -1,6 +1,7 @@
 #include "tests.h"
 
 #include "local_scene.h"
+#include "test_AI_simulation.h"
 #include "test_data_buffer.h"
 #include "test_doll_simulation.h"
 #include "test_processor.h"
@@ -17,6 +18,7 @@ void NS_Test::test_all() {
 	test_scene_synchronizer();
 	test_simulation();
 	test_doll_simulation();
+	NS_AI_Test::test_AI_simulation();
 	test_switch_controller();
 
 	NS::LocalSceneSynchronizer::uninstall_local_scene_sync();

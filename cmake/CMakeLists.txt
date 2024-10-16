@@ -142,6 +142,8 @@ set(NS_SRC_FILES
 	${NS_ROOT}/tests/test_data_buffer.h
 	${NS_ROOT}/tests/test_doll_simulation.cpp
 	${NS_ROOT}/tests/test_doll_simulation.h
+	${NS_ROOT}/tests/test_AI_simulation.cpp
+	${NS_ROOT}/tests/test_AI_simulation.h
 	${NS_ROOT}/tests/test_math_lib.cpp
 	${NS_ROOT}/tests/test_math_lib.h
 	${NS_ROOT}/tests/test_processor.cpp

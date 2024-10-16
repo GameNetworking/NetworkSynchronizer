@@ -235,6 +235,11 @@ void PeerNetworkedController::on_peer_status_updated(int p_peer_id, bool p_conne
 }
 
 void PeerNetworkedController::controllable_collect_input(float p_delta, DataBuffer &r_data_buffer) {
+	r_data_buffer.begin_write(get_debugger(), METADATA_SIZE);
+	r_data_buffer.seek(METADATA_SIZE);
+
+	get_debugger().databuffer_operation_begin_record(authority_peer, SceneSynchronizerDebugger::WRITE);
+
 	const std::vector<ObjectData *> &sorted_controllable_objects = get_sorted_controllable_objects();
 	for (ObjectData *object_data : sorted_controllable_objects) {
 		object_data->controller_funcs.collect_input(p_delta, r_data_buffer);
@@ -246,6 +251,13 @@ void PeerNetworkedController::controllable_collect_input(float p_delta, DataBuff
 		}
 #endif
 	}
+
+	get_debugger().databuffer_operation_end_record();
+
+	// Set the metadata which is used to store the buffer size.
+	const std::uint16_t buffer_size_bits = get_inputs_buffer().size() + METADATA_SIZE;
+	r_data_buffer.seek(0);
+	r_data_buffer.add(buffer_size_bits);
 }
 
 bool PeerNetworkedController::controllable_are_inputs_different(DataBuffer &p_data_buffer_A, DataBuffer &p_data_buffer_B) {
@@ -286,6 +298,29 @@ void PeerNetworkedController::notify_receive_inputs(const std::vector<std::uint8
 	if (controller) {
 		controller->receive_inputs(p_data);
 	}
+}
+
+void PeerNetworkedController::store_input_buffer(std::deque<FrameInput> &r_frames_input, FrameIndex p_frame_index) {
+	const std::uint16_t buffer_size_bits = get_inputs_buffer().size() + METADATA_SIZE;
+
+#ifdef NS_DEBUG_ENABLED
+	if (scene_synchronizer->pedantic_checks) {
+		get_inputs_buffer_mut().begin_read(get_debugger());
+		std::uint16_t from_buffer__buffer_size_bits;
+		get_inputs_buffer_mut().begin_read(get_debugger());
+		get_inputs_buffer_mut().read(from_buffer__buffer_size_bits);
+		NS_ASSERT_COND_MSG(from_buffer__buffer_size_bits == buffer_size_bits, "The buffer size must be the same between the one just calculated and the one inside the buffer");
+	}
+
+	NS_ASSERT_COND_MSG(buffer_size_bits>=METADATA_SIZE, "The buffer size can't be less than the metadata.");
+#endif
+
+	FrameInput inputs(get_debugger());
+	inputs.id = p_frame_index;
+	inputs.inputs_buffer = get_inputs_buffer().get_buffer();
+	inputs.buffer_size_bit = buffer_size_bits;
+	inputs.similarity = FrameIndex::NONE;
+	r_frames_input.push_back(inputs);
 }
 
 void PeerNetworkedController::encode_inputs(std::deque<FrameInput> &p_frames_input, std::vector<std::uint8_t> &r_buffer) {
@@ -888,6 +923,13 @@ bool ServerController::receive_inputs(const std::vector<std::uint8_t> &p_data) {
 AutonomousServerController::AutonomousServerController(
 		PeerNetworkedController *p_peer_controller) :
 	ServerController(p_peer_controller) {
+	event_handler_on_app_process_end =
+			peer_controller->scene_synchronizer->event_app_process_end.bind(std::bind(&AutonomousServerController::on_app_process_end, this, std::placeholders::_1));
+}
+
+AutonomousServerController::~AutonomousServerController() {
+	peer_controller->scene_synchronizer->event_app_process_end.unbind(event_handler_on_app_process_end);
+	event_handler_on_app_process_end = NullPHandler;
 }
 
 bool AutonomousServerController::receive_inputs(const std::vector<std::uint8_t> &p_data) {
@@ -903,11 +945,8 @@ int AutonomousServerController::get_inputs_count() const {
 bool AutonomousServerController::fetch_next_input(float p_delta) {
 	peer_controller->get_debugger().print(INFO, "Autonomous server fetch input.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
-	peer_controller->get_inputs_buffer_mut().begin_write(get_debugger(), METADATA_SIZE);
-	peer_controller->get_inputs_buffer_mut().seek(METADATA_SIZE);
-	peer_controller->get_debugger().databuffer_operation_begin_record(peer_controller->authority_peer, SceneSynchronizerDebugger::WRITE);
 	peer_controller->controllable_collect_input(p_delta, peer_controller->get_inputs_buffer_mut());
-	peer_controller->get_debugger().databuffer_operation_end_record();
+
 	peer_controller->get_inputs_buffer_mut().dry();
 
 	if make_unlikely(current_input_buffer_id == FrameIndex::NONE) {
@@ -918,8 +957,33 @@ bool AutonomousServerController::fetch_next_input(float p_delta) {
 		current_input_buffer_id += 1;
 	}
 
+	peer_controller->store_input_buffer(frames_input, current_input_buffer_id);
+
 	// The input is always new.
 	return true;
+}
+
+void AutonomousServerController::on_app_process_end(float p_delta_seconds) {
+	// Removes all the old inputs
+	while (frames_input.size() > peer_controller->get_max_redundant_inputs()) {
+		frames_input.pop_front();
+	}
+
+	// Send inputs to clients.
+	if (frames_input.size() == 0) {
+		return;
+	}
+
+	peer_controller->encode_inputs(frames_input, cached_packet_data);
+
+	for (int peer_id : peers_simulating_this_controller) {
+		if (peer_id != peer_controller->authority_peer) {
+			peer_controller->scene_synchronizer->call_rpc_receive_inputs(
+					peer_id,
+					peer_controller->authority_peer,
+					cached_packet_data);
+		}
+	}
 }
 
 PlayerController::PlayerController(PeerNetworkedController *p_peer_controller) :
@@ -932,19 +996,19 @@ PlayerController::PlayerController(PeerNetworkedController *p_peer_controller) :
 	event_handler_state_validated =
 			peer_controller->scene_synchronizer->event_state_validated.bind(std::bind(&PlayerController::on_state_validated, this, std::placeholders::_1, std::placeholders::_2));
 
-	event_handler_on_end_process =
+	event_handler_on_app_process_end =
 			peer_controller->scene_synchronizer->event_app_process_end.bind(std::bind(&PlayerController::on_app_process_end, this, std::placeholders::_1));
 }
 
 PlayerController::~PlayerController() {
-	peer_controller->scene_synchronizer->event_app_process_end.unbind(event_handler_on_end_process);
-	event_handler_on_end_process = NS::NullPHandler;
+	peer_controller->scene_synchronizer->event_app_process_end.unbind(event_handler_on_app_process_end);
+	event_handler_on_app_process_end = NullPHandler;
 
 	peer_controller->scene_synchronizer->event_rewind_frame_begin.unbind(event_handler_rewind_frame_begin);
-	event_handler_rewind_frame_begin = NS::NullPHandler;
+	event_handler_rewind_frame_begin = NullPHandler;
 
 	peer_controller->scene_synchronizer->event_state_validated.unbind(event_handler_state_validated);
-	event_handler_state_validated = NS::NullPHandler;
+	event_handler_state_validated = NullPHandler;
 }
 
 void PlayerController::notify_frame_checked(FrameIndex p_frame_index) {
@@ -1069,18 +1133,7 @@ void PlayerController::process(float p_delta) {
 
 			peer_controller->get_debugger().print(INFO, "Player process index: " + std::string(current_input_id), "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
-			peer_controller->get_inputs_buffer_mut().begin_write(get_debugger(), METADATA_SIZE);
-
-			peer_controller->get_inputs_buffer_mut().seek(METADATA_SIZE);
-
-			peer_controller->get_debugger().databuffer_operation_begin_record(peer_controller->authority_peer, SceneSynchronizerDebugger::WRITE);
 			peer_controller->controllable_collect_input(p_delta, peer_controller->get_inputs_buffer_mut());
-			peer_controller->get_debugger().databuffer_operation_end_record();
-
-			// Set the metadata which is used to store the buffer size.
-			const std::uint16_t buffer_size_bits = peer_controller->get_inputs_buffer().size() + METADATA_SIZE;
-			peer_controller->get_inputs_buffer_mut().seek(0);
-			peer_controller->get_inputs_buffer_mut().add(buffer_size_bits);
 
 			// Unpause streaming?
 			if (peer_controller->get_inputs_buffer().size() > 0) {
@@ -1104,7 +1157,7 @@ void PlayerController::process(float p_delta) {
 		if (!streaming_paused) {
 			if (accept_new_inputs) {
 				input_buffers_counter += 1;
-				store_input_buffer(current_input_id);
+				peer_controller->store_input_buffer(frames_input, current_input_id);
 				peer_controller->player_set_has_new_input(true);
 			}
 
@@ -1130,29 +1183,6 @@ FrameIndex PlayerController::get_current_frame_index() const {
 bool PlayerController::receive_inputs(const std::vector<std::uint8_t> &p_data) {
 	peer_controller->get_debugger().print(NS::ERROR, "`receive_input` called on the `PlayerServerController` -This function is not supposed to be called on the player controller. Only the server and the doll should receive this.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 	return false;
-}
-
-void PlayerController::store_input_buffer(FrameIndex p_frame_index) {
-	const std::uint16_t buffer_size_bits = peer_controller->get_inputs_buffer().size() + METADATA_SIZE;
-
-#ifdef NS_DEBUG_ENABLED
-	if (peer_controller->scene_synchronizer->pedantic_checks) {
-		peer_controller->get_inputs_buffer_mut().begin_read(get_debugger());
-		std::uint16_t from_buffer__buffer_size_bits;
-		peer_controller->get_inputs_buffer_mut().begin_read(get_debugger());
-		peer_controller->get_inputs_buffer_mut().read(from_buffer__buffer_size_bits);
-		NS_ASSERT_COND_MSG(from_buffer__buffer_size_bits == buffer_size_bits, "The buffer size must be the same between the one just calculated and the one inside the buffer");
-	}
-
-	NS_ASSERT_COND_MSG(buffer_size_bits>=METADATA_SIZE, "The buffer size can't be less than the metadata.");
-#endif
-
-	FrameInput inputs(get_debugger());
-	inputs.id = p_frame_index;
-	inputs.inputs_buffer = peer_controller->get_inputs_buffer().get_buffer();
-	inputs.buffer_size_bit = buffer_size_bits;
-	inputs.similarity = FrameIndex::NONE;
-	frames_input.push_back(inputs);
 }
 
 void PlayerController::send_frame_input_buffer_to_server() {
@@ -1923,11 +1953,10 @@ NoNetController::NoNetController(PeerNetworkedController *p_peer_controller) :
 void NoNetController::process(float p_delta) {
 	peer_controller->get_inputs_buffer_mut().begin_write(get_debugger(), 0); // No need of meta in this case.
 	peer_controller->get_debugger().print(INFO, "Nonet process index: " + std::string(frame_id), "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
-	peer_controller->get_debugger().databuffer_operation_begin_record(peer_controller->authority_peer, SceneSynchronizerDebugger::WRITE);
 	peer_controller->controllable_collect_input(p_delta, peer_controller->get_inputs_buffer_mut());
-	peer_controller->get_debugger().databuffer_operation_end_record();
 	peer_controller->get_inputs_buffer_mut().dry();
 	peer_controller->get_inputs_buffer_mut().begin_read(get_debugger());
+	peer_controller->get_inputs_buffer_mut().seek(METADATA_SIZE); // Skip meta.
 	peer_controller->get_debugger().databuffer_operation_begin_record(peer_controller->authority_peer, SceneSynchronizerDebugger::READ);
 	peer_controller->controllable_process(p_delta, peer_controller->get_inputs_buffer_mut());
 	peer_controller->get_debugger().databuffer_operation_end_record();
