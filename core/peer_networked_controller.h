@@ -17,6 +17,23 @@ struct PlayerController;
 struct DollController;
 struct NoNetController;
 
+struct FrameInput {
+	FrameIndex id = FrameIndex::NONE;
+	BitArray inputs_buffer;
+	std::uint16_t buffer_size_bit = 0;
+	FrameIndex similarity = FrameIndex::NONE;
+
+	FrameInput() = default;
+
+	FrameInput(SceneSynchronizerDebugger &p_debugger):
+		inputs_buffer(p_debugger) {
+	}
+
+	bool operator==(const FrameInput &p_other) const {
+		return p_other.id == id;
+	}
+};
+
 /// The `NetworkedController` is responsible to sync the `Player` inputs between
 /// the peers. This allows to control a character, or an object with high precision
 /// and replicates that movement on all connected peers.
@@ -138,7 +155,7 @@ public:
 		return authority_peer;
 	}
 
-	NS::SceneSynchronizerBase *get_scene_synchronizer() const;
+	SceneSynchronizerBase *get_scene_synchronizer() const;
 	bool has_scene_synchronizer() const;
 
 	void on_peer_status_updated(int p_peer_id, bool p_connected, bool p_enabled);
@@ -148,6 +165,8 @@ public:
 	void controllable_process(float p_delta, DataBuffer &p_data_buffer);
 
 	void notify_receive_inputs(const std::vector<std::uint8_t> &p_data);
+
+	void encode_inputs(std::deque<FrameInput> &p_frames_input, std::vector<std::uint8_t> &r_buffer);
 
 private:
 	void player_set_has_new_input(bool p_has);
@@ -165,23 +184,6 @@ public:
 			const std::vector<std::uint8_t> &p_data,
 			void *p_user_pointer,
 			void (*p_input_parse)(void *p_user_pointer, FrameIndex p_input_id, std::uint16_t p_input_size_in_bits, const BitArray &p_input));
-};
-
-struct FrameInput {
-	FrameIndex id = FrameIndex::NONE;
-	BitArray inputs_buffer;
-	std::uint16_t buffer_size_bit = 0;
-	FrameIndex similarity = FrameIndex::NONE;
-
-	FrameInput() = default;
-
-	FrameInput(SceneSynchronizerDebugger &p_debugger):
-		inputs_buffer(p_debugger) {
-	}
-
-	bool operator==(const FrameInput &p_other) const {
-		return p_other.id == id;
-	}
 };
 
 struct Controller {

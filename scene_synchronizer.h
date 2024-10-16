@@ -123,7 +123,7 @@ struct Settings {
 /// NOTICE: Do not instantiate this class directly, please use `SceneSynchronizer<>` instead.
 ///
 /// The `SceneSynchronizer` is responsible to keep the scene of all peers in sync.
-/// Usually each peer has it istantiated, and depending if it's istantiated in
+/// Usually each peer has it instantiated, and depending if it's instantiated in
 /// the server or in the client, it does a different thing.
 ///
 /// ## The `Player` is playing the game on the server.
@@ -132,10 +132,10 @@ struct Settings {
 /// the `SceneSynchronizer` on the server sends at a fixed interval (defined by
 /// `frame_confirmation_timespan`) a snapshot to all peers.
 ///
-/// The clients receives the server snapshot, so it compares with the local
+/// The clients receive the server snapshot, so it compares with the local
 /// snapshot and if it's necessary perform the recovery.
 ///
-/// ## Variable traking
+/// ## Variable tracking
 ///
 /// The `SceneSynchronizer` is able to track any node variable. It's possible to specify
 /// the variables to track using the function `register_variable`.

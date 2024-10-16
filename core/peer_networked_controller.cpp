@@ -288,6 +288,143 @@ void PeerNetworkedController::notify_receive_inputs(const std::vector<std::uint8
 	}
 }
 
+void PeerNetworkedController::encode_inputs(std::deque<FrameInput> &p_frames_input, std::vector<std::uint8_t> &r_buffer) {
+	// The inputs buffer is composed as follows:
+	// - The following four bytes for the first input ID.
+	// - Array of inputs:
+	// |-- First byte the amount of times this input is duplicated in the packet.
+	// |-- Input buffer.
+
+	const size_t inputs_count = std::min(p_frames_input.size(), static_cast<size_t>(get_max_redundant_inputs() + 1));
+	if make_unlikely(inputs_count <= 0) {
+		// Nothing to send.
+		return;
+	}
+
+#define MAKE_ROOM(p_size)                                              \
+	if (r_buffer.size() < static_cast<size_t>(ofs + p_size)) \
+		r_buffer.resize(ofs + p_size);
+
+	int ofs = 0;
+	r_buffer.clear();
+	// At this point both the cached_packet_data and ofs are the same.
+	NS_ASSERT_COND(ofs == r_buffer.size());
+
+	// Let's store the ID of the first snapshot.
+	MAKE_ROOM(4);
+	const FrameIndex first_input_id = p_frames_input[p_frames_input.size() - inputs_count].id;
+	ofs += ns_encode_uint32(first_input_id.id, r_buffer.data() + ofs);
+
+	FrameIndex previous_input_id = FrameIndex::NONE;
+	FrameIndex previous_input_similarity = FrameIndex::NONE;
+	int previous_buffer_size = 0;
+	uint8_t duplication_count = 0;
+
+	DataBuffer pir_A(get_debugger());
+	DataBuffer pir_B(get_debugger());
+	pir_A.copy(get_inputs_buffer().get_buffer());
+
+	// Compose the packets
+	for (size_t i = p_frames_input.size() - inputs_count; i < p_frames_input.size(); i += 1) {
+		bool is_similar = false;
+
+		if (previous_input_id == FrameIndex::NONE) {
+			// This happens for the first input of the packet.
+			// Just write it.
+			is_similar = false;
+		} else if (duplication_count == UINT8_MAX) {
+			// Prevent to overflow the `uint8_t`.
+			is_similar = false;
+		} else {
+			if (p_frames_input[i].similarity != previous_input_id) {
+				if (p_frames_input[i].similarity == FrameIndex::NONE) {
+					// This input was never compared, let's do it now.
+					pir_B.copy(p_frames_input[i].inputs_buffer);
+					pir_B.shrink_to(METADATA_SIZE, p_frames_input[i].buffer_size_bit - METADATA_SIZE);
+
+					pir_A.begin_read(get_debugger());
+					pir_A.seek(METADATA_SIZE);
+					pir_B.begin_read(get_debugger());
+					pir_B.seek(METADATA_SIZE);
+
+					const bool are_different = controllable_are_inputs_different(pir_A, pir_B);
+					is_similar = !are_different;
+				} else if (p_frames_input[i].similarity == previous_input_similarity) {
+					// This input is similar to the previous one, the thing is
+					// that the similarity check was done on an older input.
+					// Fortunatelly we are able to compare the similarity id
+					// and detect its similarity correctly.
+					is_similar = true;
+				} else {
+					// This input is simply different from the previous one.
+					is_similar = false;
+				}
+			} else {
+				// These are the same, let's save some space.
+				is_similar = true;
+			}
+		}
+
+		if (get_current_frame_index() == previous_input_id) {
+			get_debugger().notify_are_inputs_different_result(authority_peer, p_frames_input[i].id.id, is_similar);
+		} else if (get_current_frame_index() == p_frames_input[i].id) {
+			get_debugger().notify_are_inputs_different_result(authority_peer, previous_input_id.id, is_similar);
+		}
+
+		if (is_similar) {
+			// This input is similar to the previous one, so just duplicate it.
+			duplication_count += 1;
+			// In this way, we don't need to compare these frames again.
+			p_frames_input[i].similarity = previous_input_id;
+
+			get_debugger().notify_input_sent_to_server(authority_peer, p_frames_input[i].id.id, previous_input_id.id);
+		} else {
+			// This input is different from the previous one, so let's
+			// finalize the previous and start another one.
+
+			get_debugger().notify_input_sent_to_server(authority_peer, p_frames_input[i].id.id, p_frames_input[i].id.id);
+
+			if (previous_input_id != FrameIndex::NONE) {
+				// We can finally finalize the previous input
+				r_buffer[ofs - previous_buffer_size - 1] = duplication_count;
+			}
+
+			// Resets the duplication count.
+			duplication_count = 0;
+
+			// Writes the duplication_count for this new input
+			MAKE_ROOM(1);
+			r_buffer[ofs] = 0;
+			ofs += 1;
+
+			// Write the inputs
+			const int buffer_size = (int)p_frames_input[i].inputs_buffer.get_bytes().size();
+			MAKE_ROOM(buffer_size);
+			memcpy(
+					r_buffer.data() + ofs,
+					p_frames_input[i].inputs_buffer.get_bytes().data(),
+					buffer_size);
+			ofs += buffer_size;
+
+			// Let's see if we can duplicate this input.
+			previous_input_id = p_frames_input[i].id;
+			previous_input_similarity = p_frames_input[i].similarity;
+			previous_buffer_size = buffer_size;
+
+			pir_A.get_buffer_mut() = p_frames_input[i].inputs_buffer;
+			pir_A.shrink_to(METADATA_SIZE, p_frames_input[i].buffer_size_bit - METADATA_SIZE);
+		}
+	}
+
+	// Finalize the last added input_buffer.
+	r_buffer[ofs - previous_buffer_size - 1] = duplication_count;
+
+	// At this point both the cached_packet_data.size() and ofs MUST be the same.
+	NS_ASSERT_COND(ofs == r_buffer.size());
+
+#undef MAKE_ROOM
+}
+
 void PeerNetworkedController::player_set_has_new_input(bool p_has) {
 	has_player_new_input = p_has;
 }
@@ -1009,138 +1146,7 @@ void PlayerController::store_input_buffer(FrameIndex p_frame_index) {
 }
 
 void PlayerController::send_frame_input_buffer_to_server() {
-	// The packet is composed as follow:
-	// - The following four bytes for the first input ID.
-	// - Array of inputs:
-	// |-- First byte the amount of times this input is duplicated in the packet.
-	// |-- Input buffer.
-
-	const size_t inputs_count = std::min(frames_input.size(), static_cast<size_t>(peer_controller->get_max_redundant_inputs() + 1));
-	if make_unlikely(inputs_count <= 0) {
-		// Nothing to send.
-		return;
-	}
-
-#define MAKE_ROOM(p_size)                                              \
-	if (cached_packet_data.size() < static_cast<size_t>(ofs + p_size)) \
-		cached_packet_data.resize(ofs + p_size);
-
-	int ofs = 0;
-	cached_packet_data.clear();
-	// At this point both the cached_packet_data and ofs are the same.
-	NS_ASSERT_COND(ofs == cached_packet_data.size());
-
-	// Let's store the ID of the first snapshot.
-	MAKE_ROOM(4);
-	const FrameIndex first_input_id = frames_input[frames_input.size() - inputs_count].id;
-	ofs += ns_encode_uint32(first_input_id.id, cached_packet_data.data() + ofs);
-
-	FrameIndex previous_input_id = FrameIndex::NONE;
-	FrameIndex previous_input_similarity = FrameIndex::NONE;
-	int previous_buffer_size = 0;
-	uint8_t duplication_count = 0;
-
-	DataBuffer pir_A(get_debugger());
-	DataBuffer pir_B(get_debugger());
-	pir_A.copy(peer_controller->get_inputs_buffer().get_buffer());
-
-	// Compose the packets
-	for (size_t i = frames_input.size() - inputs_count; i < frames_input.size(); i += 1) {
-		bool is_similar = false;
-
-		if (previous_input_id == FrameIndex::NONE) {
-			// This happens for the first input of the packet.
-			// Just write it.
-			is_similar = false;
-		} else if (duplication_count == UINT8_MAX) {
-			// Prevent to overflow the `uint8_t`.
-			is_similar = false;
-		} else {
-			if (frames_input[i].similarity != previous_input_id) {
-				if (frames_input[i].similarity == FrameIndex::NONE) {
-					// This input was never compared, let's do it now.
-					pir_B.copy(frames_input[i].inputs_buffer);
-					pir_B.shrink_to(METADATA_SIZE, frames_input[i].buffer_size_bit - METADATA_SIZE);
-
-					pir_A.begin_read(get_debugger());
-					pir_A.seek(METADATA_SIZE);
-					pir_B.begin_read(get_debugger());
-					pir_B.seek(METADATA_SIZE);
-
-					const bool are_different = peer_controller->controllable_are_inputs_different(pir_A, pir_B);
-					is_similar = !are_different;
-				} else if (frames_input[i].similarity == previous_input_similarity) {
-					// This input is similar to the previous one, the thing is
-					// that the similarity check was done on an older input.
-					// Fortunatelly we are able to compare the similarity id
-					// and detect its similarity correctly.
-					is_similar = true;
-				} else {
-					// This input is simply different from the previous one.
-					is_similar = false;
-				}
-			} else {
-				// These are the same, let's save some space.
-				is_similar = true;
-			}
-		}
-
-		if (current_input_id == previous_input_id) {
-			peer_controller->get_debugger().notify_are_inputs_different_result(peer_controller->authority_peer, frames_input[i].id.id, is_similar);
-		} else if (current_input_id == frames_input[i].id) {
-			peer_controller->get_debugger().notify_are_inputs_different_result(peer_controller->authority_peer, previous_input_id.id, is_similar);
-		}
-
-		if (is_similar) {
-			// This input is similar to the previous one, so just duplicate it.
-			duplication_count += 1;
-			// In this way, we don't need to compare these frames again.
-			frames_input[i].similarity = previous_input_id;
-
-			peer_controller->get_debugger().notify_input_sent_to_server(peer_controller->authority_peer, frames_input[i].id.id, previous_input_id.id);
-		} else {
-			// This input is different from the previous one, so let's
-			// finalize the previous and start another one.
-
-			peer_controller->get_debugger().notify_input_sent_to_server(peer_controller->authority_peer, frames_input[i].id.id, frames_input[i].id.id);
-
-			if (previous_input_id != FrameIndex::NONE) {
-				// We can finally finalize the previous input
-				cached_packet_data[ofs - previous_buffer_size - 1] = duplication_count;
-			}
-
-			// Resets the duplication count.
-			duplication_count = 0;
-
-			// Writes the duplication_count for this new input
-			MAKE_ROOM(1);
-			cached_packet_data[ofs] = 0;
-			ofs += 1;
-
-			// Write the inputs
-			const int buffer_size = (int)frames_input[i].inputs_buffer.get_bytes().size();
-			MAKE_ROOM(buffer_size);
-			memcpy(
-					cached_packet_data.data() + ofs,
-					frames_input[i].inputs_buffer.get_bytes().data(),
-					buffer_size);
-			ofs += buffer_size;
-
-			// Let's see if we can duplicate this input.
-			previous_input_id = frames_input[i].id;
-			previous_input_similarity = frames_input[i].similarity;
-			previous_buffer_size = buffer_size;
-
-			pir_A.get_buffer_mut() = frames_input[i].inputs_buffer;
-			pir_A.shrink_to(METADATA_SIZE, frames_input[i].buffer_size_bit - METADATA_SIZE);
-		}
-	}
-
-	// Finalize the last added input_buffer.
-	cached_packet_data[ofs - previous_buffer_size - 1] = duplication_count;
-
-	// At this point both the cached_packet_data.size() and ofs MUST be the same.
-	NS_ASSERT_COND(ofs == cached_packet_data.size());
+	peer_controller->encode_inputs(frames_input, cached_packet_data);
 
 	peer_controller->scene_synchronizer->call_rpc_receive_inputs(
 			peer_controller->scene_synchronizer->get_network_interface().get_server_peer(),
