@@ -218,7 +218,7 @@ void PeerNetworkedController::remove_synchronizer() {
 	scene_synchronizer = nullptr;
 }
 
-NS::SceneSynchronizerBase *PeerNetworkedController::get_scene_synchronizer() const {
+SceneSynchronizerBase *PeerNetworkedController::get_scene_synchronizer() const {
 	return scene_synchronizer;
 }
 
@@ -295,7 +295,7 @@ void PeerNetworkedController::encode_inputs(std::deque<FrameInput> &p_frames_inp
 	// |-- First byte the amount of times this input is duplicated in the packet.
 	// |-- Input buffer.
 
-	const size_t inputs_count = std::min(p_frames_input.size(), static_cast<size_t>(get_max_redundant_inputs() + 1));
+	const size_t inputs_count = std::min(p_frames_input.size(), std::max(static_cast<size_t>(1), static_cast<size_t>(get_max_redundant_inputs())));
 	if make_unlikely(inputs_count <= 0) {
 		// Nothing to send.
 		return;
@@ -931,9 +931,15 @@ PlayerController::PlayerController(PeerNetworkedController *p_peer_controller) :
 
 	event_handler_state_validated =
 			peer_controller->scene_synchronizer->event_state_validated.bind(std::bind(&PlayerController::on_state_validated, this, std::placeholders::_1, std::placeholders::_2));
+
+	event_handler_on_end_process =
+			peer_controller->scene_synchronizer->event_app_process_end.bind(std::bind(&PlayerController::on_app_process_end, this, std::placeholders::_1));
 }
 
 PlayerController::~PlayerController() {
+	peer_controller->scene_synchronizer->event_app_process_end.unbind(event_handler_on_end_process);
+	event_handler_on_end_process = NS::NullPHandler;
+
 	peer_controller->scene_synchronizer->event_rewind_frame_begin.unbind(event_handler_rewind_frame_begin);
 	event_handler_rewind_frame_begin = NS::NullPHandler;
 
@@ -1104,13 +1110,17 @@ void PlayerController::process(float p_delta) {
 
 			// Keep sending inputs, despite the server seems not responding properly,
 			// to make sure the server becomes up to date at some point.
-			send_frame_input_buffer_to_server();
+			has_pending_inputs_sent = true;
 		}
 	}
 }
 
 void PlayerController::on_state_validated(FrameIndex p_frame_index, bool p_detected_desync) {
 	notify_frame_checked(p_frame_index);
+}
+
+void PlayerController::on_app_process_end(float p_delta_seconds) {
+	send_frame_input_buffer_to_server();
 }
 
 FrameIndex PlayerController::get_current_frame_index() const {
@@ -1146,6 +1156,11 @@ void PlayerController::store_input_buffer(FrameIndex p_frame_index) {
 }
 
 void PlayerController::send_frame_input_buffer_to_server() {
+	if (!has_pending_inputs_sent) {
+		return;
+	}
+	has_pending_inputs_sent = false;
+
 	peer_controller->encode_inputs(frames_input, cached_packet_data);
 
 	peer_controller->scene_synchronizer->call_rpc_receive_inputs(

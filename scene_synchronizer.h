@@ -341,6 +341,10 @@ public: // -------------------------------------------------------------- Events
 	/// Is called when the synchronization is paused.
 	Processor<> event_sync_paused;
 	Processor<const Settings &> event_settings_changed;
+	/// Executed at the end of the processing.
+	/// Notice this is not the sub and fixed time processing which is sync.
+	/// This is emitted by the application processing function and the delta time is frame dependent.
+	Processor<float/*delta seconds*/> event_app_process_end;
 	Processor<int /*p_peer*/, bool /*p_connected*/, bool /*p_enabled*/> event_peer_status_updated;
 	Processor<FrameIndex, bool /*p_desync_detected*/> event_state_validated;
 	Processor<FrameIndex, int /*p_peer*/> event_sent_snapshot;

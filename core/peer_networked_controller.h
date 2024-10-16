@@ -265,8 +265,9 @@ struct AutonomousServerController final : public ServerController {
 };
 
 struct PlayerController final : public Controller {
-	NS::PHandler event_handler_rewind_frame_begin = NS::NullPHandler;
-	NS::PHandler event_handler_state_validated = NS::NullPHandler;
+	PHandler event_handler_rewind_frame_begin = NS::NullPHandler;
+	PHandler event_handler_state_validated = NS::NullPHandler;
+	PHandler event_handler_on_end_process = NullPHandler;
 
 	FrameIndex current_input_id;
 	std::uint32_t input_buffers_counter;
@@ -274,6 +275,7 @@ struct PlayerController final : public Controller {
 
 	std::deque<FrameInput> frames_input;
 	std::vector<std::uint8_t> cached_packet_data;
+	bool has_pending_inputs_sent = false;
 	int queued_instant_to_process = -1;
 
 	PlayerController(PeerNetworkedController *p_node);
@@ -290,6 +292,7 @@ struct PlayerController final : public Controller {
 	bool has_another_instant_to_process_after(int p_i) const;
 	virtual void process(float p_delta) override;
 	void on_state_validated(FrameIndex p_frame_index, bool p_detected_desync);
+	void on_app_process_end(float p_delta_seconds);
 
 	virtual bool receive_inputs(const std::vector<std::uint8_t> &p_data) override;
 
