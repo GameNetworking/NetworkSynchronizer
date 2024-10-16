@@ -343,7 +343,7 @@ struct TestDollSimulationWithPositionCheck : public TestDollSimulationBase {
 
 // Test the ability to process a doll without causing any
 // reconciliation or miss any input.
-void test_simulation_without_reconciliation(float p_frame_confirmation_timespan) {
+void test_AI_replication(float p_frame_confirmation_timespan) {
 	TestDollSimulationWithPositionCheck test;
 	test.frame_confirmation_timespan = p_frame_confirmation_timespan;
 	// NOTICE: Disabling sub ticks because these cause some desync
@@ -900,8 +900,8 @@ void test_doll_simulation() {
 
 	const int initial_frames_per_seconds = frames_per_seconds;
 	for (int i = 0; i < 2; i++) {
-		test_simulation_without_reconciliation(0.0f);
-		test_simulation_without_reconciliation(1.f / 30.f);
+		test_AI_replication(0.0f);
+		test_AI_replication(1.f / 30.f);
 		test_simulation_reconciliation(0.0f);
 		test_simulation_reconciliation(0.0001f);
 		test_simulation_reconciliation(1.0f / 10.0f);

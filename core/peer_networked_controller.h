@@ -166,6 +166,7 @@ public:
 
 	void notify_receive_inputs(const std::vector<std::uint8_t> &p_data);
 
+	void store_input_buffer(std::deque<FrameInput> &r_frames_input, FrameIndex p_frame_index);
 	void encode_inputs(std::deque<FrameInput> &p_frames_input, std::vector<std::uint8_t> &r_buffer);
 
 private:
@@ -256,18 +257,25 @@ struct ServerController : public RemotelyControlledController {
 };
 
 struct AutonomousServerController final : public ServerController {
+	PHandler event_handler_on_app_process_end = NullPHandler;
+
+	std::vector<std::uint8_t> cached_packet_data;
+	
 	AutonomousServerController(
 			PeerNetworkedController *p_node);
+	~AutonomousServerController();
 
 	virtual bool receive_inputs(const std::vector<std::uint8_t> &p_data) override;
 	virtual int get_inputs_count() const override;
 	virtual bool fetch_next_input(float p_delta) override;
+
+	void on_app_process_end(float p_delta_seconds);
 };
 
 struct PlayerController final : public Controller {
-	PHandler event_handler_rewind_frame_begin = NS::NullPHandler;
-	PHandler event_handler_state_validated = NS::NullPHandler;
-	PHandler event_handler_on_end_process = NullPHandler;
+	PHandler event_handler_rewind_frame_begin = NullPHandler;
+	PHandler event_handler_state_validated = NullPHandler;
+	PHandler event_handler_on_app_process_end = NullPHandler;
 
 	FrameIndex current_input_id;
 	std::uint32_t input_buffers_counter;
@@ -295,8 +303,6 @@ struct PlayerController final : public Controller {
 	void on_app_process_end(float p_delta_seconds);
 
 	virtual bool receive_inputs(const std::vector<std::uint8_t> &p_data) override;
-
-	void store_input_buffer(FrameIndex p_frame_index);
 
 	/// Sends an unreliable packet to the server, containing a packed array of
 	/// frame snapshots.
