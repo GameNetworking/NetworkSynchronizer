@@ -1136,6 +1136,14 @@ void SceneSynchronizerBase::init_synchronizer(bool p_was_generating_ids) {
 	// This is good to have here because the local peer may have changed.
 	on_peer_connected(get_network_interface().get_local_peer_id());
 
+	// Ensure the server peer is also spawned for the client.
+	if (is_client()) {
+		PeerData *server_peer_data = MapFunc::get_or_null(peer_data, get_network_interface().get_server_peer());
+		if (!server_peer_data) {
+			on_peer_connected(get_network_interface().get_server_peer());
+		}
+	}
+
 	// Reset the controllers.
 	reset_controllers();
 
@@ -1388,9 +1396,9 @@ void SceneSynchronizerBase::call_rpc_receive_inputs(int p_recipient, int p_peer,
 
 void SceneSynchronizerBase::rpc_receive_inputs(int p_peer, const std::vector<std::uint8_t> &p_data) {
 	PeerData *pd = MapFunc::get_or_null(peer_data, p_peer);
-	if (pd && pd->get_controller()) {
-		pd->get_controller()->notify_receive_inputs(p_data);
-	}
+	NS_ENSURE_MSG(pd, "The PeerData was not found during `rpc_receive_inputs` for peer " + std::to_string(p_peer));
+	NS_ENSURE_MSG(pd->get_controller(), "The PeerData doesn't have an associated controller and `rpc_receive_inputs` failed for peer " + std::to_string(p_peer));
+	pd->get_controller()->notify_receive_inputs(p_data);
 }
 
 
