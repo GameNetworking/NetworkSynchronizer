@@ -1204,6 +1204,174 @@ void test_sync_mode_reset() {
 	NS_ASSERT_COND(NS::MathFunc::is_equal_approx(controlled_obj_1_peer_1->position.data.f32, frame_count * delta * one_meter * 2.0f, delta * 2.0f));
 }
 
+class TestProcessingSceneObject : public NS::LocalSceneObject {
+public:
+	// NOTE, this property isn't sync.
+	TestProcessingSceneObject *deactivate_processing_on_object = nullptr;
+	ProcessPhase deactivate_processing_phase;
+
+	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
+	NS::VarData var_1;
+	NS::VarData var_2;
+
+	NS::PHandler processing_handler = NS::NullPHandler;
+
+	virtual void on_scene_entry() override {
+		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
+	}
+
+	virtual void setup_synchronizer(NS::LocalSceneSynchronizer &p_scene_sync, NS::ObjectLocalId p_id) override {
+		local_id = p_id;
+
+		p_scene_sync.register_variable(
+				p_id,
+				"var_1",
+				[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, const NS::VarData &p_value) {
+					static_cast<TestProcessingSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->var_1.copy(p_value);
+				},
+				[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, NS::VarData &r_value) {
+					r_value.copy(static_cast<TestProcessingSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->var_1);
+				});
+
+		p_scene_sync.register_variable(
+				p_id,
+				"var_2",
+				[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, const NS::VarData &p_value) {
+					static_cast<TestProcessingSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->var_2.copy(p_value);
+				},
+				[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, NS::VarData &r_value) {
+					r_value.copy(static_cast<TestProcessingSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->var_2);
+				});
+	}
+
+	void activate_processing(ProcessPhase Phase) {
+		if (processing_handler == NS::NullPHandler) {
+			processing_handler = get_scene()->scene_sync->register_process(local_id, Phase, [this](float p_delta) {
+				this->sync_process(p_delta);
+			});
+		}
+	}
+
+	void deactivate_processing(ProcessPhase Phase) {
+		if (processing_handler != NS::NullPHandler) {
+			get_scene()->scene_sync->unregister_process(local_id, Phase, processing_handler);
+			processing_handler = NS::NullPHandler;
+		}
+	}
+
+	virtual void on_scene_exit() override {
+		get_scene()->scene_sync->on_app_object_removed(get_scene()->scene_sync->to_handle(this));
+	}
+
+	void sync_process(float p_delta) {
+		if (deactivate_processing_on_object) {
+			deactivate_processing_on_object->deactivate_processing(deactivate_processing_phase);
+			deactivate_processing_on_object = nullptr;
+		}
+		var_1.data.f32 += var_2.data.f32 * p_delta;
+	}
+};
+
+void test_registering_and_deregistering_process() {
+	NS::LocalScene server_scene;
+	server_scene.start_as_no_net();
+
+	NS::LocalScene peer_1_scene;
+	peer_1_scene.start_as_no_net();
+
+	// Add the scene sync
+	server_scene.scene_sync =
+			server_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+
+	peer_1_scene.scene_sync =
+			peer_1_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+
+	server_scene.scene_sync->set_frame_confirmation_timespan(0.0);
+
+	TestProcessingSceneObject *processing_object_1_server = server_scene.add_object<TestProcessingSceneObject>("obj_1", server_scene.get_peer());
+	TestProcessingSceneObject *processing_object_1_peer = peer_1_scene.add_object<TestProcessingSceneObject>("obj_1", server_scene.get_peer());
+
+	TestProcessingSceneObject *processing_object_2_server = server_scene.add_object<TestProcessingSceneObject>("obj_2", server_scene.get_peer());
+	TestProcessingSceneObject *processing_object_2_peer = peer_1_scene.add_object<TestProcessingSceneObject>("obj_2", server_scene.get_peer());
+
+	processing_object_1_server->var_1.data.f32 = 0.0;
+	processing_object_1_server->var_2.data.f32 = 2.0;
+	processing_object_1_peer->var_1.data.f32 = 0.0;
+	processing_object_1_peer->var_2.data.f32 = 2.0;
+
+	processing_object_2_server->var_1.data.f32 = -10.0;
+	processing_object_2_server->var_2.data.f32 = 4.0;
+	processing_object_2_peer->var_1.data.f32 = -10.0;
+	processing_object_2_peer->var_2.data.f32 = 4.0;
+
+	// Process the scene 10 times and ensure the processing was never executed.
+	for (int i = 0; i < 10; i++) {
+		server_scene.process(delta);
+		peer_1_scene.process(delta);
+
+		NS_ASSERT_COND(processing_object_1_server->var_1.data.f32 == 0.0f);
+		NS_ASSERT_COND(processing_object_1_peer->var_1.data.f32 == 0.0f);
+		NS_ASSERT_COND(processing_object_2_server->var_1.data.f32 == -10.0f);
+		NS_ASSERT_COND(processing_object_2_peer->var_1.data.f32 == -10.0f);
+	}
+
+	processing_object_1_server->activate_processing(PROCESS_PHASE_PROCESS);
+	processing_object_1_peer->activate_processing(PROCESS_PHASE_PROCESS);
+	processing_object_2_server->activate_processing(PROCESS_PHASE_LATE); // EXECUTES AFTER OBJECT 1
+	processing_object_2_peer->activate_processing(PROCESS_PHASE_LATE); // EXECUTES AFTER OBJECT 1
+
+	// Now process another 10 times and ensure the processing was correctly executed
+	float expected_object_1 = 0.0;
+	float expected_object_2 = -10.0;
+	for (int i = 0; i < 10; i++) {
+		server_scene.process(delta);
+		peer_1_scene.process(delta);
+
+		expected_object_1 += delta * 2.0;
+		expected_object_2 += delta * 4.0;
+
+		NS_ASSERT_COND(processing_object_1_server->var_1.data.f32 == expected_object_1);
+		NS_ASSERT_COND(processing_object_1_peer->var_1.data.f32 == expected_object_1);
+		NS_ASSERT_COND(processing_object_2_server->var_1.data.f32 == expected_object_2);
+		NS_ASSERT_COND(processing_object_2_peer->var_1.data.f32 == expected_object_2);
+	}
+
+	// Now, deactivate the execution for the object 2 from object 1 (that
+	// executes sooner thanks to the different processing phase), to ensure
+	// it doesn't cause any crash and the deactivation is executed only the following frame.
+	processing_object_1_server->deactivate_processing_on_object = processing_object_2_server;
+	processing_object_1_peer->deactivate_processing_on_object = processing_object_2_peer;
+	processing_object_1_server->deactivate_processing_phase = PROCESS_PHASE_LATE;
+	processing_object_1_peer->deactivate_processing_phase = PROCESS_PHASE_LATE;
+
+	// Process one time. NOTE Here the object 2 processing is deactivated.
+	server_scene.process(delta);
+	peer_1_scene.process(delta);
+
+	expected_object_1 += delta * 2.0;
+	expected_object_2 += delta * 4.0;
+
+	// However ensure that in the above frame the processing happened anyway.
+	NS_ASSERT_COND(processing_object_1_server->var_1.data.f32 == expected_object_1);
+	NS_ASSERT_COND(processing_object_1_peer->var_1.data.f32 == expected_object_1);
+	NS_ASSERT_COND(processing_object_2_server->var_1.data.f32 == expected_object_2);
+	NS_ASSERT_COND(processing_object_2_peer->var_1.data.f32 == expected_object_2);
+
+	// Now process another 10 times and ensure the processing keep going only on the object 1.
+	for (int i = 0; i < 10; i++) {
+		server_scene.process(delta);
+		peer_1_scene.process(delta);
+
+		expected_object_1 += delta * 2.0;
+		//expected_object_2 += delta * 4.0;
+
+		NS_ASSERT_COND(processing_object_1_server->var_1.data.f32 == expected_object_1);
+		NS_ASSERT_COND(processing_object_1_peer->var_1.data.f32 == expected_object_1);
+		NS_ASSERT_COND(processing_object_2_server->var_1.data.f32 == expected_object_2);
+		NS_ASSERT_COND(processing_object_2_peer->var_1.data.f32 == expected_object_2);
+	}
+}
+
 void test_scene_synchronizer() {
 	test_ids();
 	test_client_and_server_initialization();
@@ -1218,5 +1386,6 @@ void test_scene_synchronizer() {
 	test_streaming();
 	test_no_network();
 	test_sync_mode_reset();
+	test_registering_and_deregistering_process();
 }
 }; //namespace NS_Test
