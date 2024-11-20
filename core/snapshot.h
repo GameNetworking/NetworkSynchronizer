@@ -53,6 +53,7 @@ struct FrameIndexWithMeta {
 
 struct Snapshot {
 	FrameIndex input_id = FrameIndex::NONE;
+	GlobalFrameIndex global_frame_index = GlobalFrameIndex::NONE;
 	std::vector<SimulatedObjectInfo> simulated_objects;
 	/// The Node variables in a particular frame. The order of this vector
 	/// matters because the index is the `ObjectNetId`.

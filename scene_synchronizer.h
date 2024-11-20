@@ -307,6 +307,8 @@ protected: // -------------------------------------------------------- Internals
 	// Controller RPCs.
 	RpcHandle<int, const std::vector<std::uint8_t> &> rpc_handle_receive_input;
 
+	GlobalFrameIndex global_frame_index = GlobalFrameIndex{ 0 };
+
 	Settings settings;
 	bool settings_changed = true;
 
@@ -536,6 +538,10 @@ public: // ---------------------------------------------------------------- RPCs
 	void rpc_receive_inputs(int p_peer, const std::vector<std::uint8_t> &p_data);
 
 public: // ---------------------------------------------------------------- APIs
+	GlobalFrameIndex get_global_frame_index() const {
+		return global_frame_index;
+	}
+
 	void set_settings(Settings &p_settings);
 	Settings &get_settings_mutable();
 	const Settings &get_settings() const;
@@ -661,7 +667,8 @@ public: // ---------------------------------------------------------------- APIs
 	float sync_group_get_trickled_update_rate(ObjectLocalId p_id, SyncGroupId p_group_id) const;
 	float sync_group_get_trickled_update_rate(ObjectNetId p_id, SyncGroupId p_group_id) const;
 
-	void sync_group_notify_procedure_scheduled(ObjectData* p_object_data, ScheduledProcedureId p_scheduled_procedure_id, FrameIndex p_frame_index, DataBuffer &p_data);
+	// TODO implement this
+	void sync_group_notify_procedure_scheduled(ObjectData *p_object_data, ScheduledProcedureId p_scheduled_procedure_id, GlobalFrameIndex p_frame_index, DataBuffer &p_data);
 
 	void sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_ptr);
 	uint64_t sync_group_get_user_data(SyncGroupId p_group_id) const;
@@ -1074,6 +1081,7 @@ public:
 			DataBuffer &p_snapshot,
 			void *p_user_pointer,
 			void (*p_notify_update_mode)(void *p_user_pointer, bool p_is_partial_update),
+			void (*p_parse_global_frame_index)(void *p_user_pointer, GlobalFrameIndex p_global_frame_index),
 			void (*p_custom_data_parse)(void *p_user_pointer, VarData &&p_custom_data),
 			void (*p_object_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
 			// NOTE: The frame index meta is not initialized by this function,
