@@ -215,7 +215,7 @@ bool NS::Snapshot::compare(
 #endif
 	} else {
 		for (int i = 0; i < p_snap_A.pending_scheduled_procedures.size(); i++) {
-			if (p_snap_A.pending_scheduled_procedures[i] != p_snap_B.pending_scheduled_procedures[i]) {
+			if (!p_snap_A.pending_scheduled_procedures[i].equals(p_snap_B.pending_scheduled_procedures[i])) {
 				if (r_differences_info) {
 					r_differences_info->push_back("Difference detected: executed_scheduled_procedures at index `" + std::to_string(i) + "` is different.");
 				}

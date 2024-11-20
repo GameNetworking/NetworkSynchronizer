@@ -302,7 +302,7 @@ protected: // -------------------------------------------------------- Internals
 	RpcHandle<bool> rpc_handler_notify_peer_status;
 	RpcHandle<const std::vector<std::uint8_t> &> rpc_handler_trickled_sync_data;
 	RpcHandle<DataBuffer &> rpc_handle_notify_netstats;
-	RpcHandle<ObjectNetId, ScheduledProcedureId, FrameIndex, DataBuffer &> rpc_handle_notify_scheduled_procedure;
+	RpcHandle<ObjectNetId, ScheduledProcedureId, GlobalFrameIndex, DataBuffer &> rpc_handle_notify_scheduled_procedure;
 
 	// Controller RPCs.
 	RpcHandle<int, const std::vector<std::uint8_t> &> rpc_handle_receive_input;
@@ -332,7 +332,7 @@ protected: // -------------------------------------------------------- Internals
 	bool cached_process_functions_valid = false;
 	Processor<float> cached_process_functions[PROCESS_PHASE_COUNT];
 
-	std::vector<ScheduledProcedureInfo> scheduled_procedures_pending_sorted;
+	std::vector<ScheduledProcedureExeInfo> scheduled_procedures_pending_sorted;
 
 	bool debug_rewindings_enabled = false;
 	bool debug_server_speedup = false;
@@ -531,7 +531,7 @@ public: // ---------------------------------------------------------------- RPCs
 	void rpc_notify_peer_status(bool p_enabled);
 	void rpc_trickled_sync_data(const std::vector<std::uint8_t> &p_data);
 	void rpc_notify_netstats(DataBuffer &p_data);
-	void rpc_notify_scheduled_procedure(ObjectNetId p_object_id, ScheduledProcedureId p_scheduled_procedure_id, FrameIndex p_frame_index, DataBuffer &p_data);
+	void rpc_notify_scheduled_procedure(ObjectNetId p_object_id, ScheduledProcedureId p_scheduled_procedure_id, GlobalFrameIndex p_frame_index, DataBuffer &p_data);
 
 	void call_rpc_receive_inputs(int p_recipient, int p_peer, const std::vector<std::uint8_t> &p_data);
 
@@ -603,7 +603,7 @@ public: // ---------------------------------------------------------------- APIs
 			ObjectLocalId p_id,
 			ScheduledProcedureId p_procedure_id);
 
-	void scheduled_procedure_execution(
+	void scheduled_procedure_start(
 			ObjectLocalId p_id,
 			ScheduledProcedureId p_procedure_id,
 			float p_execute_in_seconds);
@@ -667,8 +667,7 @@ public: // ---------------------------------------------------------------- APIs
 	float sync_group_get_trickled_update_rate(ObjectLocalId p_id, SyncGroupId p_group_id) const;
 	float sync_group_get_trickled_update_rate(ObjectNetId p_id, SyncGroupId p_group_id) const;
 
-	// TODO implement this
-	void sync_group_notify_procedure_scheduled(ObjectData *p_object_data, ScheduledProcedureId p_scheduled_procedure_id, GlobalFrameIndex p_frame_index, DataBuffer &p_data);
+	void sync_group_notify_procedure_scheduled(ObjectData &p_object_data, ScheduledProcedureId p_scheduled_procedure_id, GlobalFrameIndex p_frame_index, DataBuffer &p_args);
 
 	void sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_ptr);
 	uint64_t sync_group_get_user_data(SyncGroupId p_group_id) const;
@@ -911,6 +910,8 @@ public:
 
 	void sync_group_set_trickled_update_rate(NS::ObjectData *p_object_data, SyncGroupId p_group_id, float p_update_rate);
 	float sync_group_get_trickled_update_rate(const NS::ObjectData *p_object_data, SyncGroupId p_group_id) const;
+
+	void sync_group_notify_procedure_scheduled(ObjectData &p_object_data, ScheduledProcedureId p_scheduled_procedure_id, GlobalFrameIndex p_frame_index, DataBuffer &p_data);
 
 	void sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_ptr);
 	uint64_t sync_group_get_user_data(SyncGroupId p_group_id) const;

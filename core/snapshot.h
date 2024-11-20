@@ -72,7 +72,7 @@ struct Snapshot {
 	/// NOTE: The user can specify a different variable depending on the passed GroupSync.
 	VarData custom_data;
 
-	std::vector<ScheduledProcedureInfo> pending_scheduled_procedures;
+	std::vector<ScheduledProcedureExeInfo> pending_scheduled_procedures;
 
 public:
 	operator std::string() const;

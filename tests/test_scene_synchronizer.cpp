@@ -1159,7 +1159,7 @@ void test_scheduled_procedure() {
 
 	// -------------------------------------------------- SCHEDULE THE PROCEDURE
 	scene_object_on_server->just_a_float_value = 532.f;
-	server_scene.scene_sync->scheduled_procedure_execution(scene_object_on_server->local_id, scene_object_on_server->procedure_id, 0.2f);
+	server_scene.scene_sync->scheduled_procedure_start(scene_object_on_server->local_id, scene_object_on_server->procedure_id, 0.2f);
 
 	// ---------------------------------------------------------- ASSERTION FUNC
 	{
@@ -1503,7 +1503,7 @@ void test_scene_synchronizer() {
 	test_state_notify_for_no_rewind_properties();
 	test_variable_change_event();
 	test_controller_processing();
-	//test_scheduled_procedure();
+	test_scheduled_procedure();
 	test_streaming();
 	test_no_network();
 	test_sync_mode_reset();

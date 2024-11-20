@@ -340,6 +340,15 @@ void NS::SyncGroup::notify_variable_changed(ObjectData *p_object_data, VarId p_v
 	}
 }
 
+void NS::SyncGroup::notify_procedure_state_update(ObjectData &p_object_data, ScheduledProcedureId p_scheduled_procedure_id, GlobalFrameIndex p_frame_index, DataBuffer &p_data) {
+	const std::size_t index = find_simulated(p_object_data);
+	if (index != VecFunc::index_none()) {
+		VecFunc::insert_or_update(
+				simulated_sync_objects[index].change.procedures_with_status_update,
+				ScheduledProcedureExeInfo(p_object_data.get_net_id(), p_scheduled_procedure_id, p_frame_index, p_data));
+	}
+}
+
 void NS::SyncGroup::set_simulated_partial_update_timespan_seconds(const ObjectData &p_object_data, bool p_partial_update_enabled, float p_update_timespan) {
 	const std::size_t index = find_simulated(p_object_data);
 	if (index != VecFunc::index_none()) {
