@@ -107,6 +107,7 @@ public: // ---------------------------------------------------------------- APIs
 
 	int get_max_redundant_inputs() const;
 
+	FrameIndex get_checked_frame_index() const;
 	FrameIndex get_current_frame_index() const;
 
 	const DataBuffer &get_inputs_buffer() const {
@@ -203,6 +204,7 @@ struct Controller {
 	virtual void ready() {
 	}
 
+	virtual FrameIndex get_checked_frame_index() const = 0;
 	virtual FrameIndex get_current_frame_index() const = 0;
 	virtual void process(float p_delta) = 0;
 
@@ -225,6 +227,7 @@ public:
 
 	virtual void on_peer_update(bool p_peer_enabled);
 
+	virtual FrameIndex get_checked_frame_index() const override;
 	virtual FrameIndex get_current_frame_index() const override;
 	virtual int get_inputs_count() const;
 	FrameIndex last_known_frame_index() const;
@@ -260,7 +263,7 @@ struct AutonomousServerController final : public ServerController {
 	PHandler event_handler_on_app_process_end = NullPHandler;
 
 	std::vector<std::uint8_t> cached_packet_data;
-	
+
 	AutonomousServerController(
 			PeerNetworkedController *p_node);
 	~AutonomousServerController();
@@ -294,6 +297,7 @@ struct PlayerController final : public Controller {
 	int count_frames_after(FrameIndex p_frame_index) const;
 	FrameIndex last_known_frame_index() const;
 	FrameIndex get_stored_frame_index(int p_i) const;
+	virtual FrameIndex get_checked_frame_index() const override;
 	virtual FrameIndex get_current_frame_index() const override;
 
 	void on_rewind_frame_begin(FrameIndex p_frame_index, int p_rewinding_index, int p_rewinding_frame_count);
@@ -420,6 +424,7 @@ struct NoNetController : public Controller {
 	NoNetController(PeerNetworkedController *p_node);
 
 	virtual void process(float p_delta) override;
+	virtual FrameIndex get_checked_frame_index() const override;
 	virtual FrameIndex get_current_frame_index() const override;
 };
 

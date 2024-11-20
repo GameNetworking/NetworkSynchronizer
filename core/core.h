@@ -74,6 +74,8 @@ enum PrintMessageType : std::uint8_t {
 	ERROR = 3,
 };
 
+
+
 std::string get_log_level_txt(NS::PrintMessageType p_level);
 
 template <typename T, typename TheIdType>
@@ -127,6 +129,9 @@ struct SyncGroupId : public IdMaker<SyncGroupId, std::uint32_t> {
 struct VarId : public IdMaker<VarId, std::uint8_t> {
 	static const VarId NONE;
 };
+struct ScheduledProcedureId : public IdMaker<ScheduledProcedureId, std::uint8_t> {
+	static const ScheduledProcedureId NONE;
+};
 struct ObjectNetId : public IdMaker<ObjectNetId, std::uint16_t> {
 	static const ObjectNetId NONE;
 };
@@ -137,9 +142,17 @@ struct ObjectHandle : public IdMaker<ObjectHandle, std::intptr_t> {
 	static const ObjectHandle NONE;
 };
 
+enum class ScheduledProcedurePhase : std::uint8_t {
+	COLLECTING_ARGUMENTS = 0,
+	RECEIVED = 1,
+	EXECUTING = 2,
+};
+
 template <typename T>
 constexpr const T sign(const T m_v) {
 	return m_v == 0 ? 0.0f : (m_v < 0 ? -1.0f : +1.0f);
 }
+
+#define NS_ScheduledProcedureFunc std::function<void(const class SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_app_object_handle, ScheduledProcedurePhase p_phase, NS::DataBuffer& p_buffer)>
 
 NS_NAMESPACE_END

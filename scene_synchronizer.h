@@ -2,10 +2,10 @@
 
 #include "core/network_interface.h"
 #include "core/object_data_storage.h"
-#include "core/scene_synchronizer_debugger.h"
 #include "core/processor.h"
 #include "core/net_utilities.h"
 #include "core/snapshot.h"
+#include "core/scheduled_procedure.h"
 #include <deque>
 #include <map>
 #include <optional>
@@ -302,6 +302,7 @@ protected: // -------------------------------------------------------- Internals
 	RpcHandle<bool> rpc_handler_notify_peer_status;
 	RpcHandle<const std::vector<std::uint8_t> &> rpc_handler_trickled_sync_data;
 	RpcHandle<DataBuffer &> rpc_handle_notify_netstats;
+	RpcHandle<ObjectNetId, ScheduledProcedureId, FrameIndex, DataBuffer &> rpc_handle_notify_scheduled_procedure;
 
 	// Controller RPCs.
 	RpcHandle<int, const std::vector<std::uint8_t> &> rpc_handle_receive_input;
@@ -328,6 +329,8 @@ protected: // -------------------------------------------------------- Internals
 
 	bool cached_process_functions_valid = false;
 	Processor<float> cached_process_functions[PROCESS_PHASE_COUNT];
+
+	std::vector<ScheduledProcedureInfo> scheduled_procedures_pending_sorted;
 
 	bool debug_rewindings_enabled = false;
 	bool debug_server_speedup = false;
@@ -398,19 +401,19 @@ public:
 	static void print_code_message(SceneSynchronizerDebugger *p_debugger, const char *p_function, const char *p_file, int p_line, const std::string &p_error, const std::string &p_message, NS::PrintMessageType p_type);
 	static void print_flush_stdout();
 
-	NS::NetworkInterface &get_network_interface() {
+	NetworkInterface &get_network_interface() {
 		return *network_interface;
 	}
 
-	const NS::NetworkInterface &get_network_interface() const {
+	const NetworkInterface &get_network_interface() const {
 		return *network_interface;
 	}
 
-	NS::SynchronizerManager &get_synchronizer_manager() {
+	SynchronizerManager &get_synchronizer_manager() {
 		return *synchronizer_manager;
 	}
 
-	const NS::SynchronizerManager &get_synchronizer_manager() const {
+	const SynchronizerManager &get_synchronizer_manager() const {
 		return *synchronizer_manager;
 	}
 
@@ -526,6 +529,7 @@ public: // ---------------------------------------------------------------- RPCs
 	void rpc_notify_peer_status(bool p_enabled);
 	void rpc_trickled_sync_data(const std::vector<std::uint8_t> &p_data);
 	void rpc_notify_netstats(DataBuffer &p_data);
+	void rpc_notify_scheduled_procedure(ObjectNetId p_object_id, ScheduledProcedureId p_scheduled_procedure_id, FrameIndex p_frame_index, DataBuffer &p_data);
 
 	void call_rpc_receive_inputs(int p_recipient, int p_peer, const std::vector<std::uint8_t> &p_data);
 
@@ -583,7 +587,24 @@ public: // ---------------------------------------------------------------- APIs
 
 	/// You can use the macro `callable_mp()` to register custom C++ function.
 	PHandler register_process(ObjectLocalId p_id, ProcessPhase p_phase, std::function<void(float)> p_func);
-	void unregister_process(ObjectLocalId p_id, ProcessPhase p_phase, NS::PHandler p_func_handler);
+	void unregister_process(ObjectLocalId p_id, ProcessPhase p_phase, PHandler p_func_handler);
+
+	ScheduledProcedureId register_scheduled_procedure(
+			ObjectLocalId p_id,
+			const NS_ScheduledProcedureFunc &p_func);
+
+	void unregister_scheduled_procedure(
+			ObjectLocalId p_id,
+			ScheduledProcedureId p_procedure_id);
+
+	void scheduled_procedure_execution(
+			ObjectLocalId p_id,
+			ScheduledProcedureId p_procedure_id,
+			float p_execute_in_seconds);
+
+	float scheduled_procedure_get_executing_time(
+			ObjectLocalId p_id,
+			ScheduledProcedureId p_procedure_id) const;
 
 	/// Setup the trickled sync method for this specific object.
 	/// The trickled-sync is different from the realtime-sync because the data
@@ -640,6 +661,8 @@ public: // ---------------------------------------------------------------- APIs
 	float sync_group_get_trickled_update_rate(ObjectLocalId p_id, SyncGroupId p_group_id) const;
 	float sync_group_get_trickled_update_rate(ObjectNetId p_id, SyncGroupId p_group_id) const;
 
+	void sync_group_notify_procedure_scheduled(ObjectData* p_object_data, ScheduledProcedureId p_scheduled_procedure_id, FrameIndex p_frame_index, DataBuffer &p_data);
+
 	void sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_ptr);
 	uint64_t sync_group_get_user_data(SyncGroupId p_group_id) const;
 
@@ -679,7 +702,7 @@ public: // ---------------------------------------------------------------- APIs
 	void detect_and_signal_changed_variables(int p_flags);
 
 	void change_events_begin(int p_flag);
-	void change_event_add(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old);
+	void change_event_add(ObjectData *p_object_data, VarId p_var_id, const VarData &p_old);
 	void change_events_flush();
 
 	const std::vector<SimulatedObjectInfo> *client_get_simulated_objects() const;
@@ -699,6 +722,7 @@ public: // ------------------------------------------------------------ INTERNAL
 
 	void process_functions__clear();
 	void process_functions__execute();
+	void process_functions__execute_scheduled_procedure(float p_delta);
 
 	ObjectLocalId find_object_local_id(ObjectHandle p_app_object) const;
 
@@ -708,11 +732,14 @@ public: // ------------------------------------------------------------ INTERNAL
 	ObjectData *get_object_data(ObjectNetId p_id, bool p_expected = true);
 	const ObjectData *get_object_data(ObjectNetId p_id, bool p_expected = true) const;
 
+	PeerNetworkedController *get_local_authority_controller(bool p_expected = true);
+	const PeerNetworkedController *get_local_authority_controller(bool p_expected = true) const;
+
 	PeerNetworkedController *get_controller_for_peer(int p_peer, bool p_expected = true);
 	const PeerNetworkedController *get_controller_for_peer(int p_peer, bool p_expected = true) const;
 
-	const std::map<int, NS::PeerData> &get_peers() const;
-	std::map<int, NS::PeerData> &get_peers();
+	const std::map<int, PeerData> &get_peers() const;
+	std::map<int, PeerData> &get_peers();
 	PeerData *get_peer_data_for_controller(const PeerNetworkedController &p_controller, bool p_expected = true);
 	const PeerData *get_peer_data_for_controller(const PeerNetworkedController &p_controller, bool p_expected = true) const;
 
@@ -722,13 +749,11 @@ public: // ------------------------------------------------------------ INTERNAL
 	void reset_controllers();
 	void reset_controller(PeerNetworkedController &p_controller);
 
-	float get_pretended_delta() const;
-
 	/// Read the object variables and store the value if is different from the
 	/// previous one and emits a signal.
-	void pull_object_changes(NS::ObjectData &p_object_data);
+	void pull_object_changes(ObjectData &p_object_data);
 
-	void drop_object_data(NS::ObjectData &p_object_data);
+	void drop_object_data(ObjectData &p_object_data);
 
 	void notify_object_data_net_id_changed(ObjectData &p_object_data);
 
@@ -864,6 +889,7 @@ public:
 	void sync_group_add_object(ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime);
 	void sync_group_remove_object(ObjectData *p_object_data, SyncGroupId p_group_id);
 	void sync_group_fetch_object_grups(const ObjectData *p_object_data, std::vector<SyncGroupId> &r_simulated_groups, std::vector<SyncGroupId> &r_trickled_groups) const;
+	void sync_group_fetch_object_simulating_peers(const ObjectData &p_object_data, std::vector<int> &r_simulating_peers) const;
 	void sync_group_set_simulated_partial_update_timespan_seconds(const ObjectData &p_object_data, SyncGroupId p_group_id, bool p_partial_update_enabled, float p_update_timespan);
 	bool sync_group_is_simulated_partial_updating(const ObjectData &p_object_data, SyncGroupId p_group_id) const;
 	float sync_group_get_simulated_partial_update_timespan_seconds(const ObjectData &p_object_data, SyncGroupId p_group_id) const;

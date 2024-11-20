@@ -5,13 +5,20 @@
 #include "var_data.h"
 
 NS_NAMESPACE_BEGIN
-
 void encode_variable(bool val, DataBuffer &r_buffer) {
 	r_buffer.add_bool(val);
 }
 
 void decode_variable(bool &val, DataBuffer &p_buffer) {
 	val = p_buffer.read_bool();
+}
+
+void encode_variable(std::uint8_t val, DataBuffer &r_buffer) {
+	r_buffer.add(val);
+}
+
+void decode_variable(std::uint8_t &val, DataBuffer &p_buffer) {
+	p_buffer.read(val);
 }
 
 void encode_variable(int val, DataBuffer &r_buffer) {
@@ -22,6 +29,30 @@ void encode_variable(int val, DataBuffer &r_buffer) {
 void decode_variable(int &val, DataBuffer &p_buffer) {
 	// TODO optimize
 	val = int(p_buffer.read_int(DataBuffer::COMPRESSION_LEVEL_0));
+}
+
+void encode_variable(ObjectNetId val, DataBuffer &r_buffer) {
+	r_buffer.add(val.id);
+}
+
+void decode_variable(ObjectNetId &val, DataBuffer &p_buffer) {
+	p_buffer.read(val.id);
+}
+
+void encode_variable(FrameIndex val, DataBuffer &r_buffer) {
+	r_buffer.add(val.id);
+}
+
+void decode_variable(FrameIndex &val, DataBuffer &p_buffer) {
+	p_buffer.read(val.id);
+}
+
+void encode_variable(ScheduledProcedureId val, DataBuffer &r_buffer) {
+	r_buffer.add(val.id);
+}
+
+void decode_variable(ScheduledProcedureId &val, DataBuffer &p_buffer) {
+	p_buffer.read(val.id);
 }
 
 void encode_variable(float val, DataBuffer &r_buffer) {

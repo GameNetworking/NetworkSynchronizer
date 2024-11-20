@@ -126,6 +126,7 @@ void NS::Snapshot::copy(const Snapshot &p_other) {
 	}
 	has_custom_data = p_other.has_custom_data;
 	custom_data.copy(p_other.custom_data);
+	pending_scheduled_procedures = p_other.pending_scheduled_procedures;
 }
 
 bool NS::Snapshot::compare(
@@ -189,6 +190,30 @@ bool NS::Snapshot::compare(
 #else
 		return false;
 #endif
+	}
+
+	if (p_snap_A.pending_scheduled_procedures.size() != p_snap_B.pending_scheduled_procedures.size()) {
+		if (r_differences_info) {
+			r_differences_info->push_back("Difference detected: executed_scheduled_procedures is different.");
+		}
+#ifdef NS_DEBUG_ENABLED
+		is_equal = false;
+#else
+		return false;
+#endif
+	} else {
+		for (int i = 0; i < p_snap_A.pending_scheduled_procedures.size(); i++) {
+			if (p_snap_A.pending_scheduled_procedures[i] != p_snap_B.pending_scheduled_procedures[i]) {
+				if (r_differences_info) {
+					r_differences_info->push_back("Difference detected: executed_scheduled_procedures at index `" + std::to_string(i) + "` is different.");
+				}
+#ifdef NS_DEBUG_ENABLED
+				is_equal = false;
+#else
+		return false;
+#endif
+			}
+		}
 	}
 
 	if (r_no_rewind_recover) {
