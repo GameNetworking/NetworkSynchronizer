@@ -350,9 +350,11 @@ public:
 		Vec3 controller_server_position_at_target_frame;
 		Vec3 light_mag_server_position_at_target_frame;
 		Vec3 heavy_mag_server_position_at_target_frame;
+		NS::GlobalFrameIndex global_frame_index_on_server;
 		Vec3 controller_p1_position_at_target_frame;
 		Vec3 light_mag_p1_position_at_target_frame;
 		Vec3 heavy_mag_p1_position_at_target_frame;
+		NS::GlobalFrameIndex global_frame_index_on_p1;
 
 		while (true) {
 			// Use a random delta, to make sure the NetSync can be processed
@@ -368,12 +370,14 @@ public:
 				controller_server_position_at_target_frame = controlled_obj_server->get_position();
 				light_mag_server_position_at_target_frame = light_magnet_server->get_position();
 				heavy_mag_server_position_at_target_frame = heavy_magnet_server->get_position();
+				global_frame_index_on_server = server_scene.scene_sync->get_global_frame_index();
 			}
 			if (controller_p1->get_current_frame_index() == process_until_frame) {
 				p1_reached_target_frame = true;
 				controller_p1_position_at_target_frame = controlled_obj_p1->get_position();
 				light_mag_p1_position_at_target_frame = light_magnet_p1->get_position();
 				heavy_mag_p1_position_at_target_frame = heavy_magnet_p1->get_position();
+				global_frame_index_on_p1 = peer_1_scene.scene_sync->get_global_frame_index();
 			}
 
 			if (server_reached_target_frame && p1_reached_target_frame) {
@@ -399,6 +403,7 @@ public:
 		NS_ASSERT_COND(controller_server_position_at_target_frame.distance_to(controller_p1_position_at_target_frame) < 0.0001);
 		NS_ASSERT_COND(light_mag_server_position_at_target_frame.distance_to(light_mag_p1_position_at_target_frame) < 0.0001);
 		NS_ASSERT_COND(heavy_mag_server_position_at_target_frame.distance_to(heavy_mag_p1_position_at_target_frame) < 0.0001);
+		NS_ASSERT_COND(global_frame_index_on_server == global_frame_index_on_p1);
 
 		on_scenes_done();
 	}

@@ -792,7 +792,7 @@ void SceneSynchronizerBase::scheduled_procedure_execution(
 	NS_ASSERT_COND(!VecFunc::has(peers, network_interface->get_server_peer()));
 #endif
 
-	sync_group_fetch_object_grups()
+	//sync_group_fetch_object_grups()
 	peers.push_back(network_interface->get_server_peer());
 
 	for (int peer : peers) {
@@ -1036,6 +1036,11 @@ float SceneSynchronizerBase::sync_group_get_trickled_update_rate(ObjectNetId p_i
 	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get_trickled_update_rate(od, p_group_id);
 }
 
+void SceneSynchronizerBase::sync_group_notify_procedure_scheduled(ObjectData *p_object_data, ScheduledProcedureId p_scheduled_procedure_id, GlobalFrameIndex p_frame_index, DataBuffer &p_data) {
+	// TODO implement
+	NS_ASSERT_NO_ENTRY();
+}
+
 void SceneSynchronizerBase::sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_data) {
 	NS_ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
 	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_set_user_data(p_group_id, p_user_data);
@@ -1204,6 +1209,8 @@ void SceneSynchronizerBase::init_synchronizer(bool p_was_generating_ids) {
 		synchronizer = new ClientSynchronizer(this);
 	}
 
+	global_frame_index = GlobalFrameIndex{ 0 };
+
 	if (p_was_generating_ids != generate_id) {
 		objects_data_storage.reserve_net_ids((int)objects_data_storage.get_objects_data().size());
 		for (ObjectNetId::IdType i = 0; i < objects_data_storage.get_objects_data().size(); i += 1) {
@@ -1355,6 +1362,8 @@ void SceneSynchronizerBase::clear_peers() {
 void SceneSynchronizerBase::reset() {
 	clear_peers();
 	clear();
+
+	global_frame_index = GlobalFrameIndex{ 0 };
 
 	event_sync_started.clear();
 	event_sync_paused.clear();
@@ -1806,6 +1815,15 @@ void SceneSynchronizerBase::process_functions__execute() {
 		}
 
 		cached_process_functions_valid = true;
+	}
+
+	if make_unlikely(global_frame_index==GlobalFrameIndex::NONE) {
+		// Reset the frame index before overflow.
+		// Notice that at 60Hz this is triggered after 2 years of never ever
+		// resetting the server, so it's very unlikely.
+		global_frame_index.id = 0;
+	} else {
+		global_frame_index.id++;
 	}
 
 	get_debugger().print(INFO, "Process functions START");
@@ -2553,6 +2571,8 @@ void ServerSynchronizer::generate_snapshot(
 	// First insert the snapshot update mode
 	const bool is_partial_update = p_force_full_snapshot == false && p_partial_update_simulated_objects_info_indices.size() > 0;
 	r_snapshot_db.add(is_partial_update);
+
+	r_snapshot_db.add(scene_synchronizer->global_frame_index.id);
 
 	for (int peer_id : p_group.get_simulating_peers()) {
 		const PeerData *pd = MapFunc::get_or_null(scene_synchronizer->peer_data, peer_id);
@@ -3754,6 +3774,7 @@ bool ClientSynchronizer::parse_sync_data(
 		DataBuffer &p_snapshot,
 		void *p_user_pointer,
 		void (*p_notify_update_mode)(void *p_user_pointer, bool p_is_partial_update),
+		void (*p_parse_global_frame_index)(void *p_user_pointer, GlobalFrameIndex p_global_frame_index),
 		void (*p_custom_data_parse)(void *p_user_pointer, VarData &&p_custom_data),
 		void (*p_object_parse)(void *p_user_pointer, ObjectData *p_object_data),
 		bool (*p_peers_frame_index_parse)(void *p_user_pointer, std::map<int, FrameIndexWithMeta> &&p_frames_index),
@@ -3778,6 +3799,14 @@ bool ClientSynchronizer::parse_sync_data(
 		p_snapshot.read(is_partial_update);
 		NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as the `is_partial_update` boolean expected is not set.");
 		p_notify_update_mode(p_user_pointer, is_partial_update);
+	}
+
+	{
+		// Fetch the global frame index
+		GlobalFrameIndex GFI;
+		p_snapshot.read(GFI.id);
+		NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as the `GlobalFrameIndex` expected is not set.");
+		p_parse_global_frame_index(p_user_pointer, GFI);
 	}
 
 	std::vector<SimulatedObjectInfo> sd_simulated_objects_full_array;
@@ -4276,6 +4305,11 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot, bool p_is_server
 				pd->snapshot.was_partially_updated = p_is_partial_update;
 			},
 
+			[](void *p_user_pointer, GlobalFrameIndex p_global_frame_index) {
+				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
+				pd->snapshot.global_frame_index = p_global_frame_index;
+			},
+
 			// Custom data:
 			[](void *p_user_pointer, VarData &&p_custom_data) {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
@@ -4391,6 +4425,7 @@ void ClientSynchronizer::update_client_snapshot(Snapshot &r_snapshot) {
 	NS_PROFILE
 
 	r_snapshot.simulated_objects = simulated_objects;
+	r_snapshot.global_frame_index = scene_synchronizer->global_frame_index;
 
 	{
 		NS_PROFILE_NAMED("Fetch `custom_data`");
@@ -4517,6 +4552,7 @@ void ClientSynchronizer::apply_snapshot(
 	const int this_peer = scene_synchronizer->network_interface->get_local_peer_id();
 
 	if (!p_skip_simulated_objects_update) {
+		scene_synchronizer->global_frame_index = p_snapshot.global_frame_index;
 		update_simulated_objects_list(p_snapshot.simulated_objects);
 	}
 
@@ -4612,6 +4648,8 @@ void ClientSynchronizer::apply_snapshot(
 	if (p_snapshot.has_custom_data && !p_skip_custom_data) {
 		scene_synchronizer->synchronizer_manager->snapshot_set_custom_data(p_snapshot.custom_data);
 	}
+
+	scene_synchronizer->scheduled_procedures_pending_sorted = p_snapshot.pending_scheduled_procedures;
 
 	if (!p_skip_snapshot_applied_event_broadcast) {
 		scene_synchronizer->event_snapshot_applied.broadcast(p_snapshot, p_frame_count_to_rewind);

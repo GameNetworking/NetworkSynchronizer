@@ -111,6 +111,7 @@ NS::Snapshot NS::Snapshot::make_copy(const Snapshot &p_other) {
 
 void NS::Snapshot::copy(const Snapshot &p_other) {
 	input_id = p_other.input_id;
+	global_frame_index = p_other.global_frame_index;
 	simulated_objects = p_other.simulated_objects;
 	peers_frames_index = p_other.peers_frames_index;
 	object_vars.resize(p_other.object_vars.size());
@@ -144,6 +145,17 @@ bool NS::Snapshot::compare(
 #ifdef NS_DEBUG_ENABLED
 	bool is_equal = true;
 #endif
+
+	if (p_snap_A.global_frame_index != p_snap_B.global_frame_index) {
+		if (r_differences_info) {
+			r_differences_info->push_back("Difference detected: global frame index in snapshot A `" + std::to_string(p_snap_A.global_frame_index.id) + "` is different in snap B `" + std::to_string(p_snap_B.global_frame_index.id) + "`.");
+		}
+#ifdef NS_DEBUG_ENABLED
+		is_equal = false;
+#else
+		return false;
+#endif
+	}
 
 	// Compares the simualated object first.
 	if (p_snap_A.simulated_objects.size() != p_snap_B.simulated_objects.size()) {

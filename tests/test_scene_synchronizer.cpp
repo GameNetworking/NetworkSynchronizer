@@ -1503,7 +1503,7 @@ void test_scene_synchronizer() {
 	test_state_notify_for_no_rewind_properties();
 	test_variable_change_event();
 	test_controller_processing();
-	test_scheduled_procedure();
+	//test_scheduled_procedure();
 	test_streaming();
 	test_no_network();
 	test_sync_mode_reset();

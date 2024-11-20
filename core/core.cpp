@@ -9,6 +9,7 @@ std::string operator+(const char *p_chr, const std::string &p_str) {
 }
 
 NS_NAMESPACE_BEGIN
+const GlobalFrameIndex GlobalFrameIndex::NONE = GlobalFrameIndex{ { std::numeric_limits<std::uint32_t>::max() } };
 const FrameIndex FrameIndex::NONE = FrameIndex{ { std::numeric_limits<std::uint32_t>::max() } };
 const SyncGroupId SyncGroupId::NONE = SyncGroupId{ { std::numeric_limits<std::uint32_t>::max() } };
 const SyncGroupId SyncGroupId::GLOBAL = SyncGroupId{ { 0 } };
