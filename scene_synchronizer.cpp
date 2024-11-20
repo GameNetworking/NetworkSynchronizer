@@ -111,8 +111,8 @@ void SceneSynchronizerBase::setup(SynchronizerManager &p_synchronizer_interface)
 
 	rpc_handle_notify_scheduled_procedure =
 			network_interface->rpc_config(
-					std::function<void(ObjectNetId p_object_id, ScheduledProcedureId p_scheduled_procedure_id, FrameIndex p_frame_index, DataBuffer &p_data)>(std::bind(&SceneSynchronizerBase::rpc_notify_scheduled_procedure, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4)),
-					false, // TODO this should be reliable?????
+					std::function<void(ObjectNetId p_object_id, ScheduledProcedureId p_scheduled_procedure_id, GlobalFrameIndex p_frame_index, DataBuffer &p_data)>(std::bind(&SceneSynchronizerBase::rpc_notify_scheduled_procedure, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4)),
+					false,
 					false);
 
 	rpc_handle_receive_input =
@@ -765,24 +765,28 @@ void SceneSynchronizerBase::unregister_scheduled_procedure(
 	}
 }
 
-void SceneSynchronizerBase::scheduled_procedure_execution(
+void SceneSynchronizerBase::scheduled_procedure_start(
 		ObjectLocalId p_id,
 		ScheduledProcedureId p_procedure_id,
 		float p_execute_in_seconds) {
+	NS_PROFILE
+
 	NS_ENSURE_MSG(is_server() || is_no_network(), "The procedure can be scheduled only by the server.");
 
 	NS_ENSURE(p_id != NS::ObjectLocalId::NONE);
 	NS_ENSURE(p_procedure_id != NS::ScheduledProcedureId::NONE);
 
-	const ObjectData *od = get_object_data(p_id);
+	ObjectData *od = get_object_data(p_id);
 	NS_ENSURE(od);
 	NS_ENSURE(p_procedure_id.id < od->scheduled_procedure_funcs.size());
 	NS_ENSURE(od->scheduled_procedure_funcs[p_procedure_id.id]);
 
-	DataBuffer db;
-	db.begin_write(get_debugger(), 0);
-	od->scheduled_procedure_funcs[p_procedure_id.id](get_synchronizer_manager(), od->app_object_handle, ScheduledProcedurePhase::COLLECTING_ARGUMENTS, db);
-	NS_ENSURE_MSG(!db.is_buffer_failed(), "The scheduled procedure execution failed because collecting the argument buffer failed.");
+	DataBuffer procedure_arguments;
+	procedure_arguments.begin_write(get_debugger(), 0);
+	od->scheduled_procedure_funcs[p_procedure_id.id](get_synchronizer_manager(), od->app_object_handle, ScheduledProcedurePhase::COLLECTING_ARGUMENTS, procedure_arguments);
+	NS_ENSURE_MSG(!procedure_arguments.is_buffer_failed(), "The scheduled procedure execution failed because collecting the argument buffer failed.");
+
+	const GlobalFrameIndex execute_on_frame{ std::max(GlobalFrameIndex::IdType(1), global_frame_index.id + GlobalFrameIndex::IdType(std::round(p_execute_in_seconds * float(get_frames_per_seconds())))) };
 
 	std::vector<int> peers;
 	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_fetch_object_simulating_peers(*od, peers);
@@ -792,26 +796,20 @@ void SceneSynchronizerBase::scheduled_procedure_execution(
 	NS_ASSERT_COND(!VecFunc::has(peers, network_interface->get_server_peer()));
 #endif
 
-	//sync_group_fetch_object_grups()
-	peers.push_back(network_interface->get_server_peer());
+	sync_group_notify_procedure_scheduled(*od, p_procedure_id, execute_on_frame, procedure_arguments);
+
+	rpc_notify_scheduled_procedure(od->get_net_id(), p_procedure_id, execute_on_frame, procedure_arguments);
 
 	for (int peer : peers) {
 		const PeerNetworkedController *peer_controller = get_controller_for_peer(peer);
 		if (peer_controller) {
-			const FrameIndex current_frame_index = peer_controller->get_current_frame_index() != FrameIndex::NONE ? peer_controller->get_current_frame_index() : FrameIndex{ 0 };
-			const FrameIndex execute_on_frame = current_frame_index + FrameIndex::IdType(std::round(p_execute_in_seconds * float(get_frames_per_seconds())));
-
-			if (peer == network_interface->get_server_peer()) {
-				rpc_notify_scheduled_procedure(od->get_net_id(), p_procedure_id, execute_on_frame, db);
-			} else {
-				rpc_handle_notify_scheduled_procedure.rpc(
-						get_network_interface(),
-						peer,
-						od->get_net_id(),
-						p_procedure_id,
-						execute_on_frame,
-						db);
-			}
+			rpc_handle_notify_scheduled_procedure.rpc(
+					get_network_interface(),
+					peer,
+					od->get_net_id(),
+					p_procedure_id,
+					execute_on_frame,
+					procedure_arguments);
 		}
 	}
 }
@@ -819,6 +817,8 @@ void SceneSynchronizerBase::scheduled_procedure_execution(
 float SceneSynchronizerBase::scheduled_procedure_get_executing_time(
 		ObjectLocalId p_id,
 		ScheduledProcedureId p_procedure_id) const {
+	NS_PROFILE
+
 	NS_ENSURE_V(p_id != NS::ObjectLocalId::NONE, -1.f);
 	NS_ENSURE_V(p_procedure_id != NS::ScheduledProcedureId::NONE, -1.f);
 
@@ -827,15 +827,10 @@ float SceneSynchronizerBase::scheduled_procedure_get_executing_time(
 	NS_ENSURE_V(p_procedure_id.id < od->scheduled_procedure_funcs.size(), -1.f);
 	NS_ENSURE_V(od->scheduled_procedure_funcs[p_procedure_id.id], -1.f);
 
-	const PeerNetworkedController *local_controller = get_local_authority_controller();
-	NS_ENSURE_V(local_controller, -1.f);
-
-	const FrameIndex current_frame = local_controller->get_current_frame_index();
-
-	for (ScheduledProcedureInfo procedure_info : scheduled_procedures_pending_sorted) {
+	for (ScheduledProcedureExeInfo procedure_info : scheduled_procedures_pending_sorted) {
 		if (od->get_local_id() == procedure_info.object_local_id && procedure_info.procedure_id == p_procedure_id) {
-			if (procedure_info.execute_at_frame >= current_frame) {
-				const float delta_frames = float((procedure_info.execute_at_frame - current_frame).id);
+			if (procedure_info.execute_at_frame >= global_frame_index) {
+				const float delta_frames = float((procedure_info.execute_at_frame - global_frame_index).id);
 				return delta_frames * fixed_frame_delta;
 			} else {
 				return 0.f;
@@ -1031,14 +1026,14 @@ float SceneSynchronizerBase::sync_group_get_trickled_update_rate(ObjectLocalId p
 }
 
 float SceneSynchronizerBase::sync_group_get_trickled_update_rate(ObjectNetId p_id, SyncGroupId p_group_id) const {
-	const NS::ObjectData *od = get_object_data(p_id);
+	const ObjectData *od = get_object_data(p_id);
 	NS_ENSURE_V_MSG(is_server(), 0.0, "This function CAN be used only on the server.");
 	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get_trickled_update_rate(od, p_group_id);
 }
 
-void SceneSynchronizerBase::sync_group_notify_procedure_scheduled(ObjectData *p_object_data, ScheduledProcedureId p_scheduled_procedure_id, GlobalFrameIndex p_frame_index, DataBuffer &p_data) {
-	// TODO implement
-	NS_ASSERT_NO_ENTRY();
+void SceneSynchronizerBase::sync_group_notify_procedure_scheduled(ObjectData &p_object_data, ScheduledProcedureId p_scheduled_procedure_id, GlobalFrameIndex p_frame_index, DataBuffer &p_args) {
+	NS_ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
+	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_notify_procedure_scheduled(p_object_data, p_scheduled_procedure_id, p_frame_index, p_args);
 }
 
 void SceneSynchronizerBase::sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_data) {
@@ -1521,13 +1516,13 @@ void SceneSynchronizerBase::rpc_notify_netstats(DataBuffer &p_data) {
 #endif
 }
 
-void SceneSynchronizerBase::rpc_notify_scheduled_procedure(ObjectNetId p_object_id, ScheduledProcedureId p_scheduled_procedure_id, FrameIndex p_frame_index, DataBuffer &p_data) {
+void SceneSynchronizerBase::rpc_notify_scheduled_procedure(ObjectNetId p_object_id, ScheduledProcedureId p_scheduled_procedure_id, GlobalFrameIndex p_frame_index, DataBuffer &p_data) {
 	ObjectData *od = get_object_data(p_object_id, false);
 	NS_ENSURE_MSG(od, "The scheduled event receival failed because the ObjectData for NetId(`"+std::to_string(p_object_id.id)+"`) was not found.");
 	NS_ENSURE(p_scheduled_procedure_id.id<od->scheduled_procedure_funcs.size());
 	NS_ENSURE(od->scheduled_procedure_funcs[p_scheduled_procedure_id.id]);
 
-	VecFunc::insert_sorted(scheduled_procedures_pending_sorted, ScheduledProcedureInfo{ od->get_local_id(), p_scheduled_procedure_id, p_frame_index, p_data });
+	VecFunc::insert_sorted(scheduled_procedures_pending_sorted, ScheduledProcedureExeInfo{ od->get_local_id(), p_scheduled_procedure_id, p_frame_index, p_data });
 
 	od->scheduled_procedure_funcs[p_scheduled_procedure_id.id](get_synchronizer_manager(), od->app_object_handle, ScheduledProcedurePhase::RECEIVED, p_data);
 }
@@ -1839,33 +1834,29 @@ void SceneSynchronizerBase::process_functions__execute_scheduled_procedure(float
 	// NOTE this function is executed inside the process phase but after all
 	//      controllers have been executed. check the `process_functions_execute`.
 
-	PeerNetworkedController *local_controller = get_local_authority_controller();
-	if (local_controller) {
-		const FrameIndex current_frame = local_controller->get_current_frame_index();
-		for (int i = 0; i < scheduled_procedures_pending_sorted.size(); i++) {
-			// Execute if the procedure was planned for this frame
-			if (scheduled_procedures_pending_sorted[i].execute_at_frame <= current_frame) {
-				if (scheduled_procedures_pending_sorted[i].execute_at_frame == current_frame) {
-					// and this frame is not yet executed.
+	for (int i = 0; i < scheduled_procedures_pending_sorted.size(); i++) {
+		// Execute if the procedure was planned for this frame
+		if (scheduled_procedures_pending_sorted[i].execute_at_frame <= global_frame_index) {
+			if (scheduled_procedures_pending_sorted[i].execute_at_frame == global_frame_index) {
+				// and this frame is not yet executed.
 
-					ObjectData *od = get_object_data(scheduled_procedures_pending_sorted[i].object_local_id);
-					if (od) {
-						if (scheduled_procedures_pending_sorted[i].procedure_id.id < od->scheduled_procedure_funcs.size()) {
-							if (od->scheduled_procedure_funcs[scheduled_procedures_pending_sorted[i].procedure_id.id]) {
-								od->scheduled_procedure_funcs[scheduled_procedures_pending_sorted[i].procedure_id.id](
-										get_synchronizer_manager(),
-										od->app_object_handle,
-										ScheduledProcedurePhase::EXECUTING,
-										scheduled_procedures_pending_sorted[i].arguments);
-							}
+				ObjectData *od = get_object_data(scheduled_procedures_pending_sorted[i].object_local_id);
+				if (od) {
+					if (scheduled_procedures_pending_sorted[i].procedure_id.id < od->scheduled_procedure_funcs.size()) {
+						if (od->scheduled_procedure_funcs[scheduled_procedures_pending_sorted[i].procedure_id.id]) {
+							od->scheduled_procedure_funcs[scheduled_procedures_pending_sorted[i].procedure_id.id](
+									get_synchronizer_manager(),
+									od->app_object_handle,
+									ScheduledProcedurePhase::EXECUTING,
+									scheduled_procedures_pending_sorted[i].arguments);
 						}
 					}
 				}
-
-				// Remove
-				VecFunc::remove_at(scheduled_procedures_pending_sorted, i);
-				i--;
 			}
+
+			// Remove
+			VecFunc::remove_at(scheduled_procedures_pending_sorted, i);
+			i--;
 		}
 	}
 }
@@ -2410,11 +2401,17 @@ void ServerSynchronizer::sync_group_set_trickled_update_rate(NS::ObjectData *p_o
 	sync_groups[p_group_id.id].set_trickled_update_rate(p_object_data, p_update_rate);
 }
 
-float ServerSynchronizer::sync_group_get_trickled_update_rate(const NS::ObjectData *p_object_data, SyncGroupId p_group_id) const {
+float ServerSynchronizer::sync_group_get_trickled_update_rate(const ObjectData *p_object_data, SyncGroupId p_group_id) const {
 	NS_ENSURE_V(p_object_data, 0.0);
 	NS_ENSURE_V_MSG(p_group_id.id < sync_groups.size(), 0.0, "The group id `" + (p_group_id) + "` doesn't exist.");
 	NS_ENSURE_V_MSG(p_group_id != SyncGroupId::GLOBAL, 0.0, "You can't change this SyncGroup in any way. Create a new one.");
 	return sync_groups[p_group_id.id].get_trickled_update_rate(p_object_data);
+}
+
+void ServerSynchronizer::sync_group_notify_procedure_scheduled(ObjectData &p_object_data, ScheduledProcedureId p_scheduled_procedure_id, GlobalFrameIndex p_frame_index, DataBuffer &p_args) {
+	for (SyncGroup &group : sync_groups) {
+		group.notify_procedure_state_update(p_object_data, p_scheduled_procedure_id, p_frame_index, p_args);
+	}
 }
 
 void ServerSynchronizer::sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_data) {
@@ -2435,7 +2432,7 @@ void ServerSynchronizer::sync_group_debug_print() {
 	scene_synchronizer->get_debugger().print(INFO, "|-----------------------", scene_synchronizer->get_network_interface().get_owner_name());
 
 	for (int g = 0; g < int(sync_groups.size()); ++g) {
-		NS::SyncGroup &group = sync_groups[g];
+		SyncGroup &group = sync_groups[g];
 
 		scene_synchronizer->get_debugger().print(INFO, "| [Group " + std::to_string(g) + "#]", scene_synchronizer->get_network_interface().get_owner_name());
 		scene_synchronizer->get_debugger().print(INFO, "|    Listening peers", scene_synchronizer->get_network_interface().get_owner_name());

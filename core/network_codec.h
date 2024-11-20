@@ -20,6 +20,9 @@ void decode_variable(ObjectNetId &val, DataBuffer &p_buffer);
 void encode_variable(FrameIndex val, DataBuffer &r_buffer);
 void decode_variable(FrameIndex &val, DataBuffer &p_buffer);
 
+void encode_variable(GlobalFrameIndex val, DataBuffer &r_buffer);
+void decode_variable(GlobalFrameIndex &val, DataBuffer &p_buffer);
+
 void encode_variable(ScheduledProcedureId val, DataBuffer &r_buffer);
 void decode_variable(ScheduledProcedureId &val, DataBuffer &p_buffer);
 

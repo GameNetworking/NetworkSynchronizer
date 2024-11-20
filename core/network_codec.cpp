@@ -47,6 +47,14 @@ void decode_variable(FrameIndex &val, DataBuffer &p_buffer) {
 	p_buffer.read(val.id);
 }
 
+void encode_variable(GlobalFrameIndex val, DataBuffer &r_buffer) {
+	r_buffer.add(val.id);
+}
+
+void decode_variable(GlobalFrameIndex &val, DataBuffer &p_buffer) {
+	p_buffer.read(val.id);
+}
+
 void encode_variable(ScheduledProcedureId val, DataBuffer &r_buffer) {
 	r_buffer.add(val.id);
 }

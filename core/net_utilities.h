@@ -2,6 +2,7 @@
 
 #include "core.h"
 #include "processor.h"
+#include "scheduled_procedure.h"
 #include "var_data.h"
 
 #include <algorithm>
@@ -134,6 +135,16 @@ bool insert_unique(std::vector<V> &r_vec, const T &p_val) {
 		return true;
 	}
 	return false;
+}
+
+template <class V, typename T>
+void insert_or_update(std::vector<V> &r_vec, const T &p_val) {
+	auto it = find(r_vec, p_val);
+	if (it == r_vec.end()) {
+		r_vec.push_back(p_val);
+	} else {
+		return *it = p_val;
+	}
 }
 
 template <class V, typename T>
@@ -298,6 +309,7 @@ public:
 		bool unknown = false;
 		std::vector<VarId> vars;
 		bool controlling_peer_changed = false;
+		std::vector<ScheduledProcedureExeInfo> procedures_with_status_update;
 	};
 
 	struct SimulatedObjectInfo {
@@ -446,6 +458,8 @@ public:
 
 	void notify_new_variable(struct ObjectData *p_object_data, VarId p_var_id);
 	void notify_variable_changed(struct ObjectData *p_object_data, VarId p_var_id);
+
+	void notify_procedure_state_update(ObjectData &p_object_data, ScheduledProcedureId p_scheduled_procedure_id, GlobalFrameIndex p_frame_index = GlobalFrameIndex{ 0 }, class DataBuffer &p_data);
 
 	void set_simulated_partial_update_timespan_seconds(const struct ObjectData &p_object_data, bool p_partial_update_enabled, float p_update_timespan);
 	bool is_simulated_partial_updating(const struct ObjectData &p_object_data) const;
