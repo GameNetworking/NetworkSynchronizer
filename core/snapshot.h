@@ -2,6 +2,7 @@
 
 #include "core.h"
 #include "object_data.h"
+#include "scheduled_procedure.h"
 #include <map>
 #include <optional>
 
@@ -69,6 +70,8 @@ struct Snapshot {
 	/// Custom variable specified by the user.
 	/// NOTE: The user can specify a different variable depending on the passed GroupSync.
 	VarData custom_data;
+
+	std::vector<ScheduledProcedureInfo> pending_scheduled_procedures;
 
 public:
 	operator std::string() const;

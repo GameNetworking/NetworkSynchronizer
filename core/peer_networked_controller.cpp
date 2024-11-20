@@ -91,6 +91,11 @@ int PeerNetworkedController::get_max_redundant_inputs() const {
 	return scene_synchronizer ? scene_synchronizer->get_max_redundant_inputs() : 0;
 }
 
+FrameIndex PeerNetworkedController::get_checked_frame_index() const {
+	NS_ENSURE_V(controller, FrameIndex::NONE);
+	return controller->get_checked_frame_index();
+}
+
 FrameIndex PeerNetworkedController::get_current_frame_index() const {
 	NS_ENSURE_V(controller, FrameIndex::NONE);
 	return controller->get_current_frame_index();
@@ -580,6 +585,10 @@ void RemotelyControlledController::on_peer_update(bool p_peer_enabled) {
 	// Client inputs reset.
 	ghost_input_count = 0;
 	frames_input.clear();
+}
+
+FrameIndex RemotelyControlledController::get_checked_frame_index() const {
+	return current_input_buffer_id == FrameIndex::NONE ? FrameIndex{ 0 } : current_input_buffer_id - 1;
 }
 
 FrameIndex RemotelyControlledController::get_current_frame_index() const {
@@ -1174,6 +1183,10 @@ void PlayerController::on_state_validated(FrameIndex p_frame_index, bool p_detec
 
 void PlayerController::on_app_process_end(float p_delta_seconds) {
 	send_frame_input_buffer_to_server();
+}
+
+FrameIndex PlayerController::get_checked_frame_index() const {
+	return FrameIndex{ frames_input.size() > 0 ? FrameIndex{ frames_input.front().id.id - 1 } : current_input_id };
 }
 
 FrameIndex PlayerController::get_current_frame_index() const {
@@ -1961,6 +1974,10 @@ void NoNetController::process(float p_delta) {
 	peer_controller->controllable_process(p_delta, peer_controller->get_inputs_buffer_mut());
 	peer_controller->get_debugger().databuffer_operation_end_record();
 	frame_id += 1;
+}
+
+FrameIndex NoNetController::get_checked_frame_index() const {
+	return frame_id == FrameIndex::NONE ? FrameIndex{ 0 } : frame_id - 1;
 }
 
 FrameIndex NoNetController::get_current_frame_index() const {

@@ -103,6 +103,7 @@ set(NS_SRC_FILES
 	${NS_ROOT}/core/bitcasts.h
 	${NS_ROOT}/core/core.h
 	${NS_ROOT}/core/core.cpp
+	${NS_ROOT}/core/scheduled_procedure.h
 	${NS_ROOT}/core/data_buffer.h
 	${NS_ROOT}/core/data_buffer.cpp
 	${NS_ROOT}/core/ensure.h
