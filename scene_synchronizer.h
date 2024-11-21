@@ -622,7 +622,11 @@ public: // ---------------------------------------------------------------- APIs
 			ObjectLocalId p_id,
 			ScheduledProcedureId p_procedure_id);
 
-	float scheduled_procedure_get_executing_time(
+	float scheduled_procedure_get_remaining_seconds(
+			ObjectLocalId p_id,
+			ScheduledProcedureId p_procedure_id) const;
+			
+	bool scheduled_procedure_is_paused(
 			ObjectLocalId p_id,
 			ScheduledProcedureId p_procedure_id) const;
 

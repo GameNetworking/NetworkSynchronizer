@@ -1176,8 +1176,8 @@ public:
 
 		// ---------------------------------------------------------- ASSERTION FUNC
 		{
-			const float on_server_executes_in = server_scene.scene_sync->scheduled_procedure_get_executing_time(scene_object_on_server->local_id, scene_object_on_server->procedure_id);
-			const float on_peer_1_executes_in = peer_1_scene.scene_sync->scheduled_procedure_get_executing_time(scene_object_on_peer_1->local_id, scene_object_on_peer_1->procedure_id);
+			const float on_server_executes_in = server_scene.scene_sync->scheduled_procedure_get_remaining_seconds(scene_object_on_server->local_id, scene_object_on_server->procedure_id);
+			const float on_peer_1_executes_in = peer_1_scene.scene_sync->scheduled_procedure_get_remaining_seconds(scene_object_on_peer_1->local_id, scene_object_on_peer_1->procedure_id);
 
 			NS_ASSERT_COND(on_server_executes_in >= 0.2f);
 			NS_ASSERT_COND(scene_object_on_server->procedure_collecting_args_count == 1);
@@ -1228,8 +1228,8 @@ public:
 					const float remaining_time_on_server = float(int(execute_on_frame.id) - int(server_scene.scene_sync->get_global_frame_index().id)) * server_scene.scene_sync->get_fixed_frame_delta();
 					const float remaining_time_on_p1 = float(int(execute_on_frame.id) - int(peer_1_scene.scene_sync->get_global_frame_index().id)) * server_scene.scene_sync->get_fixed_frame_delta();
 
-					const float on_server_executes_in = server_scene.scene_sync->scheduled_procedure_get_executing_time(scene_object_on_server->local_id, scene_object_on_server->procedure_id);
-					const float on_peer_1_executes_in = peer_1_scene.scene_sync->scheduled_procedure_get_executing_time(scene_object_on_peer_1->local_id, scene_object_on_peer_1->procedure_id);
+					const float on_server_executes_in = server_scene.scene_sync->scheduled_procedure_get_remaining_seconds(scene_object_on_server->local_id, scene_object_on_server->procedure_id);
+					const float on_peer_1_executes_in = peer_1_scene.scene_sync->scheduled_procedure_get_remaining_seconds(scene_object_on_peer_1->local_id, scene_object_on_peer_1->procedure_id);
 
 					if (remaining_time_on_server > 0.) {
 						// Procedure not triggered.
@@ -1264,7 +1264,7 @@ public:
 					if (scene_object_on_peer_2) {
 						const float remaining_time_on_p2 = float(int(execute_on_frame.id) - int(peer_2_scene.scene_sync->get_global_frame_index().id)) * peer_2_scene.scene_sync->get_fixed_frame_delta();
 
-						const float on_peer_2_executes_in = peer_2_scene.scene_sync->scheduled_procedure_get_executing_time(scene_object_on_peer_2->local_id, scene_object_on_peer_2->procedure_id);
+						const float on_peer_2_executes_in = peer_2_scene.scene_sync->scheduled_procedure_get_remaining_seconds(scene_object_on_peer_2->local_id, scene_object_on_peer_2->procedure_id);
 
 						if (remaining_time_on_p2 > 0.f) {
 							if (on_peer_2_executes_in > 0.f) {
@@ -1313,9 +1313,9 @@ public:
 
 	virtual void assert_final_value() override {
 		// Ensure the procedure was triggered everywhere.
-		const float on_server_executes_in = server_scene.scene_sync->scheduled_procedure_get_executing_time(scene_object_on_server->local_id, scene_object_on_server->procedure_id);
-		const float on_peer_1_executes_in = peer_1_scene.scene_sync->scheduled_procedure_get_executing_time(scene_object_on_peer_1->local_id, scene_object_on_peer_1->procedure_id);
-		const float on_peer_2_executes_in = peer_2_scene.scene_sync->scheduled_procedure_get_executing_time(scene_object_on_peer_2->local_id, scene_object_on_peer_2->procedure_id);
+		const float on_server_executes_in = server_scene.scene_sync->scheduled_procedure_get_remaining_seconds(scene_object_on_server->local_id, scene_object_on_server->procedure_id);
+		const float on_peer_1_executes_in = peer_1_scene.scene_sync->scheduled_procedure_get_remaining_seconds(scene_object_on_peer_1->local_id, scene_object_on_peer_1->procedure_id);
+		const float on_peer_2_executes_in = peer_2_scene.scene_sync->scheduled_procedure_get_remaining_seconds(scene_object_on_peer_2->local_id, scene_object_on_peer_2->procedure_id);
 		NS_ASSERT_COND(on_server_executes_in > 0.);
 		NS_ASSERT_COND(on_peer_1_executes_in > 0.);
 		NS_ASSERT_COND(on_peer_2_executes_in > 0.);
@@ -1342,9 +1342,9 @@ public:
 
 	virtual void assert_final_value() override {
 		// Ensure the procedure was triggered everywhere.
-		const float on_server_executes_in = server_scene.scene_sync->scheduled_procedure_get_executing_time(scene_object_on_server->local_id, scene_object_on_server->procedure_id);
-		const float on_peer_1_executes_in = peer_1_scene.scene_sync->scheduled_procedure_get_executing_time(scene_object_on_peer_1->local_id, scene_object_on_peer_1->procedure_id);
-		const float on_peer_2_executes_in = peer_2_scene.scene_sync->scheduled_procedure_get_executing_time(scene_object_on_peer_2->local_id, scene_object_on_peer_2->procedure_id);
+		const float on_server_executes_in = server_scene.scene_sync->scheduled_procedure_get_remaining_seconds(scene_object_on_server->local_id, scene_object_on_server->procedure_id);
+		const float on_peer_1_executes_in = peer_1_scene.scene_sync->scheduled_procedure_get_remaining_seconds(scene_object_on_peer_1->local_id, scene_object_on_peer_1->procedure_id);
+		const float on_peer_2_executes_in = peer_2_scene.scene_sync->scheduled_procedure_get_remaining_seconds(scene_object_on_peer_2->local_id, scene_object_on_peer_2->procedure_id);
 		NS_ASSERT_COND(on_server_executes_in == 0.);
 		NS_ASSERT_COND(on_peer_1_executes_in == 0.);
 		NS_ASSERT_COND(on_peer_2_executes_in == 0.);

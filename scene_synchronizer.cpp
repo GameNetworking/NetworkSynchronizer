@@ -786,25 +786,27 @@ GlobalFrameIndex SceneSynchronizerBase::scheduled_procedure_start(
 
 	sync_group_notify_scheduled_procedure_changed(*od, p_procedure_id);
 
-	// Notify all the peers right away, without waiting for the snapshot.
-	std::vector<int> peers;
-	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_fetch_object_simulating_peers(*od, peers);
+	if (is_server()) {
+		// Notify all the peers right away, without waiting for the snapshot.
+		std::vector<int> peers;
+		static_cast<ServerSynchronizer *>(synchronizer)->sync_group_fetch_object_simulating_peers(*od, peers);
 
 #ifdef NS_DEBUG_ENABLED
-	// Assert that the server peer is never contained by the peer at this point.
-	NS_ASSERT_COND(!VecFunc::has(peers, network_interface->get_server_peer()));
+		// Assert that the server peer is never contained by the peer at this point.
+		NS_ASSERT_COND(!VecFunc::has(peers, network_interface->get_server_peer()));
 #endif
 
-	for (int peer : peers) {
-		const PeerNetworkedController *peer_controller = get_controller_for_peer(peer);
-		if (peer_controller) {
-			rpc_handle_notify_scheduled_procedure_start.rpc(
-					get_network_interface(),
-					peer,
-					od->get_net_id(),
-					p_procedure_id,
-					execute_on_frame,
-					od->scheduled_procedure_get_args(p_procedure_id));
+		for (int peer : peers) {
+			const PeerNetworkedController *peer_controller = get_controller_for_peer(peer);
+			if (peer_controller) {
+				rpc_handle_notify_scheduled_procedure_start.rpc(
+						get_network_interface(),
+						peer,
+						od->get_net_id(),
+						p_procedure_id,
+						execute_on_frame,
+						od->scheduled_procedure_get_args(p_procedure_id));
+			}
 		}
 	}
 
@@ -828,23 +830,25 @@ void SceneSynchronizerBase::scheduled_procedure_stop(
 	od->scheduled_procedure_stop(p_procedure_id);
 	sync_group_notify_scheduled_procedure_changed(*od, p_procedure_id);
 
-	// Notify all the peers right away, without waiting for the snapshot.
-	std::vector<int> peers;
-	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_fetch_object_simulating_peers(*od, peers);
+	if (is_server()) {
+		// Notify all the peers right away, without waiting for the snapshot.
+		std::vector<int> peers;
+		static_cast<ServerSynchronizer *>(synchronizer)->sync_group_fetch_object_simulating_peers(*od, peers);
 
 #ifdef NS_DEBUG_ENABLED
-	// Assert that the server peer is never contained by the peer at this point.
-	NS_ASSERT_COND(!VecFunc::has(peers, network_interface->get_server_peer()));
+		// Assert that the server peer is never contained by the peer at this point.
+		NS_ASSERT_COND(!VecFunc::has(peers, network_interface->get_server_peer()));
 #endif
 
-	for (int peer : peers) {
-		const PeerNetworkedController *peer_controller = get_controller_for_peer(peer);
-		if (peer_controller) {
-			rpc_handle_notify_scheduled_procedure_stop.rpc(
-					get_network_interface(),
-					peer,
-					od->get_net_id(),
-					p_procedure_id);
+		for (int peer : peers) {
+			const PeerNetworkedController *peer_controller = get_controller_for_peer(peer);
+			if (peer_controller) {
+				rpc_handle_notify_scheduled_procedure_stop.rpc(
+						get_network_interface(),
+						peer,
+						od->get_net_id(),
+						p_procedure_id);
+			}
 		}
 	}
 }
@@ -866,24 +870,26 @@ void SceneSynchronizerBase::scheduled_procedure_pause(
 	od->scheduled_procedure_pause(p_procedure_id, global_frame_index);
 	sync_group_notify_scheduled_procedure_changed(*od, p_procedure_id);
 
-	// Notify all the peers right away, without waiting for the snapshot.
-	std::vector<int> peers;
-	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_fetch_object_simulating_peers(*od, peers);
+	if (is_server()) {
+		// Notify all the peers right away, without waiting for the snapshot.
+		std::vector<int> peers;
+		static_cast<ServerSynchronizer *>(synchronizer)->sync_group_fetch_object_simulating_peers(*od, peers);
 
 #ifdef NS_DEBUG_ENABLED
-	// Assert that the server peer is never contained by the peer at this point.
-	NS_ASSERT_COND(!VecFunc::has(peers, network_interface->get_server_peer()));
+		// Assert that the server peer is never contained by the peer at this point.
+		NS_ASSERT_COND(!VecFunc::has(peers, network_interface->get_server_peer()));
 #endif
 
-	for (int peer : peers) {
-		const PeerNetworkedController *peer_controller = get_controller_for_peer(peer);
-		if (peer_controller) {
-			rpc_handle_notify_scheduled_procedure_pause.rpc(
-					get_network_interface(),
-					peer,
-					od->get_net_id(),
-					p_procedure_id,
-					global_frame_index);
+		for (int peer : peers) {
+			const PeerNetworkedController *peer_controller = get_controller_for_peer(peer);
+			if (peer_controller) {
+				rpc_handle_notify_scheduled_procedure_pause.rpc(
+						get_network_interface(),
+						peer,
+						od->get_net_id(),
+						p_procedure_id,
+						global_frame_index);
+			}
 		}
 	}
 }
@@ -892,7 +898,7 @@ GlobalFrameIndex SceneSynchronizerBase::scheduled_procedure_unpause(
 		ObjectLocalId p_id,
 		ScheduledProcedureId p_procedure_id) {
 	NS_PROFILE
-	
+
 	NS_ENSURE_V_MSG(is_server() || is_no_network(), GlobalFrameIndex{0}, "The procedure can be scheduled only by the server.");
 
 	NS_ENSURE_V(p_id != NS::ObjectLocalId::NONE, GlobalFrameIndex{0});
@@ -909,25 +915,27 @@ GlobalFrameIndex SceneSynchronizerBase::scheduled_procedure_unpause(
 	od->scheduled_procedure_start(p_procedure_id, global_frame_index + remaining_frames);
 	sync_group_notify_scheduled_procedure_changed(*od, p_procedure_id);
 
-	// Notify all the peers right away, without waiting for the snapshot.
-	std::vector<int> peers;
-	static_cast<ServerSynchronizer *>(synchronizer)->sync_group_fetch_object_simulating_peers(*od, peers);
+	if (is_server()) {
+		// Notify all the peers right away, without waiting for the snapshot.
+		std::vector<int> peers;
+		static_cast<ServerSynchronizer *>(synchronizer)->sync_group_fetch_object_simulating_peers(*od, peers);
 
 #ifdef NS_DEBUG_ENABLED
-	// Assert that the server peer is never contained by the peer at this point.
-	NS_ASSERT_COND(!VecFunc::has(peers, network_interface->get_server_peer()));
+		// Assert that the server peer is never contained by the peer at this point.
+		NS_ASSERT_COND(!VecFunc::has(peers, network_interface->get_server_peer()));
 #endif
 
-	for (int peer : peers) {
-		const PeerNetworkedController *peer_controller = get_controller_for_peer(peer);
-		if (peer_controller) {
-			rpc_handle_notify_scheduled_procedure_start.rpc(
-					get_network_interface(),
-					peer,
-					od->get_net_id(),
-					p_procedure_id,
-					execute_on_frame,
-					od->scheduled_procedure_get_args(p_procedure_id));
+		for (int peer : peers) {
+			const PeerNetworkedController *peer_controller = get_controller_for_peer(peer);
+			if (peer_controller) {
+				rpc_handle_notify_scheduled_procedure_start.rpc(
+						get_network_interface(),
+						peer,
+						od->get_net_id(),
+						p_procedure_id,
+						execute_on_frame,
+						od->scheduled_procedure_get_args(p_procedure_id));
+			}
 		}
 	}
 
@@ -935,7 +943,7 @@ GlobalFrameIndex SceneSynchronizerBase::scheduled_procedure_unpause(
 }
 
 
-float SceneSynchronizerBase::scheduled_procedure_get_executing_time(
+float SceneSynchronizerBase::scheduled_procedure_get_remaining_seconds(
 		ObjectLocalId p_id,
 		ScheduledProcedureId p_procedure_id) const {
 	NS_PROFILE
@@ -945,6 +953,18 @@ float SceneSynchronizerBase::scheduled_procedure_get_executing_time(
 	NS_ENSURE_V(od->scheduled_procedure_exist(p_procedure_id), -1.f);
 
 	return float(od->scheduled_procedure_remaining_frames(p_procedure_id, global_frame_index)) * fixed_frame_delta;
+}
+
+bool SceneSynchronizerBase::scheduled_procedure_is_paused(
+		ObjectLocalId p_id,
+		ScheduledProcedureId p_procedure_id) const {
+	NS_PROFILE
+
+	const ObjectData *od = get_object_data(p_id);
+	NS_ENSURE_V(od, true);
+	NS_ENSURE_V(od->scheduled_procedure_exist(p_procedure_id), true);
+
+	return od->scheduled_procedure_is_paused(p_procedure_id);
 }
 
 void SceneSynchronizerBase::setup_trickled_sync(
