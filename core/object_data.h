@@ -142,6 +142,7 @@ public:
 	void scheduled_procedure_start(ScheduledProcedureId p_id, GlobalFrameIndex p_executes_at_frame);
 	/// Pause the procedure.
 	void scheduled_procedure_pause(ScheduledProcedureId p_id, GlobalFrameIndex p_current_frame);
+	void scheduled_procedure_pause(ScheduledProcedureId p_id, GlobalFrameIndex p_executes_at_frame, GlobalFrameIndex p_current_frame);
 	/// Stop the procedure.
 	void scheduled_procedure_stop(ScheduledProcedureId p_id);
 

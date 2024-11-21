@@ -3352,6 +3352,7 @@ void ClientSynchronizer::store_controllers_snapshot(
 					// Ensure the vector is big enough.
 					the_storing_snapshot.objects.resize(net_id.id + 1);
 				}
+
 				the_storing_snapshot.objects[net_id.id].vars.resize(p_snapshot.get_object_vars(net_id)->size());
 				for (int i = 0; i < p_snapshot.get_object_vars(net_id)->size(); i++) {
 					if ((*p_snapshot.get_object_vars(net_id))[i].has_value()) {
@@ -3360,6 +3361,8 @@ void ClientSynchronizer::store_controllers_snapshot(
 						the_storing_snapshot.objects[net_id.id].vars[i].reset();
 					}
 				}
+
+				the_storing_snapshot.objects[net_id.id].procedures = *p_snapshot.get_object_procedures(net_id);
 			}
 
 			last_received_server_snapshot_index = p_snapshot.input_id;
@@ -4521,7 +4524,7 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot, bool p_is_server
 				}
 			},
 
-			// Parse variable:
+			// Parse scheduled procedure:
 			[](void *p_user_pointer, ObjectData *p_object_data, ScheduledProcedureId p_procedure_id, ScheduledProcedureSnapshot &&p_procedure_snapshot) {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
 
@@ -4808,6 +4811,20 @@ void ClientSynchronizer::apply_snapshot(
 
 				if (r_applied_data_info) {
 					r_applied_data_info->push_back(std::string() + " |- Variable: " + variable_name + " New value: " + SceneSynchronizerBase::var_data_stringify(snap_value));
+				}
+			}
+		}
+
+		for (ScheduledProcedureId procedure_id = { 0 }; procedure_id.id < ScheduledProcedureId::IdType(object_data_snapshot.procedures.size()); procedure_id += 1) {
+			if (object_data->scheduled_procedure_exist(procedure_id)) {
+				const ScheduledProcedureSnapshot &procedure_snapshot = object_data_snapshot.procedures[procedure_id.id];
+				if (procedure_snapshot.execute_frame.id != 0 && procedure_snapshot.paused_frame.id == 0) {
+					object_data->scheduled_procedure_set_args(procedure_id, procedure_snapshot.args);
+					object_data->scheduled_procedure_start(procedure_id, procedure_snapshot.execute_frame);
+				} else if (procedure_snapshot.paused_frame.id != 0) {
+					object_data->scheduled_procedure_pause(procedure_id, procedure_snapshot.execute_frame, procedure_snapshot.paused_frame);
+				} else {
+					object_data->scheduled_procedure_stop(procedure_id);
 				}
 			}
 		}
