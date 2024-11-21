@@ -605,7 +605,7 @@ public: // ---------------------------------------------------------------- APIs
 			ObjectLocalId p_id,
 			ScheduledProcedureId p_procedure_id);
 
-	void scheduled_procedure_start(
+	GlobalFrameIndex scheduled_procedure_start(
 			ObjectLocalId p_id,
 			ScheduledProcedureId p_procedure_id,
 			float p_execute_in_seconds);
@@ -615,6 +615,10 @@ public: // ---------------------------------------------------------------- APIs
 			ScheduledProcedureId p_procedure_id);
 
 	void scheduled_procedure_pause(
+			ObjectLocalId p_id,
+			ScheduledProcedureId p_procedure_id);
+	
+	GlobalFrameIndex scheduled_procedure_unpause(
 			ObjectLocalId p_id,
 			ScheduledProcedureId p_procedure_id);
 
