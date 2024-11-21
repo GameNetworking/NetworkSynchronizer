@@ -146,6 +146,7 @@ public:
 	void scheduled_procedure_stop(ScheduledProcedureId p_id);
 
 	/// Returns true if the procedure is paused.
+	bool scheduled_procedure_is_inprogress(ScheduledProcedureId p_id) const;
 	bool scheduled_procedure_is_paused(ScheduledProcedureId p_id) const;
 	/// Returns the remaining frames of this procedure according to its status (Playing, Paused, Stop)
 	std::uint32_t scheduled_procedure_remaining_frames(ScheduledProcedureId p_id, GlobalFrameIndex p_current_frame) const;

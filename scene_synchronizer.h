@@ -1094,11 +1094,12 @@ public:
 			void (*p_notify_update_mode)(void *p_user_pointer, bool p_is_partial_update),
 			void (*p_parse_global_frame_index)(void *p_user_pointer, GlobalFrameIndex p_global_frame_index),
 			void (*p_custom_data_parse)(void *p_user_pointer, VarData &&p_custom_data),
-			void (*p_object_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
+			void (*p_object_parse)(void *p_user_pointer, ObjectData *p_object_data),
 			// NOTE: The frame index meta is not initialized by this function,
 			// and it's up to the calling function doint it.
 			bool (*p_peers_frame_index_parse)(void *p_user_pointer, std::map<int, FrameIndexWithMeta> &&p_frames_index),
-			void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, VarData &&p_value),
+			void (*p_variable_parse)(void *p_user_pointer, ObjectData *p_object_data, VarId p_var_id, VarData &&p_value),
+			void (*p_scheduled_procedure_parse)(void *p_user_pointer, ObjectData *p_object_data, ScheduledProcedureId p_procedure_id, ScheduledProcedureSnapshot &&p_value),
 			void (*p_simulated_object_add_or_remove_parse)(void *p_user_pointer, bool p_add, SimulatedObjectInfo &&p_simulated_objects),
 			void (*p_simulated_objects_parse)(void *p_user_pointer, std::vector<SimulatedObjectInfo> &&p_simulated_objects));
 
