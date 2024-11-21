@@ -1604,7 +1604,7 @@ void DollController::copy_controlled_objects_snapshot(
 				biggest_id = object_data->get_net_id();
 			}
 		}
-		snap->data.object_vars.resize(biggest_id.id + 1);
+		snap->data.objects.resize(biggest_id.id + 1);
 	}
 
 	snap->data.simulated_objects.clear();
@@ -1621,12 +1621,12 @@ void DollController::copy_controlled_objects_snapshot(
 
 		snap->data.simulated_objects.push_back(object_data->get_net_id());
 
-		snap->data.object_vars[object_data->get_net_id().id].clear();
+		snap->data.objects[object_data->get_net_id().id].vars.clear();
 		for (const std::optional<VarData> &nav : *vars) {
 			if (nav.has_value()) {
-				snap->data.object_vars[object_data->get_net_id().id].push_back(VarData::make_copy(nav.value()));
+				snap->data.objects[object_data->get_net_id().id].vars.push_back(VarData::make_copy(nav.value()));
 			} else {
-				snap->data.object_vars[object_data->get_net_id().id].push_back(std::optional<VarData>());
+				snap->data.objects[object_data->get_net_id().id].vars.push_back(std::optional<VarData>());
 			}
 		}
 	}

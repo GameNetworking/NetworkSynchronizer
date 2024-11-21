@@ -146,8 +146,11 @@ struct ObjectHandle : public IdMaker<ObjectHandle, std::intptr_t> {
 };
 
 enum class ScheduledProcedurePhase : std::uint8_t {
+	/// The procedure is called with in this phase only on the server when collecting the arguments.
 	COLLECTING_ARGUMENTS = 0,
+	/// This is executed on the client when the procedure is received. In some case this is not executed, so don't count on this too much.
 	RECEIVED = 1,
+	/// The scheduled procedure time is over and the execute is triggered. Here the procedure can do its normal job.
 	EXECUTING = 2,
 };
 

@@ -94,6 +94,7 @@ void NS::SyncGroup::mark_changes_as_notified(bool p_is_partial_update, const std
 		for (const std::size_t index : p_partial_update_simulated_objects_info_indices) {
 			simulated_sync_objects[index].change.unknown = false;
 			simulated_sync_objects[index].change.vars.clear();
+			simulated_sync_objects[index].change.changed_scheduled_procedures.clear();
 		}
 	} else {
 		// When it isn't a partial update this array is always empty
@@ -103,6 +104,7 @@ void NS::SyncGroup::mark_changes_as_notified(bool p_is_partial_update, const std
 		for (auto &sso : simulated_sync_objects) {
 			sso.change.unknown = false;
 			sso.change.vars.clear();
+			sso.change.changed_scheduled_procedures.clear();
 		}
 	}
 
@@ -340,12 +342,12 @@ void NS::SyncGroup::notify_variable_changed(ObjectData *p_object_data, VarId p_v
 	}
 }
 
-void NS::SyncGroup::notify_procedure_state_update(ObjectData &p_object_data, ScheduledProcedureId p_scheduled_procedure_id, GlobalFrameIndex p_frame_index, DataBuffer &p_data) {
+void NS::SyncGroup::notify_scheduled_procedure_changed(ObjectData &p_object_data, ScheduledProcedureId p_scheduled_procedure_id) {
 	const std::size_t index = find_simulated(p_object_data);
 	if (index != VecFunc::index_none()) {
-		VecFunc::insert_or_update(
-				simulated_sync_objects[index].change.procedures_with_status_update,
-				ScheduledProcedureExeInfo(p_object_data.get_net_id(), p_scheduled_procedure_id, p_frame_index, p_data));
+		VecFunc::insert_unique(
+				simulated_sync_objects[index].change.changed_scheduled_procedures,
+				ScheduledProcedureHandle(p_object_data.get_net_id(), p_scheduled_procedure_id));
 	}
 }
 
