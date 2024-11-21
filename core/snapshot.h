@@ -2,7 +2,6 @@
 
 #include "core.h"
 #include "object_data.h"
-#include "scheduled_procedure.h"
 #include <map>
 #include <optional>
 
@@ -51,14 +50,30 @@ struct FrameIndexWithMeta {
 	}
 };
 
+struct ScheduledProcedureSnapshot {
+	GlobalFrameIndex execute_frame = GlobalFrameIndex{ 0 };
+	GlobalFrameIndex paused_frame = GlobalFrameIndex{ 0 };
+	DataBuffer args;
+
+	bool operator==(const ScheduledProcedureSnapshot &p_other) const {
+		return execute_frame == p_other.execute_frame
+				&& paused_frame == p_other.paused_frame
+				&& args == p_other.args;
+	}
+};
+
+struct ObjectDataSnapshot {
+	std::vector<std::optional<VarData>> vars;
+	std::vector<ScheduledProcedureSnapshot> procedures;
+};
+
 struct Snapshot {
 	FrameIndex input_id = FrameIndex::NONE;
 	GlobalFrameIndex global_frame_index = GlobalFrameIndex::NONE;
 	std::vector<SimulatedObjectInfo> simulated_objects;
-	/// The Node variables in a particular frame. The order of this vector
+	/// The objects info in a particular frame. The order of this vector
 	/// matters because the index is the `ObjectNetId`.
-	/// The variable array order also matter.
-	std::vector<std::vector<std::optional<VarData>>> object_vars;
+	std::vector<ObjectDataSnapshot> objects;
 
 	/// The executed FrameIndex for the simulating peers.
 	/// NOTE: Due to the nature of the doll simulation, when comparing the
@@ -71,8 +86,6 @@ struct Snapshot {
 	/// Custom variable specified by the user.
 	/// NOTE: The user can specify a different variable depending on the passed GroupSync.
 	VarData custom_data;
-
-	std::vector<ScheduledProcedureExeInfo> pending_scheduled_procedures;
 
 public:
 	operator std::string() const;

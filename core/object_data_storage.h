@@ -1,6 +1,8 @@
 #pragma once
 
 #include "core.h"
+#include "scheduled_procedure.h"
+
 #include <map>
 #include <vector>
 
@@ -19,6 +21,8 @@ class ObjectDataStorage {
 	std::map<int, std::vector<ObjectData *>> objects_data_controlled_by_peers;
 
 	std::vector<ObjectData *> unnamed_objects_data;
+
+	std::vector<ScheduledProcedureHandle> sorted_active_scheduled_procedures;
 
 public:
 	ObjectDataStorage(class SceneSynchronizerBase &p_sync);
@@ -53,6 +57,12 @@ public:
 	void notify_set_controlled_by_peer(int p_old_peer, ObjectData &p_object);
 
 	void notify_object_name_unnamed_changed(ObjectData &p_object);
+
+	void notify_scheduled_procedure_updated(ObjectData &p_object, const ScheduledProcedureId p_procedure_id, bool p_active);
+
+	const std::vector<ScheduledProcedureHandle> &get_sorted_active_scheduled_procedures() const {
+		return sorted_active_scheduled_procedures;
+	}
 };
 
 NS_NAMESPACE_END

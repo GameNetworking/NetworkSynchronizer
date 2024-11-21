@@ -171,7 +171,7 @@ void insert_at_position_expand(std::vector<V> &r_vec, std::size_t p_index, const
 }
 
 
-// Insert the value in a sorted vector. Returns true if the value was inserted, returns false if the element was already into the array.
+// Insert the value in a sorted vector.
 template <class V, typename T>
 void insert_sorted(std::vector<V> &r_vec, const T &p_value) {
 	auto it = std::lower_bound(r_vec.begin(), r_vec.end(), p_value);
@@ -309,7 +309,7 @@ public:
 		bool unknown = false;
 		std::vector<VarId> vars;
 		bool controlling_peer_changed = false;
-		std::vector<ScheduledProcedureExeInfo> procedures_with_status_update;
+		std::vector<ScheduledProcedureHandle> changed_scheduled_procedures;
 	};
 
 	struct SimulatedObjectInfo {
@@ -459,7 +459,7 @@ public:
 	void notify_new_variable(struct ObjectData *p_object_data, VarId p_var_id);
 	void notify_variable_changed(struct ObjectData *p_object_data, VarId p_var_id);
 
-	void notify_procedure_state_update(ObjectData &p_object_data, ScheduledProcedureId p_scheduled_procedure_id, GlobalFrameIndex p_frame_index = GlobalFrameIndex{ 0 }, class DataBuffer &p_data);
+	void notify_scheduled_procedure_changed(struct ObjectData &p_object_data, ScheduledProcedureId p_scheduled_procedure_id);
 
 	void set_simulated_partial_update_timespan_seconds(const struct ObjectData &p_object_data, bool p_partial_update_enabled, float p_update_timespan);
 	bool is_simulated_partial_updating(const struct ObjectData &p_object_data) const;

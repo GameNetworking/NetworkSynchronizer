@@ -150,4 +150,104 @@ VarId ObjectData::find_variable_id(const std::string &p_var_name) const {
 	return VarId::NONE;
 }
 
+ScheduledProcedureId ObjectData::scheduled_procedure_add(NS_ScheduledProcedureFunc p_func) {
+	ScheduledProcedureId id = ScheduledProcedureId::NONE;
+
+	for (int i = 0; i < scheduled_procedures.size(); i++) {
+		if (scheduled_procedures[i].func == nullptr) {
+			scheduled_procedures[i].func = p_func;
+			id.id = ScheduledProcedureId::IdType(i);
+			return id;
+		}
+	}
+
+	NS_ASSERT_COND(scheduled_procedures.size() < std::numeric_limits<ScheduledProcedureId::IdType>::max());
+	id.id = ScheduledProcedureId::IdType(scheduled_procedures.size());
+	scheduled_procedures.push_back(ScheduledProcedureInfo{ p_func });
+
+	return id;
+}
+
+bool ObjectData::scheduled_procedure_exist(ScheduledProcedureId p_id) const {
+	return p_id.id < scheduled_procedures.size() && scheduled_procedures[p_id.id].func != nullptr;
+}
+
+void ObjectData::scheduled_procedure_remove(ScheduledProcedureId p_id) {
+	scheduled_procedures[p_id.id].func = nullptr;
+}
+
+
+void ObjectData::scheduled_procedure_fetch_args(ScheduledProcedureId p_id, const SynchronizerManager &p_sync_manager, SceneSynchronizerDebugger &p_debugger) {
+	scheduled_procedures[p_id.id].args.begin_write(p_debugger, 0);
+	scheduled_procedures[p_id.id].func(
+			p_sync_manager,
+			app_object_handle,
+			ScheduledProcedurePhase::COLLECTING_ARGUMENTS,
+			scheduled_procedures[p_id.id].args);
+#ifdef NS_DEBUG_ENABLED
+	NS_ASSERT_COND(!scheduled_procedures[p_id.id].args.is_buffer_failed());
+#endif
+}
+
+void ObjectData::scheduled_procedure_set_args(ScheduledProcedureId p_id, const DataBuffer &p_args) {
+	scheduled_procedures[p_id.id].args.copy(p_args);
+}
+
+void ObjectData::scheduled_procedure_execute(ScheduledProcedureId p_id, ScheduledProcedurePhase p_phase, const SynchronizerManager &p_sync_manager, SceneSynchronizerDebugger &p_debugger) {
+#ifdef NS_DEBUG_ENABLED
+	NS_ASSERT_COND(!scheduled_procedures[p_id.id].args.is_buffer_failed());
+#endif
+	scheduled_procedures[p_id.id].args.begin_read(p_debugger);
+	scheduled_procedures[p_id.id].func(
+			p_sync_manager,
+			app_object_handle,
+			p_phase,
+			scheduled_procedures[p_id.id].args);
+}
+
+void ObjectData::scheduled_procedure_start(ScheduledProcedureId p_id, GlobalFrameIndex p_executes_at_frame) {
+	scheduled_procedures[p_id.id].execute_frame = p_executes_at_frame;
+	scheduled_procedures[p_id.id].paused_frame = GlobalFrameIndex{ 0 };
+	storage.notify_scheduled_procedure_updated(*this, p_id, true);
+}
+
+void ObjectData::scheduled_procedure_pause(ScheduledProcedureId p_id, GlobalFrameIndex p_current_frame) {
+	scheduled_procedures[p_id.id].paused_frame = p_current_frame;
+	storage.notify_scheduled_procedure_updated(*this, p_id, false);
+}
+
+void ObjectData::scheduled_procedure_stop(ScheduledProcedureId p_id) {
+	scheduled_procedures[p_id.id].execute_frame = GlobalFrameIndex{ 0 };
+	scheduled_procedures[p_id.id].paused_frame = GlobalFrameIndex{ 0 };
+	storage.notify_scheduled_procedure_updated(*this, p_id, false);
+}
+
+bool ObjectData::scheduled_procedure_is_paused(ScheduledProcedureId p_id) const {
+	return scheduled_procedures[p_id.id].paused_frame > GlobalFrameIndex{ 0 };
+}
+
+std::uint32_t ObjectData::scheduled_procedure_remaining_frames(ScheduledProcedureId p_id, GlobalFrameIndex p_current_frame) const {
+	if (scheduled_procedures[p_id.id].paused_frame.id > 0) {
+		if (scheduled_procedures[p_id.id].paused_frame < scheduled_procedures[p_id.id].execute_frame) {
+			return scheduled_procedures[p_id.id].execute_frame.id - scheduled_procedures[p_id.id].paused_frame.id;
+		}
+	} else if (scheduled_procedures[p_id.id].execute_frame.id > 0) {
+		if (p_current_frame.id < scheduled_procedures[p_id.id].execute_frame.id) {
+			return scheduled_procedures[p_id.id].execute_frame.id - p_current_frame.id;
+		}
+	}
+	return 0;
+}
+
+GlobalFrameIndex ObjectData::scheduled_procedure_get_execute_frame(ScheduledProcedureId p_id) const {
+	if (scheduled_procedures[p_id.id].paused_frame.id == 0) {
+		return scheduled_procedures[p_id.id].execute_frame;
+	}
+	return GlobalFrameIndex{ 0 };
+}
+
+const DataBuffer &ObjectData::scheduled_procedure_get_args(ScheduledProcedureId p_id) const {
+	return scheduled_procedures[p_id.id].args;
+}
+
 NS_NAMESPACE_END

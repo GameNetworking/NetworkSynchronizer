@@ -90,8 +90,17 @@ public:
 	std::vector<VarDescriptor> vars;
 	Processor<float> functions[PROCESS_PHASE_COUNT];
 
-	std::vector<NS_ScheduledProcedureFunc> scheduled_procedure_funcs;
+	struct ScheduledProcedureInfo {
+		NS_ScheduledProcedureFunc func = nullptr;
+		GlobalFrameIndex execute_frame = GlobalFrameIndex{ 0 };
+		GlobalFrameIndex paused_frame = GlobalFrameIndex{ 0 };
+		DataBuffer args;
+	};
 
+private:
+	std::vector<ScheduledProcedureInfo> scheduled_procedures;
+
+public:
 	std::function<void(DataBuffer & /*out_buffer*/, float /*update_rate*/)> func_trickled_collect;
 	std::function<void(float /*delta*/, float /*interpolation_alpha*/, DataBuffer & /*past_buffer*/, DataBuffer & /*future_buffer*/)> func_trickled_apply;
 
@@ -115,6 +124,34 @@ public:
 	const std::string &get_object_name() const;
 
 	VarId find_variable_id(const std::string &p_var_name) const;
+
+	/// Adds a new scheduled procedure and returns its handle.
+	ScheduledProcedureId scheduled_procedure_add(NS_ScheduledProcedureFunc p_func);
+	/// Returns true if the ScheduledProcedureId points to a valid procedure.
+	bool scheduled_procedure_exist(ScheduledProcedureId p_id) const;
+	/// Removes a procedure.
+	void scheduled_procedure_remove(ScheduledProcedureId p_id);
+
+	/// Calls the procedure and initialize the args. This is usually called on the server.
+	void scheduled_procedure_fetch_args(ScheduledProcedureId p_id, const SynchronizerManager &p_sync_manager, SceneSynchronizerDebugger &p_debugger);
+	void scheduled_procedure_set_args(ScheduledProcedureId p_id, const DataBuffer &p_args);
+
+	void scheduled_procedure_execute(ScheduledProcedureId p_id, ScheduledProcedurePhase p_phase, const SynchronizerManager &p_sync_manager, SceneSynchronizerDebugger &p_debugger);
+	
+	/// Starts a procedure. Notice this function calls the procedure to initialize the args DataBuffer.
+	void scheduled_procedure_start(ScheduledProcedureId p_id, GlobalFrameIndex p_executes_at_frame);
+	/// Pause the procedure.
+	void scheduled_procedure_pause(ScheduledProcedureId p_id, GlobalFrameIndex p_current_frame);
+	/// Stop the procedure.
+	void scheduled_procedure_stop(ScheduledProcedureId p_id);
+
+	/// Returns true if the procedure is paused.
+	bool scheduled_procedure_is_paused(ScheduledProcedureId p_id) const;
+	/// Returns the remaining frames of this procedure according to its status (Playing, Paused, Stop)
+	std::uint32_t scheduled_procedure_remaining_frames(ScheduledProcedureId p_id, GlobalFrameIndex p_current_frame) const;
+
+	GlobalFrameIndex scheduled_procedure_get_execute_frame(ScheduledProcedureId p_id) const;
+	const DataBuffer &scheduled_procedure_get_args(ScheduledProcedureId p_id) const;
 };
 
 NS_NAMESPACE_END
