@@ -226,6 +226,11 @@ void ObjectData::scheduled_procedure_stop(ScheduledProcedureId p_id) {
 	storage.notify_scheduled_procedure_updated(*this, p_id, false);
 }
 
+bool ObjectData::scheduled_procedure_is_inprogress(ScheduledProcedureId p_id) const {
+	return scheduled_procedures[p_id.id].paused_frame == GlobalFrameIndex{ 0 }
+			&& scheduled_procedures[p_id.id].execute_frame > GlobalFrameIndex{ 0 };
+}
+
 bool ObjectData::scheduled_procedure_is_paused(ScheduledProcedureId p_id) const {
 	return scheduled_procedures[p_id.id].paused_frame > GlobalFrameIndex{ 0 };
 }

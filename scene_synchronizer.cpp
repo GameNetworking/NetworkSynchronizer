@@ -2819,12 +2819,15 @@ void ServerSynchronizer::generate_snapshot_object_data(
 
 	const bool force_using_node_path = p_mode == SnapshotObjectGeneratorMode::FORCE_FULL || p_mode == SnapshotObjectGeneratorMode::FORCE_NODE_PATH_ONLY;
 	const bool force_snapshot_variables = p_mode == SnapshotObjectGeneratorMode::FORCE_FULL;
+	const bool force_snapshot_procedures = p_mode == SnapshotObjectGeneratorMode::FORCE_FULL;
 	const bool skip_snapshot_variables = p_mode == SnapshotObjectGeneratorMode::FORCE_NODE_PATH_ONLY;
+	const bool skip_snapshot_scheduled_procedures = p_mode == SnapshotObjectGeneratorMode::FORCE_NODE_PATH_ONLY;
 
 	const bool unknown = p_change.unknown;
-	const bool node_has_changes = p_change.vars.empty() == false;
+	const bool object_has_vars_changes = p_change.vars.empty() == false;
+	const bool object_has_procedure_changes = p_change.changed_scheduled_procedures.empty() == false;
 
-	if (!unknown && !node_has_changes && !force_snapshot_variables) {
+	if (!unknown && !object_has_vars_changes && !object_has_procedure_changes && !force_snapshot_variables && !force_snapshot_procedures) {
 		// Nothing to network for this object.
 		return;
 	}
@@ -2843,7 +2846,12 @@ void ServerSynchronizer::generate_snapshot_object_data(
 
 	const bool allow_vars =
 			force_snapshot_variables ||
-			(node_has_changes && !skip_snapshot_variables) ||
+			(object_has_vars_changes && !skip_snapshot_variables) ||
+			unknown;
+
+	const bool allow_scheduled_procedures =
+			force_snapshot_procedures ||
+			(object_has_procedure_changes && !skip_snapshot_scheduled_procedures) ||
 			unknown;
 
 	// This is necessary to allow the client decode the snapshot even if it
@@ -2891,6 +2899,45 @@ void ServerSynchronizer::generate_snapshot_object_data(
 			SceneSynchronizerBase::var_data_encode(r_snapshot_db, var.var.value, var.type);
 			const int post_write = r_snapshot_db.get_bit_offset();
 			vars_size_bits_count += post_write - pre_write;
+		}
+	}
+
+	// This is assuming the client and the server have the same procedures registered
+	// with the same order.
+	for (ScheduledProcedureId::IdType i = 0; i < p_object_data->get_scheduled_procedures().size(); i += 1) {
+		const ScheduledProcedureId procedure_id{ i };
+		const ObjectData::ScheduledProcedureInfo &proc_info = p_object_data->get_scheduled_procedures()[i];
+
+		bool procedure_has_value = allow_scheduled_procedures;
+
+		if (!p_object_data->scheduled_procedure_exist(procedure_id)) {
+			procedure_has_value = false;
+		}
+
+		if (procedure_has_value && !force_snapshot_procedures && !VecFunc::has(p_change.changed_scheduled_procedures, ScheduledProcedureHandle(p_object_data->get_net_id(), procedure_id))) {
+			// This is a delta snapshot and this procedure didn't change.
+			// Skip it.
+			procedure_has_value = false;
+		}
+
+		r_snapshot_db.add(procedure_has_value);
+		if (procedure_has_value) {
+			r_snapshot_db.add(p_object_data->scheduled_procedure_is_inprogress(procedure_id));
+			if (p_object_data->scheduled_procedure_is_inprogress(procedure_id)) {
+				// In progress
+				r_snapshot_db.add(p_object_data->get_scheduled_procedures()[procedure_id.id].execute_frame);
+				r_snapshot_db.add(p_object_data->get_scheduled_procedures()[procedure_id.id].args);
+			} else if (p_object_data->scheduled_procedure_is_paused(procedure_id)) {
+				// Paused
+				r_snapshot_db.add(true);
+				r_snapshot_db.add(p_object_data->get_scheduled_procedures()[procedure_id.id].execute_frame);
+				r_snapshot_db.add(p_object_data->get_scheduled_procedures()[procedure_id.id].paused_frame);
+				// NOTE: No need to network the args here because as soon as we restart this the arguments are
+				//       networked again.
+			} else {
+				// Stopped
+				r_snapshot_db.add(false);
+			}
 		}
 	}
 
@@ -3845,6 +3892,7 @@ bool ClientSynchronizer::parse_sync_data(
 		void (*p_object_parse)(void *p_user_pointer, ObjectData *p_object_data),
 		bool (*p_peers_frame_index_parse)(void *p_user_pointer, std::map<int, FrameIndexWithMeta> &&p_frames_index),
 		void (*p_variable_parse)(void *p_user_pointer, ObjectData *p_object_data, VarId p_var_id, VarData &&p_value),
+		void (*p_scheduled_procedure_parse)(void *p_user_pointer, ObjectData *p_object_data, ScheduledProcedureId p_procedure_id, ScheduledProcedureSnapshot &&p_value),
 		void (*p_simulated_object_add_or_remove_parse)(void *p_user_pointer, bool p_add, SimulatedObjectInfo &&p_simulated_objects),
 		void (*p_simulated_objects_parse)(void *p_user_pointer, std::vector<SimulatedObjectInfo> &&p_simulated_objects)) {
 	NS_PROFILE
@@ -4132,6 +4180,37 @@ bool ClientSynchronizer::parse_sync_data(
 							synchronizer_object_data,
 							var_desc.id,
 							std::move(value));
+				}
+			}
+
+			for (ScheduledProcedureId procedure_id = { 0 }; procedure_id.id < synchronizer_object_data->get_scheduled_procedures().size(); procedure_id += 1) {
+				bool has_procedure_value = false;
+				p_snapshot.read(has_procedure_value);
+				NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `has_procedure_value` was expected at this point. Object: `" + synchronizer_object_data->get_object_name() + "`");
+				if (has_procedure_value) {
+					bool is_procedure_in_progress = false;
+					p_snapshot.read(is_procedure_in_progress);
+					NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `is_procedure_in_progress` was expected at this point. Object: `" + synchronizer_object_data->get_object_name() + "`");
+
+					ScheduledProcedureSnapshot procedure_snapshot;
+					if (is_procedure_in_progress) {
+						p_snapshot.read(procedure_snapshot.execute_frame.id);
+						NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `execute_frame` was expected at this point. Object: `" + synchronizer_object_data->get_object_name() + "`");
+						p_snapshot.read(procedure_snapshot.args);
+						NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `args` was expected at this point. Object: `" + synchronizer_object_data->get_object_name() + "`");
+					} else {
+						bool is_procedure_paused = false;
+						p_snapshot.read(is_procedure_paused);
+						NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `is_procedure_paused` was expected at this point. Object: `" + synchronizer_object_data->get_object_name() + "`");
+						if (is_procedure_paused) {
+							p_snapshot.read(procedure_snapshot.execute_frame.id);
+							NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `execute_frame` was expected at this point. Object: `" + synchronizer_object_data->get_object_name() + "`");
+							p_snapshot.read(procedure_snapshot.paused_frame.id);
+							NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `paused_frame` was expected at this point. Object: `" + synchronizer_object_data->get_object_name() + "`");
+						}
+					}
+
+					p_scheduled_procedure_parse(p_user_pointer, synchronizer_object_data, procedure_id, std::move(procedure_snapshot));
 				}
 			}
 		}
@@ -4437,7 +4516,23 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot, bool p_is_server
 					pd->snapshot.objects[p_object_data->get_net_id().id].vars.resize(p_object_data->vars.size());
 				}
 
-				pd->snapshot.objects[p_object_data->get_net_id().id].vars[p_var_id.id].emplace(std::move(p_value));
+				if (pd->snapshot.objects[p_object_data->get_net_id().id].vars.size() > p_var_id.id) {
+					pd->snapshot.objects[p_object_data->get_net_id().id].vars[p_var_id.id].emplace(std::move(p_value));
+				}
+			},
+
+			// Parse variable:
+			[](void *p_user_pointer, ObjectData *p_object_data, ScheduledProcedureId p_procedure_id, ScheduledProcedureSnapshot &&p_procedure_snapshot) {
+				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
+
+				if (p_object_data->get_scheduled_procedures().size() != uint32_t(pd->snapshot.objects[p_object_data->get_net_id().id].procedures.size())) {
+					// The parser may have added a procedure, so make sure to resize the procedure array.
+					pd->snapshot.objects[p_object_data->get_net_id().id].procedures.resize(p_object_data->get_scheduled_procedures().size());
+				}
+
+				if (pd->snapshot.objects[p_object_data->get_net_id().id].procedures.size() > p_procedure_id.id) {
+					pd->snapshot.objects[p_object_data->get_net_id().id].procedures[p_procedure_id.id] = std::move(p_procedure_snapshot);
+				}
 			},
 
 			// Parse object activation:
