@@ -285,8 +285,14 @@ bool PeerNetworkedController::controllable_are_inputs_different(DataBuffer &p_da
 	return false;
 }
 
+bool PeerNetworkedController::is_ready_to_process() {
+	return !get_sorted_controllable_objects().empty();
+}
+
 void PeerNetworkedController::controllable_process(float p_delta, DataBuffer &p_data_buffer) {
 	const std::vector<ObjectData *> &sorted_controllable_objects = get_sorted_controllable_objects();
+	// This function should never be executed without checking `is_ready_to_process()`.
+	NS_ASSERT_COND(!sorted_controllable_objects.empty());
 	for (ObjectData *object_data : sorted_controllable_objects) {
 		object_data->controller_funcs.process(p_delta, p_data_buffer);
 #ifdef NS_DEBUG_ENABLED
@@ -1129,6 +1135,11 @@ void PlayerController::process(float p_delta) {
 	} else {
 		// Process a new frame.
 		// This handles: 1. Read input 2. Process 3. Store the input
+
+		if (!peer_controller->is_ready_to_process()) {
+			// Nothing to process.
+			return;
+		}
 
 		// We need to know if we can accept a new input because in case of bad
 		// internet connection we can't keep accumulating inputs forever

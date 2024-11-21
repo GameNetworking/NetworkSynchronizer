@@ -163,6 +163,7 @@ public:
 
 	void controllable_collect_input(float p_delta, DataBuffer &r_data_buffer);
 	bool controllable_are_inputs_different(DataBuffer &p_data_buffer_A, DataBuffer &p_data_buffer_B);
+	bool is_ready_to_process();
 	void controllable_process(float p_delta, DataBuffer &p_data_buffer);
 
 	void notify_receive_inputs(const std::vector<std::uint8_t> &p_data);
