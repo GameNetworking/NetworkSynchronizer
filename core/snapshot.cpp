@@ -103,6 +103,13 @@ const std::vector<std::optional<NS::VarData>> *NS::Snapshot::get_object_vars(Obj
 	return nullptr;
 }
 
+const std::vector<NS::ScheduledProcedureSnapshot> *NS::Snapshot::get_object_procedures(ObjectNetId p_id) const {
+	if (objects.size() > p_id.id) {
+		return &objects[p_id.id].procedures;
+	}
+	return nullptr;
+}
+
 NS::Snapshot NS::Snapshot::make_copy(const Snapshot &p_other) {
 	Snapshot s;
 	s.copy(p_other);

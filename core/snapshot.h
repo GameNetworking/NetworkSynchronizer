@@ -91,6 +91,7 @@ public:
 	operator std::string() const;
 
 	const std::vector<std::optional<VarData>> *get_object_vars(ObjectNetId p_id) const;
+	const std::vector<ScheduledProcedureSnapshot> *get_object_procedures(ObjectNetId p_id) const;
 
 	/// Copy the given snapshot.
 	static Snapshot make_copy(const Snapshot &p_other);

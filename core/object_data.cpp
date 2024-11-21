@@ -216,6 +216,11 @@ void ObjectData::scheduled_procedure_start(ScheduledProcedureId p_id, GlobalFram
 }
 
 void ObjectData::scheduled_procedure_pause(ScheduledProcedureId p_id, GlobalFrameIndex p_current_frame) {
+	scheduled_procedure_pause(p_id, scheduled_procedures[p_id.id].execute_frame, p_current_frame);
+}
+
+void ObjectData::scheduled_procedure_pause(ScheduledProcedureId p_id, GlobalFrameIndex p_executes_at_frame, GlobalFrameIndex p_current_frame) {
+	scheduled_procedures[p_id.id].execute_frame = p_executes_at_frame;
 	scheduled_procedures[p_id.id].paused_frame = p_current_frame;
 	storage.notify_scheduled_procedure_updated(*this, p_id, false);
 }
