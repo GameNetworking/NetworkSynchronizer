@@ -137,7 +137,7 @@ public:
 	void scheduled_procedure_set_args(ScheduledProcedureId p_id, const DataBuffer &p_args);
 
 	void scheduled_procedure_execute(ScheduledProcedureId p_id, ScheduledProcedurePhase p_phase, const SynchronizerManager &p_sync_manager, SceneSynchronizerDebugger &p_debugger);
-	
+
 	/// Starts a procedure. Notice this function calls the procedure to initialize the args DataBuffer.
 	void scheduled_procedure_start(ScheduledProcedureId p_id, GlobalFrameIndex p_executes_at_frame);
 	/// Pause the procedure.
@@ -152,6 +152,10 @@ public:
 
 	GlobalFrameIndex scheduled_procedure_get_execute_frame(ScheduledProcedureId p_id) const;
 	const DataBuffer &scheduled_procedure_get_args(ScheduledProcedureId p_id) const;
+
+	const std::vector<ScheduledProcedureInfo> &get_scheduled_procedures() const {
+		return scheduled_procedures;
+	}
 };
 
 NS_NAMESPACE_END
