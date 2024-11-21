@@ -4537,17 +4537,24 @@ void ClientSynchronizer::update_client_snapshot(Snapshot &r_snapshot) {
 		ObjectDataSnapshot *object_data_snap = r_snapshot.objects.data() + od->get_net_id().id;
 		object_data_snap->vars.resize(od->vars.size());
 
-		std::optional<VarData> *snap_node_vars_ptr = object_data_snap->vars.data();
+		std::optional<VarData> *od_snap_vars_ptr = object_data_snap->vars.data();
 		for (std::size_t v = 0; v < od->vars.size(); v += 1) {
 #ifdef NS_PROFILING_ENABLED
 			std::string sub_perf_info = "Var: " + od->vars[v].var.name;
 			NS_PROFILE_NAMED_WITH_INFO("Update object data variable", sub_perf_info);
 #endif
 			if (od->vars[v].enabled) {
-				snap_node_vars_ptr[v].emplace(VarData::make_copy(od->vars[v].var.value));
+				od_snap_vars_ptr[v].emplace(VarData::make_copy(od->vars[v].var.value));
 			} else {
-				snap_node_vars_ptr[v].reset();
+				od_snap_vars_ptr[v].reset();
 			}
+		}
+
+		object_data_snap->procedures.resize(od->get_scheduled_procedures().size());
+		for (std::size_t p = 0; p < od->get_scheduled_procedures().size(); p += 1) {
+			object_data_snap->procedures[p].execute_frame = od->get_scheduled_procedures()[p].execute_frame;
+			object_data_snap->procedures[p].paused_frame = od->get_scheduled_procedures()[p].paused_frame;
+			object_data_snap->procedures[p].args = od->get_scheduled_procedures()[p].args;
 		}
 	}
 

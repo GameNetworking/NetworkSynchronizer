@@ -174,6 +174,10 @@ bool ObjectData::scheduled_procedure_exist(ScheduledProcedureId p_id) const {
 
 void ObjectData::scheduled_procedure_remove(ScheduledProcedureId p_id) {
 	scheduled_procedures[p_id.id].func = nullptr;
+	scheduled_procedures[p_id.id].execute_frame = GlobalFrameIndex{ 0 };
+	scheduled_procedures[p_id.id].paused_frame = GlobalFrameIndex{ 0 };
+	scheduled_procedures[p_id.id].args = DataBuffer();
+	storage.notify_scheduled_procedure_updated(*this, p_id, false);
 }
 
 
