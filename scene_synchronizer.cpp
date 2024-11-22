@@ -436,7 +436,7 @@ void SceneSynchronizerBase::register_app_object(ObjectHandle p_app_object_handle
 
 		synchronizer_manager->setup_synchronizer_for(p_app_object_handle, id);
 
-		get_debugger().print(INFO, "New node registered" + (generate_id ? " #ID: " + std::to_string(od->get_net_id().id) : "") + " : " + od->get_object_name(), network_interface->get_owner_name());
+		get_debugger().print(INFO, "New object registered" + (generate_id ? " #ID: " + std::to_string(od->get_net_id().id) : "") + " : " + od->get_object_name(), network_interface->get_owner_name());
 	}
 
 	NS_ASSERT_COND(id != ObjectLocalId::NONE);
@@ -487,7 +487,7 @@ void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const std::str
 	NS_ENSURE(p_set_func);
 	NS_ENSURE(p_get_func);
 
-	NS::ObjectData *object_data = get_object_data(p_id);
+	ObjectData *object_data = get_object_data(p_id);
 	NS_ENSURE(object_data);
 
 	VarId var_id = object_data->find_variable_id(p_variable_name);
@@ -501,7 +501,7 @@ void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const std::str
 				old_val);
 		var_id = VarId{ { VarId::IdType(object_data->vars.size()) } };
 		object_data->vars.push_back(
-				NS::VarDescriptor(
+				VarDescriptor(
 						var_id,
 						p_variable_name,
 						old_val.type,
@@ -521,6 +521,8 @@ void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const std::str
 		NS_ASSERT_COND(object_data->vars[v.id].id == v);
 	}
 #endif
+
+	get_debugger().print(INFO, "[" + object_data->get_object_name() + "] variable registered ID `" + std::to_string(var_id.id) + "`, name `" + p_variable_name + "`.");
 
 	if (synchronizer) {
 		synchronizer->on_variable_added(object_data, p_variable_name);
@@ -1954,7 +1956,7 @@ void SceneSynchronizerBase::process_functions__execute() {
 
 	process_functions__execute_scheduled_procedure();
 
-	get_debugger().print(INFO, "Process functions START");
+	get_debugger().print(VERBOSE, "Process functions START");
 	// Pre process phase
 	for (int process_phase = PROCESS_PHASE_EARLY; process_phase < PROCESS_PHASE_COUNT; ++process_phase) {
 		const std::string phase_info = "process phase: " + std::to_string(process_phase);
@@ -3677,9 +3679,9 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 
 	// Prints the comparison info.
 	if (differences_info.size() > 0 && scene_synchronizer->debug_rewindings_enabled) {
-		scene_synchronizer->get_debugger().print(INFO, "Rewind on frame " + p_input_id + " is needed because:", scene_synchronizer->get_network_interface().get_owner_name());
+		scene_synchronizer->get_debugger().print(VERBOSE, "Rewind on frame " + p_input_id + " is needed because:", scene_synchronizer->get_network_interface().get_owner_name());
 		for (int i = 0; i < int(differences_info.size()); i++) {
-			scene_synchronizer->get_debugger().print(INFO, "|- " + differences_info[i], scene_synchronizer->get_network_interface().get_owner_name());
+			scene_synchronizer->get_debugger().print(VERBOSE, "|- " + differences_info[i], scene_synchronizer->get_network_interface().get_owner_name());
 		}
 	}
 
@@ -3704,9 +3706,9 @@ void ClientSynchronizer::__pcr__sync__rewind(
 			scene_synchronizer->debug_rewindings_enabled ? &applied_data_info : nullptr);
 
 	if (applied_data_info.size() > 0) {
-		scene_synchronizer->get_debugger().print(INFO, "Full reset:", scene_synchronizer->get_network_interface().get_owner_name());
+		scene_synchronizer->get_debugger().print(VERBOSE, "Full reset:", scene_synchronizer->get_network_interface().get_owner_name());
 		for (int i = 0; i < int(applied_data_info.size()); i++) {
-			scene_synchronizer->get_debugger().print(INFO, "|- " + applied_data_info[i], scene_synchronizer->get_network_interface().get_owner_name());
+			scene_synchronizer->get_debugger().print(VERBOSE, "|- " + applied_data_info[i], scene_synchronizer->get_network_interface().get_owner_name());
 		}
 	}
 }
@@ -3750,7 +3752,7 @@ void ClientSynchronizer::__pcr__rewind(
 #ifdef NS_DEBUG_ENABLED
 		has_next = p_local_controller->has_another_instant_to_process_after(i);
 		scene_synchronizer->get_debugger().print(
-				INFO,
+				VERBOSE,
 				"Rewind, processed controller: " + std::to_string(p_local_controller->get_authority_peer()) + " Frame: " + std::string(frame_id_to_process),
 				scene_synchronizer->get_network_interface().get_owner_name(),
 				scene_synchronizer->debug_rewindings_enabled);
@@ -3798,9 +3800,9 @@ void ClientSynchronizer::__pcr__sync__no_rewind(const Snapshot &p_no_rewind_reco
 			true);
 
 	if (applied_data_info.size() > 0) {
-		scene_synchronizer->get_debugger().print(INFO, "Partial reset:", scene_synchronizer->get_network_interface().get_owner_name());
+		scene_synchronizer->get_debugger().print(VERBOSE, "Partial reset:", scene_synchronizer->get_network_interface().get_owner_name());
 		for (int i = 0; i < int(applied_data_info.size()); i++) {
-			scene_synchronizer->get_debugger().print(INFO, "|- " + applied_data_info[i], scene_synchronizer->get_network_interface().get_owner_name());
+			scene_synchronizer->get_debugger().print(VERBOSE, "|- " + applied_data_info[i], scene_synchronizer->get_network_interface().get_owner_name());
 		}
 	}
 
@@ -3835,9 +3837,9 @@ void ClientSynchronizer::process_paused_controller_recovery() {
 	last_received_server_snapshot.reset();
 
 	if (applied_data_info.size() > 0) {
-		scene_synchronizer->get_debugger().print(INFO, "Paused controller recover:", scene_synchronizer->get_network_interface().get_owner_name());
+		scene_synchronizer->get_debugger().print(VERBOSE, "Paused controller recover:", scene_synchronizer->get_network_interface().get_owner_name());
 		for (int i = 0; i < int(applied_data_info.size()); i++) {
-			scene_synchronizer->get_debugger().print(INFO, "|- " + applied_data_info[i], scene_synchronizer->get_network_interface().get_owner_name());
+			scene_synchronizer->get_debugger().print(VERBOSE, "|- " + applied_data_info[i], scene_synchronizer->get_network_interface().get_owner_name());
 		}
 	}
 }
@@ -4364,9 +4366,9 @@ void ClientSynchronizer::receive_trickled_sync_data(const std::vector<std::uint8
 		const int current_offset = future_epoch_buffer.get_bit_offset();
 		const int expected_bit_offset_after_apply = current_offset + buffer_bit_count;
 
-		NS::ObjectData *od = scene_synchronizer->get_object_data(object_id, false);
+		ObjectData *od = scene_synchronizer->get_object_data(object_id, false);
 		if (od == nullptr) {
-			scene_synchronizer->get_debugger().print(INFO, "The function `receive_trickled_sync_data` is skiplatency the node with ID `" + object_id + "` as it was not found locally.", scene_synchronizer->get_network_interface().get_owner_name());
+			scene_synchronizer->get_debugger().print(VERBOSE, "The function `receive_trickled_sync_data` is skip latency the object with ID `" + object_id + "` as it was not found locally.", scene_synchronizer->get_network_interface().get_owner_name());
 			future_epoch_buffer.seek(expected_bit_offset_after_apply);
 			continue;
 		}
@@ -4393,7 +4395,7 @@ void ClientSynchronizer::receive_trickled_sync_data(const std::vector<std::uint8
 		db.begin_write(get_debugger(), 0);
 
 		if (!stream.od->func_trickled_collect) {
-			scene_synchronizer->get_debugger().print(INFO, "The function `receive_trickled_sync_data` is skiplatency the node `" + stream.od->get_object_name() + "` as the function `trickled_collect` failed executing.", scene_synchronizer->get_network_interface().get_owner_name());
+			scene_synchronizer->get_debugger().print(VERBOSE, "The function `receive_trickled_sync_data` is skip latency the object `" + stream.od->get_object_name() + "` as the function `trickled_collect` failed executing.", scene_synchronizer->get_network_interface().get_owner_name());
 			future_epoch_buffer.seek(expected_bit_offset_after_apply);
 			continue;
 		}

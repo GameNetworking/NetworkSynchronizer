@@ -380,7 +380,7 @@ void SceneSynchronizerDebugger::databuffer_read(uint32_t p_data_type, uint32_t p
 
 void SceneSynchronizerDebugger::notify_input_sent_to_server(int p_peer, uint32_t p_frame_index, uint32_t p_input_index) {
 #ifdef NS_DEBUG_ENABLED
-	print(NS::INFO, "The client sent to server the input `" + std::to_string(p_input_index) + "` for frame:`" + std::to_string(p_frame_index) + "`.", "CONTROLLER-" + std::to_string(p_peer));
+	print(VERBOSE, "The client sent to server the input `" + std::to_string(p_input_index) + "` for frame:`" + std::to_string(p_frame_index) + "`.", "CONTROLLER-" + std::to_string(p_peer));
 #endif
 }
 
@@ -390,9 +390,9 @@ void SceneSynchronizerDebugger::notify_are_inputs_different_result(
 		bool p_is_similar) {
 #ifdef NS_DEBUG_ENABLED
 	if (p_is_similar) {
-		print(NS::INFO, "This frame input is SIMILAR to `" + std::to_string(p_other_frame_index) + "`", "CONTROLLER-" + std::to_string(p_peer));
+		print(VERBOSE, "This frame input is SIMILAR to `" + std::to_string(p_other_frame_index) + "`", "CONTROLLER-" + std::to_string(p_peer));
 	} else {
-		print(NS::INFO, "This frame input is DIFFERENT to `" + std::to_string(p_other_frame_index) + "`", "CONTROLLER-" + std::to_string(p_peer));
+		print(VERBOSE, "This frame input is DIFFERENT to `" + std::to_string(p_other_frame_index) + "`", "CONTROLLER-" + std::to_string(p_peer));
 	}
 	frame_dump_storage->frame_dump__are_inputs_different_results[std::to_string(p_other_frame_index)] = p_is_similar;
 #endif

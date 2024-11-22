@@ -623,17 +623,17 @@ bool RemotelyControlledController::fetch_next_input(float p_delta) {
 			set_frame_input(frames_input.front(), true);
 			frames_input.pop_front();
 			// Start tracing the packets from this moment on.
-			peer_controller->get_debugger().print(INFO, "[RemotelyControlledController::fetch_next_input] Input `" + current_input_buffer_id + "` selected as first input.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+			peer_controller->get_debugger().print(VERBOSE, "[RemotelyControlledController::fetch_next_input] Input `" + current_input_buffer_id + "` selected as first input.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 		} else {
 			is_new_input = false;
-			peer_controller->get_debugger().print(INFO, "[RemotelyControlledController::fetch_next_input] Still no inputs.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+			peer_controller->get_debugger().print(VERBOSE, "[RemotelyControlledController::fetch_next_input] Still no inputs.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 		}
 	} else {
 		const FrameIndex next_input_id = current_input_buffer_id + 1;
-		peer_controller->get_debugger().print(INFO, "[RemotelyControlledController::fetch_next_input] The server is looking for: " + next_input_id, "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+		peer_controller->get_debugger().print(VERBOSE, "[RemotelyControlledController::fetch_next_input] The server is looking for: " + next_input_id, "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
 		if make_unlikely(streaming_paused) {
-			peer_controller->get_debugger().print(INFO, "[RemotelyControlledController::fetch_next_input] The streaming is paused.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+			peer_controller->get_debugger().print(VERBOSE, "[RemotelyControlledController::fetch_next_input] The streaming is paused.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 			// Stream is paused.
 			if (frames_input.empty() == false &&
 				frames_input.front().id >= next_input_id) {
@@ -651,16 +651,16 @@ bool RemotelyControlledController::fetch_next_input(float p_delta) {
 			}
 		} else if make_unlikely(frames_input.empty() == true) {
 			// The input buffer is empty; a packet is missing.
-			peer_controller->get_debugger().print(INFO, "[RemotelyControlledController::fetch_next_input] Missing input: " + std::to_string(next_input_id.id) + " Input buffer is void, i'm using the previous one!", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+			peer_controller->get_debugger().print(VERBOSE, "[RemotelyControlledController::fetch_next_input] Missing input: " + std::to_string(next_input_id.id) + " Input buffer is void, i'm using the previous one!", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
 			is_new_input = false;
 			ghost_input_count += 1;
 		} else {
-			peer_controller->get_debugger().print(INFO, "[RemotelyControlledController::fetch_next_input] The input buffer is not empty, so looking for the next input. Hopefully `" + std::to_string(next_input_id.id) + "`", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+			peer_controller->get_debugger().print(VERBOSE, "[RemotelyControlledController::fetch_next_input] The input buffer is not empty, so looking for the next input. Hopefully `" + std::to_string(next_input_id.id) + "`", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
 			// The input buffer is not empty, search the new input.
 			if (next_input_id == frames_input.front().id) {
-				peer_controller->get_debugger().print(INFO, "[RemotelyControlledController::fetch_next_input] The input `" + std::to_string(next_input_id.id) + "` was found.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+				peer_controller->get_debugger().print(VERBOSE, "[RemotelyControlledController::fetch_next_input] The input `" + std::to_string(next_input_id.id) + "` was found.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
 				// Wow, the next input is perfect!
 				set_frame_input(frames_input.front(), false);
@@ -703,8 +703,8 @@ bool RemotelyControlledController::fetch_next_input(float p_delta) {
 				// For this reason we keep track the amount of missing packets
 				// using `ghost_input_count`.
 
-				peer_controller->get_debugger().print(INFO, "[RemotelyControlledController::fetch_next_input] The input `" + std::to_string(next_input_id.id) + "` was NOT found. Recovering process started.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
-				peer_controller->get_debugger().print(INFO, "[RemotelyControlledController::fetch_next_input] ghost_input_count: `" + std::to_string(ghost_input_count) + "`", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+				peer_controller->get_debugger().print(VERBOSE, "[RemotelyControlledController::fetch_next_input] The input `" + std::to_string(next_input_id.id) + "` was NOT found. Recovering process started.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+				peer_controller->get_debugger().print(VERBOSE, "[RemotelyControlledController::fetch_next_input] ghost_input_count: `" + std::to_string(ghost_input_count) + "`", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
 				const int size = std::min(ghost_input_count, std::uint32_t(frames_input.size()));
 				const FrameIndex ghost_packet_id = next_input_id + ghost_input_count;
@@ -717,14 +717,14 @@ bool RemotelyControlledController::fetch_next_input(float p_delta) {
 				pir_A.copy(peer_controller->get_inputs_buffer());
 
 				for (int i = 0; i < size; i += 1) {
-					peer_controller->get_debugger().print(INFO, "[RemotelyControlledController::fetch_next_input] checking if `" + std::string(frames_input.front().id) + "` can be used to recover `" + std::string(next_input_id) + "`.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+					peer_controller->get_debugger().print(VERBOSE, "[RemotelyControlledController::fetch_next_input] checking if `" + std::string(frames_input.front().id) + "` can be used to recover `" + std::string(next_input_id) + "`.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
 					if (ghost_packet_id < frames_input.front().id) {
-						peer_controller->get_debugger().print(INFO, "[RemotelyControlledController::fetch_next_input] The input `" + frames_input.front().id + "` can't be used as the ghost_packet_id (`" + std::string(ghost_packet_id) + "`) is more than the input.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+						peer_controller->get_debugger().print(VERBOSE, "[RemotelyControlledController::fetch_next_input] The input `" + frames_input.front().id + "` can't be used as the ghost_packet_id (`" + std::string(ghost_packet_id) + "`) is more than the input.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 						break;
 					} else {
 						const FrameIndex input_id = frames_input.front().id;
-						peer_controller->get_debugger().print(INFO, "[RemotelyControlledController::fetch_next_input] The input `" + std::string(input_id) + "` is eligible as next frame.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+						peer_controller->get_debugger().print(VERBOSE, "[RemotelyControlledController::fetch_next_input] The input `" + std::string(input_id) + "` is eligible as next frame.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
 						pi = frames_input.front();
 						frames_input.pop_front();
@@ -746,7 +746,7 @@ bool RemotelyControlledController::fetch_next_input(float p_delta) {
 
 						const bool are_different = peer_controller->controllable_are_inputs_different(pir_A, pir_B);
 						if (are_different) {
-							peer_controller->get_debugger().print(INFO, "[RemotelyControlledController::fetch_next_input] The input `" + input_id + "` is different from the one executed so far, so better to execute it.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+							peer_controller->get_debugger().print(VERBOSE, "[RemotelyControlledController::fetch_next_input] The input `" + input_id + "` is different from the one executed so far, so better to execute it.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 							break;
 						}
 					}
@@ -755,11 +755,11 @@ bool RemotelyControlledController::fetch_next_input(float p_delta) {
 				if (recovered) {
 					set_frame_input(pi, false);
 					ghost_input_count = 0;
-					peer_controller->get_debugger().print(INFO, "Packet recovered. The new InputID is: `" + current_input_buffer_id + "`", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+					peer_controller->get_debugger().print(VERBOSE, "Packet recovered. The new InputID is: `" + current_input_buffer_id + "`", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 				} else {
 					ghost_input_count += 1;
 					is_new_input = false;
-					peer_controller->get_debugger().print(INFO, "Packet still missing, the server is still using the old input.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+					peer_controller->get_debugger().print(VERBOSE, "Packet still missing, the server is still using the old input.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 				}
 			}
 		}
@@ -791,7 +791,7 @@ void RemotelyControlledController::process(float p_delta) {
 
 	if make_unlikely(current_input_buffer_id == FrameIndex::NONE) {
 		// Skip this until the first input arrive.
-		peer_controller->get_debugger().print(INFO, "Server skips this frame as the current_input_buffer_id == FrameIndex::NONE", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+		peer_controller->get_debugger().print(VERBOSE, "Server skips this frame as the current_input_buffer_id == FrameIndex::NONE", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 		return;
 	}
 
@@ -801,7 +801,7 @@ void RemotelyControlledController::process(float p_delta) {
 	}
 #endif
 
-	peer_controller->get_debugger().print(INFO, "RemotelyControlled process index: " + current_input_buffer_id, "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+	peer_controller->get_debugger().print(VERBOSE, "RemotelyControlled process index: " + current_input_buffer_id, "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
 	peer_controller->get_inputs_buffer_mut().begin_read(get_debugger());
 	peer_controller->get_inputs_buffer_mut().seek(METADATA_SIZE);
@@ -868,7 +868,7 @@ bool RemotelyControlledController::receive_inputs(const std::vector<std::uint8_t
 #endif
 
 	if (!success) {
-		peer_controller->get_debugger().print(INFO, "[RemotelyControlledController::receive_input] Failed.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer), true);
+		peer_controller->get_debugger().print(VERBOSE, "[RemotelyControlledController::receive_input] Failed.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer), true);
 	}
 
 	return success;
@@ -958,7 +958,7 @@ int AutonomousServerController::get_inputs_count() const {
 }
 
 bool AutonomousServerController::fetch_next_input(float p_delta) {
-	peer_controller->get_debugger().print(INFO, "Autonomous server fetch input.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+	peer_controller->get_debugger().print(VERBOSE, "Autonomous server fetch input.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
 	peer_controller->controllable_collect_input(p_delta, peer_controller->get_inputs_buffer_mut());
 
@@ -1151,7 +1151,7 @@ void PlayerController::process(float p_delta) {
 		if (accept_new_inputs) {
 			current_input_id = FrameIndex{ { input_buffers_counter } };
 
-			peer_controller->get_debugger().print(INFO, "Player process index: " + std::string(current_input_id), "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+			peer_controller->get_debugger().print(VERBOSE, "Player process index: " + std::string(current_input_id), "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
 			peer_controller->controllable_collect_input(p_delta, peer_controller->get_inputs_buffer_mut());
 
@@ -1418,7 +1418,7 @@ bool DollController::fetch_next_input(float p_delta) {
 		FrameInput guessed_fi = frames_input[closest_frame_index];
 		guessed_fi.id = next_input_id;
 		set_frame_input(guessed_fi, false);
-		peer_controller->get_debugger().print(INFO, "The input " + next_input_id + " is missing. Copying it from " + std::string(frames_input[closest_frame_index].id));
+		peer_controller->get_debugger().print(VERBOSE, "The input " + next_input_id + " is missing. Copying it from " + std::string(frames_input[closest_frame_index].id));
 		return true;
 	} else {
 		// The input is not set and there is no suitable one.
@@ -1442,7 +1442,7 @@ void DollController::process(float p_delta) {
 	}
 
 	if (is_new_input) {
-		peer_controller->get_debugger().print(INFO, "Doll process index: " + std::string(current_input_buffer_id), "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+		peer_controller->get_debugger().print(VERBOSE, "Doll process index: " + std::string(current_input_buffer_id), "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
 		peer_controller->get_inputs_buffer_mut().begin_read(get_debugger());
 		peer_controller->get_inputs_buffer_mut().seek(METADATA_SIZE);
@@ -1976,7 +1976,7 @@ NoNetController::NoNetController(PeerNetworkedController *p_peer_controller) :
 
 void NoNetController::process(float p_delta) {
 	peer_controller->get_inputs_buffer_mut().begin_write(get_debugger(), 0); // No need of meta in this case.
-	peer_controller->get_debugger().print(INFO, "Nonet process index: " + std::string(frame_id), "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+	peer_controller->get_debugger().print(VERBOSE, "Nonet process index: " + std::string(frame_id), "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 	peer_controller->controllable_collect_input(p_delta, peer_controller->get_inputs_buffer_mut());
 	peer_controller->get_inputs_buffer_mut().dry();
 	peer_controller->get_inputs_buffer_mut().begin_read(get_debugger());
