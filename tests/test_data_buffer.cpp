@@ -989,6 +989,78 @@ void test_data_buffer_reading_failing() {
 	}
 }
 
+void test_data_buffer_slice_copy() {
+	NS::DataBuffer origin_buffer;
+
+	const int first_integer = 12931237123123;
+	const int second_integer = 1998237123123;
+
+	origin_buffer.begin_write(debugger, 0);
+	origin_buffer.add(true);
+	origin_buffer.add(false);
+	origin_buffer.add(first_integer);
+	origin_buffer.add(true);
+	origin_buffer.add(false);
+
+	NS_ASSERT_COND(!origin_buffer.is_buffer_failed());
+	const int current_offset = origin_buffer.get_bit_offset();
+
+	{
+		NS::DataBuffer slice;
+		slice.begin_write(debugger, 0);
+		NS_ASSERT_COND(origin_buffer.slice(slice, 0, 2));
+		NS_ASSERT_COND(!origin_buffer.is_buffer_failed());
+		NS_ASSERT_COND(origin_buffer.get_bit_offset()==current_offset);
+
+		slice.begin_read(debugger);
+		NS_ASSERT_COND(slice.read_bool()== true);
+		NS_ASSERT_COND(slice.read_bool()== false);
+	}
+
+	{
+		NS::DataBuffer slice;
+		slice.begin_write(debugger, 0);
+		NS_ASSERT_COND(origin_buffer.slice(slice, 2, 32));
+		NS_ASSERT_COND(!origin_buffer.is_buffer_failed());
+		NS_ASSERT_COND(origin_buffer.get_bit_offset()==current_offset);
+
+		slice.begin_read(debugger);
+		NS_ASSERT_COND(slice.read_int(NS::DataBuffer::COMPRESSION_LEVEL_1)== first_integer);
+	}
+
+	{
+		NS::DataBuffer slice;
+		slice.begin_write(debugger, 0);
+		NS_ASSERT_COND(origin_buffer.slice(slice, 34, 2));
+		NS_ASSERT_COND(!origin_buffer.is_buffer_failed());
+		NS_ASSERT_COND(origin_buffer.get_bit_offset()==current_offset);
+
+		slice.begin_read(debugger);
+		NS_ASSERT_COND(slice.read_bool()== true);
+		NS_ASSERT_COND(slice.read_bool()== false);
+	}
+
+	{
+		NS::DataBuffer slice;
+		slice.begin_write(debugger, 0);
+		slice.add(true);
+		slice.add(false);
+		slice.add(second_integer);
+
+		NS_ASSERT_COND(origin_buffer.slice(slice, 2, 34));
+		NS_ASSERT_COND(!origin_buffer.is_buffer_failed());
+		NS_ASSERT_COND(origin_buffer.get_bit_offset()==current_offset);
+
+		slice.begin_read(debugger);
+		NS_ASSERT_COND(slice.read_bool()== true);
+		NS_ASSERT_COND(slice.read_bool()== false);
+		NS_ASSERT_COND(slice.read_int(NS::DataBuffer::COMPRESSION_LEVEL_1)== second_integer);
+		NS_ASSERT_COND(slice.read_int(NS::DataBuffer::COMPRESSION_LEVEL_1)== first_integer);
+		NS_ASSERT_COND(slice.read_bool()== true);
+		NS_ASSERT_COND(slice.read_bool()== false);
+	}
+}
+
 void NS_Test::test_data_buffer() {
 	test_data_buffer_string();
 	test_data_buffer_u16string();
@@ -1017,4 +1089,5 @@ void NS_Test::test_data_buffer() {
 	test_data_buffer_writing_failing();
 	test_data_buffer_reading_failing();
 	test_data_buffer_unaligned_write_read();
+	test_data_buffer_slice_copy();
 }

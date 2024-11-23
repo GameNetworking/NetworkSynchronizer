@@ -86,6 +86,27 @@ void DataBuffer::copy(const BitArray &p_buffer) {
 	buffer = p_buffer;
 }
 
+bool DataBuffer::slice(DataBuffer &p_destination, int p_offset_in_bits, int p_count_in_bits) const {
+	NS_ENSURE_V(p_count_in_bits>0, false);
+	NS_ENSURE_V(p_offset_in_bits<bit_size, false);
+	NS_ENSURE_V(p_offset_in_bits+p_count_in_bits<=bit_size, false);
+	NS_ENSURE_V_MSG(!p_destination.is_reading, false, "The destination data buffer must be reading.");
+
+	const int byte_offset = p_offset_in_bits / 8;
+	const int next_byte_offset = byte_offset + 1;
+	const int first_byte_bit_count = std::min(p_count_in_bits, next_byte_offset * 8 - p_offset_in_bits);
+	std::uint64_t first_byte;
+	buffer.read_bits(p_offset_in_bits, first_byte_bit_count, first_byte);
+	p_destination.add_bits(reinterpret_cast<std::uint8_t *>(&first_byte), first_byte_bit_count);
+
+	// Copy the remaining bits now.
+	const int tail_bits = p_count_in_bits - first_byte_bit_count;
+	if (tail_bits >= 1) {
+		p_destination.add_bits(&buffer.get_bytes()[next_byte_offset], tail_bits);
+	}
+	return true;
+}
+
 void DataBuffer::begin_write(SceneSynchronizerDebugger &p_debugger, int p_metadata_size) {
 	NS_ASSERT_COND_MSG(p_metadata_size >= 0, "Metadata size can't be negative");
 	buffer.set_debugger(p_debugger);
