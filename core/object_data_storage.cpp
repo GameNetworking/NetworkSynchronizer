@@ -187,7 +187,7 @@ const std::map<int, std::vector<ObjectData *>> &ObjectDataStorage::get_peers_con
 }
 
 const std::vector<ObjectData *> *ObjectDataStorage::get_peer_controlled_objects_data(int p_peer) const {
-	return NS::MapFunc::get_or_null(objects_data_controlled_by_peers, p_peer);
+	return MapFunc::get_or_null(objects_data_controlled_by_peers, p_peer);
 }
 
 const std::vector<ObjectData *> &ObjectDataStorage::get_unnamed_objects_data() const {

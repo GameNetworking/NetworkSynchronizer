@@ -135,6 +135,7 @@ public:
 	/// Calls the procedure and initialize the args. This is usually called on the server.
 	void scheduled_procedure_fetch_args(ScheduledProcedureId p_id, const SynchronizerManager &p_sync_manager, SceneSynchronizerDebugger &p_debugger);
 	void scheduled_procedure_set_args(ScheduledProcedureId p_id, const DataBuffer &p_args);
+	void scheduled_procedure_reset_to(ScheduledProcedureId p_id, const struct ScheduledProcedureSnapshot &p_snapshot);
 
 	void scheduled_procedure_execute(ScheduledProcedureId p_id, ScheduledProcedurePhase p_phase, const SynchronizerManager &p_sync_manager, SceneSynchronizerDebugger &p_debugger);
 

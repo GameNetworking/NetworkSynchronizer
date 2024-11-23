@@ -617,7 +617,7 @@ public: // ---------------------------------------------------------------- APIs
 	void scheduled_procedure_pause(
 			ObjectLocalId p_id,
 			ScheduledProcedureId p_procedure_id);
-	
+
 	GlobalFrameIndex scheduled_procedure_unpause(
 			ObjectLocalId p_id,
 			ScheduledProcedureId p_procedure_id);
@@ -625,7 +625,7 @@ public: // ---------------------------------------------------------------- APIs
 	float scheduled_procedure_get_remaining_seconds(
 			ObjectLocalId p_id,
 			ScheduledProcedureId p_procedure_id) const;
-			
+
 	bool scheduled_procedure_is_paused(
 			ObjectLocalId p_id,
 			ScheduledProcedureId p_procedure_id) const;
@@ -742,6 +742,7 @@ public: // ---------------------------------------------------------------- APIs
 
 public: // ------------------------------------------------------------ INTERNAL
 	void try_fetch_unnamed_objects_data_names();
+	void try_fetch_pending_snapshot_objects();
 	void update_objects_relevancy();
 
 	void process_functions__clear();
@@ -967,6 +968,7 @@ public:
 	std::vector<ObjectData *> active_objects;
 	PeerNetworkedController *player_controller = nullptr;
 	std::map<ObjectNetId, std::string> objects_names;
+	std::map<ObjectNetId, std::vector<DataBuffer>> objects_pending_snapshots;
 
 	RollingUpdateSnapshot last_received_snapshot;
 	std::deque<Snapshot> client_snapshots;
@@ -1084,7 +1086,9 @@ public:
 public:
 	ClientSynchronizer(SceneSynchronizerBase *p_node);
 
+
 	virtual void clear() override;
+
 
 	virtual void process(float p_delta) override;
 	virtual void on_object_data_added(NS::ObjectData &p_object_data) override;
@@ -1106,10 +1110,17 @@ public:
 			// NOTE: The frame index meta is not initialized by this function,
 			// and it's up to the calling function doint it.
 			bool (*p_peers_frame_index_parse)(void *p_user_pointer, std::map<int, FrameIndexWithMeta> &&p_frames_index),
-			void (*p_variable_parse)(void *p_user_pointer, ObjectData *p_object_data, VarId p_var_id, VarData &&p_value),
-			void (*p_scheduled_procedure_parse)(void *p_user_pointer, ObjectData *p_object_data, ScheduledProcedureId p_procedure_id, ScheduledProcedureSnapshot &&p_value),
+			void (*p_variable_parse)(void *p_user_pointer, ObjectData &p_object_data, VarId p_var_id, VarData &&p_value),
+			void (*p_scheduled_procedure_parse)(void *p_user_pointer, ObjectData &p_object_data, ScheduledProcedureId p_procedure_id, ScheduledProcedureSnapshot &&p_value),
 			void (*p_simulated_object_add_or_remove_parse)(void *p_user_pointer, bool p_add, SimulatedObjectInfo &&p_simulated_objects),
 			void (*p_simulated_objects_parse)(void *p_user_pointer, std::vector<SimulatedObjectInfo> &&p_simulated_objects));
+	bool parse_sync_data_object_info(
+			DataBuffer &p_snapshot,
+			void *p_user_pointer,
+			ObjectData &p_object_data,
+			void (*p_variable_parse)(void *p_user_pointer, ObjectData &p_object_data, VarId p_var_id, VarData &&p_value),
+			void (*p_scheduled_procedure_parse)(void *p_user_pointer, ObjectData &p_object_data, ScheduledProcedureId p_procedure_id, ScheduledProcedureSnapshot &&p_value));
+
 
 	void set_enabled(bool p_enabled);
 
@@ -1119,6 +1130,8 @@ public:
 	void remove_object_from_trickled_sync(NS::ObjectData *p_object_data);
 
 private:
+	void try_fetch_pending_snapshot_objects();
+
 	/// Store object data organized per controller.
 	void store_snapshot();
 
@@ -1158,6 +1171,7 @@ private:
 	void process_simulation(float p_delta);
 
 	bool parse_snapshot(DataBuffer &p_snapshot, bool p_is_server_snapshot);
+	void finalize_object_data_synchronization(ObjectData &p_object_data);
 
 	void notify_server_full_snapshot_is_needed();
 

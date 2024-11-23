@@ -428,13 +428,13 @@ void SceneSynchronizerBase::register_app_object(ObjectHandle p_app_object_handle
 			process_functions__clear();
 		}
 
+		synchronizer_manager->setup_synchronizer_for(p_app_object_handle, id);
+
 		if (synchronizer) {
 			synchronizer->on_object_data_added(*od);
 		}
 
 		synchronizer_manager->on_add_object_data(*od);
-
-		synchronizer_manager->setup_synchronizer_for(p_app_object_handle, id);
 
 		get_debugger().print(INFO, "New object registered" + (generate_id ? " #ID: " + std::to_string(od->get_net_id().id) : "") + " : " + od->get_object_name(), network_interface->get_owner_name());
 	}
@@ -571,9 +571,9 @@ ObjectNetId SceneSynchronizerBase::get_app_object_net_id(ObjectHandle p_app_obje
 }
 
 ObjectHandle SceneSynchronizerBase::get_app_object_from_id(ObjectNetId p_id, bool p_expected) {
-	NS::ObjectData *object_data = get_object_data(p_id, p_expected);
+	ObjectData *object_data = get_object_data(p_id, p_expected);
 	if (p_expected) {
-		NS_ENSURE_V_MSG(object_data, ObjectHandle::NONE, "The ID " + p_id + " is not assigned to any node.");
+		NS_ENSURE_V_MSG(object_data, ObjectHandle::NONE, "The ID " + p_id + " is not assigned to any object.");
 		return object_data->app_object_handle;
 	} else {
 		return object_data ? object_data->app_object_handle : ObjectHandle::NONE;
@@ -581,9 +581,9 @@ ObjectHandle SceneSynchronizerBase::get_app_object_from_id(ObjectNetId p_id, boo
 }
 
 ObjectHandle SceneSynchronizerBase::get_app_object_from_id_const(ObjectNetId p_id, bool p_expected) const {
-	const NS::ObjectData *object_data = get_object_data(p_id, p_expected);
+	const ObjectData *object_data = get_object_data(p_id, p_expected);
 	if (p_expected) {
-		NS_ENSURE_V_MSG(object_data, ObjectHandle::NONE, "The ID " + p_id + " is not assigned to any node.");
+		NS_ENSURE_V_MSG(object_data, ObjectHandle::NONE, "The ID " + p_id + " is not assigned to any object.");
 		return object_data->app_object_handle;
 	} else {
 		return object_data ? object_data->app_object_handle : ObjectHandle::NONE;
@@ -606,7 +606,7 @@ VarId SceneSynchronizerBase::get_variable_id(ObjectLocalId p_id, const std::stri
 	NS_ENSURE_V(p_variable != "", VarId::NONE);
 
 	NS::ObjectData *od = get_object_data(p_id);
-	NS_ENSURE_V_MSG(od, VarId::NONE, "This node " + p_id + "is not registered.");
+	NS_ENSURE_V_MSG(od, VarId::NONE, "This object " + p_id + "is not registered.");
 
 	return od->find_variable_id(p_variable);
 }
@@ -1410,10 +1410,13 @@ void SceneSynchronizerBase::init_synchronizer(bool p_was_generating_ids) {
 		std::string debugger_mode;
 		if (is_server()) {
 			debugger_mode = "server";
+			get_debugger().set_log_prefix("server");
 		} else if (is_client()) {
 			debugger_mode = "client";
+			get_debugger().set_log_prefix("peer-" + std::to_string(network_interface->get_local_peer_id()));
 		} else if (is_no_network()) {
 			debugger_mode = "nonet";
+			get_debugger().set_log_prefix("nonet");
 		}
 
 		get_debugger().setup_debugger(debugger_mode, network_interface->get_local_peer_id());
@@ -2004,7 +2007,7 @@ ObjectLocalId SceneSynchronizerBase::find_object_local_id(ObjectHandle p_app_obj
 	return objects_data_storage.find_object_local_id(p_app_object);
 }
 
-NS::ObjectData *SceneSynchronizerBase::get_object_data(ObjectLocalId p_id, bool p_expected) {
+ObjectData *SceneSynchronizerBase::get_object_data(ObjectLocalId p_id, bool p_expected) {
 	return objects_data_storage.get_object_data(p_id, p_expected);
 }
 
@@ -2666,6 +2669,7 @@ void ServerSynchronizer::process_snapshot_notificator() {
 				}
 
 				snap = &full_snapshot;
+				get_debugger().print(VERBOSE, "Sending full snapshot to peer: " + std::to_string(pd_it->first));
 			} else {
 				if (delta_snapshot_need_init) {
 					delta_snapshot_need_init = false;
@@ -2673,6 +2677,7 @@ void ServerSynchronizer::process_snapshot_notificator() {
 				}
 
 				snap = &delta_snapshot;
+				get_debugger().print(VERBOSE, "Sending incremental snapshot to peer: " + std::to_string(pd_it->first));
 			}
 
 			scene_synchronizer->rpc_handler_state.rpc(
@@ -3204,6 +3209,8 @@ void ClientSynchronizer::clear() {
 void ClientSynchronizer::process(float p_delta) {
 	NS_PROFILE
 
+	try_fetch_pending_snapshot_objects();
+
 	scene_synchronizer->get_debugger().print(VERBOSE, "ClientSynchronizer::process", scene_synchronizer->get_network_interface().get_owner_name());
 
 #ifdef NS_DEBUG_ENABLED
@@ -3247,7 +3254,8 @@ void ClientSynchronizer::receive_snapshot(DataBuffer &p_snapshot) {
 	store_controllers_snapshot(last_received_snapshot);
 }
 
-void ClientSynchronizer::on_object_data_added(NS::ObjectData &p_object_data) {
+void ClientSynchronizer::on_object_data_added(ObjectData &p_object_data) {
+	finalize_object_data_synchronization(p_object_data);
 }
 
 void ClientSynchronizer::on_object_data_removed(NS::ObjectData &p_object_data) {
@@ -3263,25 +3271,7 @@ void ClientSynchronizer::on_object_data_removed(NS::ObjectData &p_object_data) {
 }
 
 void ClientSynchronizer::on_object_data_name_known(ObjectData &p_object_data) {
-	if (p_object_data.get_object_name().empty()) {
-		// Nothing to do.
-		return;
-	}
-
-	// NOTE on why this is commented: Since the snapshot parser discards all the data about
-	//                                the objects with an unknown name, we must request a full snapshot.
-	//                                TODO consider to fix this? Not really a big deal in any case, since late name registration doesn't occur that often.
-	// 
-	// // The object name was finally set on the client. Try initialize the NetId
-	// // if already received by the server.
-	// for (const auto &[net_id, name] : objects_names) {
-	// 	if (p_object_data.get_object_name() == name) {
-	// 		p_object_data.set_net_id(net_id);
-	// 		return;
-	// 	}
-	// }
-
-	notify_server_full_snapshot_is_needed();
+	finalize_object_data_synchronization(p_object_data);
 }
 
 void ClientSynchronizer::on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) {
@@ -3342,6 +3332,38 @@ const std::vector<ObjectData *> &ClientSynchronizer::get_active_objects() const 
 		// Since there is no player controller or the sync is disabled, this
 		// assumes that all registered objects are relevant and simulated.
 		return scene_synchronizer->get_all_object_data();
+	}
+}
+
+void ClientSynchronizer::try_fetch_pending_snapshot_objects() {
+	NS_PROFILE
+
+	std::vector<ObjectNetId> pending_objects;
+	for (const auto &[net_id, snapshots] : objects_pending_snapshots) {
+		pending_objects.push_back(net_id);
+		if (snapshots.size() > 60) {
+			// We have more than 60 snapshots for this objects and still it doesn't exist yet.
+			// this is a bug.
+			get_debugger().print(ERROR, "The object with NetId `" + std::to_string(net_id.id) + "` have more than " + std::to_string(snapshots.size()) + " and still it's not yet registered on the client. This is likely a bug that you should investigate or report. Requesting a full snapshot to try recovering it, but still this is likely a bug that you have to fix anyway.");
+			notify_server_full_snapshot_is_needed();
+			return;
+		}
+	}
+
+	for (ObjectNetId pending_registration_net_id : pending_objects) {
+		const std::string *object_name = MapFunc::get_or_null(objects_names, pending_registration_net_id);
+		if (object_name) {
+			const ObjectHandle app_object_handle =
+					scene_synchronizer->synchronizer_manager->fetch_app_object(*object_name);
+			if (app_object_handle != ObjectHandle::NONE) {
+				ObjectLocalId reg_obj_id;
+				scene_synchronizer->register_app_object(app_object_handle, &reg_obj_id);
+				ObjectData *od = scene_synchronizer->get_object_data(reg_obj_id);
+				od->set_net_id(pending_registration_net_id);
+				finalize_object_data_synchronization(*od);
+				NS_ASSERT_COND(MapFunc::get_or_null(objects_pending_snapshots, pending_registration_net_id)==nullptr);
+			}
+		}
 	}
 }
 
@@ -3962,8 +3984,8 @@ bool ClientSynchronizer::parse_sync_data(
 		void (*p_custom_data_parse)(void *p_user_pointer, VarData &&p_custom_data),
 		void (*p_object_parse)(void *p_user_pointer, ObjectData *p_object_data),
 		bool (*p_peers_frame_index_parse)(void *p_user_pointer, std::map<int, FrameIndexWithMeta> &&p_frames_index),
-		void (*p_variable_parse)(void *p_user_pointer, ObjectData *p_object_data, VarId p_var_id, VarData &&p_value),
-		void (*p_scheduled_procedure_parse)(void *p_user_pointer, ObjectData *p_object_data, ScheduledProcedureId p_procedure_id, ScheduledProcedureSnapshot &&p_value),
+		void (*p_variable_parse)(void *p_user_pointer, ObjectData &p_object_data, VarId p_var_id, VarData &&p_value),
+		void (*p_scheduled_procedure_parse)(void *p_user_pointer, ObjectData &p_object_data, ScheduledProcedureId p_procedure_id, ScheduledProcedureSnapshot &&p_value),
 		void (*p_simulated_object_add_or_remove_parse)(void *p_user_pointer, bool p_add, SimulatedObjectInfo &&p_simulated_objects),
 		void (*p_simulated_objects_parse)(void *p_user_pointer, std::vector<SimulatedObjectInfo> &&p_simulated_objects)) {
 	NS_PROFILE
@@ -4150,8 +4172,8 @@ bool ClientSynchronizer::parse_sync_data(
 	while (true) {
 		// First extract the object data
 		ObjectData *synchronizer_object_data = nullptr;
+		ObjectNetId net_id = ObjectNetId::NONE;
 		{
-			ObjectNetId net_id = ObjectNetId::NONE;
 			p_snapshot.read(net_id.id);
 			NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The NetId was expected at this point.");
 
@@ -4180,11 +4202,11 @@ bool ClientSynchronizer::parse_sync_data(
 				// ObjectData not found, fetch it using the object name.
 
 				if (object_name.empty()) {
-					// The object_name was not specified by this snapshot, so fetch it
-					const std::string *object_name_ptr = NS::MapFunc::get_or_null(objects_names, net_id);
+					// The object_name was not specified by this snapshot, so fetch it.
+					const std::string *object_name_ptr = MapFunc::get_or_null(objects_names, net_id);
 
 					if (object_name_ptr == nullptr) {
-						// The name for this `NodeId` doesn't exists yet.
+						// The name for this `NetId` doesn't exists yet.
 						scene_synchronizer->get_debugger().print(WARNING, "The object with ID `" + net_id + "` is not know by this peer yet.");
 						notify_server_full_snapshot_is_needed();
 					} else {
@@ -4198,7 +4220,7 @@ bool ClientSynchronizer::parse_sync_data(
 
 				if (app_object_handle == ObjectHandle::NONE) {
 					// The node doesn't exists.
-					scene_synchronizer->get_debugger().print(WARNING, "The object " + object_name + " still doesn't exist.", scene_synchronizer->get_network_interface().get_owner_name());
+					scene_synchronizer->get_debugger().print(WARNING, "The object `" + object_name + "` still doesn't exist. NetId: " + std::to_string(net_id.id), scene_synchronizer->get_network_interface().get_owner_name());
 				} else {
 					// Register this object, so to make sure the client is tracking it.
 					ObjectLocalId reg_obj_id;
@@ -4208,7 +4230,7 @@ bool ClientSynchronizer::parse_sync_data(
 						// Set the NetId.
 						synchronizer_object_data->set_net_id(net_id);
 					} else {
-						scene_synchronizer->get_debugger().print(ERROR, "[BUG] This object " + object_name + " was known on this client. Though, was not possible to register it as sync object.", scene_synchronizer->get_network_interface().get_owner_name());
+						scene_synchronizer->get_debugger().print(ERROR, "[BUG] This object `" + object_name + "` was known on this client. Though, was not possible to register it as sync object.", scene_synchronizer->get_network_interface().get_owner_name());
 					}
 				}
 			}
@@ -4232,57 +4254,43 @@ bool ClientSynchronizer::parse_sync_data(
 		NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `vars_count` was expected here.");
 
 		if (skip_object) {
-			// Skip all the variables for this object.
-			p_snapshot.seek(p_snapshot.get_bit_offset() + vars_size_in_bits);
-		} else {
-			for (auto &var_desc : synchronizer_object_data->vars) {
-				bool var_has_value = false;
-				p_snapshot.read(var_has_value);
-				NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `var_has_value` was expected at this point. Object: `" + synchronizer_object_data->get_object_name() + "` Var: `" + var_desc.var.name + "`");
-
-				if (var_has_value) {
-					VarData value;
-					SceneSynchronizerBase::var_data_decode(value, p_snapshot, var_desc.type);
-					NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `variable value` was expected at this point. Object: `" + synchronizer_object_data->get_object_name() + "` Var: `" + var_desc.var.name + "`");
-
-					// Variable fetched, now parse this variable.
-					p_variable_parse(
-							p_user_pointer,
-							synchronizer_object_data,
-							var_desc.id,
-							std::move(value));
+			if (net_id != ObjectNetId::NONE) {
+				// Store the snapshot information so we can use them to sync the
+				// late registered object as soon as it's registered.
+				DataBuffer object_snapshot_buffer;
+				object_snapshot_buffer.begin_write(get_debugger(), 0);
+				const bool slicing_success = p_snapshot.slice(object_snapshot_buffer, p_snapshot.get_bit_offset(), vars_size_in_bits);
+#if NS_DEBUG_ENABLED
+				if (scene_synchronizer->pedantic_checks) {
+					NS_ASSERT_COND(slicing_success);
+					NS_ASSERT_COND(object_snapshot_buffer.get_bit_offset() == vars_size_in_bits);
 				}
+#endif
+				if (!slicing_success || object_snapshot_buffer.get_bit_offset() != vars_size_in_bits) {
+					get_debugger().print(ERROR, "The received snapshot is corrupted because it was impossible to properly slice the Object info using the encoded size. This should never happen.");
+					notify_server_full_snapshot_is_needed();
+					return false;
+				}
+				// Store the extracted object info.
+				std::vector<DataBuffer> &pending_snapshots = MapFunc::insert_if_new(objects_pending_snapshots, net_id, std::vector<DataBuffer>())->second;
+				pending_snapshots.push_back(std::move(object_snapshot_buffer));
+				get_debugger().print(INFO, "The object info snapshot was sliced and stored into the pending snapshots. ObjectID: " + std::to_string(net_id.id));
+			} else {
+				// This is not possible because NetID NONE signals the end of the
+				// buffer and this is never reached.
+				NS_ASSERT_NO_ENTRY_MSG("The parse_sync_data function was unable to store the object information for a late restore because the NetId is NONE.");
 			}
 
-			for (ScheduledProcedureId procedure_id = { 0 }; procedure_id.id < synchronizer_object_data->get_scheduled_procedures().size(); procedure_id += 1) {
-				bool has_procedure_value = false;
-				p_snapshot.read(has_procedure_value);
-				NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `has_procedure_value` was expected at this point. Object: `" + synchronizer_object_data->get_object_name() + "`");
-				if (has_procedure_value) {
-					bool is_procedure_in_progress = false;
-					p_snapshot.read(is_procedure_in_progress);
-					NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `is_procedure_in_progress` was expected at this point. Object: `" + synchronizer_object_data->get_object_name() + "`");
-
-					ScheduledProcedureSnapshot procedure_snapshot;
-					if (is_procedure_in_progress) {
-						p_snapshot.read(procedure_snapshot.execute_frame.id);
-						NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `execute_frame` was expected at this point. Object: `" + synchronizer_object_data->get_object_name() + "`");
-						p_snapshot.read(procedure_snapshot.args);
-						NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `args` was expected at this point. Object: `" + synchronizer_object_data->get_object_name() + "`");
-					} else {
-						bool is_procedure_paused = false;
-						p_snapshot.read(is_procedure_paused);
-						NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `is_procedure_paused` was expected at this point. Object: `" + synchronizer_object_data->get_object_name() + "`");
-						if (is_procedure_paused) {
-							p_snapshot.read(procedure_snapshot.execute_frame.id);
-							NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `execute_frame` was expected at this point. Object: `" + synchronizer_object_data->get_object_name() + "`");
-							p_snapshot.read(procedure_snapshot.paused_frame.id);
-							NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `paused_frame` was expected at this point. Object: `" + synchronizer_object_data->get_object_name() + "`");
-						}
-					}
-
-					p_scheduled_procedure_parse(p_user_pointer, synchronizer_object_data, procedure_id, std::move(procedure_snapshot));
-				}
+			// Skip the object data now.
+			p_snapshot.seek(p_snapshot.get_bit_offset() + vars_size_in_bits);
+		} else {
+			if (!parse_sync_data_object_info(
+					p_snapshot,
+					p_user_pointer,
+					*synchronizer_object_data,
+					p_variable_parse,
+					p_scheduled_procedure_parse)) {
+				return false;
 			}
 		}
 	}
@@ -4291,6 +4299,66 @@ bool ClientSynchronizer::parse_sync_data(
 
 	return true;
 }
+
+bool ClientSynchronizer::parse_sync_data_object_info(
+		DataBuffer &p_snapshot,
+		void *p_user_pointer,
+		ObjectData &p_object_data,
+		void (*p_variable_parse)(void *p_user_pointer, ObjectData &p_object_data, VarId p_var_id, VarData &&p_value),
+		void (*p_scheduled_procedure_parse)(void *p_user_pointer, ObjectData &p_object_data, ScheduledProcedureId p_procedure_id, ScheduledProcedureSnapshot &&p_value)) {
+	for (auto &var_desc : p_object_data.vars) {
+		bool var_has_value = false;
+		p_snapshot.read(var_has_value);
+		NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `var_has_value` was expected at this point. Object: `" + p_object_data.get_object_name() + "` Var: `" + var_desc.var.name + "`");
+
+		if (var_has_value) {
+			VarData value;
+			SceneSynchronizerBase::var_data_decode(value, p_snapshot, var_desc.type);
+			NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `variable value` was expected at this point. Object: `" + p_object_data.get_object_name() + "` Var: `" + var_desc.var.name + "`");
+
+			// Variable fetched, now parse this variable.
+			p_variable_parse(
+					p_user_pointer,
+					p_object_data,
+					var_desc.id,
+					std::move(value));
+		}
+	}
+
+	for (ScheduledProcedureId procedure_id = { 0 }; procedure_id.id < p_object_data.get_scheduled_procedures().size(); procedure_id += 1) {
+		bool has_procedure_value = false;
+		p_snapshot.read(has_procedure_value);
+		NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `has_procedure_value` was expected at this point. Object: `" + p_object_data.get_object_name() + "`");
+		if (has_procedure_value) {
+			bool is_procedure_in_progress = false;
+			p_snapshot.read(is_procedure_in_progress);
+			NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `is_procedure_in_progress` was expected at this point. Object: `" + p_object_data.get_object_name() + "`");
+
+			ScheduledProcedureSnapshot procedure_snapshot;
+			if (is_procedure_in_progress) {
+				p_snapshot.read(procedure_snapshot.execute_frame.id);
+				NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `execute_frame` was expected at this point. Object: `" + p_object_data.get_object_name() + "`");
+				p_snapshot.read(procedure_snapshot.args);
+				NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `args` was expected at this point. Object: `" + p_object_data.get_object_name() + "`");
+			} else {
+				bool is_procedure_paused = false;
+				p_snapshot.read(is_procedure_paused);
+				NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `is_procedure_paused` was expected at this point. Object: `" + p_object_data.get_object_name() + "`");
+				if (is_procedure_paused) {
+					p_snapshot.read(procedure_snapshot.execute_frame.id);
+					NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `execute_frame` was expected at this point. Object: `" + p_object_data.get_object_name() + "`");
+					p_snapshot.read(procedure_snapshot.paused_frame.id);
+					NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `paused_frame` was expected at this point. Object: `" + p_object_data.get_object_name() + "`");
+				}
+			}
+
+			p_scheduled_procedure_parse(p_user_pointer, p_object_data, procedure_id, std::move(procedure_snapshot));
+		}
+	}
+
+	return true;
+}
+
 
 void ClientSynchronizer::set_enabled(bool p_enabled) {
 	if (enabled == p_enabled) {
@@ -4579,30 +4647,30 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot, bool p_is_server
 			},
 
 			// Parse variable:
-			[](void *p_user_pointer, ObjectData *p_object_data, VarId p_var_id, VarData &&p_value) {
+			[](void *p_user_pointer, ObjectData &p_object_data, VarId p_var_id, VarData &&p_value) {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
 
-				if (p_object_data->vars.size() != uint32_t(pd->snapshot.objects[p_object_data->get_net_id().id].vars.size())) {
+				if (p_object_data.vars.size() != uint32_t(pd->snapshot.objects[p_object_data.get_net_id().id].vars.size())) {
 					// The parser may have added a variable, so make sure to resize the vars array.
-					pd->snapshot.objects[p_object_data->get_net_id().id].vars.resize(p_object_data->vars.size());
+					pd->snapshot.objects[p_object_data.get_net_id().id].vars.resize(p_object_data.vars.size());
 				}
 
-				if (pd->snapshot.objects[p_object_data->get_net_id().id].vars.size() > p_var_id.id) {
-					pd->snapshot.objects[p_object_data->get_net_id().id].vars[p_var_id.id].emplace(std::move(p_value));
+				if (pd->snapshot.objects[p_object_data.get_net_id().id].vars.size() > p_var_id.id) {
+					pd->snapshot.objects[p_object_data.get_net_id().id].vars[p_var_id.id].emplace(std::move(p_value));
 				}
 			},
 
 			// Parse scheduled procedure:
-			[](void *p_user_pointer, ObjectData *p_object_data, ScheduledProcedureId p_procedure_id, ScheduledProcedureSnapshot &&p_procedure_snapshot) {
+			[](void *p_user_pointer, ObjectData &p_object_data, ScheduledProcedureId p_procedure_id, ScheduledProcedureSnapshot &&p_procedure_snapshot) {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
 
-				if (p_object_data->get_scheduled_procedures().size() != uint32_t(pd->snapshot.objects[p_object_data->get_net_id().id].procedures.size())) {
+				if (p_object_data.get_scheduled_procedures().size() != uint32_t(pd->snapshot.objects[p_object_data.get_net_id().id].procedures.size())) {
 					// The parser may have added a procedure, so make sure to resize the procedure array.
-					pd->snapshot.objects[p_object_data->get_net_id().id].procedures.resize(p_object_data->get_scheduled_procedures().size());
+					pd->snapshot.objects[p_object_data.get_net_id().id].procedures.resize(p_object_data.get_scheduled_procedures().size());
 				}
 
-				if (pd->snapshot.objects[p_object_data->get_net_id().id].procedures.size() > p_procedure_id.id) {
-					pd->snapshot.objects[p_object_data->get_net_id().id].procedures[p_procedure_id.id] = std::move(p_procedure_snapshot);
+				if (pd->snapshot.objects[p_object_data.get_net_id().id].procedures.size() > p_procedure_id.id) {
+					pd->snapshot.objects[p_object_data.get_net_id().id].procedures[p_procedure_id.id] = std::move(p_procedure_snapshot);
 				}
 			},
 
@@ -4641,6 +4709,120 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot, bool p_is_server
 	return true;
 }
 
+void ClientSynchronizer::finalize_object_data_synchronization(ObjectData &p_object_data) {
+	if (p_object_data.get_net_id() == ObjectNetId::NONE) {
+		// The NetId is not assigned but it might already be sync, check it.
+		if (p_object_data.get_object_name().empty()) {
+			// The object name is not specified either, so there is no way to retrieve the NetId for now.
+			return;
+		}
+		for (auto &[net_id,name] : objects_names) {
+			if (name == p_object_data.get_object_name()) {
+				// NetId found!
+				p_object_data.set_net_id(net_id);
+				get_debugger().print(INFO, "The object data finalization was able to fetch the object NetID using the object name. Object name `" + p_object_data.get_object_name() + "`, NetId `" + std::to_string(p_object_data.get_net_id().id) + "`");
+				break;
+			}
+		}
+	}
+
+	if (p_object_data.get_net_id() == ObjectNetId::NONE) {
+		// The NetId is still unknown for this ObjectData, nothing to.
+		get_debugger().print(INFO, "The object data finalization failed because it was unable to retrive the NetID for the object with name `" + p_object_data.get_object_name() + "`. It will re-try later.");
+		return;
+	}
+
+	std::vector<DataBuffer> *pending_snapshots = MapFunc::get_or_null(objects_pending_snapshots, p_object_data.get_net_id());
+	if (!pending_snapshots || pending_snapshots->size() <= 0) {
+		// Nothing pending to initialize.
+		return;
+	}
+
+	struct PendingObjectSnapshotsParseData {
+		RollingUpdateSnapshot &snapshot;
+		SceneSynchronizerBase *scene_synchronizer;
+		ClientSynchronizer *client_synchronizer;
+	};
+
+	PendingObjectSnapshotsParseData parse_data{
+		last_received_snapshot,
+		scene_synchronizer,
+		this,
+	};
+
+	// Make sure this node is part of the server node too.
+	if (uint32_t(parse_data.snapshot.objects.size()) <= p_object_data.get_net_id().id) {
+		parse_data.snapshot.objects.resize(p_object_data.get_net_id().id + 1);
+	}
+
+	for (DataBuffer &snapshot : *pending_snapshots) {
+		snapshot.begin_read(get_debugger());
+		const bool parsing_success = parse_sync_data_object_info(
+				snapshot,
+				&parse_data,
+				p_object_data,
+
+				// Parse variable:
+				[](void *p_user_pointer, ObjectData &p_object_data, VarId p_var_id, VarData &&p_value) {
+					PendingObjectSnapshotsParseData *pd = static_cast<PendingObjectSnapshotsParseData *>(p_user_pointer);
+
+					if (p_object_data.vars.size() != uint32_t(pd->snapshot.objects[p_object_data.get_net_id().id].vars.size())) {
+						// The parser may have added a variable, so make sure to resize the vars array.
+						pd->snapshot.objects[p_object_data.get_net_id().id].vars.resize(p_object_data.vars.size());
+					}
+
+					if (pd->snapshot.objects[p_object_data.get_net_id().id].vars.size() > p_var_id.id) {
+						// Updates the actual value.
+						p_object_data.vars[p_var_id.id].set_func(
+								pd->scene_synchronizer->get_synchronizer_manager(),
+								p_object_data.app_object_handle,
+								p_object_data.vars[p_var_id.id].var.name,
+								p_value);
+
+						// Save the variable into the local snapshot, so increamental updates works fine.
+						pd->snapshot.objects[p_object_data.get_net_id().id].vars[p_var_id.id].emplace(std::move(p_value));
+					}
+				},
+
+				// Parse scheduled procedure:
+				[](void *p_user_pointer, ObjectData &p_object_data, ScheduledProcedureId p_procedure_id, ScheduledProcedureSnapshot &&p_procedure_snapshot) {
+					PendingObjectSnapshotsParseData *pd = static_cast<PendingObjectSnapshotsParseData *>(p_user_pointer);
+
+					if (p_object_data.get_scheduled_procedures().size() != uint32_t(pd->snapshot.objects[p_object_data.get_net_id().id].procedures.size())) {
+						// The parser may have added a procedure, so make sure to resize the procedure array.
+						pd->snapshot.objects[p_object_data.get_net_id().id].procedures.resize(p_object_data.get_scheduled_procedures().size());
+					}
+
+					if (pd->snapshot.objects[p_object_data.get_net_id().id].procedures.size() > p_procedure_id.id) {
+						// Updates the actual value.
+						p_object_data.scheduled_procedure_reset_to(p_procedure_id, p_procedure_snapshot);
+
+						// Save the variable into the local snapshot, so incremental updates works fine.
+						pd->snapshot.objects[p_object_data.get_net_id().id].procedures[p_procedure_id.id] = std::move(p_procedure_snapshot);
+					}
+				});
+
+#if NS_DEBUG_ENABLED
+		if (scene_synchronizer->pedantic_checks) {
+			NS_ASSERT_COND(!snapshot.is_buffer_failed());
+			NS_ASSERT_COND(snapshot.is_end_of_buffer());
+			NS_ASSERT_COND_MSG(parsing_success, "This can't be triggered unless there is a bug because in the context of integration tests the snapshot can't corrupt, so if this triggered there is a bug.");
+		}
+#endif
+
+		if (!parsing_success) {
+			get_debugger().print(ERROR, "A parsing error occurred while reading a pending object info. The parsing was aborted, but the snapshot parsing is not supposed to be corrupted, investigate!");
+			notify_server_full_snapshot_is_needed();
+			return;
+		}
+
+		get_debugger().print(INFO, "The object data finalization applied " + std::to_string(pending_snapshots->size()) + " pending snapshots on the object name `" + p_object_data.get_object_name() + "`, NetId `" + std::to_string(p_object_data.get_net_id().id) + "`.");
+	}
+
+	// Object initialize, we can finally erase it.
+	objects_pending_snapshots.erase(p_object_data.get_net_id());
+}
+
 void ClientSynchronizer::notify_server_full_snapshot_is_needed() {
 	if (need_full_snapshot_notified) {
 		return;
@@ -4651,6 +4833,9 @@ void ClientSynchronizer::notify_server_full_snapshot_is_needed() {
 	scene_synchronizer->rpc_handler_notify_need_full_snapshot.rpc(
 			scene_synchronizer->get_network_interface(),
 			scene_synchronizer->network_interface->get_server_peer());
+
+	// No need to keep track of these, since a new snapshot is going to override everything.
+	objects_pending_snapshots.clear();
 }
 
 void ClientSynchronizer::update_client_snapshot(Snapshot &r_snapshot) {
@@ -4886,14 +5071,7 @@ void ClientSynchronizer::apply_snapshot(
 		for (ScheduledProcedureId procedure_id = { 0 }; procedure_id.id < ScheduledProcedureId::IdType(object_data_snapshot.procedures.size()); procedure_id += 1) {
 			if (object_data->scheduled_procedure_exist(procedure_id)) {
 				const ScheduledProcedureSnapshot &procedure_snapshot = object_data_snapshot.procedures[procedure_id.id];
-				if (procedure_snapshot.execute_frame.id != 0 && procedure_snapshot.paused_frame.id == 0) {
-					object_data->scheduled_procedure_set_args(procedure_id, procedure_snapshot.args);
-					object_data->scheduled_procedure_start(procedure_id, procedure_snapshot.execute_frame);
-				} else if (procedure_snapshot.paused_frame.id != 0) {
-					object_data->scheduled_procedure_pause(procedure_id, procedure_snapshot.execute_frame, procedure_snapshot.paused_frame);
-				} else {
-					object_data->scheduled_procedure_stop(procedure_id);
-				}
+				object_data->scheduled_procedure_reset_to(procedure_id, procedure_snapshot);
 			}
 		}
 	}

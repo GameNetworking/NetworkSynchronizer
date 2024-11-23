@@ -197,6 +197,17 @@ void ObjectData::scheduled_procedure_set_args(ScheduledProcedureId p_id, const D
 	scheduled_procedures[p_id.id].args.copy(p_args);
 }
 
+void ObjectData::scheduled_procedure_reset_to(ScheduledProcedureId p_id, const ScheduledProcedureSnapshot &p_snapshot) {
+	if (p_snapshot.execute_frame.id != 0 && p_snapshot.paused_frame.id == 0) {
+		scheduled_procedure_set_args(p_id, p_snapshot.args);
+		scheduled_procedure_start(p_id, p_snapshot.execute_frame);
+	} else if (p_snapshot.paused_frame.id != 0) {
+		scheduled_procedure_pause(p_id, p_snapshot.execute_frame, p_snapshot.paused_frame);
+	} else {
+		scheduled_procedure_stop(p_id);
+	}
+}
+
 void ObjectData::scheduled_procedure_execute(ScheduledProcedureId p_id, ScheduledProcedurePhase p_phase, const SynchronizerManager &p_sync_manager, SceneSynchronizerDebugger &p_debugger) {
 #ifdef NS_DEBUG_ENABLED
 	NS_ASSERT_COND(!scheduled_procedures[p_id.id].args.is_buffer_failed());
