@@ -1059,6 +1059,23 @@ void test_data_buffer_slice_copy() {
 		NS_ASSERT_COND(slice.read_bool()== true);
 		NS_ASSERT_COND(slice.read_bool()== false);
 	}
+
+	origin_buffer.add(false);
+	origin_buffer.add(false);
+	origin_buffer.add(false);
+	origin_buffer.add(false);
+	origin_buffer.add(std::uint8_t(254));
+
+	{
+		NS::DataBuffer slice;
+		slice.begin_write(debugger, 0);
+		NS_ASSERT_COND(origin_buffer.slice(slice, 40, 8));
+		NS_ASSERT_COND(!origin_buffer.is_buffer_failed());
+		NS_ASSERT_COND(origin_buffer.get_bit_offset()==current_offset + 12);
+
+		slice.begin_read(debugger);
+		NS_ASSERT_COND(slice.read_uint(NS::DataBuffer::COMPRESSION_LEVEL_3)== 254);
+	}
 }
 
 void NS_Test::test_data_buffer() {
