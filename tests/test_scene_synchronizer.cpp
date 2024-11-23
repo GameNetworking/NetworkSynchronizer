@@ -92,6 +92,7 @@ public:
 	}
 };
 
+
 void test_client_and_server_initialization() {
 	NS::LocalScene server_scene;
 	server_scene.start_as_server();
@@ -256,6 +257,117 @@ void test_late_name_initialization() {
 
 	// Top!
 }
+
+class LocalNetworkedControllerServerOnlyRegistration : public NS::LocalSceneObject {
+public:
+	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
+	NS::VarData position;
+
+	LocalNetworkedControllerServerOnlyRegistration() {
+	}
+
+	virtual void on_scene_entry() override {
+		if (get_scene()->scene_sync->is_server()) {
+			get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
+		}
+	}
+
+	virtual void on_scene_exit() override {
+		get_scene()->scene_sync->unregister_app_object(local_id);
+	}
+
+	virtual void setup_synchronizer(NS::LocalSceneSynchronizer &p_scene_sync, NS::ObjectLocalId p_id) override {
+		local_id = p_id;
+
+		p_scene_sync.setup_controller(
+				p_id,
+				std::bind(&LocalNetworkedControllerServerOnlyRegistration::collect_inputs, this, std::placeholders::_1, std::placeholders::_2),
+				std::bind(&LocalNetworkedControllerServerOnlyRegistration::are_inputs_different, this, std::placeholders::_1, std::placeholders::_2),
+				std::bind(&LocalNetworkedControllerServerOnlyRegistration::controller_process, this, std::placeholders::_1, std::placeholders::_2));
+
+		p_scene_sync.set_controlled_by_peer(
+				p_id,
+				authoritative_peer_id);
+
+		p_scene_sync.register_variable(
+				p_id,
+				"position",
+				[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, const NS::VarData &p_value) {
+					static_cast<LocalNetworkedController *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->position.copy(p_value);
+				},
+				[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, NS::VarData &r_value) {
+					r_value.copy(static_cast<LocalNetworkedController *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->position);
+				});
+	}
+
+	void collect_inputs(float p_delta, NS::DataBuffer &r_buffer) {
+		r_buffer.add_bool(true);
+	}
+
+	void controller_process(float p_delta, NS::DataBuffer &p_buffer) {
+		if (p_buffer.read_bool()) {
+			const float one_meter = 1.0;
+			position.data.f32 += p_delta * one_meter;
+		}
+	}
+
+	bool are_inputs_different(NS::DataBuffer &p_buffer_A, NS::DataBuffer &p_buffer_B) {
+		return p_buffer_A.read_bool() != p_buffer_B.read_bool();
+	}
+};
+
+void test_late_object_spawning() {
+	NS::LocalScene server_scene;
+	server_scene.start_as_server();
+
+	NS::LocalScene peer_1_scene;
+	peer_1_scene.start_as_client(server_scene);
+
+	// Add the scene sync
+	server_scene.scene_sync =
+			server_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+
+	peer_1_scene.scene_sync =
+			peer_1_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+
+	server_scene.scene_sync->set_frame_confirmation_timespan(0.0);
+
+	// Spawn the object controlled only on the server.
+	LocalNetworkedControllerServerOnlyRegistration *controller_p1_server = server_scene.add_object<LocalNetworkedControllerServerOnlyRegistration>("controlled_1", peer_1_scene.get_peer());
+
+	// Set a specific data.
+	controller_p1_server->position.data.f32 = -439;
+	float last_set_position = controller_p1_server->position.data.f32;
+
+	// Process the scene 10 times to ensure the state is sync.
+	for (int i = 0; i < 10; i++) {
+		// Set a specific data.
+		controller_p1_server->position.data.f32 -= 1;
+		last_set_position = controller_p1_server->position.data.f32;
+
+		server_scene.process(delta);
+		peer_1_scene.process(delta);
+	}
+
+	// Now spawn the controlled object also on the peer.
+	LocalNetworkedControllerServerOnlyRegistration *controller_p1_client = peer_1_scene.add_object<LocalNetworkedControllerServerOnlyRegistration>("controlled_1", peer_1_scene.get_peer());
+
+	// Process one additional time to ensure the object is fetched.
+	for (int i = 0; i < 1; i++) {
+		// Set a specific data.
+		controller_p1_server->position.data.f32 -= 1;
+		last_set_position = controller_p1_server->position.data.f32;
+
+		server_scene.process(delta);
+		peer_1_scene.process(delta);
+	}
+
+	// Assert that the server position is sync right away on the client.
+	// Since we are not comparing the same frames, it's using a big epsilon for the comparation.
+	NS_ASSERT_COND(NS::MathFunc::is_equal_approx(controller_p1_server->position.data.f32, last_set_position, 0.01f));
+	NS_ASSERT_COND(NS::MathFunc::is_equal_approx(controller_p1_client->position.data.f32, last_set_position, 0.5f));
+}
+
 
 class TSS_TestSceneObject : public NS::LocalSceneObject {
 public:
@@ -1654,6 +1766,7 @@ void test_scene_synchronizer() {
 	test_ids();
 	test_client_and_server_initialization();
 	test_late_name_initialization();
+	test_late_object_spawning();
 	test_sync_groups();
 	test_state_notify();
 	test_processing_with_late_controller_registration();
