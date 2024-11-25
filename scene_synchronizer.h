@@ -13,8 +13,18 @@
 
 NS_NAMESPACE_BEGIN
 class SynchronizerManager {
+	class SceneSynchronizerBase *scene_synchronizer = nullptr;
+
 public:
 	virtual ~SynchronizerManager() {
+	}
+
+	void set_scene_synchronizer(SceneSynchronizerBase *p_scene_synchronizer) {
+		scene_synchronizer = p_scene_synchronizer;
+	}
+
+	SceneSynchronizerBase *get_scene_synchronizer() const {
+		return scene_synchronizer;
 	}
 
 	virtual void on_init_synchronizer(bool p_was_generating_ids) {

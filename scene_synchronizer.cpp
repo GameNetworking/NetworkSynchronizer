@@ -65,6 +65,7 @@ void SceneSynchronizerBase::setup(SynchronizerManager &p_synchronizer_interface)
 	NS_ASSERT_COND(network_interface);
 
 	synchronizer_manager = &p_synchronizer_interface;
+	synchronizer_manager->set_scene_synchronizer(this);
 	network_interface->start_listening_peer_connection(
 			[this](int p_peer) {
 				on_peer_connected(p_peer);
@@ -154,6 +155,7 @@ void SceneSynchronizerBase::conclude() {
 	// Make sure to reset all the assigned controllers.
 	reset_controllers();
 
+	synchronizer_manager->set_scene_synchronizer(nullptr);
 	synchronizer_manager = nullptr;
 
 	rpc_handler_state.reset();
