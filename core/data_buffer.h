@@ -187,6 +187,10 @@ public:
 		return buffer_failed;
 	}
 
+	int get_size_in_bits() const {
+		return bit_size;
+	}
+
 	// ------------------------------------------------------ Type serialization
 	void add(bool p_input);
 	void read(bool &p_out);

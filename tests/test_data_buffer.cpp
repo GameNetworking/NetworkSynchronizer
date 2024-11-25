@@ -1078,6 +1078,50 @@ void test_data_buffer_slice_copy() {
 	}
 }
 
+void test_data_buffer_compare() {
+	NS::DataBuffer first_buffer;
+	first_buffer.begin_write(debugger, 0);
+	first_buffer.add(true);
+	first_buffer.add(false);
+	first_buffer.add(12931237123123);
+
+	NS::DataBuffer second_buffer;
+	second_buffer.begin_write(debugger, 0);
+	second_buffer.add(true);
+	second_buffer.add(false);
+	second_buffer.add(12931237123123);
+
+	NS_ASSERT_COND(first_buffer == second_buffer);
+
+	second_buffer.seek(0);
+	second_buffer.add(false);
+	NS_ASSERT_COND(first_buffer != second_buffer);
+
+	second_buffer.seek(0);
+	second_buffer.add(true);
+	NS_ASSERT_COND(first_buffer == second_buffer);
+
+	second_buffer.seek(first_buffer.get_bit_offset());
+	NS_ASSERT_COND(first_buffer.get_bit_offset() == second_buffer.get_bit_offset());
+
+	first_buffer.add(true);
+	first_buffer.add(false);
+
+	second_buffer.add(false);
+	second_buffer.add(false);
+	second_buffer.add(false);
+	second_buffer.add(false);
+	second_buffer.add(true);
+	second_buffer.add(true);
+
+	NS_ASSERT_COND(first_buffer != second_buffer);
+
+	// Since the buffers are the same for the first part, this can't fail.
+	first_buffer.shrink_to(0, first_buffer.get_size_in_bits() - 2);
+	second_buffer.shrink_to(0, first_buffer.get_size_in_bits());
+	NS_ASSERT_COND(first_buffer == second_buffer);
+}
+
 void NS_Test::test_data_buffer() {
 	test_data_buffer_string();
 	test_data_buffer_u16string();
@@ -1107,4 +1151,5 @@ void NS_Test::test_data_buffer() {
 	test_data_buffer_reading_failing();
 	test_data_buffer_unaligned_write_read();
 	test_data_buffer_slice_copy();
+	test_data_buffer_compare();
 }

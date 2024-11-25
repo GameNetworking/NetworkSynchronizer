@@ -67,7 +67,30 @@ DataBuffer::DataBuffer(const BitArray &p_buffer) :
 //}
 
 bool DataBuffer::operator==(const DataBuffer &p_other) const {
-	return buffer.get_bytes() == p_other.buffer.get_bytes();
+	if (bit_size == p_other.bit_size) {
+		if (bit_size > 0) {
+			// First compare from byte 0 to byte Size-2
+			const int start_to_tail_byte_count = bit_size / 8;
+			const bool is_head_equal = memcmp(&buffer.get_bytes()[0], &p_other.buffer.get_bytes()[0], sizeof(start_to_tail_byte_count)) == 0;
+			if (!is_head_equal) {
+				return false;
+			}
+
+			// Then compare the last byte, but ensuring to compare only significant bits.
+			const int num_bits_to_compare = bit_size % 8;
+			if (num_bits_to_compare > 0) {
+				const std::uint8_t mask = (1 << num_bits_to_compare) - 1;
+
+				const std::uint8_t last_bits_a = buffer.get_bytes()[start_to_tail_byte_count];
+				const std::uint8_t last_bits_b = p_other.buffer.get_bytes()[start_to_tail_byte_count];
+				return (last_bits_a & mask) == (last_bits_b & mask);
+			}
+		}
+		return true;
+	} else {
+		// Size is different.
+		return false;
+	}
 }
 
 void DataBuffer::copy(const DataBuffer &p_other) {
