@@ -60,6 +60,12 @@ struct ScheduledProcedureSnapshot {
 				&& paused_frame == p_other.paused_frame
 				&& args == p_other.args;
 	}
+
+	operator std::string() const {
+		return std::string() + "execute_frame: " + std::to_string(execute_frame.id)
+				+ ", paused_frame: " + std::to_string(paused_frame.id)
+				+ ", args: " + std::to_string(args.size());
+	}
 };
 
 struct ObjectDataSnapshot {

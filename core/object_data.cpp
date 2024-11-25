@@ -239,6 +239,7 @@ void ObjectData::scheduled_procedure_pause(ScheduledProcedureId p_id, GlobalFram
 void ObjectData::scheduled_procedure_stop(ScheduledProcedureId p_id) {
 	scheduled_procedures[p_id.id].execute_frame = GlobalFrameIndex{ 0 };
 	scheduled_procedures[p_id.id].paused_frame = GlobalFrameIndex{ 0 };
+	scheduled_procedures[p_id.id].args.shrink_to(0, 0);
 	storage.notify_scheduled_procedure_updated(*this, p_id, false);
 }
 

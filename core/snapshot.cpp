@@ -96,6 +96,51 @@ bool compare_vars(
 #endif
 }
 
+bool compare_procedures(
+		const std::vector<NS::ScheduledProcedureSnapshot> &p_server_procedures,
+		const std::vector<NS::ScheduledProcedureSnapshot> &p_client_procedures,
+		std::vector<std::string> *r_differences_info) {
+	const NS::ScheduledProcedureSnapshot *s_procedures = p_server_procedures.data();
+	const NS::ScheduledProcedureSnapshot *c_procedures = p_client_procedures.data();
+
+#ifdef NS_DEBUG_ENABLED
+	bool is_equal = true;
+#endif
+
+	for (uint32_t proc_index = 0; proc_index < uint32_t(p_client_procedures.size()); proc_index += 1) {
+		if (uint32_t(p_server_procedures.size()) <= proc_index) {
+			// This variable isn't defined into the server snapshot, so assuming it's correct.
+			continue;
+		}
+
+		// Compare.
+		const bool different =
+				// Check if the value is different.
+				s_procedures[proc_index] != c_procedures[proc_index];
+
+		if (different) {
+			// The vars are different.
+			if (r_differences_info) {
+				r_differences_info->push_back(
+						"Difference found on procedure #" + std::to_string(proc_index) +
+						"Server value: `" + std::string(s_procedures[proc_index]) + "` " +
+						"Client value: `" + std::string(c_procedures[proc_index]) + "`.");
+			}
+#ifdef NS_DEBUG_ENABLED
+			is_equal = false;
+#else
+				return false;
+#endif
+		}
+	}
+
+#ifdef NS_DEBUG_ENABLED
+	return is_equal;
+#else
+	return true;
+#endif
+}
+
 const std::vector<std::optional<NS::VarData>> *NS::Snapshot::get_object_vars(ObjectNetId p_id) const {
 	if (objects.size() > p_id.id) {
 		return &objects[p_id.id].vars;
@@ -260,17 +305,21 @@ bool NS::Snapshot::compare(
 #endif
 			}
 
-			if (p_snap_A.objects[net_object_id.id].procedures != p_snap_B.objects[net_object_id.id].procedures) {
-				are_nodes_different = true;
-
-				if (r_differences_info) {
-					r_differences_info->push_back("Difference detected on snapshot B. OBJECT NAME: " + rew_object_data->get_object_name());
-				}
+			if (!are_nodes_different) {
+				are_nodes_different = !compare_procedures(
+						p_snap_A.objects[net_object_id.id].procedures,
+						p_snap_B.objects[net_object_id.id].procedures,
+						r_differences_info);
+				if (are_nodes_different) {
+					if (r_differences_info) {
+						r_differences_info->push_back("Difference detected on snapshot B. OBJECT NAME: " + rew_object_data->get_object_name());
+					}
 #ifdef NS_DEBUG_ENABLED
-				is_equal = false;
+					is_equal = false;
 #else
 				return false;
 #endif
+				}
 			}
 		}
 
