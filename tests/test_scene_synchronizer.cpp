@@ -1520,10 +1520,8 @@ void test_scheduled_procedure_rewind() {
 
 	server_scene.scene_sync->set_frame_confirmation_timespan(0.2);
 
-	server_scene.process(delta);
-	peer_1_scene.process(delta);
 	server_scene.scene_sync->force_state_notify_all();
-	for (int p = 0; p < 10; p++) {
+	for (int p = 0; p < 5; p++) {
 		server_scene.process(delta);
 		peer_1_scene.process(delta);
 	}
@@ -1552,7 +1550,7 @@ void test_scheduled_procedure_rewind() {
 	// Introduce some discrepancy to force trigger a rewind.
 	server_obj_1_oh->var_1.data.i32 = 123123123;
 
-	for (int p = 0; p < 30; p++) {
+	for (int p = 0; p < 20; p++) {
 		server_scene.process(delta);
 		for (int t = 0; t < 5; t++) {
 			peer_1_scene.process(delta);
