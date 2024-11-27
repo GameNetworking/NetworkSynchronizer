@@ -345,6 +345,7 @@ protected: // -------------------------------------------------------- Internals
 	Processor<float> cached_process_functions[PROCESS_PHASE_COUNT];
 
 	bool debug_rewindings_enabled = false;
+	PrintMessageType debug_rewindings_log_level = VERBOSE;
 	bool debug_server_speedup = false;
 	bool debug_log_nodes_relevancy_update = false;
 
@@ -520,6 +521,14 @@ public:
 
 	bool get_debug_rewindings_enabled() const {
 		return debug_rewindings_enabled;
+	}
+
+	void set_debug_rewindings_log_level(PrintMessageType p_level) {
+		debug_rewindings_log_level = p_level;
+	}
+
+	PrintMessageType get_debug_rewindings_log_level() const {
+		return debug_rewindings_log_level;
 	}
 
 	void set_debug_server_speedup(bool p_enabled);
@@ -752,7 +761,6 @@ public: // ---------------------------------------------------------------- APIs
 
 public: // ------------------------------------------------------------ INTERNAL
 	void try_fetch_unnamed_objects_data_names();
-	void try_fetch_pending_snapshot_objects();
 	void update_objects_relevancy();
 
 	void process_functions__clear();

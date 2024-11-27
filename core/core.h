@@ -74,8 +74,6 @@ enum PrintMessageType : std::uint8_t {
 	ERROR = 3,
 };
 
-
-
 std::string get_log_level_txt(NS::PrintMessageType p_level);
 
 template <typename T, typename TheIdType>

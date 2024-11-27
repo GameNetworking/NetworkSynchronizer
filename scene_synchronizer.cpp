@@ -3562,7 +3562,7 @@ void ClientSynchronizer::process_received_server_state() {
 	if (need_rewind) {
 		scene_synchronizer->get_debugger().notify_event(SceneSynchronizerDebugger::FrameEvent::CLIENT_DESYNC_DETECTED);
 		scene_synchronizer->get_debugger().print(
-				VERBOSE,
+				scene_synchronizer->debug_rewindings_log_level,
 				std::string("Recover input: ") + std::string(last_checked_input) + " - Last input: " + std::string(inner_player_controller->get_stored_frame_index(-1)),
 				scene_synchronizer->get_network_interface().get_owner_name());
 
@@ -3691,9 +3691,9 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 
 	// Prints the comparison info.
 	if (differences_info.size() > 0 && scene_synchronizer->debug_rewindings_enabled) {
-		scene_synchronizer->get_debugger().print(VERBOSE, "Rewind on frame " + p_input_id + " is needed because:", scene_synchronizer->get_network_interface().get_owner_name());
+		scene_synchronizer->get_debugger().print(scene_synchronizer->debug_rewindings_log_level, "Rewind on frame " + p_input_id + " is needed because:", scene_synchronizer->get_network_interface().get_owner_name());
 		for (int i = 0; i < int(differences_info.size()); i++) {
-			scene_synchronizer->get_debugger().print(VERBOSE, "|- " + differences_info[i], scene_synchronizer->get_network_interface().get_owner_name());
+			scene_synchronizer->get_debugger().print(scene_synchronizer->debug_rewindings_log_level, "|- " + differences_info[i], scene_synchronizer->get_network_interface().get_owner_name());
 		}
 	}
 
