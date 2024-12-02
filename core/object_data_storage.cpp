@@ -67,6 +67,13 @@ void ObjectDataStorage::deallocate_object_data(ObjectData &p_object_data) {
 	// Remove from unnamed_objects_data if set
 	VecFunc::remove_unordered(unnamed_objects_data, &p_object_data);
 
+	// Clear the active procedures.
+	for (int i = int(sorted_active_scheduled_procedures.size()) - 1; i >= 0; i--) {
+		if (sorted_active_scheduled_procedures[i].get_object_net_id() == p_object_data.get_net_id()) {
+			VecFunc::remove_at(sorted_active_scheduled_procedures, i);
+		}
+	}
+
 	delete (&p_object_data);
 
 	free_local_indices.push_back(local_id);
@@ -151,7 +158,7 @@ NS::ObjectData *ObjectDataStorage::get_object_data(ObjectLocalId p_handle, bool 
 	return objects_data[p_handle.id];
 }
 
-const NS::ObjectData *ObjectDataStorage::get_object_data(ObjectLocalId p_handle, bool p_expected) const {
+const ObjectData *ObjectDataStorage::get_object_data(ObjectLocalId p_handle, bool p_expected) const {
 	if (p_expected) {
 		NS_ENSURE_V_MSG(p_handle.id < objects_data.size(), nullptr, "The ObjectData with LocalID `" + std::to_string(p_handle.id) + "` was not found.");
 	} else {
@@ -180,7 +187,7 @@ const std::map<int, std::vector<ObjectData *>> &ObjectDataStorage::get_peers_con
 }
 
 const std::vector<ObjectData *> *ObjectDataStorage::get_peer_controlled_objects_data(int p_peer) const {
-	return NS::MapFunc::get_or_null(objects_data_controlled_by_peers, p_peer);
+	return MapFunc::get_or_null(objects_data_controlled_by_peers, p_peer);
 }
 
 const std::vector<ObjectData *> &ObjectDataStorage::get_unnamed_objects_data() const {
@@ -233,6 +240,16 @@ void ObjectDataStorage::notify_object_name_unnamed_changed(ObjectData &p_object)
 		VecFunc::insert_unique(unnamed_objects_data, &p_object);
 	} else {
 		VecFunc::remove_unordered(unnamed_objects_data, &p_object);
+	}
+}
+
+void ObjectDataStorage::notify_scheduled_procedure_updated(ObjectData &p_object, const ScheduledProcedureId p_procedure_id, bool p_active) {
+	if (p_active) {
+		if (!VecFunc::has(sorted_active_scheduled_procedures, ScheduledProcedureHandle(p_object.get_net_id(), p_procedure_id))) {
+			VecFunc::insert_sorted(sorted_active_scheduled_procedures, ScheduledProcedureHandle(p_object.get_net_id(), p_procedure_id));
+		}
+	} else {
+		VecFunc::remove(sorted_active_scheduled_procedures, ScheduledProcedureHandle(p_object.get_net_id(), p_procedure_id));
 	}
 }
 

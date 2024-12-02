@@ -67,7 +67,30 @@ DataBuffer::DataBuffer(const BitArray &p_buffer) :
 //}
 
 bool DataBuffer::operator==(const DataBuffer &p_other) const {
-	return buffer.get_bytes() == p_other.buffer.get_bytes();
+	if (bit_size == p_other.bit_size) {
+		if (bit_size > 0) {
+			// First compare from byte 0 to byte Size-2
+			const int start_to_tail_byte_count = bit_size / 8;
+			const bool is_head_equal = memcmp(&buffer.get_bytes()[0], &p_other.buffer.get_bytes()[0], sizeof(start_to_tail_byte_count)) == 0;
+			if (!is_head_equal) {
+				return false;
+			}
+
+			// Then compare the last byte, but ensuring to compare only significant bits.
+			const int num_bits_to_compare = bit_size % 8;
+			if (num_bits_to_compare > 0) {
+				const std::uint8_t mask = (1 << num_bits_to_compare) - 1;
+
+				const std::uint8_t last_bits_a = buffer.get_bytes()[start_to_tail_byte_count];
+				const std::uint8_t last_bits_b = p_other.buffer.get_bytes()[start_to_tail_byte_count];
+				return (last_bits_a & mask) == (last_bits_b & mask);
+			}
+		}
+		return true;
+	} else {
+		// Size is different.
+		return false;
+	}
 }
 
 void DataBuffer::copy(const DataBuffer &p_other) {
@@ -84,6 +107,32 @@ void DataBuffer::copy(const BitArray &p_buffer) {
 	bit_size = p_buffer.size_in_bits();
 	is_reading = true;
 	buffer = p_buffer;
+}
+
+bool DataBuffer::slice(DataBuffer &p_destination, int p_offset_in_bits, int p_count_in_bits) const {
+	NS_ENSURE_V(p_count_in_bits>0, false);
+	NS_ENSURE_V(p_offset_in_bits<bit_size, false);
+	NS_ENSURE_V(p_offset_in_bits+p_count_in_bits<=bit_size, false);
+	NS_ENSURE_V_MSG(!p_destination.is_reading, false, "The destination data buffer must be reading.");
+
+	int first_byte_bit_count = 0;
+	int byte_offset = p_offset_in_bits / 8;
+	if make_likely(p_offset_in_bits % 8 != 0) {
+		// Reading is not aligned, so read the first bits separately.
+		const int next_byte_offset = byte_offset + 1;
+		first_byte_bit_count = std::min(p_count_in_bits, next_byte_offset * 8 - p_offset_in_bits);
+		std::uint64_t first_byte;
+		buffer.read_bits(p_offset_in_bits, first_byte_bit_count, first_byte);
+		p_destination.add_bits(reinterpret_cast<std::uint8_t *>(&first_byte), first_byte_bit_count);
+		byte_offset = next_byte_offset;
+	}
+
+	// Copy the remaining bits now.
+	const int tail_bits = p_count_in_bits - first_byte_bit_count;
+	if make_likely(tail_bits >= 1) {
+		p_destination.add_bits(&buffer.get_bytes()[byte_offset], tail_bits);
+	}
+	return true;
 }
 
 void DataBuffer::begin_write(SceneSynchronizerDebugger &p_debugger, int p_metadata_size) {

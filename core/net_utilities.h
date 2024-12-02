@@ -2,6 +2,7 @@
 
 #include "core.h"
 #include "processor.h"
+#include "scheduled_procedure.h"
 #include "var_data.h"
 
 #include <algorithm>
@@ -137,6 +138,16 @@ bool insert_unique(std::vector<V> &r_vec, const T &p_val) {
 }
 
 template <class V, typename T>
+void insert_or_update(std::vector<V> &r_vec, const T &p_val) {
+	auto it = find(r_vec, p_val);
+	if (it == r_vec.end()) {
+		r_vec.push_back(p_val);
+	} else {
+		return *it = p_val;
+	}
+}
+
+template <class V, typename T>
 V &insert_unique_and_get(std::vector<V> &r_vec, const T &p_val) {
 	auto it = find(r_vec, p_val);
 	if (it == r_vec.end()) {
@@ -160,7 +171,7 @@ void insert_at_position_expand(std::vector<V> &r_vec, std::size_t p_index, const
 }
 
 
-// Insert the value in a sorted vector. Returns true if the value was inserted, returns false if the element was already into the array.
+// Insert the value in a sorted vector.
 template <class V, typename T>
 void insert_sorted(std::vector<V> &r_vec, const T &p_value) {
 	auto it = std::lower_bound(r_vec.begin(), r_vec.end(), p_value);
@@ -298,6 +309,7 @@ public:
 		bool unknown = false;
 		std::vector<VarId> vars;
 		bool controlling_peer_changed = false;
+		std::vector<ScheduledProcedureHandle> changed_scheduled_procedures;
 	};
 
 	struct SimulatedObjectInfo {
@@ -446,6 +458,8 @@ public:
 
 	void notify_new_variable(struct ObjectData *p_object_data, VarId p_var_id);
 	void notify_variable_changed(struct ObjectData *p_object_data, VarId p_var_id);
+
+	void notify_scheduled_procedure_changed(struct ObjectData &p_object_data, ScheduledProcedureId p_scheduled_procedure_id);
 
 	void set_simulated_partial_update_timespan_seconds(const struct ObjectData &p_object_data, bool p_partial_update_enabled, float p_update_timespan);
 	bool is_simulated_partial_updating(const struct ObjectData &p_object_data) const;

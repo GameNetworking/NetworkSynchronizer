@@ -16,5 +16,5 @@ void NS::PeerData::set_out_packet_loss_percentage(float p_packet_loss) {
 }
 
 void NS::PeerData::make_controller(SceneSynchronizerBase &p_scene_synchronizer) {
-	controller = std::make_unique<NS::PeerNetworkedController>(p_scene_synchronizer);
+	controller = std::make_unique<PeerNetworkedController>(p_scene_synchronizer);
 }

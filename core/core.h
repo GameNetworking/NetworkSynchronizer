@@ -116,6 +116,9 @@ struct IdMaker {
 	}
 };
 
+struct GlobalFrameIndex : public IdMaker<GlobalFrameIndex, std::uint32_t> {
+	static const GlobalFrameIndex NONE;
+};
 struct FrameIndex : public IdMaker<FrameIndex, std::uint32_t> {
 	static const FrameIndex NONE;
 };
@@ -127,6 +130,9 @@ struct SyncGroupId : public IdMaker<SyncGroupId, std::uint32_t> {
 struct VarId : public IdMaker<VarId, std::uint8_t> {
 	static const VarId NONE;
 };
+struct ScheduledProcedureId : public IdMaker<ScheduledProcedureId, std::uint8_t> {
+	static const ScheduledProcedureId NONE;
+};
 struct ObjectNetId : public IdMaker<ObjectNetId, std::uint16_t> {
 	static const ObjectNetId NONE;
 };
@@ -137,9 +143,20 @@ struct ObjectHandle : public IdMaker<ObjectHandle, std::intptr_t> {
 	static const ObjectHandle NONE;
 };
 
+enum class ScheduledProcedurePhase : std::uint8_t {
+	/// The procedure is called with in this phase only on the server when collecting the arguments.
+	COLLECTING_ARGUMENTS = 0,
+	/// This is executed on the client when the procedure is received. In some case this is not executed, so don't count on this too much.
+	RECEIVED = 1,
+	/// The scheduled procedure time is over and the execute is triggered. Here the procedure can do its normal job.
+	EXECUTING = 2,
+};
+
 template <typename T>
 constexpr const T sign(const T m_v) {
 	return m_v == 0 ? 0.0f : (m_v < 0 ? -1.0f : +1.0f);
 }
+
+#define NS_ScheduledProcedureFunc std::function<void(const class SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_app_object_handle, ScheduledProcedurePhase p_phase, NS::DataBuffer& p_buffer)>
 
 NS_NAMESPACE_END

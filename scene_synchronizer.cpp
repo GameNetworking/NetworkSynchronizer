@@ -65,6 +65,7 @@ void SceneSynchronizerBase::setup(SynchronizerManager &p_synchronizer_interface)
 	NS_ASSERT_COND(network_interface);
 
 	synchronizer_manager = &p_synchronizer_interface;
+	synchronizer_manager->set_scene_synchronizer(this);
 	network_interface->start_listening_peer_connection(
 			[this](int p_peer) {
 				on_peer_connected(p_peer);
@@ -109,6 +110,24 @@ void SceneSynchronizerBase::setup(SynchronizerManager &p_synchronizer_interface)
 					false,
 					false);
 
+	rpc_handle_notify_scheduled_procedure_start =
+			network_interface->rpc_config(
+					std::function<void(ObjectNetId p_object_id, ScheduledProcedureId p_scheduled_procedure_id, GlobalFrameIndex p_frame_index, const DataBuffer &p_data)>(std::bind(&SceneSynchronizerBase::rpc_notify_scheduled_procedure_start, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4)),
+					false,
+					false);
+
+	rpc_handle_notify_scheduled_procedure_stop =
+			network_interface->rpc_config(
+					std::function<void(ObjectNetId p_object_id, ScheduledProcedureId p_scheduled_procedure_id)>(std::bind(&SceneSynchronizerBase::rpc_notify_scheduled_procedure_stop, this, std::placeholders::_1, std::placeholders::_2)),
+					false,
+					false);
+
+	rpc_handle_notify_scheduled_procedure_pause =
+			network_interface->rpc_config(
+					std::function<void(ObjectNetId p_object_id, ScheduledProcedureId p_scheduled_procedure_id, GlobalFrameIndex p_pause_frame)>(std::bind(&SceneSynchronizerBase::rpc_notify_scheduled_procedure_pause, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)),
+					false,
+					false);
+
 	rpc_handle_receive_input =
 			network_interface->rpc_config(
 					std::function<void(int, const std::vector<std::uint8_t> &)>(std::bind(&SceneSynchronizerBase::rpc_receive_inputs, this, std::placeholders::_1, std::placeholders::_2)),
@@ -136,6 +155,7 @@ void SceneSynchronizerBase::conclude() {
 	// Make sure to reset all the assigned controllers.
 	reset_controllers();
 
+	synchronizer_manager->set_scene_synchronizer(nullptr);
 	synchronizer_manager = nullptr;
 
 	rpc_handler_state.reset();
@@ -144,7 +164,12 @@ void SceneSynchronizerBase::conclude() {
 	rpc_handler_notify_peer_status.reset();
 	rpc_handler_trickled_sync_data.reset();
 	rpc_handle_notify_netstats.reset();
+	rpc_handle_notify_scheduled_procedure_start.reset();
+	rpc_handle_notify_scheduled_procedure_stop.reset();
+	rpc_handle_notify_scheduled_procedure_pause.reset();
 	rpc_handle_receive_input.reset();
+
+	time_bank = 0.0;
 }
 
 void SceneSynchronizerBase::process(float p_delta) {
@@ -164,6 +189,8 @@ void SceneSynchronizerBase::process(float p_delta) {
 	try_fetch_unnamed_objects_data_names();
 
 	synchronizer->process(p_delta);
+
+	event_app_process_end.broadcast(p_delta);
 }
 
 void SceneSynchronizerBase::on_app_object_removed(ObjectHandle p_app_object_handle) {
@@ -403,15 +430,15 @@ void SceneSynchronizerBase::register_app_object(ObjectHandle p_app_object_handle
 			process_functions__clear();
 		}
 
+		synchronizer_manager->setup_synchronizer_for(p_app_object_handle, id);
+
 		if (synchronizer) {
 			synchronizer->on_object_data_added(*od);
 		}
 
 		synchronizer_manager->on_add_object_data(*od);
 
-		synchronizer_manager->setup_synchronizer_for(p_app_object_handle, id);
-
-		get_debugger().print(INFO, "New node registered" + (generate_id ? " #ID: " + std::to_string(od->get_net_id().id) : "") + " : " + od->get_object_name(), network_interface->get_owner_name());
+		get_debugger().print(INFO, "New object registered" + (generate_id ? " #ID: " + std::to_string(od->get_net_id().id) : "") + " : " + od->get_object_name(), network_interface->get_owner_name());
 	}
 
 	NS_ASSERT_COND(id != ObjectLocalId::NONE);
@@ -462,7 +489,7 @@ void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const std::str
 	NS_ENSURE(p_set_func);
 	NS_ENSURE(p_get_func);
 
-	NS::ObjectData *object_data = get_object_data(p_id);
+	ObjectData *object_data = get_object_data(p_id);
 	NS_ENSURE(object_data);
 
 	VarId var_id = object_data->find_variable_id(p_variable_name);
@@ -476,7 +503,7 @@ void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const std::str
 				old_val);
 		var_id = VarId{ { VarId::IdType(object_data->vars.size()) } };
 		object_data->vars.push_back(
-				NS::VarDescriptor(
+				VarDescriptor(
 						var_id,
 						p_variable_name,
 						old_val.type,
@@ -496,6 +523,8 @@ void SceneSynchronizerBase::register_variable(ObjectLocalId p_id, const std::str
 		NS_ASSERT_COND(object_data->vars[v.id].id == v);
 	}
 #endif
+
+	get_debugger().print(INFO, "[" + object_data->get_object_name() + "] variable registered ID `" + std::to_string(var_id.id) + "`, name `" + p_variable_name + "`.");
 
 	if (synchronizer) {
 		synchronizer->on_variable_added(object_data, p_variable_name);
@@ -544,9 +573,9 @@ ObjectNetId SceneSynchronizerBase::get_app_object_net_id(ObjectHandle p_app_obje
 }
 
 ObjectHandle SceneSynchronizerBase::get_app_object_from_id(ObjectNetId p_id, bool p_expected) {
-	NS::ObjectData *object_data = get_object_data(p_id, p_expected);
+	ObjectData *object_data = get_object_data(p_id, p_expected);
 	if (p_expected) {
-		NS_ENSURE_V_MSG(object_data, ObjectHandle::NONE, "The ID " + p_id + " is not assigned to any node.");
+		NS_ENSURE_V_MSG(object_data, ObjectHandle::NONE, "The ID " + p_id + " is not assigned to any object.");
 		return object_data->app_object_handle;
 	} else {
 		return object_data ? object_data->app_object_handle : ObjectHandle::NONE;
@@ -554,9 +583,9 @@ ObjectHandle SceneSynchronizerBase::get_app_object_from_id(ObjectNetId p_id, boo
 }
 
 ObjectHandle SceneSynchronizerBase::get_app_object_from_id_const(ObjectNetId p_id, bool p_expected) const {
-	const NS::ObjectData *object_data = get_object_data(p_id, p_expected);
+	const ObjectData *object_data = get_object_data(p_id, p_expected);
 	if (p_expected) {
-		NS_ENSURE_V_MSG(object_data, ObjectHandle::NONE, "The ID " + p_id + " is not assigned to any node.");
+		NS_ENSURE_V_MSG(object_data, ObjectHandle::NONE, "The ID " + p_id + " is not assigned to any object.");
 		return object_data->app_object_handle;
 	} else {
 		return object_data ? object_data->app_object_handle : ObjectHandle::NONE;
@@ -579,7 +608,7 @@ VarId SceneSynchronizerBase::get_variable_id(ObjectLocalId p_id, const std::stri
 	NS_ENSURE_V(p_variable != "", VarId::NONE);
 
 	NS::ObjectData *od = get_object_data(p_id);
-	NS_ENSURE_V_MSG(od, VarId::NONE, "This node " + p_id + "is not registered.");
+	NS_ENSURE_V_MSG(od, VarId::NONE, "This object " + p_id + "is not registered.");
 
 	return od->find_variable_id(p_variable);
 }
@@ -716,13 +745,227 @@ void SceneSynchronizerBase::unregister_process(ObjectLocalId p_id, ProcessPhase 
 	}
 }
 
+ScheduledProcedureId SceneSynchronizerBase::register_scheduled_procedure(
+		ObjectLocalId p_id,
+		const NS_ScheduledProcedureFunc &p_func) {
+	ScheduledProcedureId Id = ScheduledProcedureId::NONE;
+	NS_ENSURE_V(p_id != NS::ObjectLocalId::NONE, Id);
+
+	ObjectData *od = get_object_data(p_id);
+	NS_ENSURE_V(od, Id);
+
+	return od->scheduled_procedure_add(p_func);
+}
+
+void SceneSynchronizerBase::unregister_scheduled_procedure(
+		ObjectLocalId p_id,
+		ScheduledProcedureId p_procedure_id) {
+	NS_ENSURE(p_id != NS::ObjectLocalId::NONE);
+	NS_ENSURE(p_procedure_id != NS::ScheduledProcedureId::NONE);
+
+	ObjectData *od = get_object_data(p_id);
+	if (od) {
+		od->scheduled_procedure_remove(p_procedure_id);
+	}
+}
+
+GlobalFrameIndex SceneSynchronizerBase::scheduled_procedure_start(
+		ObjectLocalId p_id,
+		ScheduledProcedureId p_procedure_id,
+		float p_execute_in_seconds) {
+	NS_PROFILE
+
+	NS_ENSURE_V_MSG(is_server() || is_no_network(), GlobalFrameIndex{0}, "The procedure can be scheduled only by the server.");
+
+	NS_ENSURE_V(p_id != NS::ObjectLocalId::NONE, GlobalFrameIndex{0});
+	NS_ENSURE_V(p_procedure_id != NS::ScheduledProcedureId::NONE, GlobalFrameIndex{0});
+
+	ObjectData *od = get_object_data(p_id);
+	NS_ENSURE_V(od, GlobalFrameIndex{0});
+	NS_ENSURE_V(od->scheduled_procedure_exist(p_procedure_id), GlobalFrameIndex{0});
+
+	const GlobalFrameIndex execute_on_frame{ std::max(GlobalFrameIndex::IdType(1), global_frame_index.id + GlobalFrameIndex::IdType(std::round(p_execute_in_seconds * float(get_frames_per_seconds())))) };
+	od->scheduled_procedure_fetch_args(p_procedure_id, get_synchronizer_manager(), get_debugger());
+	od->scheduled_procedure_start(p_procedure_id, execute_on_frame);
+
+	sync_group_notify_scheduled_procedure_changed(*od, p_procedure_id);
+
+	if (is_server()) {
+		// Notify all the peers right away, without waiting for the snapshot.
+		std::vector<int> peers;
+		static_cast<ServerSynchronizer *>(synchronizer)->sync_group_fetch_object_simulating_peers(*od, peers);
+
+		for (int peer : peers) {
+			if (peer != network_interface->get_server_peer()) {
+				const PeerNetworkedController *peer_controller = get_controller_for_peer(peer);
+				if (peer_controller) {
+					rpc_handle_notify_scheduled_procedure_start.rpc(
+							get_network_interface(),
+							peer,
+							od->get_net_id(),
+							p_procedure_id,
+							execute_on_frame,
+							od->scheduled_procedure_get_args(p_procedure_id));
+				}
+			}
+		}
+	}
+
+	return execute_on_frame;
+}
+
+void SceneSynchronizerBase::scheduled_procedure_stop(
+		ObjectLocalId p_id,
+		ScheduledProcedureId p_procedure_id) {
+	NS_PROFILE
+
+	NS_ENSURE_MSG(is_server() || is_no_network(), "The procedure can be scheduled only by the server.");
+
+	NS_ENSURE(p_id != NS::ObjectLocalId::NONE);
+	NS_ENSURE(p_procedure_id != NS::ScheduledProcedureId::NONE);
+
+	ObjectData *od = get_object_data(p_id);
+	NS_ENSURE(od);
+	NS_ENSURE(od->scheduled_procedure_exist(p_procedure_id));
+
+	od->scheduled_procedure_stop(p_procedure_id);
+	sync_group_notify_scheduled_procedure_changed(*od, p_procedure_id);
+
+	if (is_server()) {
+		// Notify all the peers right away, without waiting for the snapshot.
+		std::vector<int> peers;
+		static_cast<ServerSynchronizer *>(synchronizer)->sync_group_fetch_object_simulating_peers(*od, peers);
+
+		for (int peer : peers) {
+			if (peer != network_interface->get_server_peer()) {
+				const PeerNetworkedController *peer_controller = get_controller_for_peer(peer);
+				if (peer_controller) {
+					rpc_handle_notify_scheduled_procedure_stop.rpc(
+							get_network_interface(),
+							peer,
+							od->get_net_id(),
+							p_procedure_id);
+				}
+			}
+		}
+	}
+}
+
+void SceneSynchronizerBase::scheduled_procedure_pause(
+		ObjectLocalId p_id,
+		ScheduledProcedureId p_procedure_id) {
+	NS_PROFILE
+
+	NS_ENSURE_MSG(is_server() || is_no_network(), "The procedure can be scheduled only by the server.");
+
+	NS_ENSURE(p_id != NS::ObjectLocalId::NONE);
+	NS_ENSURE(p_procedure_id != NS::ScheduledProcedureId::NONE);
+
+	ObjectData *od = get_object_data(p_id);
+	NS_ENSURE(od);
+	NS_ENSURE(od->scheduled_procedure_exist(p_procedure_id));
+
+	od->scheduled_procedure_pause(p_procedure_id, global_frame_index);
+	sync_group_notify_scheduled_procedure_changed(*od, p_procedure_id);
+
+	if (is_server()) {
+		// Notify all the peers right away, without waiting for the snapshot.
+		std::vector<int> peers;
+		static_cast<ServerSynchronizer *>(synchronizer)->sync_group_fetch_object_simulating_peers(*od, peers);
+
+		for (int peer : peers) {
+			if (peer != network_interface->get_server_peer()) {
+				const PeerNetworkedController *peer_controller = get_controller_for_peer(peer);
+				if (peer_controller) {
+					rpc_handle_notify_scheduled_procedure_pause.rpc(
+							get_network_interface(),
+							peer,
+							od->get_net_id(),
+							p_procedure_id,
+							global_frame_index);
+				}
+			}
+		}
+	}
+}
+
+GlobalFrameIndex SceneSynchronizerBase::scheduled_procedure_unpause(
+		ObjectLocalId p_id,
+		ScheduledProcedureId p_procedure_id) {
+	NS_PROFILE
+
+	NS_ENSURE_V_MSG(is_server() || is_no_network(), GlobalFrameIndex{0}, "The procedure can be scheduled only by the server.");
+
+	NS_ENSURE_V(p_id != NS::ObjectLocalId::NONE, GlobalFrameIndex{0});
+	NS_ENSURE_V(p_procedure_id != NS::ScheduledProcedureId::NONE, GlobalFrameIndex{0});
+
+	ObjectData *od = get_object_data(p_id);
+	NS_ENSURE_V(od, GlobalFrameIndex{0});
+	NS_ENSURE_V(od->scheduled_procedure_exist(p_procedure_id), GlobalFrameIndex{0});
+
+	NS_ENSURE_V(od->scheduled_procedure_is_paused(p_procedure_id), GlobalFrameIndex{0});
+	const std::uint32_t remaining_frames = od->scheduled_procedure_remaining_frames(p_procedure_id, global_frame_index);
+
+	const GlobalFrameIndex execute_on_frame = global_frame_index + remaining_frames;
+	od->scheduled_procedure_start(p_procedure_id, global_frame_index + remaining_frames);
+	sync_group_notify_scheduled_procedure_changed(*od, p_procedure_id);
+
+	if (is_server()) {
+		// Notify all the peers right away, without waiting for the snapshot.
+		std::vector<int> peers;
+		static_cast<ServerSynchronizer *>(synchronizer)->sync_group_fetch_object_simulating_peers(*od, peers);
+
+		for (int peer : peers) {
+			if (peer != network_interface->get_server_peer()) {
+				const PeerNetworkedController *peer_controller = get_controller_for_peer(peer);
+				if (peer_controller) {
+					rpc_handle_notify_scheduled_procedure_start.rpc(
+							get_network_interface(),
+							peer,
+							od->get_net_id(),
+							p_procedure_id,
+							execute_on_frame,
+							od->scheduled_procedure_get_args(p_procedure_id));
+				}
+			}
+		}
+	}
+
+	return execute_on_frame;
+}
+
+
+float SceneSynchronizerBase::scheduled_procedure_get_remaining_seconds(
+		ObjectLocalId p_id,
+		ScheduledProcedureId p_procedure_id) const {
+	NS_PROFILE
+
+	const ObjectData *od = get_object_data(p_id);
+	NS_ENSURE_V(od, -1.f);
+	NS_ENSURE_V(od->scheduled_procedure_exist(p_procedure_id), -1.f);
+
+	return float(od->scheduled_procedure_remaining_frames(p_procedure_id, global_frame_index)) * fixed_frame_delta;
+}
+
+bool SceneSynchronizerBase::scheduled_procedure_is_paused(
+		ObjectLocalId p_id,
+		ScheduledProcedureId p_procedure_id) const {
+	NS_PROFILE
+
+	const ObjectData *od = get_object_data(p_id);
+	NS_ENSURE_V(od, true);
+	NS_ENSURE_V(od->scheduled_procedure_exist(p_procedure_id), true);
+
+	return od->scheduled_procedure_is_paused(p_procedure_id);
+}
+
 void SceneSynchronizerBase::setup_trickled_sync(
 		ObjectLocalId p_id,
 		std::function<void(DataBuffer & /*out_buffer*/, float /*update_rate*/)> p_func_trickled_collect,
 		std::function<void(float /*delta*/, float /*interpolation_alpha*/, DataBuffer & /*past_buffer*/, DataBuffer & /*future_buffer*/)> p_func_trickled_apply) {
 	NS_ENSURE(p_id != ObjectLocalId::NONE);
 
-	NS::ObjectData *od = get_object_data(p_id);
+	ObjectData *od = get_object_data(p_id);
 	NS_ENSURE(od);
 
 	od->func_trickled_collect = p_func_trickled_collect;
@@ -901,9 +1144,14 @@ float SceneSynchronizerBase::sync_group_get_trickled_update_rate(ObjectLocalId p
 }
 
 float SceneSynchronizerBase::sync_group_get_trickled_update_rate(ObjectNetId p_id, SyncGroupId p_group_id) const {
-	const NS::ObjectData *od = get_object_data(p_id);
+	const ObjectData *od = get_object_data(p_id);
 	NS_ENSURE_V_MSG(is_server(), 0.0, "This function CAN be used only on the server.");
 	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get_trickled_update_rate(od, p_group_id);
+}
+
+void SceneSynchronizerBase::sync_group_notify_scheduled_procedure_changed(ObjectData &p_object_data, ScheduledProcedureId p_scheduled_procedure_id) {
+	NS_ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
+	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_notify_scheduled_procedure_changed(p_object_data, p_scheduled_procedure_id);
 }
 
 void SceneSynchronizerBase::sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_data) {
@@ -1074,6 +1322,8 @@ void SceneSynchronizerBase::init_synchronizer(bool p_was_generating_ids) {
 		synchronizer = new ClientSynchronizer(this);
 	}
 
+	global_frame_index = GlobalFrameIndex{ 0 };
+
 	if (p_was_generating_ids != generate_id) {
 		objects_data_storage.reserve_net_ids((int)objects_data_storage.get_objects_data().size());
 		for (ObjectNetId::IdType i = 0; i < objects_data_storage.get_objects_data().size(); i += 1) {
@@ -1132,6 +1382,14 @@ void SceneSynchronizerBase::init_synchronizer(bool p_was_generating_ids) {
 	// This is good to have here because the local peer may have changed.
 	on_peer_connected(get_network_interface().get_local_peer_id());
 
+	// Ensure the server peer is also spawned for the client.
+	if (is_client()) {
+		PeerData *server_peer_data = MapFunc::get_or_null(peer_data, get_network_interface().get_server_peer());
+		if (!server_peer_data) {
+			on_peer_connected(get_network_interface().get_server_peer());
+		}
+	}
+
 	// Reset the controllers.
 	reset_controllers();
 
@@ -1142,16 +1400,20 @@ void SceneSynchronizerBase::init_synchronizer(bool p_was_generating_ids) {
 		std::string debugger_mode;
 		if (is_server()) {
 			debugger_mode = "server";
+			get_debugger().set_log_prefix("server");
 		} else if (is_client()) {
 			debugger_mode = "client";
+			get_debugger().set_log_prefix("peer-" + std::to_string(network_interface->get_local_peer_id()));
 		} else if (is_no_network()) {
 			debugger_mode = "nonet";
+			get_debugger().set_log_prefix("nonet");
 		}
 
 		get_debugger().setup_debugger(debugger_mode, network_interface->get_local_peer_id());
 	}
 
 	synchronizer_manager->on_init_synchronizer(p_was_generating_ids);
+	time_bank = 0.0;
 }
 
 void SceneSynchronizerBase::uninit_synchronizer() {
@@ -1216,6 +1478,8 @@ void SceneSynchronizerBase::clear_peers() {
 void SceneSynchronizerBase::reset() {
 	clear_peers();
 	clear();
+
+	global_frame_index = GlobalFrameIndex{ 0 };
 
 	event_sync_started.clear();
 	event_sync_paused.clear();
@@ -1373,6 +1637,32 @@ void SceneSynchronizerBase::rpc_notify_netstats(DataBuffer &p_data) {
 #endif
 }
 
+void SceneSynchronizerBase::rpc_notify_scheduled_procedure_start(ObjectNetId p_object_id, ScheduledProcedureId p_scheduled_procedure_id, GlobalFrameIndex p_frame_index, const DataBuffer &p_args) {
+	ObjectData *od = get_object_data(p_object_id, false);
+	NS_ENSURE_MSG(od, "The scheduled event receival failed because the ObjectData for NetId(`"+std::to_string(p_object_id.id)+"`) was not found.");
+	NS_ENSURE(od->scheduled_procedure_exist(p_scheduled_procedure_id));
+
+	od->scheduled_procedure_set_args(p_scheduled_procedure_id, p_args);
+	od->scheduled_procedure_start(p_scheduled_procedure_id, p_frame_index);
+	od->scheduled_procedure_execute(p_scheduled_procedure_id, ScheduledProcedurePhase::RECEIVED, get_synchronizer_manager(), get_debugger());
+}
+
+void SceneSynchronizerBase::rpc_notify_scheduled_procedure_stop(ObjectNetId p_object_id, ScheduledProcedureId p_scheduled_procedure_id) {
+	ObjectData *od = get_object_data(p_object_id, false);
+	NS_ENSURE_MSG(od, "The scheduled event stopping failed because the ObjectData for NetId(`"+std::to_string(p_object_id.id)+"`) was not found.");
+	NS_ENSURE(od->scheduled_procedure_exist(p_scheduled_procedure_id));
+
+	od->scheduled_procedure_stop(p_scheduled_procedure_id);
+}
+
+void SceneSynchronizerBase::rpc_notify_scheduled_procedure_pause(ObjectNetId p_object_id, ScheduledProcedureId p_scheduled_procedure_id, GlobalFrameIndex p_pause_frame) {
+	ObjectData *od = get_object_data(p_object_id, false);
+	NS_ENSURE_MSG(od, "The scheduled event pausing failed because the ObjectData for NetId(`"+std::to_string(p_object_id.id)+"`) was not found.");
+	NS_ENSURE(od->scheduled_procedure_exist(p_scheduled_procedure_id));
+
+	od->scheduled_procedure_pause(p_scheduled_procedure_id, p_pause_frame);
+}
+
 void SceneSynchronizerBase::call_rpc_receive_inputs(int p_recipient, int p_peer, const std::vector<std::uint8_t> &p_data) {
 	rpc_handle_receive_input.rpc(
 			get_network_interface(),
@@ -1383,9 +1673,9 @@ void SceneSynchronizerBase::call_rpc_receive_inputs(int p_recipient, int p_peer,
 
 void SceneSynchronizerBase::rpc_receive_inputs(int p_peer, const std::vector<std::uint8_t> &p_data) {
 	PeerData *pd = MapFunc::get_or_null(peer_data, p_peer);
-	if (pd && pd->get_controller()) {
-		pd->get_controller()->notify_receive_inputs(p_data);
-	}
+	NS_ENSURE_MSG(pd, "The PeerData was not found during `rpc_receive_inputs` for peer " + std::to_string(p_peer));
+	NS_ENSURE_MSG(pd->get_controller(), "The PeerData doesn't have an associated controller and `rpc_receive_inputs` failed for peer " + std::to_string(p_peer));
+	pd->get_controller()->notify_receive_inputs(p_data);
 }
 
 
@@ -1553,6 +1843,15 @@ FrameIndex SceneSynchronizerBase::client_get_last_checked_frame_index() const {
 	return static_cast<ClientSynchronizer *>(synchronizer)->last_checked_input;
 }
 
+int SceneSynchronizerBase::fetch_sub_processes_count(float p_delta) {
+	time_bank += p_delta;
+	const float sub_frames = std::floor(time_bank * static_cast<float>(get_frames_per_seconds()));
+	time_bank -= sub_frames / static_cast<float>(get_frames_per_seconds());
+	// Clamp the maximum possible frames that we can process on a single frame.
+	// This is a guard to make sure we do not process way too many frames on a single frame.
+	return std::min(static_cast<int>(get_max_sub_process_per_frame()), static_cast<int>(sub_frames));
+}
+
 bool SceneSynchronizerBase::is_server() const {
 	return synchronizer_type == SYNCHRONIZER_TYPE_SERVER;
 }
@@ -1639,7 +1938,18 @@ void SceneSynchronizerBase::process_functions__execute() {
 		cached_process_functions_valid = true;
 	}
 
-	get_debugger().print(INFO, "Process functions START");
+	if make_unlikely(global_frame_index==GlobalFrameIndex::NONE) {
+		// Reset the frame index before overflow.
+		// Notice that at 60Hz this is triggered after 2 years of never ever
+		// resetting the server, so it's very unlikely.
+		global_frame_index.id = 0;
+	} else {
+		global_frame_index.id++;
+	}
+
+	process_functions__execute_scheduled_procedure();
+
+	get_debugger().print(VERBOSE, "Process functions START");
 	// Pre process phase
 	for (int process_phase = PROCESS_PHASE_EARLY; process_phase < PROCESS_PHASE_COUNT; ++process_phase) {
 		const std::string phase_info = "process phase: " + std::to_string(process_phase);
@@ -1648,11 +1958,46 @@ void SceneSynchronizerBase::process_functions__execute() {
 	}
 }
 
+void SceneSynchronizerBase::process_functions__execute_scheduled_procedure() {
+	// NOTE this function is executed inside the process phase but after all
+	//      controllers have been executed. check the `process_functions_execute`.
+
+	// Duplicates the procedurs array so we can safely stop the executed one
+	// this is important because the array into the objects_data_storage is modified.
+	const std::vector<ScheduledProcedureHandle> procedures = objects_data_storage.get_sorted_active_scheduled_procedures();
+
+	for (ScheduledProcedureHandle handle : procedures) {
+		ObjectData *od = get_object_data(handle.get_object_net_id());
+		if (od) {
+#ifdef NS_DEBUG_ENABLED
+			// This can't be triggered because the procedure is never added into the storage if doesn't exist.
+			NS_ASSERT_COND(od->scheduled_procedure_exist(handle.get_scheduled_procedure_id()));
+#endif
+
+			const std::uint32_t remaining_frames = od->scheduled_procedure_remaining_frames(handle.get_scheduled_procedure_id(), global_frame_index);
+			if (remaining_frames == 0) {
+				// First stop the procedure
+				od->scheduled_procedure_stop(handle.get_scheduled_procedure_id());
+				if (is_server()) {
+					sync_group_notify_scheduled_procedure_changed(*od, handle.get_scheduled_procedure_id());
+				}
+
+				// then execute it, so eventually the procedure can be enabled again within the function call.
+				od->scheduled_procedure_execute(
+						handle.get_scheduled_procedure_id(),
+						ScheduledProcedurePhase::EXECUTING,
+						get_synchronizer_manager(),
+						get_debugger());
+			}
+		}
+	}
+}
+
 ObjectLocalId SceneSynchronizerBase::find_object_local_id(ObjectHandle p_app_object) const {
 	return objects_data_storage.find_object_local_id(p_app_object);
 }
 
-NS::ObjectData *SceneSynchronizerBase::get_object_data(ObjectLocalId p_id, bool p_expected) {
+ObjectData *SceneSynchronizerBase::get_object_data(ObjectLocalId p_id, bool p_expected) {
 	return objects_data_storage.get_object_data(p_id, p_expected);
 }
 
@@ -1666,6 +2011,14 @@ ObjectData *SceneSynchronizerBase::get_object_data(ObjectNetId p_id, bool p_expe
 
 const ObjectData *SceneSynchronizerBase::get_object_data(ObjectNetId p_id, bool p_expected) const {
 	return objects_data_storage.get_object_data(p_id, p_expected);
+}
+
+PeerNetworkedController *SceneSynchronizerBase::get_local_authority_controller(bool p_expected) {
+	return get_controller_for_peer(get_network_interface().get_local_peer_id(), p_expected);
+}
+
+const PeerNetworkedController *SceneSynchronizerBase::get_local_authority_controller(bool p_expected) const {
+	return get_controller_for_peer(get_network_interface().get_local_peer_id(), p_expected);
 }
 
 PeerNetworkedController *SceneSynchronizerBase::get_controller_for_peer(int p_peer, bool p_expected) {
@@ -1814,7 +2167,6 @@ NoNetSynchronizer::NoNetSynchronizer(SceneSynchronizerBase *p_node) :
 }
 
 void NoNetSynchronizer::clear() {
-	time_bank = 0.0;
 	enabled = true;
 	frame_count = 0;
 }
@@ -1824,7 +2176,7 @@ void NoNetSynchronizer::process(float p_delta) {
 		return;
 	}
 
-	const int sub_process_count = fetch_sub_processes_count(p_delta);
+	const int sub_process_count = scene_synchronizer->fetch_sub_processes_count(p_delta);
 	for (int i = 0; i < sub_process_count; i++) {
 		scene_synchronizer->get_debugger().print(VERBOSE, "NoNetSynchronizer::process", scene_synchronizer->get_network_interface().get_owner_name());
 
@@ -1870,22 +2222,12 @@ bool NoNetSynchronizer::is_enabled() const {
 	return enabled;
 }
 
-int NoNetSynchronizer::fetch_sub_processes_count(float p_delta) {
-	time_bank += p_delta;
-	const float sub_frames = std::floor(time_bank * static_cast<float>(scene_synchronizer->get_frames_per_seconds()));
-	time_bank -= sub_frames / static_cast<float>(scene_synchronizer->get_frames_per_seconds());
-	// Clamp the maximum possible frames that we can process on a single frame.
-	// This is a guard to make sure we do not process way too many frames on a single frame.
-	return std::min(static_cast<int>(scene_synchronizer->get_max_sub_process_per_frame()), static_cast<int>(sub_frames));
-}
-
 ServerSynchronizer::ServerSynchronizer(SceneSynchronizerBase *p_node) :
 	Synchronizer(p_node) {
 	NS_ASSERT_COND(NS::SyncGroupId::GLOBAL == sync_group_create());
 }
 
 void ServerSynchronizer::clear() {
-	time_bank = 0.0;
 	objects_relevancy_update_timer = 0.0;
 	// Release the internal memory.
 	sync_groups.clear();
@@ -1901,7 +2243,7 @@ void ServerSynchronizer::process(float p_delta) {
 		objects_relevancy_update_timer += p_delta;
 	}
 
-	const int sub_process_count = fetch_sub_processes_count(p_delta);
+	const int sub_process_count = scene_synchronizer->fetch_sub_processes_count(p_delta);
 	for (int i = 0; i < sub_process_count; i++) {
 		epoch += 1;
 
@@ -2088,6 +2430,22 @@ void ServerSynchronizer::sync_group_fetch_object_grups(const ObjectData *p_objec
 	}
 }
 
+void ServerSynchronizer::sync_group_fetch_object_simulating_peers(const ObjectData &p_object_data, std::vector<int> &r_simulating_peers) const {
+	r_simulating_peers.clear();
+
+	for (const SyncGroup &group : sync_groups) {
+		if (group.has_simulated(p_object_data)) {
+			if (r_simulating_peers.size() == 0) {
+				r_simulating_peers = group.get_simulating_peers();
+			} else {
+				for (int peer : group.get_simulating_peers()) {
+					VecFunc::insert_unique(r_simulating_peers, peer);
+				}
+			}
+		}
+	}
+}
+
 void ServerSynchronizer::sync_group_set_simulated_partial_update_timespan_seconds(const ObjectData &p_object_data, SyncGroupId p_group_id, bool p_partial_update_enabled, float p_update_timespan) {
 	NS_ENSURE_MSG(p_group_id.id < sync_groups.size(), "The group id `" + (p_group_id) + "` doesn't exist.");
 	sync_groups[p_group_id.id].set_simulated_partial_update_timespan_seconds(p_object_data, p_partial_update_enabled, p_update_timespan);
@@ -2175,11 +2533,17 @@ void ServerSynchronizer::sync_group_set_trickled_update_rate(NS::ObjectData *p_o
 	sync_groups[p_group_id.id].set_trickled_update_rate(p_object_data, p_update_rate);
 }
 
-float ServerSynchronizer::sync_group_get_trickled_update_rate(const NS::ObjectData *p_object_data, SyncGroupId p_group_id) const {
+float ServerSynchronizer::sync_group_get_trickled_update_rate(const ObjectData *p_object_data, SyncGroupId p_group_id) const {
 	NS_ENSURE_V(p_object_data, 0.0);
 	NS_ENSURE_V_MSG(p_group_id.id < sync_groups.size(), 0.0, "The group id `" + (p_group_id) + "` doesn't exist.");
 	NS_ENSURE_V_MSG(p_group_id != SyncGroupId::GLOBAL, 0.0, "You can't change this SyncGroup in any way. Create a new one.");
 	return sync_groups[p_group_id.id].get_trickled_update_rate(p_object_data);
+}
+
+void ServerSynchronizer::sync_group_notify_scheduled_procedure_changed(ObjectData &p_object_data, ScheduledProcedureId p_scheduled_procedure_id) {
+	for (SyncGroup &group : sync_groups) {
+		group.notify_scheduled_procedure_changed(p_object_data, p_scheduled_procedure_id);
+	}
 }
 
 void ServerSynchronizer::sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_data) {
@@ -2200,7 +2564,7 @@ void ServerSynchronizer::sync_group_debug_print() {
 	scene_synchronizer->get_debugger().print(INFO, "|-----------------------", scene_synchronizer->get_network_interface().get_owner_name());
 
 	for (int g = 0; g < int(sync_groups.size()); ++g) {
-		NS::SyncGroup &group = sync_groups[g];
+		SyncGroup &group = sync_groups[g];
 
 		scene_synchronizer->get_debugger().print(INFO, "| [Group " + std::to_string(g) + "#]", scene_synchronizer->get_network_interface().get_owner_name());
 		scene_synchronizer->get_debugger().print(INFO, "|    Listening peers", scene_synchronizer->get_network_interface().get_owner_name());
@@ -2236,7 +2600,7 @@ void ServerSynchronizer::process_snapshot_notificator() {
 
 	for (SyncGroup &group : sync_groups) {
 		if (group.get_listening_peers().empty()) {
-			// No one is interested to this group.
+			// No one is interested in this group.
 			continue;
 		}
 
@@ -2295,6 +2659,7 @@ void ServerSynchronizer::process_snapshot_notificator() {
 				}
 
 				snap = &full_snapshot;
+				get_debugger().print(VERBOSE, "Sending full snapshot to peer: " + std::to_string(pd_it->first));
 			} else {
 				if (delta_snapshot_need_init) {
 					delta_snapshot_need_init = false;
@@ -2302,6 +2667,7 @@ void ServerSynchronizer::process_snapshot_notificator() {
 				}
 
 				snap = &delta_snapshot;
+				get_debugger().print(VERBOSE, "Sending incremental snapshot to peer: " + std::to_string(pd_it->first));
 			}
 
 			scene_synchronizer->rpc_handler_state.rpc(
@@ -2336,6 +2702,8 @@ void ServerSynchronizer::generate_snapshot(
 	// First insert the snapshot update mode
 	const bool is_partial_update = p_force_full_snapshot == false && p_partial_update_simulated_objects_info_indices.size() > 0;
 	r_snapshot_db.add(is_partial_update);
+
+	r_snapshot_db.add(scene_synchronizer->global_frame_index.id);
 
 	for (int peer_id : p_group.get_simulating_peers()) {
 		const PeerData *pd = MapFunc::get_or_null(scene_synchronizer->peer_data, peer_id);
@@ -2517,12 +2885,15 @@ void ServerSynchronizer::generate_snapshot_object_data(
 
 	const bool force_using_node_path = p_mode == SnapshotObjectGeneratorMode::FORCE_FULL || p_mode == SnapshotObjectGeneratorMode::FORCE_NODE_PATH_ONLY;
 	const bool force_snapshot_variables = p_mode == SnapshotObjectGeneratorMode::FORCE_FULL;
+	const bool force_snapshot_procedures = p_mode == SnapshotObjectGeneratorMode::FORCE_FULL;
 	const bool skip_snapshot_variables = p_mode == SnapshotObjectGeneratorMode::FORCE_NODE_PATH_ONLY;
+	const bool skip_snapshot_scheduled_procedures = p_mode == SnapshotObjectGeneratorMode::FORCE_NODE_PATH_ONLY;
 
 	const bool unknown = p_change.unknown;
-	const bool node_has_changes = p_change.vars.empty() == false;
+	const bool object_has_vars_changes = p_change.vars.empty() == false;
+	const bool object_has_procedure_changes = p_change.changed_scheduled_procedures.empty() == false;
 
-	if (!unknown && !node_has_changes && !force_snapshot_variables) {
+	if (!unknown && !object_has_vars_changes && !object_has_procedure_changes && !force_snapshot_variables && !force_snapshot_procedures) {
 		// Nothing to network for this object.
 		return;
 	}
@@ -2541,7 +2912,12 @@ void ServerSynchronizer::generate_snapshot_object_data(
 
 	const bool allow_vars =
 			force_snapshot_variables ||
-			(node_has_changes && !skip_snapshot_variables) ||
+			(object_has_vars_changes && !skip_snapshot_variables) ||
+			unknown;
+
+	const bool allow_scheduled_procedures =
+			force_snapshot_procedures ||
+			(object_has_procedure_changes && !skip_snapshot_scheduled_procedures) ||
 			unknown;
 
 	// This is necessary to allow the client decode the snapshot even if it
@@ -2549,8 +2925,8 @@ void ServerSynchronizer::generate_snapshot_object_data(
 	const int buffer_offset_for_vars_size_bits = r_snapshot_db.get_bit_offset();
 	std::uint16_t vars_size_bits = 0;
 	r_snapshot_db.add(vars_size_bits);
+	const int buffer_offset_start_vars = r_snapshot_db.get_bit_offset();
 
-	std::uint32_t vars_size_bits_count = 0;
 	// This is assuming the client and the server have the same vars registered
 	// with the same order.
 	for (VarId::IdType i = 0; i < p_object_data->vars.size(); i += 1) {
@@ -2583,22 +2959,58 @@ void ServerSynchronizer::generate_snapshot_object_data(
 #endif
 
 		r_snapshot_db.add(var_has_value);
-		vars_size_bits_count += 1;
 		if (var_has_value) {
-			const int pre_write = r_snapshot_db.get_bit_offset();
 			SceneSynchronizerBase::var_data_encode(r_snapshot_db, var.var.value, var.type);
-			const int post_write = r_snapshot_db.get_bit_offset();
-			vars_size_bits_count += post_write - pre_write;
+		}
+	}
+
+	// This is assuming the client and the server have the same procedures registered
+	// with the same order.
+	for (ScheduledProcedureId::IdType i = 0; i < p_object_data->get_scheduled_procedures().size(); i += 1) {
+		const ScheduledProcedureId procedure_id{ i };
+		const ObjectData::ScheduledProcedureInfo &proc_info = p_object_data->get_scheduled_procedures()[i];
+
+		bool procedure_has_value = allow_scheduled_procedures;
+
+		if (!p_object_data->scheduled_procedure_exist(procedure_id)) {
+			procedure_has_value = false;
+		}
+
+		if (procedure_has_value && !force_snapshot_procedures && !VecFunc::has(p_change.changed_scheduled_procedures, ScheduledProcedureHandle(p_object_data->get_net_id(), procedure_id))) {
+			// This is a delta snapshot and this procedure didn't change.
+			// Skip it.
+			procedure_has_value = false;
+		}
+
+		r_snapshot_db.add(procedure_has_value);
+		if (procedure_has_value) {
+			r_snapshot_db.add(p_object_data->scheduled_procedure_is_inprogress(procedure_id));
+			if (p_object_data->scheduled_procedure_is_inprogress(procedure_id)) {
+				// In progress
+				r_snapshot_db.add(p_object_data->get_scheduled_procedures()[procedure_id.id].execute_frame.id);
+				r_snapshot_db.add(p_object_data->get_scheduled_procedures()[procedure_id.id].args);
+			} else if (p_object_data->scheduled_procedure_is_paused(procedure_id)) {
+				// Paused
+				r_snapshot_db.add(true);
+				r_snapshot_db.add(p_object_data->get_scheduled_procedures()[procedure_id.id].execute_frame.id);
+				r_snapshot_db.add(p_object_data->get_scheduled_procedures()[procedure_id.id].paused_frame.id);
+				// NOTE: No need to network the args here because as soon as we restart this the arguments are
+				//       networked again.
+			} else {
+				// Stopped
+				r_snapshot_db.add(false);
+			}
 		}
 	}
 
 	// Now write the buffer size in bits.
-	const int buffer_offset_after_vars = r_snapshot_db.get_bit_offset();
+	const int buffer_offset_end_vars = r_snapshot_db.get_bit_offset();
+	const int size = buffer_offset_end_vars - buffer_offset_start_vars;
+	NS_ENSURE_MSG(size <= std::numeric_limits<std::uint16_t>::max(), "The variables size excede the allows max size. Please report this issue ASAP.")
+	vars_size_bits = size;
 	r_snapshot_db.seek(buffer_offset_for_vars_size_bits);
-	NS_ENSURE_MSG(vars_size_bits_count <= std::numeric_limits<std::uint16_t>::max(), "The variables size excede the allows max size. Please report this issue ASAP.")
-	vars_size_bits = vars_size_bits_count;
 	r_snapshot_db.add(vars_size_bits);
-	r_snapshot_db.seek(buffer_offset_after_vars);
+	r_snapshot_db.seek(buffer_offset_end_vars);
 }
 
 void ServerSynchronizer::process_trickled_sync(float p_delta) {
@@ -2764,15 +3176,6 @@ void ServerSynchronizer::send_net_stat_to_peer(int p_peer, PeerData &p_peer_data
 			db);
 }
 
-int ServerSynchronizer::fetch_sub_processes_count(float p_delta) {
-	time_bank += p_delta;
-	const float sub_frames = std::floor(time_bank * static_cast<float>(scene_synchronizer->get_frames_per_seconds()));
-	time_bank -= sub_frames / static_cast<float>(scene_synchronizer->get_frames_per_seconds());
-	// Clamp the maximum possible frames that we can process on a single frame.
-	// This is a guard to make sure we do not process way too many frames on a single frame.
-	return std::min(static_cast<int>(scene_synchronizer->get_max_sub_process_per_frame()), static_cast<int>(sub_frames));
-}
-
 ClientSynchronizer::ClientSynchronizer(SceneSynchronizerBase *p_node) :
 	Synchronizer(p_node) {
 	clear();
@@ -2784,7 +3187,7 @@ void ClientSynchronizer::clear() {
 	player_controller = nullptr;
 	objects_names.clear();
 	last_received_snapshot.input_id = FrameIndex::NONE;
-	last_received_snapshot.object_vars.clear();
+	last_received_snapshot.objects.clear();
 	client_snapshots.clear();
 	last_received_server_snapshot_index = FrameIndex::NONE;
 	last_received_server_snapshot.reset();
@@ -2795,6 +3198,8 @@ void ClientSynchronizer::clear() {
 
 void ClientSynchronizer::process(float p_delta) {
 	NS_PROFILE
+
+	try_fetch_pending_snapshot_objects();
 
 	scene_synchronizer->get_debugger().print(VERBOSE, "ClientSynchronizer::process", scene_synchronizer->get_network_interface().get_owner_name());
 
@@ -2839,40 +3244,24 @@ void ClientSynchronizer::receive_snapshot(DataBuffer &p_snapshot) {
 	store_controllers_snapshot(last_received_snapshot);
 }
 
-void ClientSynchronizer::on_object_data_added(NS::ObjectData &p_object_data) {
+void ClientSynchronizer::on_object_data_added(ObjectData &p_object_data) {
+	finalize_object_data_synchronization(p_object_data);
 }
 
 void ClientSynchronizer::on_object_data_removed(NS::ObjectData &p_object_data) {
 	VecFunc::remove_unordered(simulated_objects, p_object_data.get_net_id());
 	VecFunc::remove_unordered(active_objects, &p_object_data);
 
-	if (p_object_data.get_net_id().id < uint32_t(last_received_snapshot.object_vars.size())) {
-		last_received_snapshot.object_vars[p_object_data.get_net_id().id].clear();
+	if (p_object_data.get_net_id().id < uint32_t(last_received_snapshot.objects.size())) {
+		last_received_snapshot.objects[p_object_data.get_net_id().id].vars.clear();
+		last_received_snapshot.objects[p_object_data.get_net_id().id].procedures.clear();
 	}
 
 	remove_object_from_trickled_sync(&p_object_data);
 }
 
 void ClientSynchronizer::on_object_data_name_known(ObjectData &p_object_data) {
-	if (p_object_data.get_object_name().empty()) {
-		// Nothing to do.
-		return;
-	}
-
-	// NOTE on why this is commented: Since the snapshot parser discards all the data about
-	//                                the objects with an unknown name, we must request a full snapshot.
-	//                                TODO consider to fix this? Not really a big deal in any case, since late name registration doesn't occur that often.
-	// 
-	// // The object name was finally set on the client. Try initialize the NetId
-	// // if already received by the server.
-	// for (const auto &[net_id, name] : objects_names) {
-	// 	if (p_object_data.get_object_name() == name) {
-	// 		p_object_data.set_net_id(net_id);
-	// 		return;
-	// 	}
-	// }
-
-	notify_server_full_snapshot_is_needed();
+	finalize_object_data_synchronization(p_object_data);
 }
 
 void ClientSynchronizer::on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) {
@@ -2933,6 +3322,38 @@ const std::vector<ObjectData *> &ClientSynchronizer::get_active_objects() const 
 		// Since there is no player controller or the sync is disabled, this
 		// assumes that all registered objects are relevant and simulated.
 		return scene_synchronizer->get_all_object_data();
+	}
+}
+
+void ClientSynchronizer::try_fetch_pending_snapshot_objects() {
+	NS_PROFILE
+
+	std::vector<ObjectNetId> pending_objects;
+	for (const auto &[net_id, snapshots] : objects_pending_snapshots) {
+		pending_objects.push_back(net_id);
+		if (snapshots.size() > 60) {
+			// We have more than 60 snapshots for this objects and still it doesn't exist yet.
+			// this is a bug.
+			get_debugger().print(ERROR, "The object with NetId `" + std::to_string(net_id.id) + "` have more than " + std::to_string(snapshots.size()) + " and still it's not yet registered on the client. This is likely a bug that you should investigate or report. Requesting a full snapshot to try recovering it, but still this is likely a bug that you have to fix anyway.");
+			notify_server_full_snapshot_is_needed();
+			return;
+		}
+	}
+
+	for (ObjectNetId pending_registration_net_id : pending_objects) {
+		const std::string *object_name = MapFunc::get_or_null(objects_names, pending_registration_net_id);
+		if (object_name) {
+			const ObjectHandle app_object_handle =
+					scene_synchronizer->synchronizer_manager->fetch_app_object(*object_name);
+			if (app_object_handle != ObjectHandle::NONE) {
+				ObjectLocalId reg_obj_id;
+				scene_synchronizer->register_app_object(app_object_handle, &reg_obj_id);
+				ObjectData *od = scene_synchronizer->get_object_data(reg_obj_id);
+				od->set_net_id(pending_registration_net_id);
+				finalize_object_data_synchronization(*od);
+				NS_ASSERT_COND(MapFunc::get_or_null(objects_pending_snapshots, pending_registration_net_id)==nullptr);
+			}
+		}
 	}
 }
 
@@ -3007,18 +3428,21 @@ void ClientSynchronizer::store_controllers_snapshot(
 				the_storing_snapshot.simulated_objects = p_snapshot.simulated_objects;
 			}
 			for (ObjectNetId net_id : p_snapshot.just_updated_object_vars) {
-				if (uint32_t(the_storing_snapshot.object_vars.size()) <= net_id.id) {
+				if (uint32_t(the_storing_snapshot.objects.size()) <= net_id.id) {
 					// Ensure the vector is big enough.
-					the_storing_snapshot.object_vars.resize(net_id.id + 1);
+					the_storing_snapshot.objects.resize(net_id.id + 1);
 				}
-				the_storing_snapshot.object_vars[net_id.id].resize(p_snapshot.get_object_vars(net_id)->size());
+
+				the_storing_snapshot.objects[net_id.id].vars.resize(p_snapshot.get_object_vars(net_id)->size());
 				for (int i = 0; i < p_snapshot.get_object_vars(net_id)->size(); i++) {
 					if ((*p_snapshot.get_object_vars(net_id))[i].has_value()) {
-						the_storing_snapshot.object_vars[net_id.id][i].emplace(VarData::make_copy((*p_snapshot.get_object_vars(net_id))[i].value()));
+						the_storing_snapshot.objects[net_id.id].vars[i].emplace(VarData::make_copy((*p_snapshot.get_object_vars(net_id))[i].value()));
 					} else {
-						the_storing_snapshot.object_vars[net_id.id][i].reset();
+						the_storing_snapshot.objects[net_id.id].vars[i].reset();
 					}
 				}
+
+				the_storing_snapshot.objects[net_id.id].procedures = *p_snapshot.get_object_procedures(net_id);
 			}
 
 			last_received_server_snapshot_index = p_snapshot.input_id;
@@ -3138,7 +3562,7 @@ void ClientSynchronizer::process_received_server_state() {
 	if (need_rewind) {
 		scene_synchronizer->get_debugger().notify_event(SceneSynchronizerDebugger::FrameEvent::CLIENT_DESYNC_DETECTED);
 		scene_synchronizer->get_debugger().print(
-				VERBOSE,
+				scene_synchronizer->debug_rewindings_log_level,
 				std::string("Recover input: ") + std::string(last_checked_input) + " - Last input: " + std::string(inner_player_controller->get_stored_frame_index(-1)),
 				scene_synchronizer->get_network_interface().get_owner_name());
 
@@ -3238,23 +3662,23 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 			const ObjectNetId net_node_id = different_node_data[i];
 			ObjectData *rew_node_data = scene_synchronizer->get_object_data(net_node_id);
 
-			const std::vector<std::optional<VarData>> *server_object_vars = ObjectNetId{ { ObjectNetId::IdType(last_received_server_snapshot->object_vars.size()) } } <= net_node_id ? nullptr : &(last_received_server_snapshot->object_vars[net_node_id.id]);
-			const std::vector<std::optional<VarData>> *client_node_vars = ObjectNetId{ { ObjectNetId::IdType(client_snapshots.front().object_vars.size()) } } <= net_node_id ? nullptr : &(client_snapshots.front().object_vars[net_node_id.id]);
+			const ObjectDataSnapshot *server_object_vars = ObjectNetId{ { ObjectNetId::IdType(last_received_server_snapshot->objects.size()) } } <= net_node_id ? nullptr : &(last_received_server_snapshot->objects[net_node_id.id]);
+			const ObjectDataSnapshot *client_node_vars = ObjectNetId{ { ObjectNetId::IdType(client_snapshots.front().objects.size()) } } <= net_node_id ? nullptr : &(client_snapshots.front().objects[net_node_id.id]);
 
-			const std::size_t count = std::max(server_object_vars ? server_object_vars->size() : 0, client_node_vars ? client_node_vars->size() : 0);
+			const std::size_t count = std::max(server_object_vars ? server_object_vars->vars.size() : 0, client_node_vars ? client_node_vars->vars.size() : 0);
 
 			server_values.resize(count);
 			client_values.resize(count);
 
 			for (std::size_t g = 0; g < count; ++g) {
-				if (server_object_vars && g < server_object_vars->size() && (*server_object_vars)[g].has_value()) {
-					server_values[g].emplace(VarData::make_copy((*server_object_vars)[g].value()));
+				if (server_object_vars && g < server_object_vars->vars.size() && server_object_vars->vars[g].has_value()) {
+					server_values[g].emplace(VarData::make_copy(server_object_vars->vars[g].value()));
 				} else {
 					server_values[g].reset();
 				}
 
-				if (client_node_vars && g < client_node_vars->size() && (*client_node_vars)[g].has_value()) {
-					client_values[g].emplace(VarData::make_copy((*client_node_vars)[g].value()));
+				if (client_node_vars && g < client_node_vars->vars.size() && client_node_vars->vars[g].has_value()) {
+					client_values[g].emplace(VarData::make_copy(client_node_vars->vars[g].value()));
 				} else {
 					client_values[g].reset();
 				}
@@ -3267,9 +3691,9 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 
 	// Prints the comparison info.
 	if (differences_info.size() > 0 && scene_synchronizer->debug_rewindings_enabled) {
-		scene_synchronizer->get_debugger().print(INFO, "Rewind on frame " + p_input_id + " is needed because:", scene_synchronizer->get_network_interface().get_owner_name());
+		scene_synchronizer->get_debugger().print(scene_synchronizer->debug_rewindings_log_level, "Rewind on frame " + p_input_id + " is needed because:", scene_synchronizer->get_network_interface().get_owner_name());
 		for (int i = 0; i < int(differences_info.size()); i++) {
-			scene_synchronizer->get_debugger().print(INFO, "|- " + differences_info[i], scene_synchronizer->get_network_interface().get_owner_name());
+			scene_synchronizer->get_debugger().print(scene_synchronizer->debug_rewindings_log_level, "|- " + differences_info[i], scene_synchronizer->get_network_interface().get_owner_name());
 		}
 	}
 
@@ -3294,9 +3718,9 @@ void ClientSynchronizer::__pcr__sync__rewind(
 			scene_synchronizer->debug_rewindings_enabled ? &applied_data_info : nullptr);
 
 	if (applied_data_info.size() > 0) {
-		scene_synchronizer->get_debugger().print(INFO, "Full reset:", scene_synchronizer->get_network_interface().get_owner_name());
+		scene_synchronizer->get_debugger().print(VERBOSE, "Full reset:", scene_synchronizer->get_network_interface().get_owner_name());
 		for (int i = 0; i < int(applied_data_info.size()); i++) {
-			scene_synchronizer->get_debugger().print(INFO, "|- " + applied_data_info[i], scene_synchronizer->get_network_interface().get_owner_name());
+			scene_synchronizer->get_debugger().print(VERBOSE, "|- " + applied_data_info[i], scene_synchronizer->get_network_interface().get_owner_name());
 		}
 	}
 }
@@ -3340,7 +3764,7 @@ void ClientSynchronizer::__pcr__rewind(
 #ifdef NS_DEBUG_ENABLED
 		has_next = p_local_controller->has_another_instant_to_process_after(i);
 		scene_synchronizer->get_debugger().print(
-				INFO,
+				VERBOSE,
 				"Rewind, processed controller: " + std::to_string(p_local_controller->get_authority_peer()) + " Frame: " + std::string(frame_id_to_process),
 				scene_synchronizer->get_network_interface().get_owner_name(),
 				scene_synchronizer->debug_rewindings_enabled);
@@ -3385,12 +3809,14 @@ void ClientSynchronizer::__pcr__sync__no_rewind(const Snapshot &p_no_rewind_reco
 			0,
 			scene_synchronizer->debug_rewindings_enabled ? &applied_data_info : nullptr,
 			// ALWAYS skips custom data because partial snapshots don't contain custom_data.
+			true,
+			// Never update the simulating object when applying this snapshot as the array of simulating objects is empty.
 			true);
 
 	if (applied_data_info.size() > 0) {
-		scene_synchronizer->get_debugger().print(INFO, "Partial reset:", scene_synchronizer->get_network_interface().get_owner_name());
+		scene_synchronizer->get_debugger().print(VERBOSE, "Partial reset:", scene_synchronizer->get_network_interface().get_owner_name());
 		for (int i = 0; i < int(applied_data_info.size()); i++) {
-			scene_synchronizer->get_debugger().print(INFO, "|- " + applied_data_info[i], scene_synchronizer->get_network_interface().get_owner_name());
+			scene_synchronizer->get_debugger().print(VERBOSE, "|- " + applied_data_info[i], scene_synchronizer->get_network_interface().get_owner_name());
 		}
 	}
 
@@ -3425,9 +3851,9 @@ void ClientSynchronizer::process_paused_controller_recovery() {
 	last_received_server_snapshot.reset();
 
 	if (applied_data_info.size() > 0) {
-		scene_synchronizer->get_debugger().print(INFO, "Paused controller recover:", scene_synchronizer->get_network_interface().get_owner_name());
+		scene_synchronizer->get_debugger().print(VERBOSE, "Paused controller recover:", scene_synchronizer->get_network_interface().get_owner_name());
 		for (int i = 0; i < int(applied_data_info.size()); i++) {
-			scene_synchronizer->get_debugger().print(INFO, "|- " + applied_data_info[i], scene_synchronizer->get_network_interface().get_owner_name());
+			scene_synchronizer->get_debugger().print(VERBOSE, "|- " + applied_data_info[i], scene_synchronizer->get_network_interface().get_owner_name());
 		}
 	}
 }
@@ -3450,15 +3876,8 @@ int ClientSynchronizer::calculates_sub_ticks(const float p_delta) {
 	// Calculates the pretended delta.
 	pretended_delta = p_delta + (frame_acceleration_delta * NS::sign(acceleration_fps_speed));
 
-	// Add the current delta to the bank
-	time_bank += pretended_delta;
-
-	const int sub_ticks = (int)std::floor(time_bank * static_cast<float>(scene_synchronizer->get_frames_per_seconds()));
-
-	time_bank -= static_cast<float>(sub_ticks) / static_cast<float>(scene_synchronizer->get_frames_per_seconds());
-	if make_unlikely(time_bank < 0.0f) {
-		time_bank = 0.0f;
-	}
+	// Fetch the process count using the pretended delta.
+	const int sub_ticks = scene_synchronizer->fetch_sub_processes_count(pretended_delta);
 
 #ifdef NS_DEBUG_ENABLED
 	if (scene_synchronizer->disable_client_sub_ticks) {
@@ -3480,7 +3899,7 @@ int ClientSynchronizer::calculates_sub_ticks(const float p_delta) {
 			" acceleration_fps_speed: " + std::to_string(acceleration_fps_speed) +
 			" acceleration_fps_timer: " + std::to_string(acceleration_fps_timer) +
 			" pretended_delta: " + std::to_string(pretended_delta) +
-			" time_bank: " + std::to_string(time_bank) +
+			" time_bank: " + std::to_string(scene_synchronizer->get_time_bank()) +
 			")");
 
 	return sub_ticks;
@@ -3553,10 +3972,12 @@ bool ClientSynchronizer::parse_sync_data(
 		DataBuffer &p_snapshot,
 		void *p_user_pointer,
 		void (*p_notify_update_mode)(void *p_user_pointer, bool p_is_partial_update),
+		void (*p_parse_global_frame_index)(void *p_user_pointer, GlobalFrameIndex p_global_frame_index),
 		void (*p_custom_data_parse)(void *p_user_pointer, VarData &&p_custom_data),
 		void (*p_object_parse)(void *p_user_pointer, ObjectData *p_object_data),
 		bool (*p_peers_frame_index_parse)(void *p_user_pointer, std::map<int, FrameIndexWithMeta> &&p_frames_index),
-		void (*p_variable_parse)(void *p_user_pointer, ObjectData *p_object_data, VarId p_var_id, VarData &&p_value),
+		void (*p_variable_parse)(void *p_user_pointer, ObjectData &p_object_data, VarId p_var_id, VarData &&p_value),
+		void (*p_scheduled_procedure_parse)(void *p_user_pointer, ObjectData &p_object_data, ScheduledProcedureId p_procedure_id, ScheduledProcedureSnapshot &&p_value),
 		void (*p_simulated_object_add_or_remove_parse)(void *p_user_pointer, bool p_add, SimulatedObjectInfo &&p_simulated_objects),
 		void (*p_simulated_objects_parse)(void *p_user_pointer, std::vector<SimulatedObjectInfo> &&p_simulated_objects)) {
 	NS_PROFILE
@@ -3577,6 +3998,14 @@ bool ClientSynchronizer::parse_sync_data(
 		p_snapshot.read(is_partial_update);
 		NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as the `is_partial_update` boolean expected is not set.");
 		p_notify_update_mode(p_user_pointer, is_partial_update);
+	}
+
+	{
+		// Fetch the global frame index
+		GlobalFrameIndex GFI;
+		p_snapshot.read(GFI.id);
+		NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted as the `GlobalFrameIndex` expected is not set.");
+		p_parse_global_frame_index(p_user_pointer, GFI);
 	}
 
 	std::vector<SimulatedObjectInfo> sd_simulated_objects_full_array;
@@ -3735,8 +4164,8 @@ bool ClientSynchronizer::parse_sync_data(
 	while (true) {
 		// First extract the object data
 		ObjectData *synchronizer_object_data = nullptr;
+		ObjectNetId net_id = ObjectNetId::NONE;
 		{
-			ObjectNetId net_id = ObjectNetId::NONE;
 			p_snapshot.read(net_id.id);
 			NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The NetId was expected at this point.");
 
@@ -3765,11 +4194,11 @@ bool ClientSynchronizer::parse_sync_data(
 				// ObjectData not found, fetch it using the object name.
 
 				if (object_name.empty()) {
-					// The object_name was not specified by this snapshot, so fetch it
-					const std::string *object_name_ptr = NS::MapFunc::get_or_null(objects_names, net_id);
+					// The object_name was not specified by this snapshot, so fetch it.
+					const std::string *object_name_ptr = MapFunc::get_or_null(objects_names, net_id);
 
 					if (object_name_ptr == nullptr) {
-						// The name for this `NodeId` doesn't exists yet.
+						// The name for this `NetId` doesn't exists yet.
 						scene_synchronizer->get_debugger().print(WARNING, "The object with ID `" + net_id + "` is not know by this peer yet.");
 						notify_server_full_snapshot_is_needed();
 					} else {
@@ -3783,7 +4212,7 @@ bool ClientSynchronizer::parse_sync_data(
 
 				if (app_object_handle == ObjectHandle::NONE) {
 					// The node doesn't exists.
-					scene_synchronizer->get_debugger().print(WARNING, "The object " + object_name + " still doesn't exist.", scene_synchronizer->get_network_interface().get_owner_name());
+					scene_synchronizer->get_debugger().print(WARNING, "The object `" + object_name + "` still doesn't exist. NetId: " + std::to_string(net_id.id), scene_synchronizer->get_network_interface().get_owner_name());
 				} else {
 					// Register this object, so to make sure the client is tracking it.
 					ObjectLocalId reg_obj_id;
@@ -3793,7 +4222,7 @@ bool ClientSynchronizer::parse_sync_data(
 						// Set the NetId.
 						synchronizer_object_data->set_net_id(net_id);
 					} else {
-						scene_synchronizer->get_debugger().print(ERROR, "[BUG] This object " + object_name + " was known on this client. Though, was not possible to register it as sync object.", scene_synchronizer->get_network_interface().get_owner_name());
+						scene_synchronizer->get_debugger().print(ERROR, "[BUG] This object `" + object_name + "` was known on this client. Though, was not possible to register it as sync object.", scene_synchronizer->get_network_interface().get_owner_name());
 					}
 				}
 			}
@@ -3817,26 +4246,43 @@ bool ClientSynchronizer::parse_sync_data(
 		NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `vars_count` was expected here.");
 
 		if (skip_object) {
-			// Skip all the variables for this object.
+			if (net_id != ObjectNetId::NONE) {
+				// Store the snapshot information so we can use them to sync the
+				// late registered object as soon as it's registered.
+				DataBuffer object_snapshot_buffer;
+				object_snapshot_buffer.begin_write(get_debugger(), 0);
+				const bool slicing_success = p_snapshot.slice(object_snapshot_buffer, p_snapshot.get_bit_offset(), vars_size_in_bits);
+#if NS_DEBUG_ENABLED
+				if (scene_synchronizer->pedantic_checks) {
+					NS_ASSERT_COND(slicing_success);
+					NS_ASSERT_COND(object_snapshot_buffer.get_bit_offset() == vars_size_in_bits);
+				}
+#endif
+				if (!slicing_success || object_snapshot_buffer.get_bit_offset() != vars_size_in_bits) {
+					get_debugger().print(ERROR, "The received snapshot is corrupted because it was impossible to properly slice the Object info using the encoded size. This should never happen.");
+					notify_server_full_snapshot_is_needed();
+					return false;
+				}
+				// Store the extracted object info.
+				std::vector<DataBuffer> &pending_snapshots = MapFunc::insert_if_new(objects_pending_snapshots, net_id, std::vector<DataBuffer>())->second;
+				pending_snapshots.push_back(std::move(object_snapshot_buffer));
+				get_debugger().print(INFO, "The object info snapshot was sliced and stored into the pending snapshots. ObjectID: " + std::to_string(net_id.id));
+			} else {
+				// This is not possible because NetID NONE signals the end of the
+				// buffer and this is never reached.
+				NS_ASSERT_NO_ENTRY_MSG("The parse_sync_data function was unable to store the object information for a late restore because the NetId is NONE.");
+			}
+
+			// Skip the object data now.
 			p_snapshot.seek(p_snapshot.get_bit_offset() + vars_size_in_bits);
 		} else {
-			for (auto &var_desc : synchronizer_object_data->vars) {
-				bool var_has_value = false;
-				p_snapshot.read(var_has_value);
-				NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `var_has_value` was expected at this point. Object: `" + synchronizer_object_data->get_object_name() + "` Var: `" + var_desc.var.name + "`");
-
-				if (var_has_value) {
-					VarData value;
-					SceneSynchronizerBase::var_data_decode(value, p_snapshot, var_desc.type);
-					NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `variable value` was expected at this point. Object: `" + synchronizer_object_data->get_object_name() + "` Var: `" + var_desc.var.name + "`");
-
-					// Variable fetched, now parse this variable.
-					p_variable_parse(
-							p_user_pointer,
-							synchronizer_object_data,
-							var_desc.id,
-							std::move(value));
-				}
+			if (!parse_sync_data_object_info(
+					p_snapshot,
+					p_user_pointer,
+					*synchronizer_object_data,
+					p_variable_parse,
+					p_scheduled_procedure_parse)) {
+				return false;
 			}
 		}
 	}
@@ -3845,6 +4291,66 @@ bool ClientSynchronizer::parse_sync_data(
 
 	return true;
 }
+
+bool ClientSynchronizer::parse_sync_data_object_info(
+		DataBuffer &p_snapshot,
+		void *p_user_pointer,
+		ObjectData &p_object_data,
+		void (*p_variable_parse)(void *p_user_pointer, ObjectData &p_object_data, VarId p_var_id, VarData &&p_value),
+		void (*p_scheduled_procedure_parse)(void *p_user_pointer, ObjectData &p_object_data, ScheduledProcedureId p_procedure_id, ScheduledProcedureSnapshot &&p_value)) {
+	for (auto &var_desc : p_object_data.vars) {
+		bool var_has_value = false;
+		p_snapshot.read(var_has_value);
+		NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `var_has_value` was expected at this point. Object: `" + p_object_data.get_object_name() + "` Var: `" + var_desc.var.name + "`");
+
+		if (var_has_value) {
+			VarData value;
+			SceneSynchronizerBase::var_data_decode(value, p_snapshot, var_desc.type);
+			NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `variable value` was expected at this point. Object: `" + p_object_data.get_object_name() + "` Var: `" + var_desc.var.name + "`");
+
+			// Variable fetched, now parse this variable.
+			p_variable_parse(
+					p_user_pointer,
+					p_object_data,
+					var_desc.id,
+					std::move(value));
+		}
+	}
+
+	for (ScheduledProcedureId procedure_id = { 0 }; procedure_id.id < p_object_data.get_scheduled_procedures().size(); procedure_id += 1) {
+		bool has_procedure_value = false;
+		p_snapshot.read(has_procedure_value);
+		NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `has_procedure_value` was expected at this point. Object: `" + p_object_data.get_object_name() + "`");
+		if (has_procedure_value) {
+			bool is_procedure_in_progress = false;
+			p_snapshot.read(is_procedure_in_progress);
+			NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `is_procedure_in_progress` was expected at this point. Object: `" + p_object_data.get_object_name() + "`");
+
+			ScheduledProcedureSnapshot procedure_snapshot;
+			if (is_procedure_in_progress) {
+				p_snapshot.read(procedure_snapshot.execute_frame.id);
+				NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `execute_frame` was expected at this point. Object: `" + p_object_data.get_object_name() + "`");
+				p_snapshot.read(procedure_snapshot.args);
+				NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `args` was expected at this point. Object: `" + p_object_data.get_object_name() + "`");
+			} else {
+				bool is_procedure_paused = false;
+				p_snapshot.read(is_procedure_paused);
+				NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `is_procedure_paused` was expected at this point. Object: `" + p_object_data.get_object_name() + "`");
+				if (is_procedure_paused) {
+					p_snapshot.read(procedure_snapshot.execute_frame.id);
+					NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `execute_frame` was expected at this point. Object: `" + p_object_data.get_object_name() + "`");
+					p_snapshot.read(procedure_snapshot.paused_frame.id);
+					NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `paused_frame` was expected at this point. Object: `" + p_object_data.get_object_name() + "`");
+				}
+			}
+
+			p_scheduled_procedure_parse(p_user_pointer, p_object_data, procedure_id, std::move(procedure_snapshot));
+		}
+	}
+
+	return true;
+}
+
 
 void ClientSynchronizer::set_enabled(bool p_enabled) {
 	if (enabled == p_enabled) {
@@ -3920,9 +4426,9 @@ void ClientSynchronizer::receive_trickled_sync_data(const std::vector<std::uint8
 		const int current_offset = future_epoch_buffer.get_bit_offset();
 		const int expected_bit_offset_after_apply = current_offset + buffer_bit_count;
 
-		NS::ObjectData *od = scene_synchronizer->get_object_data(object_id, false);
+		ObjectData *od = scene_synchronizer->get_object_data(object_id, false);
 		if (od == nullptr) {
-			scene_synchronizer->get_debugger().print(INFO, "The function `receive_trickled_sync_data` is skiplatency the node with ID `" + object_id + "` as it was not found locally.", scene_synchronizer->get_network_interface().get_owner_name());
+			scene_synchronizer->get_debugger().print(VERBOSE, "The function `receive_trickled_sync_data` is skip latency the object with ID `" + object_id + "` as it was not found locally.", scene_synchronizer->get_network_interface().get_owner_name());
 			future_epoch_buffer.seek(expected_bit_offset_after_apply);
 			continue;
 		}
@@ -3949,7 +4455,7 @@ void ClientSynchronizer::receive_trickled_sync_data(const std::vector<std::uint8
 		db.begin_write(get_debugger(), 0);
 
 		if (!stream.od->func_trickled_collect) {
-			scene_synchronizer->get_debugger().print(INFO, "The function `receive_trickled_sync_data` is skiplatency the node `" + stream.od->get_object_name() + "` as the function `trickled_collect` failed executing.", scene_synchronizer->get_network_interface().get_owner_name());
+			scene_synchronizer->get_debugger().print(VERBOSE, "The function `receive_trickled_sync_data` is skip latency the object `" + stream.od->get_object_name() + "` as the function `trickled_collect` failed executing.", scene_synchronizer->get_network_interface().get_owner_name());
 			future_epoch_buffer.seek(expected_bit_offset_after_apply);
 			continue;
 		}
@@ -4075,6 +4581,11 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot, bool p_is_server
 				pd->snapshot.was_partially_updated = p_is_partial_update;
 			},
 
+			[](void *p_user_pointer, GlobalFrameIndex p_global_frame_index) {
+				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
+				pd->snapshot.global_frame_index = p_global_frame_index;
+			},
+
 			// Custom data:
 			[](void *p_user_pointer, VarData &&p_custom_data) {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
@@ -4095,8 +4606,8 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot, bool p_is_server
 				pd->snapshot.just_updated_object_vars.push_back(p_object_data->get_net_id());
 
 				// Make sure this node is part of the server node too.
-				if (uint32_t(pd->snapshot.object_vars.size()) <= p_object_data->get_net_id().id) {
-					pd->snapshot.object_vars.resize(p_object_data->get_net_id().id + 1);
+				if (uint32_t(pd->snapshot.objects.size()) <= p_object_data->get_net_id().id) {
+					pd->snapshot.objects.resize(p_object_data->get_net_id().id + 1);
 				}
 			},
 
@@ -4128,15 +4639,31 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot, bool p_is_server
 			},
 
 			// Parse variable:
-			[](void *p_user_pointer, ObjectData *p_object_data, VarId p_var_id, VarData &&p_value) {
+			[](void *p_user_pointer, ObjectData &p_object_data, VarId p_var_id, VarData &&p_value) {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
 
-				if (p_object_data->vars.size() != uint32_t(pd->snapshot.object_vars[p_object_data->get_net_id().id].size())) {
+				if (p_object_data.vars.size() != uint32_t(pd->snapshot.objects[p_object_data.get_net_id().id].vars.size())) {
 					// The parser may have added a variable, so make sure to resize the vars array.
-					pd->snapshot.object_vars[p_object_data->get_net_id().id].resize(p_object_data->vars.size());
+					pd->snapshot.objects[p_object_data.get_net_id().id].vars.resize(p_object_data.vars.size());
 				}
 
-				pd->snapshot.object_vars[p_object_data->get_net_id().id][p_var_id.id].emplace(std::move(p_value));
+				if (pd->snapshot.objects[p_object_data.get_net_id().id].vars.size() > p_var_id.id) {
+					pd->snapshot.objects[p_object_data.get_net_id().id].vars[p_var_id.id].emplace(std::move(p_value));
+				}
+			},
+
+			// Parse scheduled procedure:
+			[](void *p_user_pointer, ObjectData &p_object_data, ScheduledProcedureId p_procedure_id, ScheduledProcedureSnapshot &&p_procedure_snapshot) {
+				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
+
+				if (p_object_data.get_scheduled_procedures().size() != uint32_t(pd->snapshot.objects[p_object_data.get_net_id().id].procedures.size())) {
+					// The parser may have added a procedure, so make sure to resize the procedure array.
+					pd->snapshot.objects[p_object_data.get_net_id().id].procedures.resize(p_object_data.get_scheduled_procedures().size());
+				}
+
+				if (pd->snapshot.objects[p_object_data.get_net_id().id].procedures.size() > p_procedure_id.id) {
+					pd->snapshot.objects[p_object_data.get_net_id().id].procedures[p_procedure_id.id] = std::move(p_procedure_snapshot);
+				}
 			},
 
 			// Parse object activation:
@@ -4174,6 +4701,120 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot, bool p_is_server
 	return true;
 }
 
+void ClientSynchronizer::finalize_object_data_synchronization(ObjectData &p_object_data) {
+	if (p_object_data.get_net_id() == ObjectNetId::NONE) {
+		// The NetId is not assigned but it might already be sync, check it.
+		if (p_object_data.get_object_name().empty()) {
+			// The object name is not specified either, so there is no way to retrieve the NetId for now.
+			return;
+		}
+		for (auto &[net_id,name] : objects_names) {
+			if (name == p_object_data.get_object_name()) {
+				// NetId found!
+				p_object_data.set_net_id(net_id);
+				get_debugger().print(INFO, "The object data finalization was able to fetch the object NetID using the object name. Object name `" + p_object_data.get_object_name() + "`, NetId `" + std::to_string(p_object_data.get_net_id().id) + "`");
+				break;
+			}
+		}
+	}
+
+	if (p_object_data.get_net_id() == ObjectNetId::NONE) {
+		// The NetId is still unknown for this ObjectData, nothing to.
+		get_debugger().print(INFO, "The object data finalization failed because it was unable to retrive the NetID for the object with name `" + p_object_data.get_object_name() + "`. It will re-try later.");
+		return;
+	}
+
+	std::vector<DataBuffer> *pending_snapshots = MapFunc::get_or_null(objects_pending_snapshots, p_object_data.get_net_id());
+	if (!pending_snapshots || pending_snapshots->size() <= 0) {
+		// Nothing pending to initialize.
+		return;
+	}
+
+	struct PendingObjectSnapshotsParseData {
+		RollingUpdateSnapshot &snapshot;
+		SceneSynchronizerBase *scene_synchronizer;
+		ClientSynchronizer *client_synchronizer;
+	};
+
+	PendingObjectSnapshotsParseData parse_data{
+		last_received_snapshot,
+		scene_synchronizer,
+		this,
+	};
+
+	// Make sure this node is part of the server node too.
+	if (uint32_t(parse_data.snapshot.objects.size()) <= p_object_data.get_net_id().id) {
+		parse_data.snapshot.objects.resize(p_object_data.get_net_id().id + 1);
+	}
+
+	for (DataBuffer &snapshot : *pending_snapshots) {
+		snapshot.begin_read(get_debugger());
+		const bool parsing_success = parse_sync_data_object_info(
+				snapshot,
+				&parse_data,
+				p_object_data,
+
+				// Parse variable:
+				[](void *p_user_pointer, ObjectData &p_object_data, VarId p_var_id, VarData &&p_value) {
+					PendingObjectSnapshotsParseData *pd = static_cast<PendingObjectSnapshotsParseData *>(p_user_pointer);
+
+					if (p_object_data.vars.size() != uint32_t(pd->snapshot.objects[p_object_data.get_net_id().id].vars.size())) {
+						// The parser may have added a variable, so make sure to resize the vars array.
+						pd->snapshot.objects[p_object_data.get_net_id().id].vars.resize(p_object_data.vars.size());
+					}
+
+					if (pd->snapshot.objects[p_object_data.get_net_id().id].vars.size() > p_var_id.id) {
+						// Updates the actual value.
+						p_object_data.vars[p_var_id.id].set_func(
+								pd->scene_synchronizer->get_synchronizer_manager(),
+								p_object_data.app_object_handle,
+								p_object_data.vars[p_var_id.id].var.name,
+								p_value);
+
+						// Save the variable into the local snapshot, so increamental updates works fine.
+						pd->snapshot.objects[p_object_data.get_net_id().id].vars[p_var_id.id].emplace(std::move(p_value));
+					}
+				},
+
+				// Parse scheduled procedure:
+				[](void *p_user_pointer, ObjectData &p_object_data, ScheduledProcedureId p_procedure_id, ScheduledProcedureSnapshot &&p_procedure_snapshot) {
+					PendingObjectSnapshotsParseData *pd = static_cast<PendingObjectSnapshotsParseData *>(p_user_pointer);
+
+					if (p_object_data.get_scheduled_procedures().size() != uint32_t(pd->snapshot.objects[p_object_data.get_net_id().id].procedures.size())) {
+						// The parser may have added a procedure, so make sure to resize the procedure array.
+						pd->snapshot.objects[p_object_data.get_net_id().id].procedures.resize(p_object_data.get_scheduled_procedures().size());
+					}
+
+					if (pd->snapshot.objects[p_object_data.get_net_id().id].procedures.size() > p_procedure_id.id) {
+						// Updates the actual value.
+						p_object_data.scheduled_procedure_reset_to(p_procedure_id, p_procedure_snapshot);
+
+						// Save the variable into the local snapshot, so incremental updates works fine.
+						pd->snapshot.objects[p_object_data.get_net_id().id].procedures[p_procedure_id.id] = std::move(p_procedure_snapshot);
+					}
+				});
+
+#if NS_DEBUG_ENABLED
+		if (scene_synchronizer->pedantic_checks) {
+			NS_ASSERT_COND(!snapshot.is_buffer_failed());
+			NS_ASSERT_COND(snapshot.is_end_of_buffer());
+			NS_ASSERT_COND_MSG(parsing_success, "This can't be triggered unless there is a bug because in the context of integration tests the snapshot can't corrupt, so if this triggered there is a bug.");
+		}
+#endif
+
+		if (!parsing_success) {
+			get_debugger().print(ERROR, "A parsing error occurred while reading a pending object info. The parsing was aborted, but the snapshot parsing is not supposed to be corrupted, investigate!");
+			notify_server_full_snapshot_is_needed();
+			return;
+		}
+
+		get_debugger().print(INFO, "The object data finalization applied " + std::to_string(pending_snapshots->size()) + " pending snapshots on the object name `" + p_object_data.get_object_name() + "`, NetId `" + std::to_string(p_object_data.get_net_id().id) + "`.");
+	}
+
+	// Object initialize, we can finally erase it.
+	objects_pending_snapshots.erase(p_object_data.get_net_id());
+}
+
 void ClientSynchronizer::notify_server_full_snapshot_is_needed() {
 	if (need_full_snapshot_notified) {
 		return;
@@ -4184,12 +4825,16 @@ void ClientSynchronizer::notify_server_full_snapshot_is_needed() {
 	scene_synchronizer->rpc_handler_notify_need_full_snapshot.rpc(
 			scene_synchronizer->get_network_interface(),
 			scene_synchronizer->network_interface->get_server_peer());
+
+	// No need to keep track of these, since a new snapshot is going to override everything.
+	objects_pending_snapshots.clear();
 }
 
 void ClientSynchronizer::update_client_snapshot(Snapshot &r_snapshot) {
 	NS_PROFILE
 
 	r_snapshot.simulated_objects = simulated_objects;
+	r_snapshot.global_frame_index = scene_synchronizer->global_frame_index;
 
 	{
 		NS_PROFILE_NAMED("Fetch `custom_data`");
@@ -4202,7 +4847,7 @@ void ClientSynchronizer::update_client_snapshot(Snapshot &r_snapshot) {
 	}
 
 	// Make sure we have room for all the NodeData.
-	r_snapshot.object_vars.resize(scene_synchronizer->objects_data_storage.get_sorted_objects_data().size());
+	r_snapshot.objects.resize(scene_synchronizer->objects_data_storage.get_sorted_objects_data().size());
 
 	// Updates the Peers executed FrameIndex
 	r_snapshot.peers_frames_index.clear();
@@ -4229,23 +4874,30 @@ void ClientSynchronizer::update_client_snapshot(Snapshot &r_snapshot) {
 		NS_ENSURE_MSG(od->get_net_id() != ObjectNetId::NONE, "[BUG] It's not expected that the client has an uninitialized NetNodeId into the `organized_node_data` ");
 
 #ifdef NS_DEBUG_ENABLED
-		NS_ASSERT_COND_MSG(od->get_net_id().id < uint32_t(r_snapshot.object_vars.size()), "This array was resized above, this can't be triggered.");
+		NS_ASSERT_COND_MSG(od->get_net_id().id < uint32_t(r_snapshot.objects.size()), "This array was resized above, this can't be triggered.");
 #endif
 
-		std::vector<std::optional<VarData>> *snap_node_vars = r_snapshot.object_vars.data() + od->get_net_id().id;
-		snap_node_vars->resize(od->vars.size());
+		ObjectDataSnapshot *object_data_snap = r_snapshot.objects.data() + od->get_net_id().id;
+		object_data_snap->vars.resize(od->vars.size());
 
-		std::optional<VarData> *snap_node_vars_ptr = snap_node_vars->data();
+		std::optional<VarData> *od_snap_vars_ptr = object_data_snap->vars.data();
 		for (std::size_t v = 0; v < od->vars.size(); v += 1) {
 #ifdef NS_PROFILING_ENABLED
 			std::string sub_perf_info = "Var: " + od->vars[v].var.name;
 			NS_PROFILE_NAMED_WITH_INFO("Update object data variable", sub_perf_info);
 #endif
 			if (od->vars[v].enabled) {
-				snap_node_vars_ptr[v].emplace(VarData::make_copy(od->vars[v].var.value));
+				od_snap_vars_ptr[v].emplace(VarData::make_copy(od->vars[v].var.value));
 			} else {
-				snap_node_vars_ptr[v].reset();
+				od_snap_vars_ptr[v].reset();
 			}
+		}
+
+		object_data_snap->procedures.resize(od->get_scheduled_procedures().size());
+		for (std::size_t p = 0; p < od->get_scheduled_procedures().size(); p += 1) {
+			object_data_snap->procedures[p].execute_frame = od->get_scheduled_procedures()[p].execute_frame;
+			object_data_snap->procedures[p].paused_frame = od->get_scheduled_procedures()[p].paused_frame;
+			object_data_snap->procedures[p].args = od->get_scheduled_procedures()[p].args;
 		}
 	}
 
@@ -4305,10 +4957,11 @@ void ClientSynchronizer::apply_snapshot(
 		const bool p_skip_simulated_objects_update,
 		const bool p_disable_apply_non_doll_controlled_only,
 		const bool p_skip_snapshot_applied_event_broadcast,
-		const bool p_skip_change_event) {
+		const bool p_skip_change_event,
+		const bool p_skip_scheduled_procedures) {
 	NS_PROFILE
 
-	const std::vector<std::optional<VarData>> *snap_objects_vars = p_snapshot.object_vars.data();
+	const ObjectDataSnapshot *snap_objects_vars = p_snapshot.objects.data();
 
 	if (!p_skip_change_event) {
 		scene_synchronizer->change_events_begin(p_flag);
@@ -4316,6 +4969,7 @@ void ClientSynchronizer::apply_snapshot(
 	const int this_peer = scene_synchronizer->network_interface->get_local_peer_id();
 
 	if (!p_skip_simulated_objects_update) {
+		scene_synchronizer->global_frame_index = p_snapshot.global_frame_index;
 		update_simulated_objects_list(p_snapshot.simulated_objects);
 	}
 
@@ -4329,7 +4983,7 @@ void ClientSynchronizer::apply_snapshot(
 			continue;
 		}
 
-		if (p_snapshot.object_vars.size() <= info.net_id.id) {
+		if (p_snapshot.objects.size() <= info.net_id.id) {
 			// This object was not received yet, nothing to do.
 			continue;
 		}
@@ -4352,7 +5006,7 @@ void ClientSynchronizer::apply_snapshot(
 			continue;
 		}
 
-		const std::vector<std::optional<VarData>> &snap_object_vars = snap_objects_vars[info.net_id.id];
+		const ObjectDataSnapshot &object_data_snapshot = snap_objects_vars[info.net_id.id];
 
 		if (r_applied_data_info) {
 			r_applied_data_info->push_back("Applied snapshot on the object: " + object_data->get_object_name());
@@ -4360,14 +5014,14 @@ void ClientSynchronizer::apply_snapshot(
 
 		// NOTE: The vars may not contain ALL the variables: it depends on how
 		//       the snapshot was captured.
-		for (VarId v = VarId{ { 0 } }; v < VarId{ { VarId::IdType(snap_object_vars.size()) } }; v += 1) {
-			if (!snap_object_vars[v.id].has_value()) {
+		for (VarId v = VarId{ { 0 } }; v < VarId{ { VarId::IdType(object_data_snapshot.vars.size()) } }; v += 1) {
+			if (!object_data_snapshot.vars[v.id].has_value()) {
 				// This variable was not set, skip it.
 				continue;
 			}
 
 			const std::string &variable_name = object_data->vars[v.id].var.name;
-			const VarData &snap_value = snap_object_vars[v.id].value();
+			const VarData &snap_value = object_data_snapshot.vars[v.id].value();
 			VarData current_val;
 			object_data->vars[v.id].get_func(
 					*scene_synchronizer->synchronizer_manager,
@@ -4403,6 +5057,15 @@ void ClientSynchronizer::apply_snapshot(
 
 				if (r_applied_data_info) {
 					r_applied_data_info->push_back(std::string() + " |- Variable: " + variable_name + " New value: " + SceneSynchronizerBase::var_data_stringify(snap_value));
+				}
+			}
+		}
+
+		if (!p_skip_scheduled_procedures) {
+			for (ScheduledProcedureId procedure_id = { 0 }; procedure_id.id < ScheduledProcedureId::IdType(object_data_snapshot.procedures.size()); procedure_id += 1) {
+				if (object_data->scheduled_procedure_exist(procedure_id)) {
+					const ScheduledProcedureSnapshot &procedure_snapshot = object_data_snapshot.procedures[procedure_id.id];
+					object_data->scheduled_procedure_reset_to(procedure_id, procedure_snapshot);
 				}
 			}
 		}

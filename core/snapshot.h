@@ -50,13 +50,36 @@ struct FrameIndexWithMeta {
 	}
 };
 
+struct ScheduledProcedureSnapshot {
+	GlobalFrameIndex execute_frame = GlobalFrameIndex{ 0 };
+	GlobalFrameIndex paused_frame = GlobalFrameIndex{ 0 };
+	DataBuffer args;
+
+	bool operator==(const ScheduledProcedureSnapshot &p_other) const {
+		return execute_frame == p_other.execute_frame
+				&& paused_frame == p_other.paused_frame
+				&& args == p_other.args;
+	}
+
+	operator std::string() const {
+		return std::string() + "execute_frame: " + std::to_string(execute_frame.id)
+				+ ", paused_frame: " + std::to_string(paused_frame.id)
+				+ ", args: " + std::to_string(args.size());
+	}
+};
+
+struct ObjectDataSnapshot {
+	std::vector<std::optional<VarData>> vars;
+	std::vector<ScheduledProcedureSnapshot> procedures;
+};
+
 struct Snapshot {
 	FrameIndex input_id = FrameIndex::NONE;
+	GlobalFrameIndex global_frame_index = GlobalFrameIndex::NONE;
 	std::vector<SimulatedObjectInfo> simulated_objects;
-	/// The Node variables in a particular frame. The order of this vector
+	/// The objects info in a particular frame. The order of this vector
 	/// matters because the index is the `ObjectNetId`.
-	/// The variable array order also matter.
-	std::vector<std::vector<std::optional<VarData>>> object_vars;
+	std::vector<ObjectDataSnapshot> objects;
 
 	/// The executed FrameIndex for the simulating peers.
 	/// NOTE: Due to the nature of the doll simulation, when comparing the
@@ -74,6 +97,7 @@ public:
 	operator std::string() const;
 
 	const std::vector<std::optional<VarData>> *get_object_vars(ObjectNetId p_id) const;
+	const std::vector<ScheduledProcedureSnapshot> *get_object_procedures(ObjectNetId p_id) const;
 
 	/// Copy the given snapshot.
 	static Snapshot make_copy(const Snapshot &p_other);

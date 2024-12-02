@@ -21,6 +21,12 @@ void NS::SyncGroup::advance_timer_state_notifier(
 	r_send_update = state_notifier_timer >= p_frame_confirmation_timespan;
 	if (r_send_update) {
 		state_notifier_timer = 0.0;
+
+		// Ensure the time is cleared for the last partial updates too, to ensure
+		// the updates arrive with correct time.
+		for (std::size_t index : partial_update_simulated_sync_objects) {
+			simulated_sync_objects[index].last_partial_update_timer = 0.f;
+		}
 	} else {
 		// No state update, verify if this SyncGroup does partial updates.
 		update_partial_update_list();
@@ -88,6 +94,7 @@ void NS::SyncGroup::mark_changes_as_notified(bool p_is_partial_update, const std
 		for (const std::size_t index : p_partial_update_simulated_objects_info_indices) {
 			simulated_sync_objects[index].change.unknown = false;
 			simulated_sync_objects[index].change.vars.clear();
+			simulated_sync_objects[index].change.changed_scheduled_procedures.clear();
 		}
 	} else {
 		// When it isn't a partial update this array is always empty
@@ -97,6 +104,7 @@ void NS::SyncGroup::mark_changes_as_notified(bool p_is_partial_update, const std
 		for (auto &sso : simulated_sync_objects) {
 			sso.change.unknown = false;
 			sso.change.vars.clear();
+			sso.change.changed_scheduled_procedures.clear();
 		}
 	}
 
@@ -331,6 +339,15 @@ void NS::SyncGroup::notify_variable_changed(ObjectData *p_object_data, VarId p_v
 	const std::size_t index = find_simulated(*p_object_data);
 	if (index != VecFunc::index_none()) {
 		VecFunc::insert_unique(simulated_sync_objects[index].change.vars, p_var_id);
+	}
+}
+
+void NS::SyncGroup::notify_scheduled_procedure_changed(ObjectData &p_object_data, ScheduledProcedureId p_scheduled_procedure_id) {
+	const std::size_t index = find_simulated(p_object_data);
+	if (index != VecFunc::index_none()) {
+		VecFunc::insert_unique(
+				simulated_sync_objects[index].change.changed_scheduled_procedures,
+				ScheduledProcedureHandle(p_object_data.get_net_id(), p_scheduled_procedure_id));
 	}
 }
 

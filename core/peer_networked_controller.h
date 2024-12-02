@@ -17,6 +17,23 @@ struct PlayerController;
 struct DollController;
 struct NoNetController;
 
+struct FrameInput {
+	FrameIndex id = FrameIndex::NONE;
+	BitArray inputs_buffer;
+	std::uint16_t buffer_size_bit = 0;
+	FrameIndex similarity = FrameIndex::NONE;
+
+	FrameInput() = default;
+
+	FrameInput(SceneSynchronizerDebugger &p_debugger):
+		inputs_buffer(p_debugger) {
+	}
+
+	bool operator==(const FrameInput &p_other) const {
+		return p_other.id == id;
+	}
+};
+
 /// The `NetworkedController` is responsible to sync the `Player` inputs between
 /// the peers. This allows to control a character, or an object with high precision
 /// and replicates that movement on all connected peers.
@@ -90,6 +107,7 @@ public: // ---------------------------------------------------------------- APIs
 
 	int get_max_redundant_inputs() const;
 
+	FrameIndex get_checked_frame_index() const;
 	FrameIndex get_current_frame_index() const;
 
 	const DataBuffer &get_inputs_buffer() const {
@@ -138,16 +156,20 @@ public:
 		return authority_peer;
 	}
 
-	NS::SceneSynchronizerBase *get_scene_synchronizer() const;
+	SceneSynchronizerBase *get_scene_synchronizer() const;
 	bool has_scene_synchronizer() const;
 
 	void on_peer_status_updated(int p_peer_id, bool p_connected, bool p_enabled);
 
 	void controllable_collect_input(float p_delta, DataBuffer &r_data_buffer);
 	bool controllable_are_inputs_different(DataBuffer &p_data_buffer_A, DataBuffer &p_data_buffer_B);
+	bool is_ready_to_process();
 	void controllable_process(float p_delta, DataBuffer &p_data_buffer);
 
 	void notify_receive_inputs(const std::vector<std::uint8_t> &p_data);
+
+	void store_input_buffer(std::deque<FrameInput> &r_frames_input, FrameIndex p_frame_index);
+	void encode_inputs(std::deque<FrameInput> &p_frames_input, std::vector<std::uint8_t> &r_buffer);
 
 private:
 	void player_set_has_new_input(bool p_has);
@@ -167,23 +189,6 @@ public:
 			void (*p_input_parse)(void *p_user_pointer, FrameIndex p_input_id, std::uint16_t p_input_size_in_bits, const BitArray &p_input));
 };
 
-struct FrameInput {
-	FrameIndex id = FrameIndex::NONE;
-	BitArray inputs_buffer;
-	std::uint16_t buffer_size_bit = 0;
-	FrameIndex similarity = FrameIndex::NONE;
-
-	FrameInput() = default;
-
-	FrameInput(SceneSynchronizerDebugger &p_debugger):
-		inputs_buffer(p_debugger) {
-	}
-
-	bool operator==(const FrameInput &p_other) const {
-		return p_other.id == id;
-	}
-};
-
 struct Controller {
 	PeerNetworkedController *peer_controller;
 
@@ -200,6 +205,7 @@ struct Controller {
 	virtual void ready() {
 	}
 
+	virtual FrameIndex get_checked_frame_index() const = 0;
 	virtual FrameIndex get_current_frame_index() const = 0;
 	virtual void process(float p_delta) = 0;
 
@@ -222,6 +228,7 @@ public:
 
 	virtual void on_peer_update(bool p_peer_enabled);
 
+	virtual FrameIndex get_checked_frame_index() const override;
 	virtual FrameIndex get_current_frame_index() const override;
 	virtual int get_inputs_count() const;
 	FrameIndex last_known_frame_index() const;
@@ -254,17 +261,25 @@ struct ServerController : public RemotelyControlledController {
 };
 
 struct AutonomousServerController final : public ServerController {
+	PHandler event_handler_on_app_process_end = NullPHandler;
+
+	std::vector<std::uint8_t> cached_packet_data;
+
 	AutonomousServerController(
 			PeerNetworkedController *p_node);
+	~AutonomousServerController();
 
 	virtual bool receive_inputs(const std::vector<std::uint8_t> &p_data) override;
 	virtual int get_inputs_count() const override;
 	virtual bool fetch_next_input(float p_delta) override;
+
+	void on_app_process_end(float p_delta_seconds);
 };
 
 struct PlayerController final : public Controller {
-	NS::PHandler event_handler_rewind_frame_begin = NS::NullPHandler;
-	NS::PHandler event_handler_state_validated = NS::NullPHandler;
+	PHandler event_handler_rewind_frame_begin = NullPHandler;
+	PHandler event_handler_state_validated = NullPHandler;
+	PHandler event_handler_on_app_process_end = NullPHandler;
 
 	FrameIndex current_input_id;
 	std::uint32_t input_buffers_counter;
@@ -272,6 +287,7 @@ struct PlayerController final : public Controller {
 
 	std::deque<FrameInput> frames_input;
 	std::vector<std::uint8_t> cached_packet_data;
+	bool has_pending_inputs_sent = false;
 	int queued_instant_to_process = -1;
 
 	PlayerController(PeerNetworkedController *p_node);
@@ -282,16 +298,16 @@ struct PlayerController final : public Controller {
 	int count_frames_after(FrameIndex p_frame_index) const;
 	FrameIndex last_known_frame_index() const;
 	FrameIndex get_stored_frame_index(int p_i) const;
+	virtual FrameIndex get_checked_frame_index() const override;
 	virtual FrameIndex get_current_frame_index() const override;
 
 	void on_rewind_frame_begin(FrameIndex p_frame_index, int p_rewinding_index, int p_rewinding_frame_count);
 	bool has_another_instant_to_process_after(int p_i) const;
 	virtual void process(float p_delta) override;
 	void on_state_validated(FrameIndex p_frame_index, bool p_detected_desync);
+	void on_app_process_end(float p_delta_seconds);
 
 	virtual bool receive_inputs(const std::vector<std::uint8_t> &p_data) override;
-
-	void store_input_buffer(FrameIndex p_frame_index);
 
 	/// Sends an unreliable packet to the server, containing a packed array of
 	/// frame snapshots.
@@ -409,6 +425,7 @@ struct NoNetController : public Controller {
 	NoNetController(PeerNetworkedController *p_node);
 
 	virtual void process(float p_delta) override;
+	virtual FrameIndex get_checked_frame_index() const override;
 	virtual FrameIndex get_current_frame_index() const override;
 };
 

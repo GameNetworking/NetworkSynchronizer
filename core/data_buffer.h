@@ -139,6 +139,8 @@ public:
 	void copy(const DataBuffer &p_other);
 	void copy(const BitArray &p_buffer);
 
+	bool slice(DataBuffer &p_destination, int p_offset_in_bits, int p_count_in_bits) const;
+
 	const BitArray &get_buffer() const {
 		return buffer;
 	}
@@ -183,6 +185,10 @@ public:
 
 	bool is_buffer_failed() const {
 		return buffer_failed;
+	}
+
+	int get_size_in_bits() const {
+		return bit_size;
 	}
 
 	// ------------------------------------------------------ Type serialization

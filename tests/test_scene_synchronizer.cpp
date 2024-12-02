@@ -92,6 +92,7 @@ public:
 	}
 };
 
+
 void test_client_and_server_initialization() {
 	NS::LocalScene server_scene;
 	server_scene.start_as_server();
@@ -257,10 +258,131 @@ void test_late_name_initialization() {
 	// Top!
 }
 
-class TestSceneObject : public NS::LocalSceneObject {
+class LocalNetworkedControllerServerOnlyRegistration : public NS::LocalSceneObject {
+public:
+	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
+	NS::VarData position;
+
+	LocalNetworkedControllerServerOnlyRegistration() {
+	}
+
+	virtual void on_scene_entry() override {
+		if (get_scene()->scene_sync->is_server()) {
+			get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
+		}
+	}
+
+	virtual void on_scene_exit() override {
+		get_scene()->scene_sync->unregister_app_object(local_id);
+	}
+
+	virtual void setup_synchronizer(NS::LocalSceneSynchronizer &p_scene_sync, NS::ObjectLocalId p_id) override {
+		local_id = p_id;
+
+		p_scene_sync.setup_controller(
+				p_id,
+				std::bind(&LocalNetworkedControllerServerOnlyRegistration::collect_inputs, this, std::placeholders::_1, std::placeholders::_2),
+				std::bind(&LocalNetworkedControllerServerOnlyRegistration::are_inputs_different, this, std::placeholders::_1, std::placeholders::_2),
+				std::bind(&LocalNetworkedControllerServerOnlyRegistration::controller_process, this, std::placeholders::_1, std::placeholders::_2));
+
+		p_scene_sync.set_controlled_by_peer(
+				p_id,
+				authoritative_peer_id);
+
+		p_scene_sync.register_variable(
+				p_id,
+				"position",
+				[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, const NS::VarData &p_value) {
+					static_cast<LocalNetworkedController *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->position.copy(p_value);
+				},
+				[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, NS::VarData &r_value) {
+					r_value.copy(static_cast<LocalNetworkedController *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->position);
+				});
+	}
+
+	void collect_inputs(float p_delta, NS::DataBuffer &r_buffer) {
+		r_buffer.add_bool(true);
+	}
+
+	void controller_process(float p_delta, NS::DataBuffer &p_buffer) {
+		if (p_buffer.read_bool()) {
+			const float one_meter = 1.0;
+			position.data.f32 += p_delta * one_meter;
+		}
+	}
+
+	bool are_inputs_different(NS::DataBuffer &p_buffer_A, NS::DataBuffer &p_buffer_B) {
+		return p_buffer_A.read_bool() != p_buffer_B.read_bool();
+	}
+};
+
+void test_late_object_spawning() {
+	NS::LocalScene server_scene;
+	server_scene.start_as_server();
+
+	NS::LocalScene peer_1_scene;
+	peer_1_scene.start_as_client(server_scene);
+
+	// Add the scene sync
+	server_scene.scene_sync =
+			server_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+
+	peer_1_scene.scene_sync =
+			peer_1_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+
+	server_scene.scene_sync->set_frame_confirmation_timespan(0.0);
+
+	// Spawn the object controlled only on the server.
+	LocalNetworkedControllerServerOnlyRegistration *controller_p1_server = server_scene.add_object<LocalNetworkedControllerServerOnlyRegistration>("controlled_1", peer_1_scene.get_peer());
+
+	// Set a specific data.
+	controller_p1_server->position.data.f32 = -439;
+	float last_set_position = controller_p1_server->position.data.f32;
+
+	// Process the scene 10 times to ensure the state is sync.
+	for (int i = 0; i < 10; i++) {
+		// Set a specific data.
+		controller_p1_server->position.data.f32 -= 1;
+		last_set_position = controller_p1_server->position.data.f32;
+
+		server_scene.process(delta);
+		peer_1_scene.process(delta);
+	}
+
+	// Now spawn the controlled object also on the peer.
+	LocalNetworkedControllerServerOnlyRegistration *controller_p1_client = peer_1_scene.add_object<LocalNetworkedControllerServerOnlyRegistration>("controlled_1", peer_1_scene.get_peer());
+
+	// Process one additional time to ensure the object is fetched.
+	for (int i = 0; i < 1; i++) {
+		// Set a specific data.
+		controller_p1_server->position.data.f32 -= 1;
+		last_set_position = controller_p1_server->position.data.f32;
+
+		server_scene.process(delta);
+		peer_1_scene.process(delta);
+	}
+
+	// Assert that the server position is sync right away on the client.
+	// Since we are not comparing the same frames, it's using a big epsilon for the comparation.
+	NS_ASSERT_COND(NS::MathFunc::is_equal_approx(controller_p1_server->position.data.f32, last_set_position, 0.01f));
+	NS_ASSERT_COND(NS::MathFunc::is_equal_approx(controller_p1_client->position.data.f32, last_set_position, 0.5f));
+}
+
+class TSS_TestSceneObject : public NS::LocalSceneObject {
 public:
 	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
 	NS::VarData var_1;
+	NS::ScheduledProcedureId procedure_id = NS::ScheduledProcedureId::NONE;
+
+	float just_a_float_value = -1000.f;
+
+	int procedure_collecting_args_count = 0;
+	int procedure_received_count = 0;
+	int procedure_execution_count = 0;
+	int procedure_execution_while_rewind_count = 0;
+	NS::GlobalFrameIndex procedure_execution_rewinded_on_frame;
+
+	std::vector<NS::GlobalFrameIndex> rewinded_frames;
 
 	virtual void on_scene_entry() override {
 		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
@@ -272,10 +394,41 @@ public:
 				p_id,
 				"var_1",
 				[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, const NS::VarData &p_value) {
-					static_cast<TestSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->var_1.copy(p_value);
+					static_cast<TSS_TestSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->var_1.copy(p_value);
 				},
 				[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, NS::VarData &r_value) {
-					r_value.copy(static_cast<TestSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->var_1);
+					r_value.copy(static_cast<TSS_TestSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->var_1);
+				});
+
+		p_scene_sync.register_process(
+				p_id,
+				PROCESS_PHASE_PROCESS,
+				[&p_scene_sync, this](float) {
+					if (p_scene_sync.is_rewinding()) {
+						rewinded_frames.push_back(p_scene_sync.get_global_frame_index());
+					}
+				});
+
+		procedure_id = p_scene_sync.register_scheduled_procedure(
+				p_id,
+				[](const NS::SynchronizerManager &p_sync_manager, NS::ObjectHandle p_handle, NS::ScheduledProcedurePhase p_phase, NS::DataBuffer &p_buffer) {
+					TSS_TestSceneObject *self = static_cast<TSS_TestSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle));
+					if (p_phase == NS::ScheduledProcedurePhase::COLLECTING_ARGUMENTS) {
+						self->procedure_collecting_args_count++;
+						p_buffer.add(self->just_a_float_value);
+						NS_ASSERT_COND(!p_buffer.is_buffer_failed());
+					} else if (p_phase == NS::ScheduledProcedurePhase::RECEIVED) {
+						self->procedure_received_count++;
+					} else {
+						self->procedure_execution_count++;
+						p_buffer.read(self->just_a_float_value);
+						NS_ASSERT_COND(!p_buffer.is_buffer_failed());
+
+						if (p_sync_manager.get_scene_synchronizer()->is_rewinding()) {
+							self->procedure_execution_while_rewind_count++;
+							self->procedure_execution_rewinded_on_frame = p_sync_manager.get_scene_synchronizer()->get_global_frame_index();
+						}
+					}
 				});
 	}
 
@@ -324,9 +477,9 @@ void test_sync_groups() {
 	peer_2_scene.add_object<LocalNetworkedController>("controller_4", peer_2_scene.get_peer());
 
 	// Add an object.
-	const NS::ObjectLocalId obj_1_id = server_scene.add_object<TestSceneObject>("obj_1", server_scene.get_peer())->local_id;
-	peer_1_scene.add_object<TestSceneObject>("obj_1", server_scene.get_peer());
-	peer_2_scene.add_object<TestSceneObject>("obj_1", server_scene.get_peer());
+	const NS::ObjectLocalId obj_1_id = server_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer())->local_id;
+	peer_1_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer());
+	peer_2_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer());
 
 	// Create 3 sync groups
 	const NS::SyncGroupId group_1 = server_scene.scene_sync->sync_group_create();
@@ -602,9 +755,9 @@ void test_state_notify() {
 	peer_2_scene.scene_sync =
 			peer_2_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
 
-	server_scene.add_object<TestSceneObject>("obj_1", server_scene.get_peer());
-	peer_1_scene.add_object<TestSceneObject>("obj_1", server_scene.get_peer());
-	peer_2_scene.add_object<TestSceneObject>("obj_1", server_scene.get_peer());
+	server_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer());
+	peer_1_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer());
+	peer_2_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer());
 
 	for (int f = 0; f < 2; f++) {
 		// Test with notify interval set to 0
@@ -612,12 +765,12 @@ void test_state_notify() {
 			server_scene.scene_sync->set_frame_confirmation_timespan(0.0);
 
 			// Set the `var_1` to a different value to all the clients.
-			server_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 0;
-			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 1;
-			peer_2_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 2;
-			NS_ASSERT_COND(server_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 0);
-			NS_ASSERT_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 1);
-			NS_ASSERT_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 2);
+			server_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 = 0;
+			peer_1_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 = 1;
+			peer_2_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 = 2;
+			NS_ASSERT_COND(server_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 == 0);
+			NS_ASSERT_COND(peer_1_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 == 1);
+			NS_ASSERT_COND(peer_2_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 == 2);
 
 			// Process exactly 1 time.
 			// NOTE: Processing the controller so the server receives the input right after.
@@ -629,9 +782,14 @@ void test_state_notify() {
 			// the snapshot right away: since the server snapshot is always
 			// at least one frame behind the client, we can assume that the
 			// client has applied the server correction.
-			NS_ASSERT_COND(server_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 0);
-			NS_ASSERT_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 0);
-			NS_ASSERT_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 0);
+			NS_ASSERT_COND(server_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 == 0);
+			NS_ASSERT_COND(peer_1_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 == 0);
+			NS_ASSERT_COND(peer_2_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 == 0);
+
+			// Ensure no rewinds happened because there are no controllers, so there is nothing to rewind.
+			NS_ASSERT_COND(server_scene.fetch_object<TSS_TestSceneObject>("obj_1")->rewinded_frames.size() == 0);
+			NS_ASSERT_COND(peer_1_scene.fetch_object<TSS_TestSceneObject>("obj_1")->rewinded_frames.size() == 0);
+			NS_ASSERT_COND(peer_2_scene.fetch_object<TSS_TestSceneObject>("obj_1")->rewinded_frames.size() == 0);
 		}
 
 		// Test with notify interval set to 0.5 seconds.
@@ -639,9 +797,9 @@ void test_state_notify() {
 			server_scene.scene_sync->set_frame_confirmation_timespan(0.5);
 
 			// Set the `var_1` to a different value to all the clients.
-			server_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 3;
-			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 4;
-			peer_2_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 5;
+			server_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 = 3;
+			peer_1_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 = 4;
+			peer_2_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 = 5;
 
 			// Process for 0.5 second + delta
 			float time = 0.0;
@@ -652,9 +810,9 @@ void test_state_notify() {
 				peer_2_scene.process(delta);
 
 				if (
-					server_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3 &&
-					peer_1_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3 &&
-					peer_2_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3) {
+					server_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 == 3 &&
+					peer_1_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 == 3 &&
+					peer_2_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 == 3) {
 					break;
 				}
 			}
@@ -663,9 +821,9 @@ void test_state_notify() {
 			// the snapshot after some 0.5s: since the server snapshot is always
 			// at least one frame behind the client, we can assume that the
 			// client has applied the server correction.
-			NS_ASSERT_COND(server_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3);
-			NS_ASSERT_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3);
-			NS_ASSERT_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3);
+			NS_ASSERT_COND(server_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 == 3);
+			NS_ASSERT_COND(peer_1_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 == 3);
+			NS_ASSERT_COND(peer_2_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 == 3);
 			NS_ASSERT_COND(time < 0.5);
 		}
 
@@ -677,10 +835,10 @@ void test_state_notify() {
 			server_scene.scene_sync->set_frame_confirmation_timespan(0.0);
 
 			// The server remains like it was.
-			// server_scene.fetch_object<TestSceneObject>("obj_1")->var_1 = 3;
+			// server_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1 = 3;
 			// While the peers change its variables.
-			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 4;
-			peer_2_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 5;
+			peer_1_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 = 4;
+			peer_2_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 = 5;
 
 			if (f == 0) {
 				server_scene.process(delta);
@@ -688,9 +846,9 @@ void test_state_notify() {
 				peer_2_scene.process(delta);
 
 				// Still the value expected is `3`.
-				NS_ASSERT_COND(server_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3);
-				NS_ASSERT_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3);
-				NS_ASSERT_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3);
+				NS_ASSERT_COND(server_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 == 3);
+				NS_ASSERT_COND(peer_1_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 == 3);
+				NS_ASSERT_COND(peer_2_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 == 3);
 			} else {
 				// Note: the +1 is needed because the change is recored on the snapshot
 				// the scene sync is going to created on the next "process".
@@ -717,7 +875,7 @@ void test_state_notify() {
 
 					// However, since the `peer_2` doesn't have the local controller
 					// the server snapshot is expected to be applied right away.
-					NS_ASSERT_COND(peer_2_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3);
+					NS_ASSERT_COND(peer_2_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 == 3);
 
 					if (change_made_on_frame == server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index()) {
 						// Break as soon as the server reaches the same snapshot.
@@ -730,7 +888,7 @@ void test_state_notify() {
 				NS_ASSERT_COND(change_made_on_frame == server_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_current_frame_index());
 
 				// and now is time to check for the `peer_1`.
-				NS_ASSERT_COND(peer_1_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 == 3);
+				NS_ASSERT_COND(peer_1_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 == 3);
 			}
 		}
 
@@ -762,6 +920,64 @@ void test_state_notify() {
 	}
 }
 
+/// Verify the state can be applied for variables that do not trigger a rewind, without triggering a rewind.
+void test_state_no_rewind_notify() {
+	NS::LocalScene server_scene;
+	server_scene.start_as_server();
+
+	NS::LocalScene peer_1_scene;
+	peer_1_scene.start_as_client(server_scene);
+
+	// Add the scene sync
+	server_scene.scene_sync =
+			server_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+	peer_1_scene.scene_sync =
+			peer_1_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+
+	server_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
+	peer_1_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
+
+	TSS_TestSceneObject *TSO_server = server_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer());
+	TSS_TestSceneObject *TSO_peer_1 = peer_1_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer());
+
+	// Mark the vars as not triggering the rewinding.
+	server_scene.scene_sync->set_skip_rewinding(TSO_server->local_id, "var_1", true);
+	peer_1_scene.scene_sync->set_skip_rewinding(TSO_peer_1->local_id, "var_1", true);
+
+	server_scene.scene_sync->set_frame_confirmation_timespan(0.0);
+
+	// Process the scenes 1 time to ensure everything is up to dated.
+	server_scene.process(delta);
+	peer_1_scene.process(delta);
+
+	// Set the `var_1` to a different value on the server.
+	TSO_server->var_1.data.i32 = 1;
+	TSO_peer_1->var_1.data.i32 = 0;
+	NS_ASSERT_COND(TSO_server->var_1.data.i32 == 1);
+	NS_ASSERT_COND(TSO_peer_1->var_1.data.i32 == 0);
+
+	// Process the client 5 times to build the pending inputs.
+	for (int i = 0; i < 5; i++) {
+		peer_1_scene.process(delta);
+
+		NS_ASSERT_COND(TSO_server->var_1.data.i32 == 1);
+		NS_ASSERT_COND(TSO_peer_1->var_1.data.i32 == 0);
+	}
+
+	// Process the server scene to generate and send a snapshot.
+	server_scene.process(delta);
+
+	// Process the peer 1, here it will flush the snapshot.
+	peer_1_scene.process(delta);
+
+	// Verify that the server correction was applied, without rewindings.
+	NS_ASSERT_COND(TSO_server->var_1.data.i32 == 1);
+	NS_ASSERT_COND(TSO_peer_1->var_1.data.i32 == 1);
+	NS_ASSERT_COND(TSO_server->rewinded_frames.size() == 0);
+	NS_ASSERT_COND(TSO_peer_1->rewinded_frames.size() == 0);
+}
+
+
 void test_processing_with_late_controller_registration() {
 	// This test make sure that the peer receives the server updates ASAP, despite
 	// the `notify_interval` set.
@@ -780,8 +996,8 @@ void test_processing_with_late_controller_registration() {
 	peer_1_scene.scene_sync =
 			peer_1_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
 
-	server_scene.scene_sync->to_handle(server_scene.add_object<TestSceneObject>("obj_1", server_scene.get_peer()));
-	peer_1_scene.scene_sync->to_handle(peer_1_scene.add_object<TestSceneObject>("obj_1", server_scene.get_peer()));
+	server_scene.scene_sync->to_handle(server_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer()));
+	peer_1_scene.scene_sync->to_handle(peer_1_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer()));
 
 	// Quite high notify state interval, to make sure the snapshot is not sent "soon".
 	server_scene.scene_sync->set_frame_confirmation_timespan(10.0);
@@ -832,9 +1048,9 @@ void test_variable_change_event() {
 	peer_2_scene.scene_sync =
 			peer_2_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
 
-	NS::ObjectLocalId server_obj_1_oh = server_scene.add_object<TestSceneObject>("obj_1", server_scene.get_peer())->find_local_id();
-	NS::ObjectLocalId p1_obj_1_oh = peer_1_scene.add_object<TestSceneObject>("obj_1", server_scene.get_peer())->find_local_id();
-	NS::ObjectLocalId p2_obj_1_oh = peer_2_scene.add_object<TestSceneObject>("obj_1", server_scene.get_peer())->find_local_id();
+	NS::ObjectLocalId server_obj_1_oh = server_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer())->find_local_id();
+	NS::ObjectLocalId p1_obj_1_oh = peer_1_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer())->find_local_id();
+	NS::ObjectLocalId p2_obj_1_oh = peer_2_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer())->find_local_id();
 
 	for (int f = 0; f < 2; f++) {
 		// Test the changed variable for the event `CHANGE` is triggered.
@@ -861,9 +1077,9 @@ void test_variable_change_event() {
 					},
 					NetEventFlag::CHANGE);
 
-			server_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 2;
-			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 3;
-			peer_2_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 4;
+			server_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 = 2;
+			peer_1_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 = 3;
+			peer_2_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 = 4;
 
 			peer_1_scene.process(delta);
 			peer_2_scene.process(delta);
@@ -906,9 +1122,9 @@ void test_variable_change_event() {
 			is_p2_change_event_triggered = false;
 
 			// Change the values
-			server_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 30;
-			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 30;
-			peer_2_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 30;
+			server_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 = 30;
+			peer_1_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 = 30;
+			peer_2_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 = 30;
 
 			// Process again
 			for (int i = 0; i < 4; i++) {
@@ -928,9 +1144,9 @@ void test_variable_change_event() {
 			// Unify the state across all the peers
 			server_scene.scene_sync->set_frame_confirmation_timespan(0.0);
 
-			server_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 0;
-			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 0;
-			peer_2_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 0;
+			server_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 = 0;
+			peer_1_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 = 0;
+			peer_2_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 = 0;
 
 			for (int i = 0; i < 4; i++) {
 				server_scene.process(delta);
@@ -961,7 +1177,7 @@ void test_variable_change_event() {
 					NetEventFlag::SERVER_UPDATE);
 
 			// Change the value on the server.
-			server_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 1;
+			server_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 = 1;
 
 			for (int i = 0; i < 4; i++) {
 				server_scene.process(delta);
@@ -986,9 +1202,9 @@ void test_variable_change_event() {
 			// Unify the state across all the peers
 			server_scene.scene_sync->set_frame_confirmation_timespan(0.0);
 
-			server_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 0;
-			peer_1_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 0;
-			peer_2_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 0;
+			server_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 = 0;
+			peer_1_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 = 0;
+			peer_2_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 = 0;
 
 			for (int i = 0; i < 4; i++) {
 				server_scene.process(delta);
@@ -1027,7 +1243,7 @@ void test_variable_change_event() {
 			peer_2_scene.scene_sync->set_skip_rewinding(p2_obj_1_oh, "var_1", true);
 
 			// Change the value on the server.
-			server_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 1;
+			server_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 = 1;
 
 			for (int i = 0; i < 4; i++) {
 				server_scene.process(delta);
@@ -1047,7 +1263,7 @@ void test_variable_change_event() {
 			peer_2_scene.scene_sync->set_skip_rewinding(p2_obj_1_oh, "var_1", false);
 
 			// Change the value on the server.
-			server_scene.fetch_object<TestSceneObject>("obj_1")->var_1.data.i32 = 10;
+			server_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 = 10;
 
 			for (int i = 0; i < 4; i++) {
 				server_scene.process(delta);
@@ -1095,6 +1311,337 @@ void test_variable_change_event() {
 
 void test_controller_processing() {
 	// TODO implement this.
+}
+
+class TestScheduledProcedureBase {
+public:
+	bool skip_process_assetions = false;
+
+	NS::LocalScene server_scene;
+
+	NS::LocalScene peer_1_scene;
+
+	NS::LocalScene peer_2_scene;
+
+	TSS_TestSceneObject *scene_object_on_server;
+	TSS_TestSceneObject *scene_object_on_peer_1;
+	TSS_TestSceneObject *scene_object_on_peer_2 = nullptr;
+
+	NS::GlobalFrameIndex execute_on_frame;
+
+	int frame_count = 0;
+	int expected_procedure_execution_count = 1;
+
+	virtual void do_test() {
+		server_scene.start_as_server();
+		peer_1_scene.start_as_client(server_scene);
+		// ---------------------------------------------------------- INITIALIZATION
+
+		// Add the scene sync
+		server_scene.scene_sync =
+				server_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+
+		peer_1_scene.scene_sync =
+				peer_1_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+
+		server_scene.scene_sync->set_frame_confirmation_timespan(0.2f);
+
+		// Add 1 objects controlled by the peer 1.
+		server_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
+		peer_1_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
+
+		// Add an object.
+		scene_object_on_server = server_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer());
+		scene_object_on_peer_1 = peer_1_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer());
+
+		// Process the scene to ensure the first snapshot is received by the client
+		// so all the nodes are properly registered.
+		// This is a requirement to ensure that schedule_procedure instant notifications
+		// are not discarded because the NetId is not associated to anything.
+		server_scene.scene_sync->force_state_notify_all();
+		server_scene.process(delta);
+		peer_1_scene.process(delta);
+
+		// -------------------------------------------------- SCHEDULE THE PROCEDURE
+		scene_object_on_server->just_a_float_value = 532.f;
+		execute_on_frame = server_scene.scene_sync->scheduled_procedure_start(scene_object_on_server->local_id, scene_object_on_server->procedure_id, 0.3f);
+
+		// ---------------------------------------------------------- ASSERTION FUNC
+		{
+			const float on_server_executes_in = server_scene.scene_sync->scheduled_procedure_get_remaining_seconds(scene_object_on_server->local_id, scene_object_on_server->procedure_id);
+			const float on_peer_1_executes_in = peer_1_scene.scene_sync->scheduled_procedure_get_remaining_seconds(scene_object_on_peer_1->local_id, scene_object_on_peer_1->procedure_id);
+
+			NS_ASSERT_COND(on_server_executes_in >= 0.2f);
+			NS_ASSERT_COND(scene_object_on_server->procedure_collecting_args_count == 1);
+			NS_ASSERT_COND(scene_object_on_server->procedure_received_count == 0);
+			NS_ASSERT_COND(scene_object_on_server->procedure_execution_count == 0);
+			NS_ASSERT_COND(scene_object_on_server->just_a_float_value== 532.f);
+
+			// On client this has not yet notified.
+			NS_ASSERT_COND(on_peer_1_executes_in <= 0.f);
+			NS_ASSERT_COND(scene_object_on_peer_1->procedure_collecting_args_count == 0);
+			NS_ASSERT_COND(scene_object_on_peer_1->procedure_received_count == 0);
+			NS_ASSERT_COND(scene_object_on_peer_1->procedure_execution_count == 0);
+			NS_ASSERT_COND(scene_object_on_peer_1->just_a_float_value != 532.f);
+		}
+
+		do_process(30);
+
+		assert_final_value();
+	}
+
+	virtual void do_process(int p_untill) {
+		for (; frame_count < p_untill; frame_count++) {
+			if (frame_count == 4) {
+				// -------------------------------------------- Late registered peer
+				// NOTE: this is used to test that the scheduled procedures are also sync
+				//       via snapshot.
+				peer_2_scene.start_as_client(server_scene);
+				peer_2_scene.scene_sync = peer_2_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+				peer_2_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
+				peer_2_scene.add_object<LocalNetworkedController>("controller_2", peer_2_scene.get_peer());
+				scene_object_on_peer_2 = peer_2_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer());
+
+				// Add 1 object controlled by the peer 2.
+				server_scene.add_object<LocalNetworkedController>("controller_2", peer_2_scene.get_peer());
+				peer_1_scene.add_object<LocalNetworkedController>("controller_2", peer_2_scene.get_peer());
+			}
+
+			server_scene.process(delta);
+			peer_1_scene.process(delta);
+			if (frame_count >= 4) {
+				peer_2_scene.process(delta);
+			}
+			on_scne_process();
+
+			if (!skip_process_assetions) {
+				// --------------------------------------------------------------- ASSERTION
+				{
+					const float remaining_time_on_server = float(int(execute_on_frame.id) - int(server_scene.scene_sync->get_global_frame_index().id)) * server_scene.scene_sync->get_fixed_frame_delta();
+					const float remaining_time_on_p1 = float(int(execute_on_frame.id) - int(peer_1_scene.scene_sync->get_global_frame_index().id)) * server_scene.scene_sync->get_fixed_frame_delta();
+
+					const float on_server_executes_in = server_scene.scene_sync->scheduled_procedure_get_remaining_seconds(scene_object_on_server->local_id, scene_object_on_server->procedure_id);
+					const float on_peer_1_executes_in = peer_1_scene.scene_sync->scheduled_procedure_get_remaining_seconds(scene_object_on_peer_1->local_id, scene_object_on_peer_1->procedure_id);
+
+					if (remaining_time_on_server > 0.) {
+						// Procedure not triggered.
+						NS_ASSERT_COND(std::abs(on_server_executes_in-remaining_time_on_server)<0.001);
+						NS_ASSERT_COND(scene_object_on_server->procedure_collecting_args_count == 1);
+						NS_ASSERT_COND(scene_object_on_server->procedure_received_count == 0);
+						NS_ASSERT_COND(scene_object_on_server->procedure_execution_count == 0);
+					} else {
+						// Procedure triggered.
+						NS_ASSERT_COND(on_server_executes_in==0.f);
+						NS_ASSERT_COND(scene_object_on_server->procedure_collecting_args_count == 1);
+						NS_ASSERT_COND(scene_object_on_server->procedure_received_count == 0);
+						NS_ASSERT_COND(scene_object_on_server->procedure_execution_count == 1);
+					}
+
+					if (remaining_time_on_p1 > 0.) {
+						// Procedure not triggered.
+						NS_ASSERT_COND(std::abs(on_peer_1_executes_in-remaining_time_on_p1)<0.001);
+						NS_ASSERT_COND(scene_object_on_peer_1->procedure_collecting_args_count == 0);
+						NS_ASSERT_COND(scene_object_on_peer_1->procedure_received_count == 1);
+						NS_ASSERT_COND(scene_object_on_peer_1->procedure_execution_count == 0);
+						NS_ASSERT_COND(scene_object_on_peer_1->just_a_float_value != 532.f);
+					} else {
+						// Procedure triggered.
+						NS_ASSERT_COND(on_peer_1_executes_in==0.f);
+						NS_ASSERT_COND(scene_object_on_peer_1->procedure_collecting_args_count == 0);
+						NS_ASSERT_COND(scene_object_on_peer_1->procedure_received_count == 1);
+						NS_ASSERT_COND(scene_object_on_peer_1->procedure_execution_count == 1);
+						NS_ASSERT_COND(scene_object_on_peer_1->just_a_float_value == 532.f);
+					}
+
+					if (scene_object_on_peer_2) {
+						const float remaining_time_on_p2 = float(int(execute_on_frame.id) - int(peer_2_scene.scene_sync->get_global_frame_index().id)) * peer_2_scene.scene_sync->get_fixed_frame_delta();
+
+						const float on_peer_2_executes_in = peer_2_scene.scene_sync->scheduled_procedure_get_remaining_seconds(scene_object_on_peer_2->local_id, scene_object_on_peer_2->procedure_id);
+
+						if (remaining_time_on_p2 > 0.f) {
+							if (on_peer_2_executes_in > 0.f) {
+								// Check this only once the server snapshot has notified the procedure.
+								NS_ASSERT_COND(std::abs(on_peer_2_executes_in-remaining_time_on_p2)<0.001);
+								NS_ASSERT_COND(scene_object_on_peer_2->procedure_collecting_args_count == 0);
+								NS_ASSERT_COND(scene_object_on_peer_2->procedure_received_count == 0);
+								NS_ASSERT_COND(scene_object_on_peer_2->procedure_execution_count == 0);
+								NS_ASSERT_COND(scene_object_on_peer_2->just_a_float_value != 532.f);
+							}
+						} else {
+							// Procedure triggered.
+							NS_ASSERT_COND(on_peer_2_executes_in==0.f);
+							NS_ASSERT_COND(scene_object_on_peer_2->procedure_collecting_args_count == 0);
+							NS_ASSERT_COND(scene_object_on_peer_2->procedure_received_count == 0);
+							NS_ASSERT_COND(scene_object_on_peer_2->procedure_execution_count == 1);
+							NS_ASSERT_COND(scene_object_on_peer_2->just_a_float_value == 532.f);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	virtual void on_scne_process() {
+	}
+
+	virtual void assert_final_value() {
+		NS_ASSERT_COND(scene_object_on_server->just_a_float_value == 532.f);
+		NS_ASSERT_COND(scene_object_on_peer_1->just_a_float_value == 532.f);
+		NS_ASSERT_COND(scene_object_on_peer_2->just_a_float_value == 532.f);
+	}
+};
+
+class TestScheduledProcedurePause : public TestScheduledProcedureBase {
+public:
+	TestScheduledProcedurePause() {
+	}
+
+	virtual void on_scne_process() override {
+		if (frame_count == 2) {
+			server_scene.scene_sync->scheduled_procedure_pause(scene_object_on_server->local_id, scene_object_on_server->procedure_id);
+			skip_process_assetions = true;
+		}
+	}
+
+	virtual void assert_final_value() override {
+		// Ensure the procedure was triggered everywhere.
+		const float on_server_executes_in = server_scene.scene_sync->scheduled_procedure_get_remaining_seconds(scene_object_on_server->local_id, scene_object_on_server->procedure_id);
+		const float on_peer_1_executes_in = peer_1_scene.scene_sync->scheduled_procedure_get_remaining_seconds(scene_object_on_peer_1->local_id, scene_object_on_peer_1->procedure_id);
+		const float on_peer_2_executes_in = peer_2_scene.scene_sync->scheduled_procedure_get_remaining_seconds(scene_object_on_peer_2->local_id, scene_object_on_peer_2->procedure_id);
+		NS_ASSERT_COND(on_server_executes_in > 0.);
+		NS_ASSERT_COND(on_peer_1_executes_in > 0.);
+		NS_ASSERT_COND(on_peer_2_executes_in > 0.);
+
+		// Unpause and process
+		execute_on_frame = server_scene.scene_sync->scheduled_procedure_unpause(scene_object_on_server->local_id, scene_object_on_server->procedure_id);
+		do_process(60);
+
+		TestScheduledProcedureBase::assert_final_value();
+	}
+};
+
+class TestScheduledProcedureStop : public TestScheduledProcedureBase {
+public:
+	TestScheduledProcedureStop() {
+	}
+
+	virtual void on_scne_process() override {
+		if (frame_count == 2) {
+			server_scene.scene_sync->scheduled_procedure_stop(scene_object_on_server->local_id, scene_object_on_server->procedure_id);
+			skip_process_assetions = true;
+		}
+	}
+
+	virtual void assert_final_value() override {
+		// Ensure the procedure was triggered everywhere.
+		const float on_server_executes_in = server_scene.scene_sync->scheduled_procedure_get_remaining_seconds(scene_object_on_server->local_id, scene_object_on_server->procedure_id);
+		const float on_peer_1_executes_in = peer_1_scene.scene_sync->scheduled_procedure_get_remaining_seconds(scene_object_on_peer_1->local_id, scene_object_on_peer_1->procedure_id);
+		const float on_peer_2_executes_in = peer_2_scene.scene_sync->scheduled_procedure_get_remaining_seconds(scene_object_on_peer_2->local_id, scene_object_on_peer_2->procedure_id);
+		NS_ASSERT_COND(on_server_executes_in == 0.);
+		NS_ASSERT_COND(on_peer_1_executes_in == 0.);
+		NS_ASSERT_COND(on_peer_2_executes_in == 0.);
+
+		// Unpause and process
+		execute_on_frame = server_scene.scene_sync->scheduled_procedure_unpause(scene_object_on_server->local_id, scene_object_on_server->procedure_id);
+		NS_ASSERT_COND(execute_on_frame.id == 0);
+
+		do_process(60);
+
+		NS_ASSERT_COND(scene_object_on_server->just_a_float_value == 532.f);
+		NS_ASSERT_COND(scene_object_on_peer_1->just_a_float_value != 532.f);
+		NS_ASSERT_COND(scene_object_on_peer_2->just_a_float_value != 532.f);
+
+		// Unpause and process
+		execute_on_frame = server_scene.scene_sync->scheduled_procedure_start(scene_object_on_server->local_id, scene_object_on_server->procedure_id, 0.2f);
+		NS_ASSERT_COND(execute_on_frame.id != 0);
+
+		do_process(90);
+
+		TestScheduledProcedureBase::assert_final_value();
+	}
+};
+
+void test_scheduled_procedure_rewind() {
+	NS::LocalScene server_scene;
+	server_scene.start_as_server();
+
+	NS::LocalScene peer_1_scene;
+	peer_1_scene.start_as_client(server_scene);
+
+	// Add the scene sync
+	server_scene.scene_sync =
+			server_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+	peer_1_scene.scene_sync =
+			peer_1_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+
+	// Add 1 objects controlled by the peer 1.
+	server_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
+	peer_1_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
+
+	TSS_TestSceneObject *server_obj_1_oh = server_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer());
+	TSS_TestSceneObject *p1_obj_1_oh = peer_1_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer());
+
+	server_scene.scene_sync->set_frame_confirmation_timespan(0.2f);
+
+	server_scene.scene_sync->force_state_notify_all();
+	for (int p = 0; p < 5; p++) {
+		server_scene.process(delta);
+		peer_1_scene.process(delta);
+	}
+
+	NS_ASSERT_COND(server_obj_1_oh->procedure_collecting_args_count == 0);
+	NS_ASSERT_COND(server_obj_1_oh->procedure_received_count == 0);
+	NS_ASSERT_COND(server_obj_1_oh->procedure_execution_count == 0);
+	NS_ASSERT_COND(server_obj_1_oh->procedure_execution_while_rewind_count== 0);
+	NS_ASSERT_COND(p1_obj_1_oh->procedure_collecting_args_count == 0);
+	NS_ASSERT_COND(p1_obj_1_oh->procedure_received_count == 0);
+	NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_count == 0);
+	NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_while_rewind_count== 0);
+
+	const NS::GlobalFrameIndex execute_on_frame = server_scene.scene_sync->scheduled_procedure_start(server_obj_1_oh->local_id, server_obj_1_oh->procedure_id, 0.15f);
+	NS_ASSERT_COND(execute_on_frame.id != 0);
+
+	NS_ASSERT_COND(server_obj_1_oh->procedure_collecting_args_count == 1);
+	NS_ASSERT_COND(server_obj_1_oh->procedure_received_count == 0);
+	NS_ASSERT_COND(server_obj_1_oh->procedure_execution_count == 0);
+	NS_ASSERT_COND(server_obj_1_oh->procedure_execution_while_rewind_count== 0);
+	NS_ASSERT_COND(p1_obj_1_oh->procedure_collecting_args_count == 0);
+	NS_ASSERT_COND(p1_obj_1_oh->procedure_received_count == 0);
+	NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_count == 0);
+	NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_while_rewind_count== 0);
+
+	// Introduce some discrepancy to force trigger a rewind.
+	server_obj_1_oh->var_1.data.i32 = 123123123;
+
+	for (int p = 0; p < 20; p++) {
+		server_scene.process(delta);
+		for (int t = 0; t < 5; t++) {
+			peer_1_scene.process(delta);
+		}
+	}
+
+	NS_ASSERT_COND(server_obj_1_oh->procedure_collecting_args_count == 1);
+	NS_ASSERT_COND(server_obj_1_oh->procedure_received_count == 0);
+	NS_ASSERT_COND(server_obj_1_oh->procedure_execution_count == 1);
+	NS_ASSERT_COND(server_obj_1_oh->procedure_execution_while_rewind_count== 0);
+	NS_ASSERT_COND(server_obj_1_oh->rewinded_frames.size()==0);
+	NS_ASSERT_COND(p1_obj_1_oh->procedure_collecting_args_count == 0);
+	NS_ASSERT_COND(p1_obj_1_oh->procedure_received_count == 1);
+	NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_count == 2);
+	NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_while_rewind_count== 1);
+	NS_ASSERT_COND(p1_obj_1_oh->rewinded_frames.size()>0);
+	NS_ASSERT_COND(NS::VecFunc::has(p1_obj_1_oh->rewinded_frames, execute_on_frame));
+	NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_rewinded_on_frame == execute_on_frame);
+
+	NS_ASSERT_COND(server_obj_1_oh->var_1.data.i32 == 123123123);
+	NS_ASSERT_COND(p1_obj_1_oh->var_1.data.i32 == 123123123);
+}
+
+void test_scheduled_procedure() {
+	TestScheduledProcedureBase().do_test();
+	TestScheduledProcedurePause().do_test();
+	TestScheduledProcedureStop().do_test();
+	test_scheduled_procedure_rewind();
 }
 
 void test_streaming() {
@@ -1204,19 +1751,191 @@ void test_sync_mode_reset() {
 	NS_ASSERT_COND(NS::MathFunc::is_equal_approx(controlled_obj_1_peer_1->position.data.f32, frame_count * delta * one_meter * 2.0f, delta * 2.0f));
 }
 
+class TestProcessingSceneObject : public NS::LocalSceneObject {
+public:
+	// NOTE, this property isn't sync.
+	TestProcessingSceneObject *deactivate_processing_on_object = nullptr;
+	ProcessPhase deactivate_processing_phase;
+
+	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
+	NS::VarData var_1;
+	NS::VarData var_2;
+
+	NS::PHandler processing_handler = NS::NullPHandler;
+
+	virtual void on_scene_entry() override {
+		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
+	}
+
+	virtual void setup_synchronizer(NS::LocalSceneSynchronizer &p_scene_sync, NS::ObjectLocalId p_id) override {
+		local_id = p_id;
+
+		p_scene_sync.register_variable(
+				p_id,
+				"var_1",
+				[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, const NS::VarData &p_value) {
+					static_cast<TestProcessingSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->var_1.copy(p_value);
+				},
+				[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, NS::VarData &r_value) {
+					r_value.copy(static_cast<TestProcessingSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->var_1);
+				});
+
+		p_scene_sync.register_variable(
+				p_id,
+				"var_2",
+				[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, const NS::VarData &p_value) {
+					static_cast<TestProcessingSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->var_2.copy(p_value);
+				},
+				[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, NS::VarData &r_value) {
+					r_value.copy(static_cast<TestProcessingSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->var_2);
+				});
+	}
+
+	void activate_processing(ProcessPhase Phase) {
+		if (processing_handler == NS::NullPHandler) {
+			processing_handler = get_scene()->scene_sync->register_process(local_id, Phase, [this](float p_delta) {
+				this->sync_process(p_delta);
+			});
+		}
+	}
+
+	void deactivate_processing(ProcessPhase Phase) {
+		if (processing_handler != NS::NullPHandler) {
+			get_scene()->scene_sync->unregister_process(local_id, Phase, processing_handler);
+			processing_handler = NS::NullPHandler;
+		}
+	}
+
+	virtual void on_scene_exit() override {
+		get_scene()->scene_sync->on_app_object_removed(get_scene()->scene_sync->to_handle(this));
+	}
+
+	void sync_process(float p_delta) {
+		if (deactivate_processing_on_object) {
+			deactivate_processing_on_object->deactivate_processing(deactivate_processing_phase);
+			deactivate_processing_on_object = nullptr;
+		}
+		var_1.data.f32 += var_2.data.f32 * p_delta;
+	}
+};
+
+void test_registering_and_deregistering_process() {
+	NS::LocalScene server_scene;
+	server_scene.start_as_no_net();
+
+	NS::LocalScene peer_1_scene;
+	peer_1_scene.start_as_no_net();
+
+	// Add the scene sync
+	server_scene.scene_sync =
+			server_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+
+	peer_1_scene.scene_sync =
+			peer_1_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+
+	server_scene.scene_sync->set_frame_confirmation_timespan(0.0);
+
+	TestProcessingSceneObject *processing_object_1_server = server_scene.add_object<TestProcessingSceneObject>("obj_1", server_scene.get_peer());
+	TestProcessingSceneObject *processing_object_1_peer = peer_1_scene.add_object<TestProcessingSceneObject>("obj_1", server_scene.get_peer());
+
+	TestProcessingSceneObject *processing_object_2_server = server_scene.add_object<TestProcessingSceneObject>("obj_2", server_scene.get_peer());
+	TestProcessingSceneObject *processing_object_2_peer = peer_1_scene.add_object<TestProcessingSceneObject>("obj_2", server_scene.get_peer());
+
+	processing_object_1_server->var_1.data.f32 = 0.0;
+	processing_object_1_server->var_2.data.f32 = 2.0;
+	processing_object_1_peer->var_1.data.f32 = 0.0;
+	processing_object_1_peer->var_2.data.f32 = 2.0;
+
+	processing_object_2_server->var_1.data.f32 = -10.0;
+	processing_object_2_server->var_2.data.f32 = 4.0;
+	processing_object_2_peer->var_1.data.f32 = -10.0;
+	processing_object_2_peer->var_2.data.f32 = 4.0;
+
+	// Process the scene 10 times and ensure the processing was never executed.
+	for (int i = 0; i < 10; i++) {
+		server_scene.process(delta);
+		peer_1_scene.process(delta);
+
+		NS_ASSERT_COND(processing_object_1_server->var_1.data.f32 == 0.0f);
+		NS_ASSERT_COND(processing_object_1_peer->var_1.data.f32 == 0.0f);
+		NS_ASSERT_COND(processing_object_2_server->var_1.data.f32 == -10.0f);
+		NS_ASSERT_COND(processing_object_2_peer->var_1.data.f32 == -10.0f);
+	}
+
+	processing_object_1_server->activate_processing(PROCESS_PHASE_PROCESS);
+	processing_object_1_peer->activate_processing(PROCESS_PHASE_PROCESS);
+	processing_object_2_server->activate_processing(PROCESS_PHASE_LATE); // EXECUTES AFTER OBJECT 1
+	processing_object_2_peer->activate_processing(PROCESS_PHASE_LATE); // EXECUTES AFTER OBJECT 1
+
+	// Now process another 10 times and ensure the processing was correctly executed
+	float expected_object_1 = 0.0;
+	float expected_object_2 = -10.0;
+	for (int i = 0; i < 10; i++) {
+		server_scene.process(delta);
+		peer_1_scene.process(delta);
+
+		expected_object_1 += delta * 2.0;
+		expected_object_2 += delta * 4.0;
+
+		NS_ASSERT_COND(processing_object_1_server->var_1.data.f32 == expected_object_1);
+		NS_ASSERT_COND(processing_object_1_peer->var_1.data.f32 == expected_object_1);
+		NS_ASSERT_COND(processing_object_2_server->var_1.data.f32 == expected_object_2);
+		NS_ASSERT_COND(processing_object_2_peer->var_1.data.f32 == expected_object_2);
+	}
+
+	// Now, deactivate the execution for the object 2 from object 1 (that
+	// executes sooner thanks to the different processing phase), to ensure
+	// it doesn't cause any crash and the deactivation is executed only the following frame.
+	processing_object_1_server->deactivate_processing_on_object = processing_object_2_server;
+	processing_object_1_peer->deactivate_processing_on_object = processing_object_2_peer;
+	processing_object_1_server->deactivate_processing_phase = PROCESS_PHASE_LATE;
+	processing_object_1_peer->deactivate_processing_phase = PROCESS_PHASE_LATE;
+
+	// Process one time. NOTE Here the object 2 processing is deactivated.
+	server_scene.process(delta);
+	peer_1_scene.process(delta);
+
+	expected_object_1 += delta * 2.0;
+	expected_object_2 += delta * 4.0;
+
+	// However ensure that in the above frame the processing happened anyway.
+	NS_ASSERT_COND(processing_object_1_server->var_1.data.f32 == expected_object_1);
+	NS_ASSERT_COND(processing_object_1_peer->var_1.data.f32 == expected_object_1);
+	NS_ASSERT_COND(processing_object_2_server->var_1.data.f32 == expected_object_2);
+	NS_ASSERT_COND(processing_object_2_peer->var_1.data.f32 == expected_object_2);
+
+	// Now process another 10 times and ensure the processing keep going only on the object 1.
+	for (int i = 0; i < 10; i++) {
+		server_scene.process(delta);
+		peer_1_scene.process(delta);
+
+		expected_object_1 += delta * 2.0;
+		//expected_object_2 += delta * 4.0;
+
+		NS_ASSERT_COND(processing_object_1_server->var_1.data.f32 == expected_object_1);
+		NS_ASSERT_COND(processing_object_1_peer->var_1.data.f32 == expected_object_1);
+		NS_ASSERT_COND(processing_object_2_server->var_1.data.f32 == expected_object_2);
+		NS_ASSERT_COND(processing_object_2_peer->var_1.data.f32 == expected_object_2);
+	}
+}
+
 void test_scene_synchronizer() {
 	test_ids();
 	test_client_and_server_initialization();
 	test_late_name_initialization();
+	test_late_object_spawning();
 	test_sync_groups();
 	test_state_notify();
+	test_state_no_rewind_notify();
 	test_processing_with_late_controller_registration();
 	test_snapshot_generation();
 	test_state_notify_for_no_rewind_properties();
 	test_variable_change_event();
 	test_controller_processing();
+	test_scheduled_procedure();
 	test_streaming();
 	test_no_network();
 	test_sync_mode_reset();
+	test_registering_and_deregistering_process();
 }
 }; //namespace NS_Test

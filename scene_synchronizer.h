@@ -2,10 +2,10 @@
 
 #include "core/network_interface.h"
 #include "core/object_data_storage.h"
-#include "core/scene_synchronizer_debugger.h"
 #include "core/processor.h"
 #include "core/net_utilities.h"
 #include "core/snapshot.h"
+#include "core/scheduled_procedure.h"
 #include <deque>
 #include <map>
 #include <optional>
@@ -13,8 +13,18 @@
 
 NS_NAMESPACE_BEGIN
 class SynchronizerManager {
+	class SceneSynchronizerBase *scene_synchronizer = nullptr;
+
 public:
 	virtual ~SynchronizerManager() {
+	}
+
+	void set_scene_synchronizer(SceneSynchronizerBase *p_scene_synchronizer) {
+		scene_synchronizer = p_scene_synchronizer;
+	}
+
+	SceneSynchronizerBase *get_scene_synchronizer() const {
+		return scene_synchronizer;
 	}
 
 	virtual void on_init_synchronizer(bool p_was_generating_ids) {
@@ -123,7 +133,7 @@ struct Settings {
 /// NOTICE: Do not instantiate this class directly, please use `SceneSynchronizer<>` instead.
 ///
 /// The `SceneSynchronizer` is responsible to keep the scene of all peers in sync.
-/// Usually each peer has it istantiated, and depending if it's istantiated in
+/// Usually each peer has it instantiated, and depending if it's instantiated in
 /// the server or in the client, it does a different thing.
 ///
 /// ## The `Player` is playing the game on the server.
@@ -132,10 +142,10 @@ struct Settings {
 /// the `SceneSynchronizer` on the server sends at a fixed interval (defined by
 /// `frame_confirmation_timespan`) a snapshot to all peers.
 ///
-/// The clients receives the server snapshot, so it compares with the local
+/// The clients receive the server snapshot, so it compares with the local
 /// snapshot and if it's necessary perform the recovery.
 ///
-/// ## Variable traking
+/// ## Variable tracking
 ///
 /// The `SceneSynchronizer` is able to track any node variable. It's possible to specify
 /// the variables to track using the function `register_variable`.
@@ -302,9 +312,14 @@ protected: // -------------------------------------------------------- Internals
 	RpcHandle<bool> rpc_handler_notify_peer_status;
 	RpcHandle<const std::vector<std::uint8_t> &> rpc_handler_trickled_sync_data;
 	RpcHandle<DataBuffer &> rpc_handle_notify_netstats;
+	RpcHandle<ObjectNetId, ScheduledProcedureId, GlobalFrameIndex, const DataBuffer &> rpc_handle_notify_scheduled_procedure_start;
+	RpcHandle<ObjectNetId, ScheduledProcedureId> rpc_handle_notify_scheduled_procedure_stop;
+	RpcHandle<ObjectNetId, ScheduledProcedureId, GlobalFrameIndex> rpc_handle_notify_scheduled_procedure_pause;
 
 	// Controller RPCs.
 	RpcHandle<int, const std::vector<std::uint8_t> &> rpc_handle_receive_input;
+
+	GlobalFrameIndex global_frame_index = GlobalFrameIndex{ 0 };
 
 	Settings settings;
 	bool settings_changed = true;
@@ -330,8 +345,11 @@ protected: // -------------------------------------------------------- Internals
 	Processor<float> cached_process_functions[PROCESS_PHASE_COUNT];
 
 	bool debug_rewindings_enabled = false;
+	PrintMessageType debug_rewindings_log_level = VERBOSE;
 	bool debug_server_speedup = false;
 	bool debug_log_nodes_relevancy_update = false;
+
+	float time_bank = 0.0;
 
 public: // -------------------------------------------------------------- Events
 	/// Called when the SceneSync starts to synchronize the objects.
@@ -339,6 +357,10 @@ public: // -------------------------------------------------------------- Events
 	/// Is called when the synchronization is paused.
 	Processor<> event_sync_paused;
 	Processor<const Settings &> event_settings_changed;
+	/// Executed at the end of the processing.
+	/// Notice this is not the sub and fixed time processing which is sync.
+	/// This is emitted by the application processing function and the delta time is frame dependent.
+	Processor<float/*delta seconds*/> event_app_process_end;
 	Processor<int /*p_peer*/, bool /*p_connected*/, bool /*p_enabled*/> event_peer_status_updated;
 	Processor<FrameIndex, bool /*p_desync_detected*/> event_state_validated;
 	Processor<FrameIndex, int /*p_peer*/> event_sent_snapshot;
@@ -392,19 +414,19 @@ public:
 	static void print_code_message(SceneSynchronizerDebugger *p_debugger, const char *p_function, const char *p_file, int p_line, const std::string &p_error, const std::string &p_message, NS::PrintMessageType p_type);
 	static void print_flush_stdout();
 
-	NS::NetworkInterface &get_network_interface() {
+	NetworkInterface &get_network_interface() {
 		return *network_interface;
 	}
 
-	const NS::NetworkInterface &get_network_interface() const {
+	const NetworkInterface &get_network_interface() const {
 		return *network_interface;
 	}
 
-	NS::SynchronizerManager &get_synchronizer_manager() {
+	SynchronizerManager &get_synchronizer_manager() {
 		return *synchronizer_manager;
 	}
 
-	const NS::SynchronizerManager &get_synchronizer_manager() const {
+	const SynchronizerManager &get_synchronizer_manager() const {
 		return *synchronizer_manager;
 	}
 
@@ -501,6 +523,14 @@ public:
 		return debug_rewindings_enabled;
 	}
 
+	void set_debug_rewindings_log_level(PrintMessageType p_level) {
+		debug_rewindings_log_level = p_level;
+	}
+
+	PrintMessageType get_debug_rewindings_log_level() const {
+		return debug_rewindings_log_level;
+	}
+
 	void set_debug_server_speedup(bool p_enabled);
 
 	bool get_debug_server_speedup() const {
@@ -520,12 +550,19 @@ public: // ---------------------------------------------------------------- RPCs
 	void rpc_notify_peer_status(bool p_enabled);
 	void rpc_trickled_sync_data(const std::vector<std::uint8_t> &p_data);
 	void rpc_notify_netstats(DataBuffer &p_data);
+	void rpc_notify_scheduled_procedure_start(ObjectNetId p_object_id, ScheduledProcedureId p_scheduled_procedure_id, GlobalFrameIndex p_frame_index, const DataBuffer &p_args);
+	void rpc_notify_scheduled_procedure_stop(ObjectNetId p_object_id, ScheduledProcedureId p_scheduled_procedure_id);
+	void rpc_notify_scheduled_procedure_pause(ObjectNetId p_object_id, ScheduledProcedureId p_scheduled_procedure_id, GlobalFrameIndex p_pause_frame);
 
 	void call_rpc_receive_inputs(int p_recipient, int p_peer, const std::vector<std::uint8_t> &p_data);
 
 	void rpc_receive_inputs(int p_peer, const std::vector<std::uint8_t> &p_data);
 
 public: // ---------------------------------------------------------------- APIs
+	GlobalFrameIndex get_global_frame_index() const {
+		return global_frame_index;
+	}
+
 	void set_settings(Settings &p_settings);
 	Settings &get_settings_mutable();
 	const Settings &get_settings() const;
@@ -577,7 +614,40 @@ public: // ---------------------------------------------------------------- APIs
 
 	/// You can use the macro `callable_mp()` to register custom C++ function.
 	PHandler register_process(ObjectLocalId p_id, ProcessPhase p_phase, std::function<void(float)> p_func);
-	void unregister_process(ObjectLocalId p_id, ProcessPhase p_phase, NS::PHandler p_func_handler);
+	void unregister_process(ObjectLocalId p_id, ProcessPhase p_phase, PHandler p_func_handler);
+
+	ScheduledProcedureId register_scheduled_procedure(
+			ObjectLocalId p_id,
+			const NS_ScheduledProcedureFunc &p_func);
+
+	void unregister_scheduled_procedure(
+			ObjectLocalId p_id,
+			ScheduledProcedureId p_procedure_id);
+
+	GlobalFrameIndex scheduled_procedure_start(
+			ObjectLocalId p_id,
+			ScheduledProcedureId p_procedure_id,
+			float p_execute_in_seconds);
+
+	void scheduled_procedure_stop(
+			ObjectLocalId p_id,
+			ScheduledProcedureId p_procedure_id);
+
+	void scheduled_procedure_pause(
+			ObjectLocalId p_id,
+			ScheduledProcedureId p_procedure_id);
+
+	GlobalFrameIndex scheduled_procedure_unpause(
+			ObjectLocalId p_id,
+			ScheduledProcedureId p_procedure_id);
+
+	float scheduled_procedure_get_remaining_seconds(
+			ObjectLocalId p_id,
+			ScheduledProcedureId p_procedure_id) const;
+
+	bool scheduled_procedure_is_paused(
+			ObjectLocalId p_id,
+			ScheduledProcedureId p_procedure_id) const;
 
 	/// Setup the trickled sync method for this specific object.
 	/// The trickled-sync is different from the realtime-sync because the data
@@ -634,6 +704,8 @@ public: // ---------------------------------------------------------------- APIs
 	float sync_group_get_trickled_update_rate(ObjectLocalId p_id, SyncGroupId p_group_id) const;
 	float sync_group_get_trickled_update_rate(ObjectNetId p_id, SyncGroupId p_group_id) const;
 
+	void sync_group_notify_scheduled_procedure_changed(ObjectData &p_object_data, ScheduledProcedureId p_scheduled_procedure_id);
+
 	void sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_ptr);
 	uint64_t sync_group_get_user_data(SyncGroupId p_group_id) const;
 
@@ -673,7 +745,7 @@ public: // ---------------------------------------------------------------- APIs
 	void detect_and_signal_changed_variables(int p_flags);
 
 	void change_events_begin(int p_flag);
-	void change_event_add(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old);
+	void change_event_add(ObjectData *p_object_data, VarId p_var_id, const VarData &p_old);
 	void change_events_flush();
 
 	const std::vector<SimulatedObjectInfo> *client_get_simulated_objects() const;
@@ -683,12 +755,17 @@ public: // ---------------------------------------------------------------- APIs
 		return network_interface->get_debugger();
 	};
 
+	float get_time_bank() const {
+		return time_bank;
+	}
+
 public: // ------------------------------------------------------------ INTERNAL
 	void try_fetch_unnamed_objects_data_names();
 	void update_objects_relevancy();
 
 	void process_functions__clear();
 	void process_functions__execute();
+	void process_functions__execute_scheduled_procedure();
 
 	ObjectLocalId find_object_local_id(ObjectHandle p_app_object) const;
 
@@ -698,11 +775,14 @@ public: // ------------------------------------------------------------ INTERNAL
 	ObjectData *get_object_data(ObjectNetId p_id, bool p_expected = true);
 	const ObjectData *get_object_data(ObjectNetId p_id, bool p_expected = true) const;
 
+	PeerNetworkedController *get_local_authority_controller(bool p_expected = true);
+	const PeerNetworkedController *get_local_authority_controller(bool p_expected = true) const;
+
 	PeerNetworkedController *get_controller_for_peer(int p_peer, bool p_expected = true);
 	const PeerNetworkedController *get_controller_for_peer(int p_peer, bool p_expected = true) const;
 
-	const std::map<int, NS::PeerData> &get_peers() const;
-	std::map<int, NS::PeerData> &get_peers();
+	const std::map<int, PeerData> &get_peers() const;
+	std::map<int, PeerData> &get_peers();
 	PeerData *get_peer_data_for_controller(const PeerNetworkedController &p_controller, bool p_expected = true);
 	const PeerData *get_peer_data_for_controller(const PeerNetworkedController &p_controller, bool p_expected = true) const;
 
@@ -712,17 +792,17 @@ public: // ------------------------------------------------------------ INTERNAL
 	void reset_controllers();
 	void reset_controller(PeerNetworkedController &p_controller);
 
-	float get_pretended_delta() const;
-
 	/// Read the object variables and store the value if is different from the
 	/// previous one and emits a signal.
-	void pull_object_changes(NS::ObjectData &p_object_data);
+	void pull_object_changes(ObjectData &p_object_data);
 
-	void drop_object_data(NS::ObjectData &p_object_data);
+	void drop_object_data(ObjectData &p_object_data);
 
 	void notify_object_data_net_id_changed(ObjectData &p_object_data);
 
 	FrameIndex client_get_last_checked_frame_index() const;
+
+	int fetch_sub_processes_count(float p_delta);
 
 public:
 	/// Returns true if this peer is server.
@@ -784,7 +864,6 @@ public:
 class NoNetSynchronizer final : public Synchronizer {
 	friend class SceneSynchronizerBase;
 
-	float time_bank = 0.0;
 	bool enabled = true;
 	uint32_t frame_count = 0;
 	std::vector<ObjectData *> active_objects;
@@ -803,8 +882,6 @@ public:
 
 	void set_enabled(bool p_enabled);
 	bool is_enabled() const;
-
-	int fetch_sub_processes_count(float p_delta);
 };
 
 class ServerSynchronizer final : public Synchronizer {
@@ -812,7 +889,6 @@ class ServerSynchronizer final : public Synchronizer {
 
 	std::map<int, NS::PeerServerData> peers_data;
 
-	float time_bank = 0.0;
 	float objects_relevancy_update_timer = 0.0;
 	uint32_t epoch = 0;
 	/// This array contains a map between the peers and the relevant objects.
@@ -856,6 +932,7 @@ public:
 	void sync_group_add_object(ObjectData *p_object_data, SyncGroupId p_group_id, bool p_realtime);
 	void sync_group_remove_object(ObjectData *p_object_data, SyncGroupId p_group_id);
 	void sync_group_fetch_object_grups(const ObjectData *p_object_data, std::vector<SyncGroupId> &r_simulated_groups, std::vector<SyncGroupId> &r_trickled_groups) const;
+	void sync_group_fetch_object_simulating_peers(const ObjectData &p_object_data, std::vector<int> &r_simulating_peers) const;
 	void sync_group_set_simulated_partial_update_timespan_seconds(const ObjectData &p_object_data, SyncGroupId p_group_id, bool p_partial_update_enabled, float p_update_timespan);
 	bool sync_group_is_simulated_partial_updating(const ObjectData &p_object_data, SyncGroupId p_group_id) const;
 	float sync_group_get_simulated_partial_update_timespan_seconds(const ObjectData &p_object_data, SyncGroupId p_group_id) const;
@@ -870,6 +947,8 @@ public:
 
 	void sync_group_set_trickled_update_rate(NS::ObjectData *p_object_data, SyncGroupId p_group_id, float p_update_rate);
 	float sync_group_get_trickled_update_rate(const NS::ObjectData *p_object_data, SyncGroupId p_group_id) const;
+
+	void sync_group_notify_scheduled_procedure_changed(ObjectData &p_object_data, ScheduledProcedureId p_scheduled_procedure_id);
 
 	void sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_ptr);
 	uint64_t sync_group_get_user_data(SyncGroupId p_group_id) const;
@@ -893,15 +972,12 @@ public:
 	void process_trickled_sync(float p_delta);
 	void update_peers_net_statistics(float p_delta);
 	void send_net_stat_to_peer(int p_peer, PeerData &p_peer_data);
-
-	int fetch_sub_processes_count(float p_delta);
 };
 
 class ClientSynchronizer final : public Synchronizer {
 	friend class SceneSynchronizerBase;
 
 public:
-	float time_bank = 0.0;
 	float acceleration_fps_speed = 0.0;
 	float acceleration_fps_timer = 0.0;
 	float pretended_delta = 1.0;
@@ -910,6 +986,7 @@ public:
 	std::vector<ObjectData *> active_objects;
 	PeerNetworkedController *player_controller = nullptr;
 	std::map<ObjectNetId, std::string> objects_names;
+	std::map<ObjectNetId, std::vector<DataBuffer>> objects_pending_snapshots;
 
 	RollingUpdateSnapshot last_received_snapshot;
 	std::deque<Snapshot> client_snapshots;
@@ -1027,7 +1104,9 @@ public:
 public:
 	ClientSynchronizer(SceneSynchronizerBase *p_node);
 
+
 	virtual void clear() override;
+
 
 	virtual void process(float p_delta) override;
 	virtual void on_object_data_added(NS::ObjectData &p_object_data) override;
@@ -1043,14 +1122,23 @@ public:
 			DataBuffer &p_snapshot,
 			void *p_user_pointer,
 			void (*p_notify_update_mode)(void *p_user_pointer, bool p_is_partial_update),
+			void (*p_parse_global_frame_index)(void *p_user_pointer, GlobalFrameIndex p_global_frame_index),
 			void (*p_custom_data_parse)(void *p_user_pointer, VarData &&p_custom_data),
-			void (*p_object_parse)(void *p_user_pointer, NS::ObjectData *p_object_data),
+			void (*p_object_parse)(void *p_user_pointer, ObjectData *p_object_data),
 			// NOTE: The frame index meta is not initialized by this function,
 			// and it's up to the calling function doint it.
 			bool (*p_peers_frame_index_parse)(void *p_user_pointer, std::map<int, FrameIndexWithMeta> &&p_frames_index),
-			void (*p_variable_parse)(void *p_user_pointer, NS::ObjectData *p_object_data, VarId p_var_id, VarData &&p_value),
+			void (*p_variable_parse)(void *p_user_pointer, ObjectData &p_object_data, VarId p_var_id, VarData &&p_value),
+			void (*p_scheduled_procedure_parse)(void *p_user_pointer, ObjectData &p_object_data, ScheduledProcedureId p_procedure_id, ScheduledProcedureSnapshot &&p_value),
 			void (*p_simulated_object_add_or_remove_parse)(void *p_user_pointer, bool p_add, SimulatedObjectInfo &&p_simulated_objects),
 			void (*p_simulated_objects_parse)(void *p_user_pointer, std::vector<SimulatedObjectInfo> &&p_simulated_objects));
+	bool parse_sync_data_object_info(
+			DataBuffer &p_snapshot,
+			void *p_user_pointer,
+			ObjectData &p_object_data,
+			void (*p_variable_parse)(void *p_user_pointer, ObjectData &p_object_data, VarId p_var_id, VarData &&p_value),
+			void (*p_scheduled_procedure_parse)(void *p_user_pointer, ObjectData &p_object_data, ScheduledProcedureId p_procedure_id, ScheduledProcedureSnapshot &&p_value));
+
 
 	void set_enabled(bool p_enabled);
 
@@ -1060,6 +1148,8 @@ public:
 	void remove_object_from_trickled_sync(NS::ObjectData *p_object_data);
 
 private:
+	void try_fetch_pending_snapshot_objects();
+
 	/// Store object data organized per controller.
 	void store_snapshot();
 
@@ -1099,6 +1189,7 @@ private:
 	void process_simulation(float p_delta);
 
 	bool parse_snapshot(DataBuffer &p_snapshot, bool p_is_server_snapshot);
+	void finalize_object_data_synchronization(ObjectData &p_object_data);
 
 	void notify_server_full_snapshot_is_needed();
 
@@ -1116,7 +1207,8 @@ public:
 			const bool p_skip_simulated_objects_update = false,
 			const bool p_disable_apply_non_doll_controlled_only = false,
 			const bool p_skip_snapshot_applied_event_broadcast = false,
-			const bool p_skip_change_event = false);
+			const bool p_skip_change_event = false,
+			const bool p_skip_scheduled_procedures = false);
 };
 
 /// This is used to make sure we can safely convert any `BaseType` defined by
