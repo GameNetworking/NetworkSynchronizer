@@ -139,8 +139,8 @@ bool compare_procedures(
 				if (r_differences_info) {
 					r_differences_info->push_back(
 							"Difference found on procedure #" + std::to_string(proc_index) +
-							"Server value: `" + std::string(s_procedures[proc_index]) + "` " +
-							"Client value: `" + std::string(c_procedures[proc_index]) + "`.");
+							" Server value: `" + std::string(s_procedures[proc_index]) + "` " +
+							" Client value: `" + std::string(c_procedures[proc_index]) + "`.");
 				} else {
 					break;
 				}
