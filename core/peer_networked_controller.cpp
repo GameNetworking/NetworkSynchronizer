@@ -1437,7 +1437,7 @@ void DollController::process(float p_delta) {
 		auto server_snap_it = VecFunc::find(server_snapshots, DollSnapshot(current_input_buffer_id - 1));
 		if (server_snap_it != server_snapshots.end()) {
 			// 2. The snapshot was found, so apply it.
-			static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(server_snap_it->data, 0, 0, nullptr, true, true, true, true, true);
+			static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(server_snap_it->data, 0, 0, nullptr, true, true, true, true, true, false);
 		}
 	}
 
@@ -1630,8 +1630,12 @@ void DollController::copy_controlled_objects_snapshot(
 		const std::vector<std::optional<VarData>> *vars = p_snapshot.get_object_vars(object_data->get_net_id());
 		NS_ENSURE_CONTINUE_MSG(vars, "[FATAL] The snapshot didn't contain the object: " + object_data->get_net_id() + ". If this error spams for a long period (1/2 seconds) or never recover, it's a bug since.");
 
+		const std::vector<ScheduledProcedureSnapshot> *procedures = p_snapshot.get_object_procedures(object_data->get_net_id());
+		NS_ENSURE_CONTINUE_MSG(procedures, "[FATAL] The snapshot didn't contain the object: " + object_data->get_net_id() + ". If this error spams for a long period (1/2 seconds) or never recover, it's a bug since.");
+
 		snap->data.simulated_objects.push_back(object_data->get_net_id());
 
+		// Copy the vars
 		snap->data.objects[object_data->get_net_id().id].vars.clear();
 		for (const std::optional<VarData> &nav : *vars) {
 			if (nav.has_value()) {
@@ -1639,6 +1643,12 @@ void DollController::copy_controlled_objects_snapshot(
 			} else {
 				snap->data.objects[object_data->get_net_id().id].vars.push_back(std::optional<VarData>());
 			}
+		}
+
+		// Copy the scheduled procedures
+		snap->data.objects[object_data->get_net_id().id].procedures.clear();
+		for (const ScheduledProcedureSnapshot &proc : *procedures) {
+			snap->data.objects[object_data->get_net_id().id].procedures.push_back(proc);
 		}
 	}
 
@@ -1774,7 +1784,7 @@ void DollController::apply_snapshot_no_simulation(const Snapshot &p_global_serve
 
 	NS_ASSERT_COND(server_snapshots.back().doll_executed_input == FrameIndex::NONE);
 
-	static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(server_snapshots.back().data, 0, 0, nullptr, true, true, true, true, true);
+	static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(server_snapshots.back().data, 0, 0, nullptr, true, true, true, true, true, false);
 	last_doll_compared_input = FrameIndex::NONE;
 	current_input_buffer_id = FrameIndex::NONE;
 	queued_frame_index_to_process = FrameIndex::NONE;
@@ -1790,7 +1800,8 @@ void DollController::apply_snapshot_no_input_reconciliation(const Snapshot &p_gl
 			true,
 			true,
 			true,
-			true);
+			true,
+			false);
 	current_input_buffer_id = p_frame_index;
 	queued_frame_index_to_process = current_input_buffer_id + 1;
 	skip_snapshot_validation = true;
@@ -1843,7 +1854,7 @@ void DollController::apply_snapshot_instant_input_reconciliation(const Snapshot 
 
 	// 4. Just apply the snapshot.
 	if (snapshot_to_apply) {
-		static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(snapshot_to_apply->data, 0, 0, nullptr, true, true, true, true, true);
+		static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(snapshot_to_apply->data, 0, 0, nullptr, true, true, true, true, true, false);
 		// Bring everything back to this point.
 		last_doll_compared_input = snapshot_to_apply->doll_executed_input;
 		current_input_buffer_id = last_doll_compared_input;
@@ -1944,7 +1955,7 @@ void DollController::apply_snapshot_rewinding_input_reconciliation(const Snapsho
 		//    for the input we have to reset.
 		//    In this case, it's mandatory to apply that, to ensure the scene
 		//    reconciliation.
-		static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(server_snapshots.back().data, 0, 0, nullptr, true, true, true, true, true);
+		static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(server_snapshots.back().data, 0, 0, nullptr, true, true, true, true, true, false);
 	} else if make_likely(!client_snapshots.empty()) {
 		// 7. Get the closest available snapshot, and apply it, no need to be
 		//    precise here, since the process will apply the server snapshot
@@ -1964,7 +1975,7 @@ void DollController::apply_snapshot_rewinding_input_reconciliation(const Snapsho
 		}
 
 		if (best) {
-			static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(best->data, 0, 0, nullptr, true, true, true, true, true);
+			static_cast<ClientSynchronizer *>(peer_controller->scene_synchronizer->get_synchronizer_internal())->apply_snapshot(best->data, 0, 0, nullptr, true, true, true, true, true, false);
 		}
 	}
 }

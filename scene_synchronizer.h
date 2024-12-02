@@ -1207,7 +1207,8 @@ public:
 			const bool p_skip_simulated_objects_update = false,
 			const bool p_disable_apply_non_doll_controlled_only = false,
 			const bool p_skip_snapshot_applied_event_broadcast = false,
-			const bool p_skip_change_event = false);
+			const bool p_skip_change_event = false,
+			const bool p_skip_scheduled_procedures = false);
 };
 
 /// This is used to make sure we can safely convert any `BaseType` defined by
