@@ -3809,6 +3809,8 @@ void ClientSynchronizer::__pcr__sync__no_rewind(const Snapshot &p_no_rewind_reco
 			0,
 			scene_synchronizer->debug_rewindings_enabled ? &applied_data_info : nullptr,
 			// ALWAYS skips custom data because partial snapshots don't contain custom_data.
+			true,
+			// Never update the simulating object when applying this snapshot as the array of simulating objects is empty.
 			true);
 
 	if (applied_data_info.size() > 0) {
@@ -4955,7 +4957,8 @@ void ClientSynchronizer::apply_snapshot(
 		const bool p_skip_simulated_objects_update,
 		const bool p_disable_apply_non_doll_controlled_only,
 		const bool p_skip_snapshot_applied_event_broadcast,
-		const bool p_skip_change_event) {
+		const bool p_skip_change_event,
+		const bool p_skip_scheduled_procedures) {
 	NS_PROFILE
 
 	const ObjectDataSnapshot *snap_objects_vars = p_snapshot.objects.data();
@@ -5058,10 +5061,12 @@ void ClientSynchronizer::apply_snapshot(
 			}
 		}
 
-		for (ScheduledProcedureId procedure_id = { 0 }; procedure_id.id < ScheduledProcedureId::IdType(object_data_snapshot.procedures.size()); procedure_id += 1) {
-			if (object_data->scheduled_procedure_exist(procedure_id)) {
-				const ScheduledProcedureSnapshot &procedure_snapshot = object_data_snapshot.procedures[procedure_id.id];
-				object_data->scheduled_procedure_reset_to(procedure_id, procedure_snapshot);
+		if (!p_skip_scheduled_procedures) {
+			for (ScheduledProcedureId procedure_id = { 0 }; procedure_id.id < ScheduledProcedureId::IdType(object_data_snapshot.procedures.size()); procedure_id += 1) {
+				if (object_data->scheduled_procedure_exist(procedure_id)) {
+					const ScheduledProcedureSnapshot &procedure_snapshot = object_data_snapshot.procedures[procedure_id.id];
+					object_data->scheduled_procedure_reset_to(procedure_id, procedure_snapshot);
+				}
 			}
 		}
 	}

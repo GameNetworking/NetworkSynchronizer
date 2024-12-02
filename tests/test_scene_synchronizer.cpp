@@ -785,6 +785,11 @@ void test_state_notify() {
 			NS_ASSERT_COND(server_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 == 0);
 			NS_ASSERT_COND(peer_1_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 == 0);
 			NS_ASSERT_COND(peer_2_scene.fetch_object<TSS_TestSceneObject>("obj_1")->var_1.data.i32 == 0);
+
+			// Ensure no rewinds happened because there are no controllers, so there is nothing to rewind.
+			NS_ASSERT_COND(server_scene.fetch_object<TSS_TestSceneObject>("obj_1")->rewinded_frames.size() == 0);
+			NS_ASSERT_COND(peer_1_scene.fetch_object<TSS_TestSceneObject>("obj_1")->rewinded_frames.size() == 0);
+			NS_ASSERT_COND(peer_2_scene.fetch_object<TSS_TestSceneObject>("obj_1")->rewinded_frames.size() == 0);
 		}
 
 		// Test with notify interval set to 0.5 seconds.
@@ -914,6 +919,64 @@ void test_state_notify() {
 		}
 	}
 }
+
+/// Verify the state can be applied for variables that do not trigger a rewind, without triggering a rewind.
+void test_state_no_rewind_notify() {
+	NS::LocalScene server_scene;
+	server_scene.start_as_server();
+
+	NS::LocalScene peer_1_scene;
+	peer_1_scene.start_as_client(server_scene);
+
+	// Add the scene sync
+	server_scene.scene_sync =
+			server_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+	peer_1_scene.scene_sync =
+			peer_1_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+
+	server_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
+	peer_1_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
+
+	TSS_TestSceneObject *TSO_server = server_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer());
+	TSS_TestSceneObject *TSO_peer_1 = peer_1_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer());
+
+	// Mark the vars as not triggering the rewinding.
+	server_scene.scene_sync->set_skip_rewinding(TSO_server->local_id, "var_1", true);
+	peer_1_scene.scene_sync->set_skip_rewinding(TSO_peer_1->local_id, "var_1", true);
+
+	server_scene.scene_sync->set_frame_confirmation_timespan(0.0);
+
+	// Process the scenes 1 time to ensure everything is up to dated.
+	server_scene.process(delta);
+	peer_1_scene.process(delta);
+
+	// Set the `var_1` to a different value on the server.
+	TSO_server->var_1.data.i32 = 1;
+	TSO_peer_1->var_1.data.i32 = 0;
+	NS_ASSERT_COND(TSO_server->var_1.data.i32 == 1);
+	NS_ASSERT_COND(TSO_peer_1->var_1.data.i32 == 0);
+
+	// Process the client 5 times to build the pending inputs.
+	for (int i = 0; i < 5; i++) {
+		peer_1_scene.process(delta);
+
+		NS_ASSERT_COND(TSO_server->var_1.data.i32 == 1);
+		NS_ASSERT_COND(TSO_peer_1->var_1.data.i32 == 0);
+	}
+
+	// Process the server scene to generate and send a snapshot.
+	server_scene.process(delta);
+
+	// Process the peer 1, here it will flush the snapshot.
+	peer_1_scene.process(delta);
+
+	// Verify that the server correction was applied, without rewindings.
+	NS_ASSERT_COND(TSO_server->var_1.data.i32 == 1);
+	NS_ASSERT_COND(TSO_peer_1->var_1.data.i32 == 1);
+	NS_ASSERT_COND(TSO_server->rewinded_frames.size() == 0);
+	NS_ASSERT_COND(TSO_peer_1->rewinded_frames.size() == 0);
+}
+
 
 void test_processing_with_late_controller_registration() {
 	// This test make sure that the peer receives the server updates ASAP, despite
@@ -1518,7 +1581,7 @@ void test_scheduled_procedure_rewind() {
 	TSS_TestSceneObject *server_obj_1_oh = server_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer());
 	TSS_TestSceneObject *p1_obj_1_oh = peer_1_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer());
 
-	server_scene.scene_sync->set_frame_confirmation_timespan(0.2);
+	server_scene.scene_sync->set_frame_confirmation_timespan(0.2f);
 
 	server_scene.scene_sync->force_state_notify_all();
 	for (int p = 0; p < 5; p++) {
@@ -1863,6 +1926,7 @@ void test_scene_synchronizer() {
 	test_late_object_spawning();
 	test_sync_groups();
 	test_state_notify();
+	test_state_no_rewind_notify();
 	test_processing_with_late_controller_registration();
 	test_snapshot_generation();
 	test_state_notify_for_no_rewind_properties();

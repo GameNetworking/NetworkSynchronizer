@@ -64,6 +64,9 @@ bool compare_vars(
 					// Sets `input_id` to 0 to signal that this snapshot contains
 					// no-rewind data.
 					r_no_rewind_recover->input_id = NS::FrameIndex{ { 0 } };
+
+					// Also insert this object into the simulated objects to ensure it gets updated.
+					NS::VecFunc::insert_unique(r_no_rewind_recover->simulated_objects, p_object_data.get_net_id());
 				}
 
 				if (r_differences_info) {
@@ -97,48 +100,71 @@ bool compare_vars(
 }
 
 bool compare_procedures(
+		const NS::ObjectData &p_object_data,
 		const std::vector<NS::ScheduledProcedureSnapshot> &p_server_procedures,
 		const std::vector<NS::ScheduledProcedureSnapshot> &p_client_procedures,
+		NS::Snapshot *r_no_rewind_recover,
 		std::vector<std::string> *r_differences_info) {
-	const NS::ScheduledProcedureSnapshot *s_procedures = p_server_procedures.data();
-	const NS::ScheduledProcedureSnapshot *c_procedures = p_client_procedures.data();
+	// NOTICE: Since the scheduled procedures are an information that is necessary
+	// to execute an operation in the future and is not important to validate 
+	// whether the client predicted correctly the server, we can avoid checking
+	// them.
+	// Instead, what it does here is putting the server procedures into the
+	// no_rewind_snapshot, when they are provided, to ensure the client
+	// is updated with the missing procedures.
+	// Once again, all this happens without triggering any rewinding.
+	if (r_no_rewind_recover) {
+		bool is_equal = true;
 
-#ifdef NS_DEBUG_ENABLED
-	bool is_equal = true;
+		const NS::ScheduledProcedureSnapshot *s_procedures = p_server_procedures.data();
+		const NS::ScheduledProcedureSnapshot *c_procedures = p_client_procedures.data();
+
+		for (uint32_t proc_index = 0; proc_index < uint32_t(p_client_procedures.size()); proc_index += 1) {
+			if (uint32_t(p_server_procedures.size()) <= proc_index) {
+				// This variable isn't defined into the server snapshot, so assuming it's correct.
+				continue;
+			}
+
+			// Compare.
+			const bool different =
+					// Check if the value is different.
+					s_procedures[proc_index] != c_procedures[proc_index];
+
+			if (different) {
+				// The vars are different.
+				is_equal = false;
+#ifndef NS_DEBUG_ENABLED
+				break;
 #endif
-
-	for (uint32_t proc_index = 0; proc_index < uint32_t(p_client_procedures.size()); proc_index += 1) {
-		if (uint32_t(p_server_procedures.size()) <= proc_index) {
-			// This variable isn't defined into the server snapshot, so assuming it's correct.
-			continue;
+				if (r_differences_info) {
+					r_differences_info->push_back(
+							"Difference found on procedure #" + std::to_string(proc_index) +
+							"Server value: `" + std::string(s_procedures[proc_index]) + "` " +
+							"Client value: `" + std::string(c_procedures[proc_index]) + "`.");
+				} else {
+					break;
+				}
+			}
 		}
 
-		// Compare.
-		const bool different =
-				// Check if the value is different.
-				s_procedures[proc_index] != c_procedures[proc_index];
-
-		if (different) {
-			// The vars are different.
-			if (r_differences_info) {
-				r_differences_info->push_back(
-						"Difference found on procedure #" + std::to_string(proc_index) +
-						"Server value: `" + std::string(s_procedures[proc_index]) + "` " +
-						"Client value: `" + std::string(c_procedures[proc_index]) + "`.");
+		if (!is_equal) {
+			if (uint32_t(r_no_rewind_recover->objects[p_object_data.get_net_id().id].procedures.size()) <= p_server_procedures.size()) {
+				r_no_rewind_recover->objects[p_object_data.get_net_id().id].procedures.resize(p_server_procedures.size());
 			}
-#ifdef NS_DEBUG_ENABLED
-			is_equal = false;
-#else
-				return false;
-#endif
+
+			for (uint32_t proc_index = 0; proc_index < uint32_t(p_server_procedures.size()); proc_index += 1) {
+				r_no_rewind_recover->objects[p_object_data.get_net_id().id].procedures[proc_index] = p_server_procedures[proc_index];
+
+				// Sets `input_id` to 0 to signal that this snapshot contains
+				// no-rewind data.
+				r_no_rewind_recover->input_id = NS::FrameIndex{ { 0 } };
+				// Also insert this object into the simulated objects to ensure it gets updated.
+				NS::VecFunc::insert_unique(r_no_rewind_recover->simulated_objects, p_object_data.get_net_id());
+			}
 		}
 	}
 
-#ifdef NS_DEBUG_ENABLED
-	return is_equal;
-#else
 	return true;
-#endif
 }
 
 const std::vector<std::optional<NS::VarData>> *NS::Snapshot::get_object_vars(ObjectNetId p_id) const {
@@ -307,8 +333,10 @@ bool NS::Snapshot::compare(
 
 			if (!are_nodes_different) {
 				are_nodes_different = !compare_procedures(
+						*rew_object_data,
 						p_snap_A.objects[net_object_id.id].procedures,
 						p_snap_B.objects[net_object_id.id].procedures,
+						r_no_rewind_recover,
 						r_differences_info);
 				if (are_nodes_different) {
 					if (r_differences_info) {
