@@ -224,6 +224,10 @@ bool NS::Snapshot::compare(
 	bool is_equal = true;
 #endif
 
+	if (p_snap_A.input_id != p_snap_B.input_id) {
+		scene_synchronizer.get_debugger().print(WARNING, "The compared snapshots input_id are different. SnapA.input_id: `" + std::string(p_snap_A.input_id) + "`, SnapB.input_id: `" + std::string(p_snap_B.input_id) + "`. If this happen from time to time, it's not an issue.");
+	}
+
 	if (p_snap_A.global_frame_index != p_snap_B.global_frame_index) {
 		if (r_differences_info) {
 			r_differences_info->push_back("Difference detected: global frame index in snapshot A `" + std::to_string(p_snap_A.global_frame_index.id) + "` is different in snap B `" + std::to_string(p_snap_B.global_frame_index.id) + "`.");
