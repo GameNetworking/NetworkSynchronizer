@@ -61,6 +61,10 @@ struct ScheduledProcedureSnapshot {
 				&& args == p_other.args;
 	}
 
+	bool operator!=(const ScheduledProcedureSnapshot &p_other) const {
+		return !(*this == p_other);
+	}
+
 	operator std::string() const {
 		return std::string() + "execute_frame: " + std::to_string(execute_frame.id)
 				+ ", paused_frame: " + std::to_string(paused_frame.id)
