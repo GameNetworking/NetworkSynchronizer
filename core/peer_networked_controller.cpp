@@ -1224,9 +1224,8 @@ void PlayerController::send_frame_input_buffer_to_server() {
 }
 
 bool PlayerController::can_accept_new_inputs() const {
-	// TODO remove this please.
-	get_debugger().print(ERROR, std::to_string(peer_controller->scene_synchronizer->get_client_max_frames_storage_size()) + "<--- get_client_max_frames_storage_size ");
-	return frames_input.size() < peer_controller->scene_synchronizer->get_client_max_frames_storage_size();
+	const std::size_t client_max_frames_storage_size = peer_controller->scene_synchronizer->get_client_max_frames_storage_size();
+	return frames_input.size() < client_max_frames_storage_size;
 }
 
 DollController::DollController(PeerNetworkedController *p_peer_controller) :
