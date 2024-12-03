@@ -41,6 +41,10 @@ public:
 	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
 	NS::VarData position;
 
+	bool incremental_input = false;
+	float previous_input = 0.0f;
+	std::vector<NS::GlobalFrameIndex> rewinded_frames;
+
 	LocalNetworkedController() {
 	}
 
@@ -77,18 +81,38 @@ public:
 	}
 
 	void collect_inputs(float p_delta, NS::DataBuffer &r_buffer) {
-		r_buffer.add_bool(true);
+		if (incremental_input) {
+			previous_input += p_delta;
+		}
+		r_buffer.add(true);
+		r_buffer.add(previous_input);
 	}
 
 	void controller_process(float p_delta, NS::DataBuffer &p_buffer) {
+		if (get_scene()->scene_sync->is_rewinding()) {
+			rewinded_frames.push_back(get_scene()->scene_sync->get_global_frame_index());
+		}
+
 		if (p_buffer.read_bool()) {
+			float input_float;
+			p_buffer.read(input_float);
 			const float one_meter = 1.0;
-			position.data.f32 += p_delta * one_meter;
+			position.data.f32 += (p_delta * one_meter) + input_float;
 		}
 	}
 
 	bool are_inputs_different(NS::DataBuffer &p_buffer_A, NS::DataBuffer &p_buffer_B) {
-		return p_buffer_A.read_bool() != p_buffer_B.read_bool();
+		if (p_buffer_A.read_bool() != p_buffer_B.read_bool()) {
+			return true;
+		}
+
+		float fA, fB;
+		p_buffer_A.read(fA);
+		p_buffer_B.read(fB);
+		NS_ASSERT_COND(!p_buffer_A.is_buffer_failed());
+		NS_ASSERT_COND(!p_buffer_B.is_buffer_failed());
+
+		return fA != fB;
 	}
 };
 
@@ -976,7 +1000,6 @@ void test_state_no_rewind_notify() {
 	NS_ASSERT_COND(TSO_server->rewinded_frames.size() == 0);
 	NS_ASSERT_COND(TSO_peer_1->rewinded_frames.size() == 0);
 }
-
 
 void test_processing_with_late_controller_registration() {
 	// This test make sure that the peer receives the server updates ASAP, despite
@@ -1919,6 +1942,66 @@ void test_registering_and_deregistering_process() {
 	}
 }
 
+/// Ensure the net sync can process the scene even with a big virtual latency
+/// without causing any rewindings.
+void test_big_virtual_latency() {
+	NS::LocalScene server_scene;
+	server_scene.start_as_server();
+
+	NS::LocalScene peer_1_scene;
+	peer_1_scene.start_as_client(server_scene);
+
+	// Add the scene sync
+	server_scene.scene_sync =
+			server_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+	peer_1_scene.scene_sync =
+			peer_1_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+
+	// Set the min buffer size on the server to a very high value.
+	server_scene.scene_sync->set_min_server_input_buffer_size(20);
+	server_scene.scene_sync->set_max_server_input_buffer_size(20);
+	peer_1_scene.scene_sync->set_min_server_input_buffer_size(20);
+	peer_1_scene.scene_sync->set_max_server_input_buffer_size(20);
+
+	server_scene.scene_sync->set_max_redundant_inputs(4);
+	peer_1_scene.scene_sync->set_max_redundant_inputs(4);
+
+	server_scene.scene_sync->set_max_predicted_intervals(3.f);
+	peer_1_scene.scene_sync->set_max_predicted_intervals(3.f);
+
+	server_scene.scene_sync->set_max_sub_process_per_frame(4);
+	peer_1_scene.scene_sync->set_max_sub_process_per_frame(4);
+
+	LocalNetworkedController *controlled_server = server_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
+	LocalNetworkedController *controlled_p1 = peer_1_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
+	controlled_p1->incremental_input = true;
+
+	TSS_TestSceneObject *TSO_server = server_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer());
+	TSS_TestSceneObject *TSO_peer_1 = peer_1_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer());
+
+	server_scene.scene_sync->set_frame_confirmation_timespan(1.f / 10.f);
+
+	// Process in a way that causes the client to reaches the frame input limits.
+	const float slower_delta = 1.0f / 30.0f;
+	for (int i = 0; i < 300; i++) {
+		server_scene.process(delta);
+		for (int k = 0; k < 3; k++) {
+			peer_1_scene.process(slower_delta);
+		}
+
+		NS_ASSERT_COND(TSO_server->var_1.data.i32 == 0);
+		NS_ASSERT_COND(TSO_peer_1->var_1.data.i32 == 0);
+	}
+
+	// Verify no rewindigs were ever caused.
+	NS_ASSERT_COND(TSO_server->var_1.data.i32 == 0);
+	NS_ASSERT_COND(TSO_peer_1->var_1.data.i32 == 0);
+	NS_ASSERT_COND(TSO_server->rewinded_frames.size() == 0);
+	NS_ASSERT_COND(TSO_peer_1->rewinded_frames.size() == 0);
+	NS_ASSERT_COND(controlled_server->rewinded_frames.size() == 0);
+	NS_ASSERT_COND(controlled_p1->rewinded_frames.size() == 0);
+}
+
 void test_scene_synchronizer() {
 	test_ids();
 	test_client_and_server_initialization();
@@ -1937,5 +2020,6 @@ void test_scene_synchronizer() {
 	test_no_network();
 	test_sync_mode_reset();
 	test_registering_and_deregistering_process();
+	test_big_virtual_latency();
 }
 }; //namespace NS_Test
