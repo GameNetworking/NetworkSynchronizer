@@ -398,7 +398,7 @@ void SceneSynchronizerDebugger::notify_are_inputs_different_result(
 #endif
 }
 
-void SceneSynchronizerDebugger::print(NS::PrintMessageType p_level, const std::string &p_message, const std::string &p_object_name, bool p_force_print_to_log) {
+void SceneSynchronizerDebugger::print(PrintMessageType p_level, const std::string &p_message, const std::string &p_object_name, bool p_force_print_to_log) {
 #ifdef NS_DEBUG_ENABLED
 
 	if (NS::PrintMessageType::WARNING & p_level) {
@@ -412,14 +412,14 @@ void SceneSynchronizerDebugger::print(NS::PrintMessageType p_level, const std::s
 	const std::string log_level_str = get_log_level_txt(p_level);
 
 	if ((log_level <= p_level) || p_force_print_to_log) {
-		SceneSynchronizerBase::__print_line("[" + log_prefix + "]" + log_level_str + "[" + p_object_name + "] " + p_message);
+		SceneSynchronizerBase::__print_line(p_level, "[" + log_prefix + "]" + log_level_str + "[" + p_object_name + "] " + p_message);
 	}
 
 	__add_message(log_level_str + p_message, p_object_name);
 #else
 	if ((log_level <= p_level) || p_force_print_to_log) {
 		const std::string log_level_str = NS::get_log_level_txt(p_level);
-		NS::SceneSynchronizerBase::__print_line("[" + log_prefix + "]" + log_level_str + "[" + p_object_name + "] " + p_message);
+		NS::SceneSynchronizerBase::__print_line(p_level, "[" + log_prefix + "]" + log_level_str + "[" + p_object_name + "] " + p_message);
 	}
 #endif
 }

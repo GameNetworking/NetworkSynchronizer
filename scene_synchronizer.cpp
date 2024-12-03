@@ -14,11 +14,11 @@
 #include <vector>
 
 NS_NAMESPACE_BEGIN
-void (*SceneSynchronizerBase::var_data_encode_func)(DataBuffer &r_buffer, const NS::VarData &p_val) = nullptr;
-void (*SceneSynchronizerBase::var_data_decode_func)(NS::VarData &r_val, DataBuffer &p_buffer, std::uint8_t p_variable_type) = nullptr;
+void (*SceneSynchronizerBase::var_data_encode_func)(DataBuffer &r_buffer, const VarData &p_val) = nullptr;
+void (*SceneSynchronizerBase::var_data_decode_func)(VarData &r_val, DataBuffer &p_buffer, std::uint8_t p_variable_type) = nullptr;
 bool (*SceneSynchronizerBase::var_data_compare_func)(const VarData &p_A, const VarData &p_B) = nullptr;
 std::string (*SceneSynchronizerBase::var_data_stringify_func)(const VarData &p_var_data, bool p_verbose) = nullptr;
-void (*SceneSynchronizerBase::print_line_func)(const std::string &p_str) = nullptr;
+void (*SceneSynchronizerBase::print_line_func)(PrintMessageType p_level, const std::string &p_str) = nullptr;
 void (*SceneSynchronizerBase::print_code_message_func)(const char *p_function, const char *p_file, int p_line, const std::string &p_error, const std::string &p_message, NS::PrintMessageType p_type) = nullptr;
 void (*SceneSynchronizerBase::print_flush_stdout_func)() = nullptr;
 
@@ -41,10 +41,10 @@ SceneSynchronizerBase::~SceneSynchronizerBase() {
 
 void SceneSynchronizerBase::install_synchronizer(
 		void (*p_var_data_encode_func)(DataBuffer &r_buffer, const VarData &p_val),
-		void (*p_var_data_decode_func)(NS::VarData &r_val, DataBuffer &p_buffer, std::uint8_t p_variable_type),
+		void (*p_var_data_decode_func)(VarData &r_val, DataBuffer &p_buffer, std::uint8_t p_variable_type),
 		bool (*p_var_data_compare_func)(const VarData &p_A, const VarData &p_B),
 		std::string (*p_var_data_stringify_func)(const VarData &p_var_data, bool p_verbose),
-		void (*p_print_line_func)(const std::string &p_str),
+		void (*p_print_line_func)(PrintMessageType p_type, const std::string &p_str),
 		void (*p_print_code_message_func)(const char *p_function, const char *p_file, int p_line, const std::string &p_error, const std::string &p_message, PrintMessageType p_type),
 		void (*p_print_flush_stdout_func)()) {
 	var_data_encode_func = p_var_data_encode_func;
@@ -223,9 +223,9 @@ std::string SceneSynchronizerBase::var_data_stringify(const VarData &p_var_data,
 	return var_data_stringify_func(p_var_data, p_verbose);
 }
 
-void SceneSynchronizerBase::__print_line(const std::string &p_str) {
+void SceneSynchronizerBase::__print_line(PrintMessageType p_level, const std::string &p_str) {
 	if (print_line_func) {
-		print_line_func(p_str);
+		print_line_func(p_level, p_str);
 	}
 }
 

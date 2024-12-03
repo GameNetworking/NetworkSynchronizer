@@ -213,7 +213,7 @@ protected:
 	static bool (*var_data_compare_func)(const VarData &p_A, const VarData &p_B);
 	static std::string (*var_data_stringify_func)(const VarData &p_var_data, bool p_verbose);
 
-	static void (*print_line_func)(const std::string &p_str);
+	static void (*print_line_func)(PrintMessageType p_level, const std::string &p_str);
 	static void (*print_code_message_func)(const char *p_function, const char *p_file, int p_line, const std::string &p_error, const std::string &p_message, NS::PrintMessageType p_type);
 	static void (*print_flush_stdout_func)();
 
@@ -389,7 +389,7 @@ public: // -------------------------------------------------------- Manager APIs
 			void (*p_var_data_decode_func)(VarData &r_val, DataBuffer &p_buffer, std::uint8_t p_variable_type),
 			bool (*p_var_data_compare_func)(const VarData &p_A, const VarData &p_B),
 			std::string (*p_var_data_stringify_func)(const VarData &p_var_data, bool p_verbose),
-			void (*p_print_line_func)(const std::string &p_str),
+			void (*p_print_line_func)(PrintMessageType p_type, const std::string &p_str),
 			void (*p_print_code_message_func)(const char *p_function, const char *p_file, int p_line, const std::string &p_error, const std::string &p_message, NS::PrintMessageType p_type),
 			void (*p_print_flush_stdout_func)());
 
@@ -410,7 +410,7 @@ public:
 	static void var_data_decode(VarData &r_val, DataBuffer &p_buffer, std::uint8_t p_variable_type);
 	static bool var_data_compare(const VarData &p_A, const VarData &p_B);
 	static std::string var_data_stringify(const VarData &p_var_data, bool p_verbose = false);
-	static void __print_line(const std::string &p_str);
+	static void __print_line(PrintMessageType p_level, const std::string &p_str);
 	static void print_code_message(SceneSynchronizerDebugger *p_debugger, const char *p_function, const char *p_file, int p_line, const std::string &p_error, const std::string &p_message, NS::PrintMessageType p_type);
 	static void print_flush_stdout();
 

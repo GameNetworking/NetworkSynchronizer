@@ -1160,7 +1160,7 @@ void PlayerController::process(float p_delta) {
 				streaming_paused = false;
 			}
 		} else {
-			peer_controller->get_debugger().print(WARNING, "It's not possible to accept new inputs. Is this lagging?", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+			peer_controller->get_debugger().print(ERROR, "It's not possible to accept new inputs. Is this lagging?", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 		}
 
 		peer_controller->get_inputs_buffer_mut().dry();
@@ -1224,6 +1224,8 @@ void PlayerController::send_frame_input_buffer_to_server() {
 }
 
 bool PlayerController::can_accept_new_inputs() const {
+	// TODO remove this please.
+	get_debugger().print(ERROR, std::to_string(peer_controller->scene_synchronizer->get_client_max_frames_storage_size()) + "<--- get_client_max_frames_storage_size ");
 	return frames_input.size() < peer_controller->scene_synchronizer->get_client_max_frames_storage_size();
 }
 
