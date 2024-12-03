@@ -135,6 +135,7 @@ public:
 
 	//DataBuffer &operator=(DataBuffer &&p_other);
 	bool operator==(const DataBuffer &p_other) const;
+	bool operator!=(const DataBuffer &p_other) const;
 
 	void copy(const DataBuffer &p_other);
 	void copy(const BitArray &p_buffer);

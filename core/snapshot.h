@@ -62,7 +62,7 @@ struct ScheduledProcedureSnapshot {
 	}
 
 	bool operator!=(const ScheduledProcedureSnapshot &p_other) const {
-		return !(*this == p_other);
+		return !operator==(p_other);
 	}
 
 	operator std::string() const {

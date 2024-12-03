@@ -93,6 +93,10 @@ bool DataBuffer::operator==(const DataBuffer &p_other) const {
 	}
 }
 
+bool DataBuffer::operator!=(const DataBuffer &p_other) const {
+	return !operator==(p_other);
+}
+
 void DataBuffer::copy(const DataBuffer &p_other) {
 	metadata_size = p_other.metadata_size;
 	bit_offset = p_other.bit_offset;
