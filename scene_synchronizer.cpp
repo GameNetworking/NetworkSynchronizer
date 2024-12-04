@@ -1893,7 +1893,7 @@ void SceneSynchronizerBase::process_functions__clear() {
 	cached_process_functions_valid = false;
 }
 
-void SceneSynchronizerBase::process_functions__execute() {
+bool SceneSynchronizerBase::process_functions__execute() {
 	const std::string delta_info = "delta: " + std::to_string(get_fixed_frame_delta());
 	NS_PROFILE_WITH_INFO(delta_info);
 
@@ -1938,6 +1938,11 @@ void SceneSynchronizerBase::process_functions__execute() {
 		cached_process_functions_valid = true;
 	}
 
+	if (!synchronizer->can_execute_scene_process()) {
+		// Can't process
+		return false;
+	}
+
 	if make_unlikely(global_frame_index==GlobalFrameIndex::NONE) {
 		// Reset the frame index before overflow.
 		// Notice that at 60Hz this is triggered after 2 years of never ever
@@ -1956,6 +1961,8 @@ void SceneSynchronizerBase::process_functions__execute() {
 		NS_PROFILE_WITH_INFO(phase_info);
 		cached_process_functions[process_phase].broadcast(get_fixed_frame_delta());
 	}
+
+	return true;
 }
 
 void SceneSynchronizerBase::process_functions__execute_scheduled_procedure() {
@@ -2186,7 +2193,8 @@ void NoNetSynchronizer::process(float p_delta) {
 		scene_synchronizer->get_debugger().scene_sync_process_start(*scene_synchronizer);
 
 		// Process the scene.
-		scene_synchronizer->process_functions__execute();
+		const bool executed = scene_synchronizer->process_functions__execute();
+		NS_ASSERT_COND(executed);
 		scene_synchronizer->detect_and_signal_changed_variables(NetEventFlag::CHANGE);
 
 		scene_synchronizer->get_debugger().scene_sync_process_end(*scene_synchronizer);
@@ -2250,7 +2258,8 @@ void ServerSynchronizer::process(float p_delta) {
 		scene_synchronizer->get_debugger().scene_sync_process_start(*scene_synchronizer);
 
 		// Process the scene
-		scene_synchronizer->process_functions__execute();
+		const bool executed = scene_synchronizer->process_functions__execute();
+		NS_ASSERT_COND(executed);
 		scene_synchronizer->detect_and_signal_changed_variables(NetEventFlag::CHANGE);
 
 		process_snapshot_notificator();
@@ -3196,6 +3205,34 @@ void ClientSynchronizer::clear() {
 	need_full_snapshot_notified = false;
 }
 
+bool ClientSynchronizer::can_execute_scene_process() const {
+	if make_unlikely(!player_controller) {
+		// When the player controller is not defined, always process.
+		return true;
+	}
+
+	NS_ENSURE_V(player_controller->get_player_controller(), true);
+
+	if make_unlikely(player_controller->get_player_controller()->has_queued_instant_to_process()) {
+		// Always execute while rewinding.
+		return true;
+	}
+
+	// We need to know if we can accept a new input because in case of bad
+	// internet connection we can't keep accumulating inputs forever
+	// otherwise the server will differ too much from the client and we
+	// introduce virtual lag.
+	player_controller->get_player_controller()->notify_frame_checked(scene_synchronizer->client_get_last_checked_frame_index());
+	const bool accept_new_inputs = player_controller->get_player_controller()->can_accept_new_inputs();
+	if (accept_new_inputs) {
+		return true;
+	} else {
+		const std::size_t client_max_frames_storage_size = scene_synchronizer->get_client_max_frames_storage_size();
+		get_debugger().print(ERROR, "It's not possible to accept new inputs. Inputs: " + std::to_string(player_controller->get_player_controller()->frames_input.size()) + " max_inputs: " + std::to_string(client_max_frames_storage_size) + ". Peer: `" + std::to_string(player_controller->get_authority_peer()) + "`. Is this lagging?", scene_synchronizer->get_network_interface().get_owner_name());
+		return false;
+	}
+}
+
 void ClientSynchronizer::process(float p_delta) {
 	NS_PROFILE
 
@@ -3773,7 +3810,8 @@ void ClientSynchronizer::__pcr__rewind(
 		// Step 2 -- Process the scene.
 		{
 			NS_PROFILE_NAMED("process_functions__execute");
-			scene_synchronizer->process_functions__execute();
+			const bool executed = scene_synchronizer->process_functions__execute();
+			NS_ASSERT_COND(executed);
 		}
 
 		// Step 3 -- Pull node changes.
@@ -3945,11 +3983,11 @@ void ClientSynchronizer::process_simulation(float p_delta) {
 		scene_synchronizer->get_debugger().scene_sync_process_start(*scene_synchronizer);
 
 		// Process the scene.
-		scene_synchronizer->process_functions__execute();
+		const bool player_has_new_input = scene_synchronizer->process_functions__execute();
 
 		scene_synchronizer->detect_and_signal_changed_variables(NetEventFlag::CHANGE);
 
-		if (player_controller->player_has_new_input()) {
+		if (player_has_new_input) {
 			store_snapshot();
 		}
 

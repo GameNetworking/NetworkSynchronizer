@@ -1942,6 +1942,63 @@ void test_registering_and_deregistering_process() {
 	}
 }
 
+/// Test that over processing the client doesn't cause it to desync.
+void test_client_over_processing() {
+	NS::LocalScene server_scene;
+	server_scene.start_as_server();
+
+	NS::LocalScene peer_1_scene;
+	peer_1_scene.start_as_client(server_scene);
+
+	// Add the scene sync
+	server_scene.scene_sync =
+			server_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+	peer_1_scene.scene_sync =
+			peer_1_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+
+	LocalNetworkedController *controlled_server = server_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
+	LocalNetworkedController *controlled_p1 = peer_1_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
+
+	TSS_TestSceneObject *TSO_server = server_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer());
+	TSS_TestSceneObject *TSO_peer_1 = peer_1_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer());
+
+	server_scene.scene_sync->set_frame_confirmation_timespan(1.f / 10.f);
+
+	// Initial process, needed to ensure every peer is sync.
+	for (int i = 0; i < 15; i++) {
+		server_scene.process(delta);
+		peer_1_scene.process(delta);
+
+		NS_ASSERT_COND(TSO_server->var_1.data.i32 == 0);
+		NS_ASSERT_COND(TSO_peer_1->var_1.data.i32 == 0);
+	}
+
+	// Tick the process 60 times, to build-up the frames
+	for (int i = 0; i < 600; i++) {
+		peer_1_scene.process(delta);
+
+		NS_ASSERT_COND(TSO_server->var_1.data.i32 == 0);
+		NS_ASSERT_COND(TSO_peer_1->var_1.data.i32 == 0);
+	}
+
+	// Start process the server and client again.
+	for (int i = 0; i < 600; i++) {
+		server_scene.process(delta);
+		peer_1_scene.process(delta);
+
+		NS_ASSERT_COND(TSO_server->var_1.data.i32 == 0);
+		NS_ASSERT_COND(TSO_peer_1->var_1.data.i32 == 0);
+	}
+
+	// Verify no rewindigs were ever caused.
+	NS_ASSERT_COND(TSO_server->var_1.data.i32 == 0);
+	NS_ASSERT_COND(TSO_peer_1->var_1.data.i32 == 0);
+	NS_ASSERT_COND(TSO_peer_1->rewinded_frames.size() == 0);
+	NS_ASSERT_COND(controlled_p1->rewinded_frames.size() == 0);
+	NS_ASSERT_COND(TSO_server->rewinded_frames.size() == 0);
+	NS_ASSERT_COND(controlled_server->rewinded_frames.size() == 0);
+}
+
 /// Ensure the net sync can process the scene even with a big virtual latency
 /// without causing any rewindings.
 void test_big_virtual_latency() {
@@ -2020,6 +2077,7 @@ void test_scene_synchronizer() {
 	test_no_network();
 	test_sync_mode_reset();
 	test_registering_and_deregistering_process();
+	test_client_over_processing();
 	test_big_virtual_latency();
 }
-}; //namespace NS_Test
+};

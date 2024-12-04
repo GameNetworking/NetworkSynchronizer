@@ -764,7 +764,7 @@ public: // ------------------------------------------------------------ INTERNAL
 	void update_objects_relevancy();
 
 	void process_functions__clear();
-	void process_functions__execute();
+	bool process_functions__execute();
 	void process_functions__execute_scheduled_procedure();
 
 	ObjectLocalId find_object_local_id(ObjectHandle p_app_object) const;
@@ -825,6 +825,8 @@ public:
 
 	virtual void clear() = 0;
 
+	virtual bool can_execute_scene_process() const = 0;
+
 	virtual void process(float p_delta) = 0;
 
 	virtual void on_peer_connected(int p_peer_id) {
@@ -872,6 +874,11 @@ public:
 	NoNetSynchronizer(SceneSynchronizerBase *p_ss);
 
 	virtual void clear() override;
+
+	virtual bool can_execute_scene_process() const override {
+		return true;
+	}
+
 	virtual void process(float p_delta) override;
 	virtual void on_object_data_added(NS::ObjectData &p_object_data) override;
 	virtual void on_object_data_removed(NS::ObjectData &p_object_data) override;
@@ -908,6 +915,11 @@ public:
 	ServerSynchronizer(SceneSynchronizerBase *p_ss);
 
 	virtual void clear() override;
+
+	virtual bool can_execute_scene_process() const override {
+		return true;
+	}
+
 	virtual void process(float p_delta) override;
 	virtual void on_peer_connected(int p_peer_id) override;
 	virtual void on_peer_disconnected(int p_peer_id) override;
@@ -1107,12 +1119,12 @@ public:
 
 	virtual void clear() override;
 
-
+	virtual bool can_execute_scene_process() const override;
 	virtual void process(float p_delta) override;
-	virtual void on_object_data_added(NS::ObjectData &p_object_data) override;
-	virtual void on_object_data_removed(NS::ObjectData &p_object_data) override;
+	virtual void on_object_data_added(ObjectData &p_object_data) override;
+	virtual void on_object_data_removed(ObjectData &p_object_data) override;
 	virtual void on_object_data_name_known(ObjectData &p_object_data) override;
-	virtual void on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) override;
+	virtual void on_variable_changed(ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) override;
 	void signal_end_sync_changed_variables_events();
 	virtual void on_controller_reset(PeerNetworkedController &p_controller) override;
 	virtual const std::vector<ObjectData *> &get_active_objects() const override;

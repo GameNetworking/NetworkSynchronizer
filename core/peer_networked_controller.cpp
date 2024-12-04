@@ -471,14 +471,6 @@ void PeerNetworkedController::encode_inputs(std::deque<FrameInput> &p_frames_inp
 #undef MAKE_ROOM
 }
 
-void PeerNetworkedController::player_set_has_new_input(bool p_has) {
-	has_player_new_input = p_has;
-}
-
-bool PeerNetworkedController::player_has_new_input() const {
-	return has_player_new_input;
-}
-
 bool PeerNetworkedController::can_simulate() {
 	NS_PROFILE
 
@@ -1122,8 +1114,12 @@ bool PlayerController::has_another_instant_to_process_after(int p_i) const {
 	}
 }
 
+bool PlayerController::has_queued_instant_to_process() const {
+	return queued_instant_to_process >= 0;
+}
+
 void PlayerController::process(float p_delta) {
-	if make_unlikely(queued_instant_to_process >= 0) {
+	if make_unlikely(has_queued_instant_to_process()) {
 		// There is a queued instant. It means the SceneSync is rewinding:
 		// instead to fetch a new input, read it from the stored snapshots.
 		DataBuffer ib(frames_input[queued_instant_to_process].inputs_buffer);
@@ -1141,27 +1137,20 @@ void PlayerController::process(float p_delta) {
 			return;
 		}
 
-		// We need to know if we can accept a new input because in case of bad
-		// internet connection we can't keep accumulating inputs forever
-		// otherwise the server will differ too much from the client and we
-		// introduce virtual lag.
-		notify_frame_checked(peer_controller->scene_synchronizer->client_get_last_checked_frame_index());
+#ifdef NS_DEBUG_ENABLED
 		const bool accept_new_inputs = can_accept_new_inputs();
+		NS_ASSERT_COND_MSG(accept_new_inputs, "This can't be triggered because this function is never executed since the `ClientSynchronizer::can_execute_scene_process()` ensure this is paused if no more inputs can be collected.");
+#endif
 
-		if (accept_new_inputs) {
-			current_input_id = FrameIndex{ { input_buffers_counter } };
+		current_input_id = FrameIndex{ { input_buffers_counter } };
 
-			peer_controller->get_debugger().print(VERBOSE, "Player process index: " + std::string(current_input_id), "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+		peer_controller->get_debugger().print(VERBOSE, "Player process index: " + std::string(current_input_id), "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
 
-			peer_controller->controllable_collect_input(p_delta, peer_controller->get_inputs_buffer_mut());
+		peer_controller->controllable_collect_input(p_delta, peer_controller->get_inputs_buffer_mut());
 
-			// Unpause streaming?
-			if (peer_controller->get_inputs_buffer().size() > 0) {
-				streaming_paused = false;
-			}
-		} else {
-			const std::size_t client_max_frames_storage_size = peer_controller->scene_synchronizer->get_client_max_frames_storage_size();
-			peer_controller->get_debugger().print(ERROR, "It's not possible to accept new inputs. Inputs: " + std::to_string(frames_input.size()) + " max_inputs: " + std::to_string(client_max_frames_storage_size) + ". Is this lagging?", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+		// Unpause streaming?
+		if (peer_controller->get_inputs_buffer().size() > 0) {
+			streaming_paused = false;
 		}
 
 		peer_controller->get_inputs_buffer_mut().dry();
@@ -1174,13 +1163,9 @@ void PlayerController::process(float p_delta) {
 		peer_controller->controllable_process(p_delta, peer_controller->get_inputs_buffer_mut());
 		peer_controller->get_debugger().databuffer_operation_end_record();
 
-		peer_controller->player_set_has_new_input(false);
 		if (!streaming_paused) {
-			if (accept_new_inputs) {
-				input_buffers_counter += 1;
-				peer_controller->store_input_buffer(frames_input, current_input_id);
-				peer_controller->player_set_has_new_input(true);
-			}
+			input_buffers_counter += 1;
+			peer_controller->store_input_buffer(frames_input, current_input_id);
 
 			// Keep sending inputs, despite the server seems not responding properly,
 			// to make sure the server becomes up to date at some point.
