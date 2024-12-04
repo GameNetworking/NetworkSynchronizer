@@ -1597,7 +1597,7 @@ void test_scheduled_procedure_rewind() {
 	peer_1_scene.scene_sync =
 			peer_1_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
 
-	// Add 1 objects controlled by the peer 1.
+	// Add 1 object controlled by the peer 1.
 	server_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
 	peer_1_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
 
@@ -1660,11 +1660,94 @@ void test_scheduled_procedure_rewind() {
 	NS_ASSERT_COND(p1_obj_1_oh->var_1.data.i32 == 123123123);
 }
 
+void test_scheduled_procedure_big_virtual_latency() {
+	NS::LocalScene server_scene;
+	server_scene.start_as_server();
+
+	NS::LocalScene peer_1_scene;
+	peer_1_scene.start_as_client(server_scene);
+
+	// Add the scene sync
+	server_scene.scene_sync =
+			server_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+	peer_1_scene.scene_sync =
+			peer_1_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+
+	// Add 1 object controlled by the peer 1.
+	server_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
+	peer_1_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
+
+	TSS_TestSceneObject *server_obj_1_oh = server_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer());
+	TSS_TestSceneObject *p1_obj_1_oh = peer_1_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer());
+
+	// Set the min buffer size on the server to a very high value.
+	server_scene.scene_sync->set_min_server_input_buffer_size(20);
+	server_scene.scene_sync->set_max_server_input_buffer_size(20);
+	peer_1_scene.scene_sync->set_min_server_input_buffer_size(20);
+	peer_1_scene.scene_sync->set_max_server_input_buffer_size(20);
+
+	server_scene.scene_sync->set_frame_confirmation_timespan(0.2f);
+
+	server_scene.scene_sync->force_state_notify_all();
+	for (int p = 0; p < 5; p++) {
+		server_scene.process(delta);
+		peer_1_scene.process(delta);
+	}
+
+	NS_ASSERT_COND(server_obj_1_oh->procedure_collecting_args_count == 0);
+	NS_ASSERT_COND(server_obj_1_oh->procedure_received_count == 0);
+	NS_ASSERT_COND(server_obj_1_oh->procedure_execution_count == 0);
+	NS_ASSERT_COND(server_obj_1_oh->procedure_execution_while_rewind_count== 0);
+	NS_ASSERT_COND(p1_obj_1_oh->procedure_collecting_args_count == 0);
+	NS_ASSERT_COND(p1_obj_1_oh->procedure_received_count == 0);
+	NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_count == 0);
+	NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_while_rewind_count== 0);
+
+	const NS::GlobalFrameIndex execute_on_frame = server_scene.scene_sync->scheduled_procedure_start(server_obj_1_oh->local_id, server_obj_1_oh->procedure_id, 0.15f);
+	NS_ASSERT_COND(execute_on_frame.id != 0);
+
+	NS_ASSERT_COND(server_obj_1_oh->procedure_collecting_args_count == 1);
+	NS_ASSERT_COND(server_obj_1_oh->procedure_received_count == 0);
+	NS_ASSERT_COND(server_obj_1_oh->procedure_execution_count == 0);
+	NS_ASSERT_COND(server_obj_1_oh->procedure_execution_while_rewind_count== 0);
+	NS_ASSERT_COND(p1_obj_1_oh->procedure_collecting_args_count == 0);
+	NS_ASSERT_COND(p1_obj_1_oh->procedure_received_count == 0);
+	NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_count == 0);
+	NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_while_rewind_count== 0);
+
+	// Introduce some discrepancy to force trigger a rewind.
+	server_obj_1_oh->var_1.data.i32 = 123123123;
+
+	for (int p = 0; p < 60; p++) {
+		server_scene.process(delta);
+		for (int t = 0; t < 20; t++) {
+			peer_1_scene.process(delta);
+		}
+	}
+
+	NS_ASSERT_COND(server_obj_1_oh->procedure_collecting_args_count == 1);
+	NS_ASSERT_COND(server_obj_1_oh->procedure_received_count == 0);
+	NS_ASSERT_COND(server_obj_1_oh->procedure_execution_count == 1);
+	NS_ASSERT_COND(server_obj_1_oh->procedure_execution_while_rewind_count== 0);
+	NS_ASSERT_COND(server_obj_1_oh->rewinded_frames.size()==0);
+	NS_ASSERT_COND(p1_obj_1_oh->procedure_collecting_args_count == 0);
+	NS_ASSERT_COND(p1_obj_1_oh->procedure_received_count == 1);
+	NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_count == 2);
+	NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_while_rewind_count== 1);
+	NS_ASSERT_COND(p1_obj_1_oh->rewinded_frames.size()>0);
+	NS_ASSERT_COND(NS::VecFunc::has(p1_obj_1_oh->rewinded_frames, execute_on_frame));
+	NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_rewinded_on_frame == execute_on_frame);
+
+	NS_ASSERT_COND(server_obj_1_oh->var_1.data.i32 == 123123123);
+	NS_ASSERT_COND(p1_obj_1_oh->var_1.data.i32 == 123123123);
+}
+
 void test_scheduled_procedure() {
 	TestScheduledProcedureBase().do_test();
 	TestScheduledProcedurePause().do_test();
 	TestScheduledProcedureStop().do_test();
 	test_scheduled_procedure_rewind();
+	test_scheduled_procedure_big_virtual_latency();
 }
 
 void test_streaming() {
