@@ -293,7 +293,7 @@ protected: // --------------------------------------------------------- Settings
 	/// The NetSync stops recording more frames, if the clients overflow this span.
 	/// - This is a way to keep the rewinginds smaller.
 	/// - This is a way to avoid the client to go too ahead the server.
-	float max_predicted_intervals = 3.0f;
+	float max_predicted_intervals = 2.0f;
 
 	/// Can be 0.0 to update the relevancy each frame.
 	float objects_relevancy_update_time = 0.5f;

@@ -1973,13 +1973,24 @@ void test_client_over_processing() {
 		NS_ASSERT_COND(TSO_peer_1->var_1.data.i32 == 0);
 	}
 
-	// Tick the process 60 times, to build-up the frames
-	for (int i = 0; i < 600; i++) {
+	bool cannot_accept_new_input_triggered = false;
+	const int frame_to_over_process = peer_1_scene.scene_sync->get_client_max_frames_storage_size() * 3;
+
+	// Over process the client to cause it to stop collecting new inputs.
+	for (int i = 0; i < frame_to_over_process; i++) {
 		peer_1_scene.process(delta);
+
+		if (!peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_player_controller()->can_accept_new_inputs()) {
+			cannot_accept_new_input_triggered = true;
+		}
 
 		NS_ASSERT_COND(TSO_server->var_1.data.i32 == 0);
 		NS_ASSERT_COND(TSO_peer_1->var_1.data.i32 == 0);
 	}
+
+	// Make sure the client stop collecting inputs (but also processing the scene)
+	// at some point.
+	NS_ASSERT_COND(cannot_accept_new_input_triggered);
 
 	// Start process the server and client again.
 	for (int i = 0; i < 600; i++) {
@@ -1999,8 +2010,8 @@ void test_client_over_processing() {
 	NS_ASSERT_COND(controlled_server->rewinded_frames.size() == 0);
 }
 
-/// Ensure the net sync can process the scene even with a big virtual latency
-/// without causing any rewindings.
+/// Another test to verify that is possible to overprocess the client without
+/// triggering a rewind.
 void test_big_virtual_latency() {
 	NS::LocalScene server_scene;
 	server_scene.start_as_server();
@@ -2029,6 +2040,14 @@ void test_big_virtual_latency() {
 	server_scene.scene_sync->set_max_sub_process_per_frame(4);
 	peer_1_scene.scene_sync->set_max_sub_process_per_frame(4);
 
+	/// Ensure the net sync can process the scene without saturating the inputs buffer
+	/// with a big virtual latency. The virtual latency is manually introduced by
+	/// specifying the min_server_buffer_size to 20, that forces the server to
+	/// start processing the clients only once the first 20 frames arrives.
+	server_scene.scene_sync->set_frame_confirmation_timespan(1.f / 10.f);
+	peer_1_scene.scene_sync->set_frame_confirmation_timespan(1.f / 10.f);
+	NS_ASSERT_COND(server_scene.scene_sync->get_client_max_frames_storage_size() > (20 + 10.f));
+
 	LocalNetworkedController *controlled_server = server_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
 	LocalNetworkedController *controlled_p1 = peer_1_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
 	controlled_p1->incremental_input = true;
@@ -2036,19 +2055,28 @@ void test_big_virtual_latency() {
 	TSS_TestSceneObject *TSO_server = server_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer());
 	TSS_TestSceneObject *TSO_peer_1 = peer_1_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer());
 
-	server_scene.scene_sync->set_frame_confirmation_timespan(1.f / 10.f);
+	bool cannot_accept_new_input_triggered = false;
+	const int frame_to_over_process = peer_1_scene.scene_sync->get_client_max_frames_storage_size() * 3;
+	NS_ASSERT_COND(frame_to_over_process < 300);
 
-	// Process in a way that causes the client to reaches the frame input limits.
+	// Process in a way that makes it very easy for the client to build up inputs very fast.
 	const float slower_delta = 1.0f / 30.0f;
 	for (int i = 0; i < 300; i++) {
 		server_scene.process(delta);
-		for (int k = 0; k < 3; k++) {
+		for (int k = 0; k < 2; k++) {
 			peer_1_scene.process(slower_delta);
+			if (!peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer())->get_player_controller()->can_accept_new_inputs()) {
+				cannot_accept_new_input_triggered = true;
+			}
 		}
 
 		NS_ASSERT_COND(TSO_server->var_1.data.i32 == 0);
 		NS_ASSERT_COND(TSO_peer_1->var_1.data.i32 == 0);
 	}
+
+	// Make sure the client stop collecting inputs (but also processing the scene)
+	// at some point.
+	NS_ASSERT_COND(cannot_accept_new_input_triggered);
 
 	// Verify no rewindigs were ever caused.
 	NS_ASSERT_COND(TSO_server->var_1.data.i32 == 0);

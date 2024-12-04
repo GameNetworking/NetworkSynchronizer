@@ -1181,11 +1181,15 @@ bool SceneSynchronizerBase::is_end_sync() const {
 }
 
 std::size_t SceneSynchronizerBase::get_client_max_frames_storage_size() const {
-	const float netsync_frame_per_seconds = (float)get_frames_per_seconds();
-	// NOTE The prediction interval can't be less than 10 frames.
-	//      This allows the confirmation timespan to be set to a very low value
-	//      without issues.
-	return (std::size_t)std::ceil(std::max(get_frame_confirmation_timespan(), (get_fixed_frame_delta() * 10.0f)) * get_max_predicted_intervals() * netsync_frame_per_seconds);
+	// Calculates the frames input buffer size taking into account the settings
+	// that influence the frame storage size, that are the frame confirmation timespan
+	// and the maximum input buffer size.
+	// These two settings are used to make the frames input buffer big enough
+	// to allow the clients to collect inputs until expected, then the client stops
+	// collecting new inputs until the server confirmation is received.
+	const float frames_produced_per_confirmation_interval = std::max(get_frame_confirmation_timespan() * float(get_frames_per_seconds()), 1.f);
+	const float maximum_frames_input_buffer_size = (frames_produced_per_confirmation_interval * get_max_predicted_intervals()) + float(max_server_input_buffer_size);
+	return std::ceil(maximum_frames_input_buffer_size);
 }
 
 void SceneSynchronizerBase::force_state_notify(SyncGroupId p_sync_group_id) {
