@@ -404,7 +404,7 @@ public:
 	int procedure_received_count = 0;
 	int procedure_execution_count = 0;
 	int procedure_execution_while_rewind_count = 0;
-	NS::GlobalFrameIndex procedure_execution_rewinded_on_frame;
+	NS::GlobalFrameIndex procedure_execution_scheduled_for;
 
 	std::vector<NS::GlobalFrameIndex> rewinded_frames;
 
@@ -447,10 +447,14 @@ public:
 						self->procedure_execution_count++;
 						p_buffer.read(self->just_a_float_value);
 						NS_ASSERT_COND(!p_buffer.is_buffer_failed());
+						// Ensure the procedure is executed exactly at the
+						// expected frame everywhere in every case (even during
+						// the rewinding).
+						const NS::GlobalFrameIndex current_GFI = p_sync_manager.get_scene_synchronizer()->get_global_frame_index();
+						NS_ASSERT_COND(self->procedure_execution_scheduled_for == current_GFI);
 
 						if (p_sync_manager.get_scene_synchronizer()->is_rewinding()) {
 							self->procedure_execution_while_rewind_count++;
-							self->procedure_execution_rewinded_on_frame = p_sync_manager.get_scene_synchronizer()->get_global_frame_index();
 						}
 					}
 				});
@@ -1388,6 +1392,11 @@ public:
 		// -------------------------------------------------- SCHEDULE THE PROCEDURE
 		scene_object_on_server->just_a_float_value = 532.f;
 		execute_on_frame = server_scene.scene_sync->scheduled_procedure_start(scene_object_on_server->local_id, scene_object_on_server->procedure_id, 0.3f);
+		scene_object_on_server->procedure_execution_scheduled_for = execute_on_frame;
+		scene_object_on_peer_1->procedure_execution_scheduled_for = execute_on_frame;
+		if (scene_object_on_peer_2) {
+			scene_object_on_peer_2->procedure_execution_scheduled_for = execute_on_frame;
+		}
 
 		// ---------------------------------------------------------- ASSERTION FUNC
 		{
@@ -1424,6 +1433,7 @@ public:
 				peer_2_scene.add_object<LocalNetworkedController>("controller_1", peer_1_scene.get_peer());
 				peer_2_scene.add_object<LocalNetworkedController>("controller_2", peer_2_scene.get_peer());
 				scene_object_on_peer_2 = peer_2_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer());
+				scene_object_on_peer_2->procedure_execution_scheduled_for = execute_on_frame;
 
 				// Add 1 object controlled by the peer 2.
 				server_scene.add_object<LocalNetworkedController>("controller_2", peer_2_scene.get_peer());
@@ -1537,6 +1547,9 @@ public:
 
 		// Unpause and process
 		execute_on_frame = server_scene.scene_sync->scheduled_procedure_unpause(scene_object_on_server->local_id, scene_object_on_server->procedure_id);
+		scene_object_on_server->procedure_execution_scheduled_for = execute_on_frame;
+		scene_object_on_peer_1->procedure_execution_scheduled_for = execute_on_frame;
+		scene_object_on_peer_2->procedure_execution_scheduled_for = execute_on_frame;
 		do_process(60);
 
 		TestScheduledProcedureBase::assert_final_value();
@@ -1577,6 +1590,9 @@ public:
 		// Unpause and process
 		execute_on_frame = server_scene.scene_sync->scheduled_procedure_start(scene_object_on_server->local_id, scene_object_on_server->procedure_id, 0.2f);
 		NS_ASSERT_COND(execute_on_frame.id != 0);
+		scene_object_on_server->procedure_execution_scheduled_for = execute_on_frame;
+		scene_object_on_peer_1->procedure_execution_scheduled_for = execute_on_frame;
+		scene_object_on_peer_2->procedure_execution_scheduled_for = execute_on_frame;
 
 		do_process(90);
 
@@ -1623,6 +1639,8 @@ void test_scheduled_procedure_rewind() {
 
 	const NS::GlobalFrameIndex execute_on_frame = server_scene.scene_sync->scheduled_procedure_start(server_obj_1_oh->local_id, server_obj_1_oh->procedure_id, 0.15f);
 	NS_ASSERT_COND(execute_on_frame.id != 0);
+	server_obj_1_oh->procedure_execution_scheduled_for = execute_on_frame;
+	p1_obj_1_oh->procedure_execution_scheduled_for = execute_on_frame;
 
 	NS_ASSERT_COND(server_obj_1_oh->procedure_collecting_args_count == 1);
 	NS_ASSERT_COND(server_obj_1_oh->procedure_received_count == 0);
@@ -1654,7 +1672,6 @@ void test_scheduled_procedure_rewind() {
 	NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_while_rewind_count== 1);
 	NS_ASSERT_COND(p1_obj_1_oh->rewinded_frames.size()>0);
 	NS_ASSERT_COND(NS::VecFunc::has(p1_obj_1_oh->rewinded_frames, execute_on_frame));
-	NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_rewinded_on_frame == execute_on_frame);
 
 	NS_ASSERT_COND(server_obj_1_oh->var_1.data.i32 == 123123123);
 	NS_ASSERT_COND(p1_obj_1_oh->var_1.data.i32 == 123123123);
@@ -1705,6 +1722,8 @@ void test_scheduled_procedure_big_virtual_latency() {
 
 	const NS::GlobalFrameIndex execute_on_frame = server_scene.scene_sync->scheduled_procedure_start(server_obj_1_oh->local_id, server_obj_1_oh->procedure_id, 0.15f);
 	NS_ASSERT_COND(execute_on_frame.id != 0);
+	server_obj_1_oh->procedure_execution_scheduled_for = execute_on_frame;
+	p1_obj_1_oh->procedure_execution_scheduled_for = execute_on_frame;
 
 	NS_ASSERT_COND(server_obj_1_oh->procedure_collecting_args_count == 1);
 	NS_ASSERT_COND(server_obj_1_oh->procedure_received_count == 0);
@@ -1736,7 +1755,6 @@ void test_scheduled_procedure_big_virtual_latency() {
 	NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_while_rewind_count== 1);
 	NS_ASSERT_COND(p1_obj_1_oh->rewinded_frames.size()>0);
 	NS_ASSERT_COND(NS::VecFunc::has(p1_obj_1_oh->rewinded_frames, execute_on_frame));
-	NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_rewinded_on_frame == execute_on_frame);
 
 	NS_ASSERT_COND(server_obj_1_oh->var_1.data.i32 == 123123123);
 	NS_ASSERT_COND(p1_obj_1_oh->var_1.data.i32 == 123123123);
@@ -2057,7 +2075,7 @@ void test_client_over_processing() {
 	}
 
 	bool cannot_accept_new_input_triggered = false;
-	const int frame_to_over_process = peer_1_scene.scene_sync->get_client_max_frames_storage_size() * 3;
+	const int frame_to_over_process = int(peer_1_scene.scene_sync->get_client_max_frames_storage_size()) * 3;
 
 	// Over process the client to cause it to stop collecting new inputs.
 	for (int i = 0; i < frame_to_over_process; i++) {

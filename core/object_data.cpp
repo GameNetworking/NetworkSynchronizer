@@ -265,6 +265,19 @@ std::uint32_t ObjectData::scheduled_procedure_remaining_frames(ScheduledProcedur
 	return 0;
 }
 
+bool ObjectData::scheduled_procedure_is_outdated(ScheduledProcedureId p_id, GlobalFrameIndex p_current_frame) const {
+	if (scheduled_procedures[p_id.id].paused_frame.id > 0) {
+		if (scheduled_procedures[p_id.id].paused_frame <= scheduled_procedures[p_id.id].execute_frame) {
+			return false;
+		}
+	} else if (scheduled_procedures[p_id.id].execute_frame.id > 0) {
+		if (p_current_frame.id <= scheduled_procedures[p_id.id].execute_frame.id) {
+			return false;
+		}
+	}
+	return true;
+}
+
 GlobalFrameIndex ObjectData::scheduled_procedure_get_execute_frame(ScheduledProcedureId p_id) const {
 	if (scheduled_procedures[p_id.id].paused_frame.id == 0) {
 		return scheduled_procedures[p_id.id].execute_frame;

@@ -152,6 +152,8 @@ public:
 	bool scheduled_procedure_is_paused(ScheduledProcedureId p_id) const;
 	/// Returns the remaining frames of this procedure according to its status (Playing, Paused, Stop)
 	std::uint32_t scheduled_procedure_remaining_frames(ScheduledProcedureId p_id, GlobalFrameIndex p_current_frame) const;
+	/// Returns true when the procedure is outdated
+	bool scheduled_procedure_is_outdated(ScheduledProcedureId p_id, GlobalFrameIndex p_current_frame) const;
 
 	GlobalFrameIndex scheduled_procedure_get_execute_frame(ScheduledProcedureId p_id) const;
 	const DataBuffer &scheduled_procedure_get_args(ScheduledProcedureId p_id) const;

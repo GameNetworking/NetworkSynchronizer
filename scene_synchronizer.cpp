@@ -1987,18 +1987,38 @@ void SceneSynchronizerBase::process_functions__execute_scheduled_procedure() {
 
 			const std::uint32_t remaining_frames = od->scheduled_procedure_remaining_frames(handle.get_scheduled_procedure_id(), global_frame_index);
 			if (remaining_frames == 0) {
-				// First stop the procedure
+				const bool is_outdated = od->scheduled_procedure_is_outdated(handle.get_scheduled_procedure_id(), global_frame_index);
+#ifdef NS_DEBUG_ENABLED
+				const GlobalFrameIndex procedure_execution = od->scheduled_procedure_get_execute_frame(handle.get_scheduled_procedure_id());
+#endif
+
+				// Stop the procedure now so eventually the procedure can be
+				// enabled again within the procedure function call itself.
 				od->scheduled_procedure_stop(handle.get_scheduled_procedure_id());
 				if (is_server()) {
 					sync_group_notify_scheduled_procedure_changed(*od, handle.get_scheduled_procedure_id());
 				}
 
-				// then execute it, so eventually the procedure can be enabled again within the function call.
-				od->scheduled_procedure_execute(
-						handle.get_scheduled_procedure_id(),
-						ScheduledProcedurePhase::EXECUTING,
-						get_synchronizer_manager(),
-						get_debugger());
+				if (!is_outdated) {
+#ifdef NS_DEBUG_ENABLED
+					if (pedantic_checks) {
+						// On client, ensure the execution frames is respected:
+						// It must never execute the procedure BEFORE or AFTER
+						// the server defined execution frame.
+						// - Never before because it simply doesn't make sense
+						// - Never after because the work already done is applied
+						//   and if the client missed it a snapshot will correct it.
+						NS_ASSERT_COND(procedure_execution == global_frame_index);
+					}
+#endif
+					// The procedure is not outdated (this never happens on the server)
+					// so we can execute it.
+					od->scheduled_procedure_execute(
+							handle.get_scheduled_procedure_id(),
+							ScheduledProcedurePhase::EXECUTING,
+							get_synchronizer_manager(),
+							get_debugger());
+				}
 			}
 		}
 	}
