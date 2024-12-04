@@ -1677,7 +1677,9 @@ void test_scheduled_procedure_rewind() {
 	NS_ASSERT_COND(p1_obj_1_oh->var_1.data.i32 == 123123123);
 }
 
-void test_scheduled_procedure_big_virtual_latency() {
+/// This test ensure tha the schedule procedure is properly executed (or not executed)
+/// on a client that is very ahead the server.
+void test_scheduled_procedure_with_too_ahead_peers() {
 	NS::LocalScene server_scene;
 	server_scene.start_as_server();
 
@@ -1703,10 +1705,10 @@ void test_scheduled_procedure_big_virtual_latency() {
 	peer_1_scene.scene_sync->set_min_server_input_buffer_size(20);
 	peer_1_scene.scene_sync->set_max_server_input_buffer_size(20);
 
-	server_scene.scene_sync->set_frame_confirmation_timespan(0.2f);
+	server_scene.scene_sync->set_frame_confirmation_timespan(0.1f);
 
 	server_scene.scene_sync->force_state_notify_all();
-	for (int p = 0; p < 5; p++) {
+	for (int p = 0; p < 2; p++) {
 		server_scene.process(delta);
 		peer_1_scene.process(delta);
 	}
@@ -1720,10 +1722,18 @@ void test_scheduled_procedure_big_virtual_latency() {
 	NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_count == 0);
 	NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_while_rewind_count== 0);
 
-	const NS::GlobalFrameIndex execute_on_frame = server_scene.scene_sync->scheduled_procedure_start(server_obj_1_oh->local_id, server_obj_1_oh->procedure_id, 0.15f);
+	// Process the client alone to push it ahead the server.
+	for (int p = 0; p < 10; p++) {
+		peer_1_scene.process(delta);
+	}
+
+	const NS::GlobalFrameIndex execute_on_frame = server_scene.scene_sync->scheduled_procedure_start(server_obj_1_oh->local_id, server_obj_1_oh->procedure_id, 0.1f);
 	NS_ASSERT_COND(execute_on_frame.id != 0);
 	server_obj_1_oh->procedure_execution_scheduled_for = execute_on_frame;
 	p1_obj_1_oh->procedure_execution_scheduled_for = execute_on_frame;
+
+	// Assert the client is already ahead.
+	NS_ASSERT_COND(peer_1_scene.scene_sync->get_global_frame_index() > execute_on_frame);
 
 	NS_ASSERT_COND(server_obj_1_oh->procedure_collecting_args_count == 1);
 	NS_ASSERT_COND(server_obj_1_oh->procedure_received_count == 0);
@@ -1734,30 +1744,22 @@ void test_scheduled_procedure_big_virtual_latency() {
 	NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_count == 0);
 	NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_while_rewind_count== 0);
 
-	// Introduce some discrepancy to force trigger a rewind.
-	server_obj_1_oh->var_1.data.i32 = 123123123;
-
 	for (int p = 0; p < 60; p++) {
 		server_scene.process(delta);
-		for (int t = 0; t < 20; t++) {
-			peer_1_scene.process(delta);
-		}
+		peer_1_scene.process(delta);
 	}
 
+	// Now ensure the procedure is never executed on the client, despite it's received.
 	NS_ASSERT_COND(server_obj_1_oh->procedure_collecting_args_count == 1);
 	NS_ASSERT_COND(server_obj_1_oh->procedure_received_count == 0);
 	NS_ASSERT_COND(server_obj_1_oh->procedure_execution_count == 1);
 	NS_ASSERT_COND(server_obj_1_oh->procedure_execution_while_rewind_count== 0);
-	NS_ASSERT_COND(server_obj_1_oh->rewinded_frames.size()==0);
+	NS_ASSERT_COND(server_obj_1_oh->rewinded_frames.size() == 0);
 	NS_ASSERT_COND(p1_obj_1_oh->procedure_collecting_args_count == 0);
 	NS_ASSERT_COND(p1_obj_1_oh->procedure_received_count == 1);
-	NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_count == 2);
-	NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_while_rewind_count== 1);
-	NS_ASSERT_COND(p1_obj_1_oh->rewinded_frames.size()>0);
-	NS_ASSERT_COND(NS::VecFunc::has(p1_obj_1_oh->rewinded_frames, execute_on_frame));
-
-	NS_ASSERT_COND(server_obj_1_oh->var_1.data.i32 == 123123123);
-	NS_ASSERT_COND(p1_obj_1_oh->var_1.data.i32 == 123123123);
+	NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_count == 0);
+	NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_while_rewind_count == 0);
+	NS_ASSERT_COND(p1_obj_1_oh->rewinded_frames.size() == 0);
 }
 
 void test_scheduled_procedure() {
@@ -1765,7 +1767,7 @@ void test_scheduled_procedure() {
 	TestScheduledProcedurePause().do_test();
 	TestScheduledProcedureStop().do_test();
 	test_scheduled_procedure_rewind();
-	test_scheduled_procedure_big_virtual_latency();
+	test_scheduled_procedure_with_too_ahead_peers();
 }
 
 void test_streaming() {
