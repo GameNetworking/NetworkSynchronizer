@@ -86,8 +86,6 @@ private:
 	bool are_controllable_objects_sorted = false;
 	std::vector<ObjectData *> _sorted_controllable_objects;
 
-	bool has_player_new_input = false;
-
 	PHandler event_handler_peer_status_updated = NullPHandler;
 
 public: // -------------------------------------------------------------- Events
@@ -171,12 +169,7 @@ public:
 	void store_input_buffer(std::deque<FrameInput> &r_frames_input, FrameIndex p_frame_index);
 	void encode_inputs(std::deque<FrameInput> &p_frames_input, std::vector<std::uint8_t> &r_buffer);
 
-private:
-	void player_set_has_new_input(bool p_has);
-
 public:
-	bool player_has_new_input() const;
-
 	bool can_simulate();
 
 protected:
@@ -303,6 +296,7 @@ struct PlayerController final : public Controller {
 
 	void on_rewind_frame_begin(FrameIndex p_frame_index, int p_rewinding_index, int p_rewinding_frame_count);
 	bool has_another_instant_to_process_after(int p_i) const;
+	bool has_queued_instant_to_process() const;
 	virtual void process(float p_delta) override;
 	void on_state_validated(FrameIndex p_frame_index, bool p_detected_desync);
 	void on_app_process_end(float p_delta_seconds);
