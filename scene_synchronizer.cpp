@@ -772,7 +772,9 @@ void SceneSynchronizerBase::unregister_scheduled_procedure(
 GlobalFrameIndex SceneSynchronizerBase::scheduled_procedure_start(
 		ObjectLocalId p_id,
 		ScheduledProcedureId p_procedure_id,
-		float p_execute_in_seconds) {
+		float p_execute_in_seconds,
+		int p_peer_to_compensate,
+		float p_max_compensation_seconds) {
 	NS_PROFILE
 
 	NS_ENSURE_V_MSG(is_server() || is_no_network(), GlobalFrameIndex{0}, "The procedure can be scheduled only by the server.");
@@ -784,7 +786,12 @@ GlobalFrameIndex SceneSynchronizerBase::scheduled_procedure_start(
 	NS_ENSURE_V(od, GlobalFrameIndex{0});
 	NS_ENSURE_V(od->scheduled_procedure_exist(p_procedure_id), GlobalFrameIndex{0});
 
-	const GlobalFrameIndex execute_on_frame{ std::max(GlobalFrameIndex::IdType(1), global_frame_index.id + GlobalFrameIndex::IdType(std::round(p_execute_in_seconds * float(get_frames_per_seconds())))) };
+	const GlobalFrameIndex execute_on_frame =
+			scheduled_procedure_compensate_execution_frame(
+					GlobalFrameIndex{ std::max(GlobalFrameIndex::IdType(1), global_frame_index.id + GlobalFrameIndex::IdType(std::round(p_execute_in_seconds * float(get_frames_per_seconds())))) },
+					p_peer_to_compensate,
+					p_max_compensation_seconds);
+
 	od->scheduled_procedure_fetch_args(p_procedure_id, get_synchronizer_manager(), get_debugger());
 	od->scheduled_procedure_start(p_procedure_id, execute_on_frame);
 
@@ -891,7 +898,9 @@ void SceneSynchronizerBase::scheduled_procedure_pause(
 
 GlobalFrameIndex SceneSynchronizerBase::scheduled_procedure_unpause(
 		ObjectLocalId p_id,
-		ScheduledProcedureId p_procedure_id) {
+		ScheduledProcedureId p_procedure_id,
+		int p_peer_to_compensate,
+		float p_max_compensation_seconds) {
 	NS_PROFILE
 
 	NS_ENSURE_V_MSG(is_server() || is_no_network(), GlobalFrameIndex{0}, "The procedure can be scheduled only by the server.");
@@ -905,8 +914,8 @@ GlobalFrameIndex SceneSynchronizerBase::scheduled_procedure_unpause(
 
 	NS_ENSURE_V(od->scheduled_procedure_is_paused(p_procedure_id), GlobalFrameIndex{0});
 	const std::uint32_t remaining_frames = od->scheduled_procedure_remaining_frames(p_procedure_id, global_frame_index);
+	const GlobalFrameIndex execute_on_frame = scheduled_procedure_compensate_execution_frame(global_frame_index + remaining_frames, p_peer_to_compensate, p_max_compensation_seconds);
 
-	const GlobalFrameIndex execute_on_frame = global_frame_index + remaining_frames;
 	od->scheduled_procedure_start(p_procedure_id, global_frame_index + remaining_frames);
 	sync_group_notify_scheduled_procedure_changed(*od, p_procedure_id);
 
@@ -934,7 +943,6 @@ GlobalFrameIndex SceneSynchronizerBase::scheduled_procedure_unpause(
 	return execute_on_frame;
 }
 
-
 float SceneSynchronizerBase::scheduled_procedure_get_remaining_seconds(
 		ObjectLocalId p_id,
 		ScheduledProcedureId p_procedure_id) const {
@@ -957,6 +965,20 @@ bool SceneSynchronizerBase::scheduled_procedure_is_paused(
 	NS_ENSURE_V(od->scheduled_procedure_exist(p_procedure_id), true);
 
 	return od->scheduled_procedure_is_paused(p_procedure_id);
+}
+
+GlobalFrameIndex SceneSynchronizerBase::scheduled_procedure_compensate_execution_frame(GlobalFrameIndex p_execute_on_frame, int p_peer_to_compensate, float p_max_compensation_seconds) const {
+	if (p_peer_to_compensate > 0 && p_peer_to_compensate != get_network_interface().get_server_peer()) {
+		// Compensate for the client inputs.
+		const PeerNetworkedController *peer_controller = get_controller_for_peer(p_peer_to_compensate);
+		NS_ENSURE_V_MSG(peer_controller, p_execute_on_frame, "The provided peer doesn't exist and the scheduled_procedure_uppause failed because it was impossible to compensate the procedure execution time with the client frames buffer.");
+		int compensation = peer_controller->get_server_controller_unchecked()->get_frames_to_process();
+		if (p_max_compensation_seconds > 0.f) {
+			compensation = std::min(int(std::round(p_max_compensation_seconds * float(get_frames_per_seconds()))), compensation);
+		}
+		p_execute_on_frame += compensation;
+	}
+	return p_execute_on_frame;
 }
 
 void SceneSynchronizerBase::setup_trickled_sync(
@@ -1189,7 +1211,7 @@ std::size_t SceneSynchronizerBase::get_client_max_frames_storage_size() const {
 	// collecting new inputs until the server confirmation is received.
 	const float frames_produced_per_confirmation_interval = std::max(get_frame_confirmation_timespan() * float(get_frames_per_seconds()), 1.f);
 	const float maximum_frames_input_buffer_size = (frames_produced_per_confirmation_interval * get_max_predicted_intervals()) + float(max_server_input_buffer_size);
-	return std::ceil(maximum_frames_input_buffer_size);
+	return std::size_t(std::ceil(maximum_frames_input_buffer_size));
 }
 
 void SceneSynchronizerBase::force_state_notify(SyncGroupId p_sync_group_id) {

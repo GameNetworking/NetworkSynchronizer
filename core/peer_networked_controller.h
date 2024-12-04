@@ -225,6 +225,7 @@ public:
 	virtual FrameIndex get_current_frame_index() const override;
 	virtual int get_inputs_count() const;
 	FrameIndex last_known_frame_index() const;
+	virtual int get_frames_to_process() const;
 
 	/// Fetch the next inputs, returns true if the input is new.
 	virtual bool fetch_next_input(float p_delta);

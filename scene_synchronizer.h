@@ -624,10 +624,17 @@ public: // ---------------------------------------------------------------- APIs
 			ObjectLocalId p_id,
 			ScheduledProcedureId p_procedure_id);
 
+	/// Starts the scheduled procedure.
+	/// `p_peer_to_compensate` the peer_id that the server will use as base to
+	///     establish the execution frame that starts after the already processed frames.
+	///     Note: the client is always ahead the server and without this compensation the
+	///     procedure would always be executed on a frame already processed on the client.
 	GlobalFrameIndex scheduled_procedure_start(
 			ObjectLocalId p_id,
 			ScheduledProcedureId p_procedure_id,
-			float p_execute_in_seconds);
+			float p_execute_in_seconds,
+			int p_peer_to_compensate = -1,
+			float p_max_compensation_seconds = -1.0);
 
 	void scheduled_procedure_stop(
 			ObjectLocalId p_id,
@@ -639,7 +646,9 @@ public: // ---------------------------------------------------------------- APIs
 
 	GlobalFrameIndex scheduled_procedure_unpause(
 			ObjectLocalId p_id,
-			ScheduledProcedureId p_procedure_id);
+			ScheduledProcedureId p_procedure_id,
+			int p_peer_to_compensate = -1,
+			float p_max_compensation_seconds = -1.0);
 
 	float scheduled_procedure_get_remaining_seconds(
 			ObjectLocalId p_id,
@@ -649,6 +658,10 @@ public: // ---------------------------------------------------------------- APIs
 			ObjectLocalId p_id,
 			ScheduledProcedureId p_procedure_id) const;
 
+private:
+	GlobalFrameIndex scheduled_procedure_compensate_execution_frame(GlobalFrameIndex p_execute_on_frame, int p_peer_to_compensate, float p_max_compensation_seconds) const;
+
+public:
 	/// Setup the trickled sync method for this specific object.
 	/// The trickled-sync is different from the realtime-sync because the data
 	/// is streamed and not simulated.

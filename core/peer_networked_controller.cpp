@@ -605,6 +605,20 @@ FrameIndex RemotelyControlledController::last_known_frame_index() const {
 	}
 }
 
+int RemotelyControlledController::get_frames_to_process() const {
+	const FrameIndex last_frame_index = last_known_frame_index();
+	if (last_frame_index == FrameIndex::NONE) {
+		return 0;
+	}
+
+	const FrameIndex current_frame_index = get_current_frame_index();
+	if (current_frame_index == FrameIndex::NONE) {
+		return last_frame_index.id;
+	} else {
+		return current_frame_index < last_frame_index ? last_frame_index.id - current_frame_index.id : 0;
+	}
+}
+
 bool RemotelyControlledController::fetch_next_input(float p_delta) {
 	bool is_new_input = true;
 

@@ -1679,7 +1679,9 @@ void test_scheduled_procedure_rewind() {
 
 /// This test ensure tha the schedule procedure is properly executed (or not executed)
 /// on a client that is very ahead the server.
-void test_scheduled_procedure_with_too_ahead_peers() {
+/// By passing true is possible to tests the client compensation algorithm, that run on the server, 
+/// can properly define an execution time that takes into account the client processing.
+void test_scheduled_procedure_with_very_ahead_peers(bool p_skip_client_compensation, bool p_test_compensation_limit = false) {
 	NS::LocalScene server_scene;
 	server_scene.start_as_server();
 
@@ -1727,13 +1729,22 @@ void test_scheduled_procedure_with_too_ahead_peers() {
 		peer_1_scene.process(delta);
 	}
 
-	const NS::GlobalFrameIndex execute_on_frame = server_scene.scene_sync->scheduled_procedure_start(server_obj_1_oh->local_id, server_obj_1_oh->procedure_id, 0.1f);
+	const NS::GlobalFrameIndex execute_on_frame = server_scene.scene_sync->scheduled_procedure_start(
+			server_obj_1_oh->local_id,
+			server_obj_1_oh->procedure_id,
+			0.1f,
+			p_skip_client_compensation ? -1 : peer_1_scene.get_peer(),
+			p_test_compensation_limit ? 0.01f : -1.0f);
 	NS_ASSERT_COND(execute_on_frame.id != 0);
 	server_obj_1_oh->procedure_execution_scheduled_for = execute_on_frame;
 	p1_obj_1_oh->procedure_execution_scheduled_for = execute_on_frame;
 
-	// Assert the client is already ahead.
-	NS_ASSERT_COND(peer_1_scene.scene_sync->get_global_frame_index() > execute_on_frame);
+	if (p_skip_client_compensation || p_test_compensation_limit) {
+		// Assert the client is already ahead the scheduled procedure.
+		NS_ASSERT_COND(peer_1_scene.scene_sync->get_global_frame_index() > execute_on_frame);
+	} else {
+		NS_ASSERT_COND(peer_1_scene.scene_sync->get_global_frame_index() < execute_on_frame);
+	}
 
 	NS_ASSERT_COND(server_obj_1_oh->procedure_collecting_args_count == 1);
 	NS_ASSERT_COND(server_obj_1_oh->procedure_received_count == 0);
@@ -1749,7 +1760,7 @@ void test_scheduled_procedure_with_too_ahead_peers() {
 		peer_1_scene.process(delta);
 	}
 
-	// Now ensure the procedure is never executed on the client, despite it's received.
+	// Now ensure the procedure received on the client and executed on the server.
 	NS_ASSERT_COND(server_obj_1_oh->procedure_collecting_args_count == 1);
 	NS_ASSERT_COND(server_obj_1_oh->procedure_received_count == 0);
 	NS_ASSERT_COND(server_obj_1_oh->procedure_execution_count == 1);
@@ -1757,9 +1768,16 @@ void test_scheduled_procedure_with_too_ahead_peers() {
 	NS_ASSERT_COND(server_obj_1_oh->rewinded_frames.size() == 0);
 	NS_ASSERT_COND(p1_obj_1_oh->procedure_collecting_args_count == 0);
 	NS_ASSERT_COND(p1_obj_1_oh->procedure_received_count == 1);
-	NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_count == 0);
-	NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_while_rewind_count == 0);
 	NS_ASSERT_COND(p1_obj_1_oh->rewinded_frames.size() == 0);
+	NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_while_rewind_count == 0);
+
+	if (p_skip_client_compensation || p_test_compensation_limit) {
+		// Without client compensation the procedure is never expected to be executed on the client.
+		NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_count == 0);
+	} else {
+		// With compensation the procedure is expected to be executed.
+		NS_ASSERT_COND(p1_obj_1_oh->procedure_execution_count == 1);
+	}
 }
 
 void test_scheduled_procedure() {
@@ -1767,7 +1785,9 @@ void test_scheduled_procedure() {
 	TestScheduledProcedurePause().do_test();
 	TestScheduledProcedureStop().do_test();
 	test_scheduled_procedure_rewind();
-	test_scheduled_procedure_with_too_ahead_peers();
+	test_scheduled_procedure_with_very_ahead_peers(true);
+	test_scheduled_procedure_with_very_ahead_peers(false, false);
+	test_scheduled_procedure_with_very_ahead_peers(false, true);
 }
 
 void test_streaming() {
@@ -2159,7 +2179,7 @@ void test_big_virtual_latency() {
 	TSS_TestSceneObject *TSO_peer_1 = peer_1_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer());
 
 	bool cannot_accept_new_input_triggered = false;
-	const int frame_to_over_process = peer_1_scene.scene_sync->get_client_max_frames_storage_size() * 3;
+	const int frame_to_over_process = int(peer_1_scene.scene_sync->get_client_max_frames_storage_size()) * 3;
 	NS_ASSERT_COND(frame_to_over_process < 300);
 
 	// Process in a way that makes it very easy for the client to build up inputs very fast.
