@@ -3774,9 +3774,10 @@ bool ClientSynchronizer::__pcr__fetch_recovery_info(
 
 	// Prints the comparison info.
 	if (differences_info.size() > 0 && scene_synchronizer->debug_rewindings_enabled) {
-		scene_synchronizer->get_debugger().print(scene_synchronizer->debug_rewindings_log_level, "Rewind on frame " + p_input_id + " is needed because:", scene_synchronizer->get_network_interface().get_owner_name());
+		const PrintMessageType log_level = is_equal ? INFO : scene_synchronizer->debug_rewindings_log_level;
+		scene_synchronizer->get_debugger().print(log_level, "Differences detected on frame " + p_input_id + ", triggers a rewind: " + (is_equal ? "NO" : "YES"), scene_synchronizer->get_network_interface().get_owner_name());
 		for (int i = 0; i < int(differences_info.size()); i++) {
-			scene_synchronizer->get_debugger().print(scene_synchronizer->debug_rewindings_log_level, "|- " + differences_info[i], scene_synchronizer->get_network_interface().get_owner_name());
+			scene_synchronizer->get_debugger().print(log_level, "|- " + differences_info[i], scene_synchronizer->get_network_interface().get_owner_name());
 		}
 	}
 
