@@ -90,7 +90,9 @@ private:
 
 public: // -------------------------------------------------------------- Events
 	Processor<> event_controller_reset;
+#ifdef NS_DEBUG_ENABLED
 	Processor<FrameIndex> event_input_missed;
+#endif
 
 public:
 	PeerNetworkedController(SceneSynchronizerBase &p_scene_synchronizer);
