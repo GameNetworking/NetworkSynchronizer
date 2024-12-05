@@ -778,6 +778,10 @@ bool RemotelyControlledController::fetch_next_input(float p_delta) {
 		NS_ASSERT_COND(current_input_buffer_id < frames_input.front().id);
 	}
 #endif
+
+	if (!is_new_input) {
+		peer_controller->get_debugger().print(WARNING, "Input missing: " + std::to_string(current_input_buffer_id.id + 1) + ". The game might de-sync.", "CONTROLLER-" + std::to_string(peer_controller->authority_peer));
+	}
 	return is_new_input;
 }
 
