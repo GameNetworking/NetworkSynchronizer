@@ -414,7 +414,9 @@ void SceneSynchronizerBase::register_app_object(ObjectHandle p_app_object_handle
 		}
 
 		od->set_net_id(ObjectNetId::NONE);
+#ifdef NS_DEBUG_ENABLED
 		od->debug_object_id = synchronizer_manager->debug_only_get_object_id(p_app_object_handle);
+#endif
 		od->set_object_name(synchronizer_manager->fetch_object_name(p_app_object_handle), true);
 		od->app_object_handle = p_app_object_handle;
 

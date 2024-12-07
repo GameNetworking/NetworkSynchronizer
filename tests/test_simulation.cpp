@@ -431,10 +431,12 @@ public:
 		// Make sure the client can predict as many frames it needs (no need to add some more noise to this test).
 		server_scene.scene_sync->set_max_predicted_intervals(20);
 
+#ifdef NS_DEBUG_ENABLED
 		controller_server->event_input_missed.bind([](NS::FrameIndex p_frame_index) {
 			// The input should be never missing!
 			NS_ASSERT_NO_ENTRY();
 		});
+#endif
 
 		controller_p1->get_scene_synchronizer()->event_state_validated.bind([this](NS::FrameIndex p_frame_index, bool p_desync) {
 			if (p_desync) {
