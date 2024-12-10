@@ -19,11 +19,11 @@ public:
 	virtual ~SynchronizerManager() {
 	}
 
-	void set_scene_synchronizer(SceneSynchronizerBase *p_scene_synchronizer) {
+	void set_scene_synchronizer_base(SceneSynchronizerBase *p_scene_synchronizer) {
 		scene_synchronizer = p_scene_synchronizer;
 	}
 
-	SceneSynchronizerBase *get_scene_synchronizer() const {
+	SceneSynchronizerBase *get_scene_synchronizer_base() const {
 		return scene_synchronizer;
 	}
 

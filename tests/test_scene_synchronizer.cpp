@@ -450,10 +450,10 @@ public:
 						// Ensure the procedure is executed exactly at the
 						// expected frame everywhere in every case (even during
 						// the rewinding).
-						const NS::GlobalFrameIndex current_GFI = p_sync_manager.get_scene_synchronizer()->get_global_frame_index();
+						const NS::GlobalFrameIndex current_GFI = p_sync_manager.get_scene_synchronizer_base()->get_global_frame_index();
 						NS_ASSERT_COND(self->procedure_execution_scheduled_for == current_GFI);
 
-						if (p_sync_manager.get_scene_synchronizer()->is_rewinding()) {
+						if (p_sync_manager.get_scene_synchronizer_base()->is_rewinding()) {
 							self->procedure_execution_while_rewind_count++;
 						}
 					}
