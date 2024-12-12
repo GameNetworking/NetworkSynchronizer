@@ -794,6 +794,11 @@ public: // ------------------------------------------------------------ INTERNAL
 	PeerNetworkedController *get_controller_for_peer(int p_peer, bool p_expected = true);
 	const PeerNetworkedController *get_controller_for_peer(int p_peer, bool p_expected = true) const;
 
+	int get_peer_controlling_object(ObjectLocalId Id) const;
+
+	/// Return true if this object is controlled by the current peer.
+	bool is_locally_controlled(ObjectLocalId Id) const;
+
 	const std::map<int, PeerData> &get_peers() const;
 	std::map<int, PeerData> &get_peers();
 	PeerData *get_peer_data_for_controller(const PeerNetworkedController &p_controller, bool p_expected = true);

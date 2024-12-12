@@ -2104,6 +2104,24 @@ const PeerNetworkedController *SceneSynchronizerBase::get_controller_for_peer(in
 	}
 }
 
+int SceneSynchronizerBase::get_peer_controlling_object(ObjectLocalId Id) const {
+	const ObjectData* OD = get_object_data(Id);
+	if (OD)
+	{
+		return OD->get_controlled_by_peer();
+	}
+	return 0;
+}
+
+bool SceneSynchronizerBase::is_locally_controlled(ObjectLocalId Id) const {
+	const ObjectData* OD = get_object_data(Id);
+	if (OD)
+	{
+		return OD->get_controlled_by_peer() == get_network_interface().get_local_peer_id();
+	}
+	return false;
+}
+
 const std::map<int, NS::PeerData> &SceneSynchronizerBase::get_peers() const {
 	return peer_data;
 }
