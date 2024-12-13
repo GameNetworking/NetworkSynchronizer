@@ -159,6 +159,7 @@ public:
 	void remove_object(const char *p_object_name);
 
 	void process(float p_delta);
+	void process_only_network(float p_delta);
 };
 
 template <class T>

@@ -2,6 +2,7 @@
 
 #include "core.h"
 #include "data_buffer.h"
+#include "network_interface_define.h"
 #include "processor.h"
 #include "var_data.h"
 #include <functional>
@@ -99,6 +100,9 @@ public:
 
 private:
 	std::vector<ScheduledProcedureInfo> scheduled_procedures;
+
+public:
+	std::vector<RPCInfo> rpcs_info;
 
 public:
 	std::function<void(DataBuffer & /*out_buffer*/, float /*update_rate*/)> func_trickled_collect;

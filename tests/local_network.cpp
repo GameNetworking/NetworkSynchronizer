@@ -208,6 +208,7 @@ NS_NAMESPACE_END
 
 /// Test that the LocalNetwork is able to sync stuff.
 void NS_Test::test_local_network() {
+
 	NS::LocalNetworkProps network_properties;
 
 	NS::LocalNetwork server;
@@ -218,7 +219,7 @@ void NS_Test::test_local_network() {
 
 	NS::LocalNetwork peer_2;
 	peer_2.network_properties = &network_properties;
-
+	
 	NS::LocalNetworkInterface server_obj_1;
 	server_obj_1.init(server, "object_1", 0);
 

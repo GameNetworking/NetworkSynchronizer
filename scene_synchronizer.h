@@ -128,6 +128,21 @@ struct Settings {
 	LagCompensationSettings lag_compensation;
 };
 
+enum class RpcRecipient {
+	// Send the rpc if the local peer is the authority of the object to the server.
+	PLAYER_TO_SERVER,
+	// Send the rpc if the local peer is NOT the authority of the object to the server.
+	DOLL_TO_SERVER,
+	// Send the rpc to the server.
+	ALL_TO_SERVER,
+	// Send the rpc to the player if local peer is server.
+	SERVER_TO_PLAYER,
+	// Send the rpc to the dolls if local peer is server.
+	SERVER_TO_DOLL,
+	// Send the rpc to all if local peer is server.
+	SERVER_TO_ALL,
+};
+
 /// # SceneSynchronizer
 ///
 /// NOTICE: Do not instantiate this class directly, please use `SceneSynchronizer<>` instead.
@@ -301,6 +316,10 @@ protected: // --------------------------------------------------------- Settings
 	/// Update the latency each 3 seconds.
 	float latency_update_rate = 3.0f;
 
+	/// Set to false to drop all the undelivered RPCs because the object was not
+	/// found at the time of the RPC receival.
+	int store_undelivered_rpcs = true;
+
 protected: // ----------------------------------------------------- User defined
 	class NetworkInterface *network_interface = nullptr;
 	SynchronizerManager *synchronizer_manager = nullptr;
@@ -333,6 +352,13 @@ protected: // -------------------------------------------------------- Internals
 	bool end_sync = false;
 
 	std::map<int, PeerData> peer_data;
+
+	struct UndeliveredRpcs {
+		int sender_peer;
+		DataBuffer data_buffer;
+	};
+
+	std::map<ObjectNetId, std::map<std::uint8_t, UndeliveredRpcs>> undelivered_rpcs;
 
 	bool generate_id = false;
 
@@ -661,6 +687,40 @@ public: // ---------------------------------------------------------------- APIs
 private:
 	GlobalFrameIndex scheduled_procedure_compensate_execution_frame(GlobalFrameIndex p_execute_on_frame, int p_peer_to_compensate, float p_max_compensation_seconds) const;
 
+private:
+	bool rpc_is_allowed(ObjectLocalId p_id, int p_rpc_index, RpcRecipient p_recipient) const;
+	std::vector<int> rpc_fetch_recipients(ObjectLocalId p_id, int p_rpc_id, RpcRecipient p_recipient) const;
+
+public:
+	/// Register a new RPC
+	template <typename... ARGS>
+	RpcHandle<ARGS...> register_rpc(
+			ObjectLocalId p_id,
+			std::function<void(ARGS...)> p_rpc_func,
+			bool p_reliable,
+			bool p_call_local) {
+		ObjectData *object_data = get_object_data(p_id);
+		NS_ENSURE_V_MSG(object_data, RpcHandle<ARGS...>(), "The objectLocalId `"+std::to_string(p_id.id)+"` was not found. RPC registration failed.");
+		NS_ENSURE_V_MSG(network_interface, RpcHandle<ARGS...>(), "Network interface not specified. RPC registration failed.");
+		return network_interface->rpc_config(p_rpc_func, p_reliable, p_call_local, p_id, &object_data->rpcs_info);
+	}
+
+	/// Used to verify if the rpc can be triggered from this peer to the target peer.
+	template <typename... ARGS>
+	bool rpc_is_allowed(const RpcHandle<ARGS...> &p_rpc, RpcRecipient p_recipient) const {
+		return rpc_is_allowed(p_rpc.get_target_id(), p_rpc.get_index(), p_recipient);
+	}
+
+	/// Call the rpc
+	template <typename... ARGS>
+	void rpc_call(const RpcHandle<ARGS...> &p_rpc, RpcRecipient p_recipient, ARGS... p_args) {
+		const std::vector<int> recipients = rpc_fetch_recipients(p_rpc.get_target_id(), p_rpc.get_index(), p_recipient);
+		NS_ENSURE_MSG(recipients.size()>0, "The rcp failed because the recipients list is empty, ensure you can execute this type of RPC on this client validating it with `rpc_is_allowed`.");
+		for (int peer : recipients) {
+			p_rpc.rpc(get_network_interface(), peer, p_args...);
+		}
+	}
+
 public:
 	/// Setup the trickled sync method for this specific object.
 	/// The trickled-sync is different from the realtime-sync because the data
@@ -795,6 +855,7 @@ public: // ------------------------------------------------------------ INTERNAL
 	const PeerNetworkedController *get_controller_for_peer(int p_peer, bool p_expected = true) const;
 
 	int get_peer_controlling_object(ObjectLocalId Id) const;
+	int get_peer_controlling_object(ObjectNetId Id) const;
 
 	/// Return true if this object is controlled by the current peer.
 	bool is_locally_controlled(ObjectLocalId Id) const;
@@ -821,6 +882,9 @@ public: // ------------------------------------------------------------ INTERNAL
 	FrameIndex client_get_last_checked_frame_index() const;
 
 	int fetch_sub_processes_count(float p_delta);
+
+	void notify_undelivered_rpc(ObjectNetId p_id, std::uint8_t p_rpc_index, int p_sender_peer, const DataBuffer &p_db);
+	void flush_undelivered_rpc_for(ObjectNetId p_id);
 
 public:
 	/// Returns true if this peer is server.

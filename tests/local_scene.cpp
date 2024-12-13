@@ -209,4 +209,8 @@ void LocalScene::process(float p_delta) {
 	network.process(p_delta);
 }
 
+void LocalScene::process_only_network(float p_delta) {
+	network.process(p_delta);
+}
+
 NS_NAMESPACE_END

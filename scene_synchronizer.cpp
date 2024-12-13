@@ -36,6 +36,7 @@ SceneSynchronizerBase::SceneSynchronizerBase(NetworkInterface *p_network_interfa
 SceneSynchronizerBase::~SceneSynchronizerBase() {
 	clear();
 	uninit_synchronizer();
+	network_interface->set_scene_synchronizer(nullptr);
 	network_interface = nullptr;
 }
 
@@ -983,6 +984,92 @@ GlobalFrameIndex SceneSynchronizerBase::scheduled_procedure_compensate_execution
 	return p_execute_on_frame;
 }
 
+bool SceneSynchronizerBase::rpc_is_allowed(ObjectLocalId p_id, int p_rpc_id, RpcRecipient p_recipient) const {
+	NS_ENSURE_V(p_id != ObjectLocalId::NONE, false);
+
+	const ObjectData *OD = get_object_data(p_id);
+	NS_ENSURE_V(OD, false);
+	NS_ENSURE_V(OD->get_net_id()!=ObjectNetId::NONE, false);
+
+	const int object_controlled_by_peer = OD->get_controlled_by_peer();
+
+	switch (p_recipient) {
+		case RpcRecipient::PLAYER_TO_SERVER:
+			return network_interface->get_local_peer_id() == object_controlled_by_peer;
+		case RpcRecipient::DOLL_TO_SERVER:
+			return network_interface->get_local_peer_id() != object_controlled_by_peer;
+		case RpcRecipient::ALL_TO_SERVER:
+			return !network_interface->is_local_peer_server();
+		case RpcRecipient::SERVER_TO_PLAYER:
+			return object_controlled_by_peer > 0;
+		case RpcRecipient::SERVER_TO_DOLL:
+		case RpcRecipient::SERVER_TO_ALL:
+			return network_interface->is_local_peer_server();
+	}
+
+	// All the Recipient must be handled above.
+	NS_ASSERT_NO_ENTRY();
+	return false;
+}
+
+std::vector<int> SceneSynchronizerBase::rpc_fetch_recipients(ObjectLocalId p_id, int p_rpc_id, RpcRecipient p_recipient) const {
+	NS_ENSURE_V(p_id != ObjectLocalId::NONE, std::vector<int>());
+
+	const ObjectData *OD = get_object_data(p_id);
+	NS_ENSURE_V(OD, std::vector<int>());
+	NS_ENSURE_V(OD->get_net_id()!=ObjectNetId::NONE, std::vector<int>());
+
+	const int object_controlled_by_peer = OD->get_controlled_by_peer();
+
+	std::vector<int> recipients;
+
+	switch (p_recipient) {
+		case RpcRecipient::PLAYER_TO_SERVER:
+			NS_ENSURE_V(network_interface->get_local_peer_id() == object_controlled_by_peer, std::vector<int>());
+			recipients.push_back(network_interface->get_server_peer());
+			break;
+		case RpcRecipient::DOLL_TO_SERVER:
+			NS_ENSURE_V(network_interface->get_local_peer_id() != object_controlled_by_peer, std::vector<int>());
+			recipients.push_back(network_interface->get_server_peer());
+			break;
+		case RpcRecipient::ALL_TO_SERVER:
+			NS_ENSURE_V(!network_interface->is_local_peer_server(), std::vector<int>());
+			recipients.push_back(network_interface->get_server_peer());
+			break;
+		case RpcRecipient::SERVER_TO_PLAYER:
+			NS_ENSURE_V(object_controlled_by_peer > 0, std::vector<int>());
+			recipients.push_back(object_controlled_by_peer);
+			break;
+		case RpcRecipient::SERVER_TO_DOLL:
+			NS_ENSURE_V(network_interface->is_local_peer_server(), std::vector<int>());
+			for (auto &peer_it : peer_data) {
+				if (peer_it.first != object_controlled_by_peer
+					&& peer_it.first != network_interface->get_server_peer()) {
+					// All the peers but the server and the player.
+					recipients.push_back(peer_it.first);
+				}
+			}
+			break;
+		case RpcRecipient::SERVER_TO_ALL:
+			NS_ENSURE_V(network_interface->is_local_peer_server(), std::vector<int>());
+			for (auto &peer_it : peer_data) {
+				if (peer_it.first != network_interface->get_server_peer()) {
+					// All the peers but the server.
+					recipients.push_back(peer_it.first);
+				}
+			}
+			break;
+	}
+
+#ifdef NS_DEBUG_ENABLED
+	if (recipients.size() > 0) {
+		NS_ASSERT_COND(rpc_is_allowed(p_id, p_rpc_id, p_recipient));
+	}
+#endif
+
+	return recipients;
+}
+
 void SceneSynchronizerBase::setup_trickled_sync(
 		ObjectLocalId p_id,
 		std::function<void(DataBuffer & /*out_buffer*/, float /*update_rate*/)> p_func_trickled_collect,
@@ -1337,6 +1424,7 @@ void SceneSynchronizerBase::on_peer_disconnected(int p_peer) {
 }
 
 void SceneSynchronizerBase::init_synchronizer(bool p_was_generating_ids) {
+	network_interface->set_scene_synchronizer(this);
 	if (!network_interface->is_local_peer_networked()) {
 		synchronizer_type = SYNCHRONIZER_TYPE_NONETWORK;
 		synchronizer = new NoNetSynchronizer(this);
@@ -1456,6 +1544,8 @@ void SceneSynchronizerBase::uninit_synchronizer() {
 		synchronizer = nullptr;
 		synchronizer_type = SYNCHRONIZER_TYPE_NULL;
 	}
+
+	network_interface->set_scene_synchronizer(nullptr);
 }
 
 void SceneSynchronizerBase::reset_synchronizer_mode() {
@@ -1833,7 +1923,7 @@ void SceneSynchronizerBase::drop_object_data(NS::ObjectData &p_object_data) {
 
 	// Remove the object from the controller.
 	{
-		PeerData *prev_peer_controller_peer_data = NS::MapFunc::get_or_null(peer_data, p_object_data.get_controlled_by_peer());
+		PeerData *prev_peer_controller_peer_data = MapFunc::get_or_null(peer_data, p_object_data.get_controlled_by_peer());
 		if (prev_peer_controller_peer_data) {
 			if (prev_peer_controller_peer_data->get_controller()) {
 				prev_peer_controller_peer_data->get_controller()->notify_controllable_objects_changed();
@@ -1863,6 +1953,9 @@ void SceneSynchronizerBase::notify_object_data_net_id_changed(ObjectData &p_obje
 	if (p_object_data.has_registered_process_functions()) {
 		process_functions__clear();
 	}
+	if (p_object_data.get_net_id() != ObjectNetId::NONE) {
+		flush_undelivered_rpc_for(p_object_data.get_net_id());
+	}
 	get_debugger().print(INFO, "ObjectNetId: " + p_object_data.get_net_id() + " just assigned to: " + p_object_data.get_object_name(), network_interface->get_owner_name());
 }
 
@@ -1878,6 +1971,41 @@ int SceneSynchronizerBase::fetch_sub_processes_count(float p_delta) {
 	// Clamp the maximum possible frames that we can process on a single frame.
 	// This is a guard to make sure we do not process way too many frames on a single frame.
 	return std::min(static_cast<int>(get_max_sub_process_per_frame()), static_cast<int>(sub_frames));
+}
+
+void SceneSynchronizerBase::notify_undelivered_rpc(ObjectNetId p_id, std::uint8_t p_rpc_id, int p_sender_peer, const DataBuffer &p_db) {
+	// This function CAN'T be triggered on the server as the ObjectNetId always
+	// exists on the server.
+	NS_ASSERT_COND(!is_server());
+
+	if (store_undelivered_rpcs) {
+		// Save the last received RPC for the given object.
+		auto it = MapFunc::insert_if_new(undelivered_rpcs, p_id, std::map<std::uint8_t, UndeliveredRpcs>());
+		MapFunc::assign(it->second, p_rpc_id, { p_sender_peer, p_db });
+		get_debugger().print(WARNING, "The RPC `" + std::to_string(p_rpc_id) + "` for the object `" + std::to_string(p_id.id) + "` was stored and it will be delivered ASAP the object is created on the client. If this is spamming a lot it's likely this peer should not receive any RPC for this object, adjust your rpc calls.");
+	} else {
+		get_debugger().print(WARNING, "The RPC `" + std::to_string(p_rpc_id) + "` for the object `" + std::to_string(p_id.id) + "` was dropped because the object doesn't exists. Maybe your this peer should not receive the RPC for this object, fix your rpc calls");
+	}
+}
+
+void SceneSynchronizerBase::flush_undelivered_rpc_for(ObjectNetId p_id) {
+	if (!is_server()) {
+		std::map<std::uint8_t, UndeliveredRpcs> *rpcs = MapFunc::get_or_null(undelivered_rpcs, p_id);
+		if (rpcs) {
+			// Cool we can flush the rpcs of this object, finally!
+			for (auto &rpc : *rpcs) {
+				network_interface->rpc_receive(rpc.second.sender_peer, rpc.second.data_buffer);
+				get_debugger().print(INFO, "The initially undelivered RPC `" + std::to_string(rpc.first) + "` for object `" + std::to_string(p_id.id) + "` was just delivered.");
+			}
+
+			undelivered_rpcs.erase(p_id);
+		}
+	} else {
+#ifdef NS_DEBUG_ENABLED
+		// On server this is NEVER populated.
+		NS_ASSERT_COND(undelivered_rpcs.size()==0);
+#endif
+	}
 }
 
 bool SceneSynchronizerBase::is_server() const {
@@ -2105,18 +2233,24 @@ const PeerNetworkedController *SceneSynchronizerBase::get_controller_for_peer(in
 }
 
 int SceneSynchronizerBase::get_peer_controlling_object(ObjectLocalId Id) const {
-	const ObjectData* OD = get_object_data(Id);
-	if (OD)
-	{
+	const ObjectData *OD = get_object_data(Id);
+	if (OD) {
+		return OD->get_controlled_by_peer();
+	}
+	return 0;
+}
+
+int SceneSynchronizerBase::get_peer_controlling_object(ObjectNetId Id) const {
+	const ObjectData *OD = get_object_data(Id);
+	if (OD) {
 		return OD->get_controlled_by_peer();
 	}
 	return 0;
 }
 
 bool SceneSynchronizerBase::is_locally_controlled(ObjectLocalId Id) const {
-	const ObjectData* OD = get_object_data(Id);
-	if (OD)
-	{
+	const ObjectData *OD = get_object_data(Id);
+	if (OD) {
 		return OD->get_controlled_by_peer() == get_network_interface().get_local_peer_id();
 	}
 	return false;

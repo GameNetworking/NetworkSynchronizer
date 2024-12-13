@@ -794,6 +794,11 @@ void RemotelyControlledController::set_frame_input(const FrameInput &p_frame_sna
 }
 
 void RemotelyControlledController::process(float p_delta) {
+	if (!peer_controller->is_ready_to_process()) {
+		// Nothing to process.
+		return;
+	}
+
 #ifdef NS_DEBUG_ENABLED
 	const bool is_new_input =
 #endif

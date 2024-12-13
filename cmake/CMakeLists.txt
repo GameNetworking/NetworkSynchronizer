@@ -115,7 +115,9 @@ set(NS_SRC_FILES
 	${NS_ROOT}/core/net_utilities.cpp
 	${NS_ROOT}/core/network_codec.h
 	${NS_ROOT}/core/network_codec.cpp
+	${NS_ROOT}/core/network_interface_define.h
 	${NS_ROOT}/core/network_interface.h
+	${NS_ROOT}/core/network_interface.cpp
 	${NS_ROOT}/core/object_data.h
 	${NS_ROOT}/core/object_data.cpp
 	${NS_ROOT}/core/object_data_storage.h

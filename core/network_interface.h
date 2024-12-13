@@ -1,13 +1,12 @@
 #pragma once
 
-#include "core.h"
-#include "data_buffer.h"
+#include "network_interface_define.h"
 #include "ensure.h"
 #include "network_codec.h"
 #include "net_utilities.h"
 #include "scene_synchronizer_debugger.h"
 #include "peer_data.h"
-#include <functional>
+
 #include <vector>
 
 NS_NAMESPACE_BEGIN
@@ -15,12 +14,15 @@ template <typename... ARGs>
 class RpcHandle {
 	friend class NetworkInterface;
 
-	class SceneSynchronizerDebugger *debugger = nullptr;
+	mutable class SceneSynchronizerDebugger *debugger = nullptr;
 	std::uint8_t index = std::numeric_limits<std::uint8_t>::max();
+	// This can be optional, if not specified the rpc destination is the SceneSynchronizer.
+	ObjectLocalId target_object_id = ObjectLocalId::NONE;
 
-	RpcHandle(SceneSynchronizerDebugger &p_debugger, std::uint8_t p_index) :
-		debugger(&p_debugger),
-		index(p_index) {
+	RpcHandle(std::uint8_t p_index, ObjectLocalId p_target = ObjectLocalId::NONE) :
+		debugger(nullptr),
+		index(p_index),
+		target_object_id(p_target) {
 	}
 
 public:
@@ -28,6 +30,10 @@ public:
 
 	SceneSynchronizerDebugger &get_debugger() const {
 		return *debugger;
+	}
+
+	ObjectLocalId get_target_id() const {
+		return target_object_id;
 	}
 
 	std::uint8_t get_index() const {
@@ -38,32 +44,26 @@ public:
 		index = std::numeric_limits<std::uint8_t>::max();
 	}
 
-	void rpc(class NetworkInterface &p_interface, int p_peer_id, ARGs... p_args) const;
+	void rpc(class NetworkInterface &p_network_interface, int p_peer_id, ARGs... p_args) const;
 };
 
 class NetworkInterface {
 	template <typename... ARGs>
 	friend class RpcHandle;
 
-public:
-	struct RPCInfo {
-		bool is_reliable = false;
-		bool call_local = false;
-		std::function<void(DataBuffer &p_db)> func;
-	};
-
 protected:
+	mutable SceneSynchronizerDebugger debugger;
+	class SceneSynchronizerBase *scene_synchronizer = nullptr;
 	std::vector<RPCInfo> rpcs_info;
 	int rpc_last_sender = 0;
-	mutable SceneSynchronizerDebugger debugger;
 
 public:
 	virtual ~NetworkInterface() = default;
 
 public: // ----------------------------------------------------------- Interface
-	SceneSynchronizerDebugger &get_debugger() const {
-		return debugger;
-	}
+	void set_scene_synchronizer(class SceneSynchronizerBase *p_scene_sync);
+
+	SceneSynchronizerDebugger &get_debugger() const;
 
 	virtual void reset() {
 		rpcs_info.clear();
@@ -106,7 +106,27 @@ public: // ---------------------------------------------------------------- APIs
 	}
 
 	template <typename... ARGS>
-	RpcHandle<ARGS...> rpc_config(std::function<void(ARGS...)> p_rpc_func, bool p_reliable, bool p_call_local) {
+	RpcHandle<ARGS...> rpc_config(std::function<void(ARGS...)> p_rpc_func, bool p_reliable, bool p_call_local, ObjectLocalId p_rpc_owner = ObjectLocalId::NONE, std::vector<RPCInfo> *r_object_data_rpc_info = nullptr) {
+		if (r_object_data_rpc_info) {
+			NS_ASSERT_COND(p_rpc_owner != ObjectLocalId::NONE);
+		}
+
+		return __rpc_config(
+				p_rpc_func,
+				r_object_data_rpc_info ? p_rpc_owner : ObjectLocalId::NONE,
+				r_object_data_rpc_info ? *r_object_data_rpc_info : rpcs_info,
+				p_reliable,
+				p_call_local);
+	}
+
+private:
+	template <typename... ARGS>
+	RpcHandle<ARGS...> __rpc_config(
+			std::function<void(ARGS...)> p_rpc_func,
+			ObjectLocalId p_target_id,
+			std::vector<RPCInfo> &r_rpcs_info,
+			bool p_reliable,
+			bool p_call_local) {
 		// Stores the rpc info.
 
 		// Create an intermediate lambda, which is easy to store, that is
@@ -116,31 +136,14 @@ public: // ---------------------------------------------------------------- APIs
 			internal_call_rpc(p_rpc_func, p_db);
 		};
 
-		const std::uint8_t rpc_index = std::uint8_t(rpcs_info.size());
-		rpcs_info.push_back({ p_reliable, p_call_local, func });
-		return RpcHandle<ARGS...>(get_debugger(), rpc_index);
+		const std::uint8_t rpc_index = std::uint8_t(r_rpcs_info.size());
+		r_rpcs_info.push_back({ p_reliable, p_call_local, func });
+		return RpcHandle<ARGS...>(rpc_index, p_target_id);
 	}
 
-	/// Calls an rpc.
-	//template <typename... ARGS>
-	//void rpc(RpcHandle<ARGS...> p_rpc_id, int p_peer_id, ARGS... p_args);
-	template <typename... H>
-	void rpc(RpcHandle<void(H...)> p_rpc_id, int p_peer_id, typename RpcHandle<void(H...)>::TYPE p_args);
-
-	void rpc(RpcHandle<void()> p_rpc_id, int p_peer_id);
-
+public:
 	/// This function must be called by the `Network` manager when this unit receives an rpc.
-	void rpc_receive(int p_sender_peer, DataBuffer &p_db) {
-		rpc_last_sender = p_sender_peer;
-		p_db.begin_read(get_debugger());
-		std::uint8_t rpc_id;
-		p_db.read(rpc_id);
-		NS_ENSURE_MSG(rpc_id < rpcs_info.size(), "The received rpc contains a broken RPC ID: `" + std::to_string(rpc_id) + "`, the `rpcs_info` size is `" + std::to_string(rpcs_info.size()) + "`.");
-		// This can't be triggered because the rpc always points to a valid
-		// function at this point.
-		NS_ASSERT_COND(rpcs_info[rpc_id].func);
-		rpcs_info[rpc_id].func(p_db);
-	}
+	void rpc_receive(int p_sender_peer, DataBuffer &p_db);
 
 	const RPCInfo *get_rpc_info(uint8_t p_rpc_id) const {
 		NS_ENSURE_V(p_rpc_id < rpcs_info.size(), nullptr);
@@ -149,6 +152,8 @@ public: // ---------------------------------------------------------------- APIs
 
 protected:
 	virtual void rpc_send(int p_peer_recipient, bool p_reliable, DataBuffer &&p_db) = 0;
+
+	void __fetch_rpc_info_from_object(ObjectLocalId p_id, int p_rpc_index, ObjectNetId &r_net_id, RPCInfo *&r_rpc_info) const;
 
 private: // ------------------------------------------------------- RPC internal
 	template <typename... ARGS>
@@ -174,12 +179,27 @@ private: // ------------------------------------------------------- RPC internal
 };
 
 template <typename... ARGs>
-void RpcHandle<ARGs...>::rpc(NetworkInterface &p_interface, int p_peer_id, ARGs... p_args) const {
-	NS_ENSURE(p_interface.rpcs_info.size() > index);
-	NS_ASSERT_COND_MSG(p_interface.get_local_peer_id() != p_peer_id, "Sending an rpc to self is not allowed.");
+void RpcHandle<ARGs...>::rpc(NetworkInterface &p_network_interface, int p_peer_id, ARGs... p_args) const {
+	debugger = &p_network_interface.get_debugger();
 
 	DataBuffer db(get_debugger());
 	db.begin_write(get_debugger(), 0);
+
+	RPCInfo *rpc_info = nullptr;
+	if (target_object_id != ObjectLocalId::NONE) {
+		// Fetch the ObjectData
+		ObjectNetId net_id;
+		p_network_interface.__fetch_rpc_info_from_object(target_object_id, index, net_id, rpc_info);
+		NS_ENSURE(net_id!=ObjectNetId::NONE);
+		NS_ENSURE(rpc_info!=nullptr);
+
+		db.add(true);
+		db.add(net_id.id);
+	} else {
+		db.add(false);
+		NS_ENSURE(p_network_interface.rpcs_info.size() > index);
+		rpc_info = &p_network_interface.rpcs_info[index];
+	}
 
 	// Add the rpc id.
 	db.add(index);
@@ -190,12 +210,20 @@ void RpcHandle<ARGs...>::rpc(NetworkInterface &p_interface, int p_peer_id, ARGs.
 	db.dry();
 	db.begin_read(get_debugger());
 
-	if (p_interface.rpcs_info[index].call_local) {
-		p_interface.rpc_receive(p_interface.get_local_peer_id(), db);
+	if (p_network_interface.get_local_peer_id() == p_peer_id) {
+		// This rpc goes directly to self
+		p_network_interface.rpc_receive(p_network_interface.get_local_peer_id(), db);
+		// Nothing else to do.
+	} else {
+		if (rpc_info->call_local) {
+			p_network_interface.rpc_receive(p_network_interface.get_local_peer_id(), db);
+		}
+
+		db.begin_read(get_debugger());
+		p_network_interface.rpc_send(p_peer_id, rpc_info->is_reliable, std::move(db));
 	}
 
-	db.begin_read(get_debugger());
-	p_interface.rpc_send(p_peer_id, p_interface.rpcs_info[index].is_reliable, std::move(db));
+	debugger = nullptr;
 }
 
 template <typename... ARGS>
