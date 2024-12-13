@@ -45,6 +45,7 @@ public:
 	}
 
 	void rpc(class NetworkInterface &p_network_interface, int p_peer_id, ARGs... p_args) const;
+	void rpc(class NetworkInterface &p_network_interface, const std::vector<int> &p_peers_recipients, ARGs... p_args) const;
 };
 
 class NetworkInterface {
@@ -180,6 +181,11 @@ private: // ------------------------------------------------------- RPC internal
 
 template <typename... ARGs>
 void RpcHandle<ARGs...>::rpc(NetworkInterface &p_network_interface, int p_peer_id, ARGs... p_args) const {
+	rpc(p_network_interface, std::vector<int>(1, p_peer_id), p_args...);
+}
+
+template <typename... ARGs>
+void RpcHandle<ARGs...>::rpc(NetworkInterface &p_network_interface, const std::vector<int> &p_peers_recipients, ARGs... p_args) const {
 	debugger = &p_network_interface.get_debugger();
 
 	DataBuffer db(get_debugger());
@@ -210,17 +216,21 @@ void RpcHandle<ARGs...>::rpc(NetworkInterface &p_network_interface, int p_peer_i
 	db.dry();
 	db.begin_read(get_debugger());
 
-	if (p_network_interface.get_local_peer_id() == p_peer_id) {
-		// This rpc goes directly to self
-		p_network_interface.rpc_receive(p_network_interface.get_local_peer_id(), db);
-		// Nothing else to do.
-	} else {
-		if (rpc_info->call_local) {
-			p_network_interface.rpc_receive(p_network_interface.get_local_peer_id(), db);
-		}
-
+	bool called_locally = false;
+	for (int peer : p_peers_recipients) {
 		db.begin_read(get_debugger());
-		p_network_interface.rpc_send(p_peer_id, rpc_info->is_reliable, std::move(db));
+		if (p_network_interface.get_local_peer_id() == peer) {
+			// This rpc goes directly to self
+			p_network_interface.rpc_receive(p_network_interface.get_local_peer_id(), db);
+			called_locally = true;
+		} else {
+			p_network_interface.rpc_send(peer, rpc_info->is_reliable, std::move(db));
+		}
+	}
+
+	if (rpc_info->call_local && !called_locally) {
+		db.begin_read(get_debugger());
+		p_network_interface.rpc_receive(p_network_interface.get_local_peer_id(), db);
 	}
 
 	debugger = nullptr;

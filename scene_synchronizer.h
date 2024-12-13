@@ -580,7 +580,7 @@ public: // ---------------------------------------------------------------- RPCs
 	void rpc_notify_scheduled_procedure_stop(ObjectNetId p_object_id, ScheduledProcedureId p_scheduled_procedure_id);
 	void rpc_notify_scheduled_procedure_pause(ObjectNetId p_object_id, ScheduledProcedureId p_scheduled_procedure_id, GlobalFrameIndex p_pause_frame);
 
-	void call_rpc_receive_inputs(int p_recipient, int p_peer, const std::vector<std::uint8_t> &p_data);
+	void call_rpc_receive_inputs(const std::vector<int> &p_recipients, int p_peer, const std::vector<std::uint8_t> &p_data);
 
 	void rpc_receive_inputs(int p_peer, const std::vector<std::uint8_t> &p_data);
 
@@ -715,10 +715,7 @@ public:
 	template <typename... ARGS>
 	void rpc_call(const RpcHandle<ARGS...> &p_rpc, RpcRecipient p_recipient, ARGS... p_args) {
 		const std::vector<int> recipients = rpc_fetch_recipients(p_rpc.get_target_id(), p_rpc.get_index(), p_recipient);
-		NS_ENSURE_MSG(recipients.size()>0, "The rcp failed because the recipients list is empty, ensure you can execute this type of RPC on this client validating it with `rpc_is_allowed`.");
-		for (int peer : recipients) {
-			p_rpc.rpc(get_network_interface(), peer, p_args...);
-		}
+		p_rpc.rpc(get_network_interface(), recipients, p_args...);
 	}
 
 public:

@@ -935,13 +935,17 @@ bool ServerController::receive_inputs(const std::vector<std::uint8_t> &p_data) {
 
 	if (success) {
 		// The input parsing succeded on the server, now ping pong this to all the dolls.
+		std::vector<int> recipients;
 		for (int peer_id : peers_simulating_this_controller) {
 			if (peer_id == peer_controller->authority_peer || peer_id == peer_controller->scene_synchronizer->get_network_interface().get_server_peer()) {
 				continue;
 			}
+			recipients.push_back(peer_id);
+		}
 
+		if (recipients.size() > 0) {
 			peer_controller->scene_synchronizer->call_rpc_receive_inputs(
-					peer_id,
+					recipients,
 					peer_controller->authority_peer,
 					p_data);
 		}
@@ -1006,13 +1010,18 @@ void AutonomousServerController::on_app_process_end(float p_delta_seconds) {
 
 	peer_controller->encode_inputs(frames_input, cached_packet_data);
 
+	std::vector<int> recipients;
 	for (int peer_id : peers_simulating_this_controller) {
 		if (peer_id != peer_controller->authority_peer) {
-			peer_controller->scene_synchronizer->call_rpc_receive_inputs(
-					peer_id,
-					peer_controller->authority_peer,
-					cached_packet_data);
+			recipients.push_back(peer_id);
 		}
+	}
+
+	if (recipients.size() > 0) {
+		peer_controller->scene_synchronizer->call_rpc_receive_inputs(
+				recipients,
+				peer_controller->authority_peer,
+				cached_packet_data);
 	}
 }
 
@@ -1227,7 +1236,7 @@ void PlayerController::send_frame_input_buffer_to_server() {
 	peer_controller->encode_inputs(frames_input, cached_packet_data);
 
 	peer_controller->scene_synchronizer->call_rpc_receive_inputs(
-			peer_controller->scene_synchronizer->get_network_interface().get_server_peer(),
+			std::vector<int>(1, peer_controller->scene_synchronizer->get_network_interface().get_server_peer()),
 			peer_controller->authority_peer,
 			cached_packet_data);
 }

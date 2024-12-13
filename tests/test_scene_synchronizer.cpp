@@ -2310,13 +2310,13 @@ void test_rpcs() {
 
 	// Assert the rpc from SERVER_TO_ALL used by client is not propagated.
 	NS_ASSERT_COND(!peer_1_scene.scene_sync->rpc_is_allowed(obj_p1->rpc_remote_and_local, NS::RpcRecipient::SERVER_TO_ALL));
-	peer_1_scene.scene_sync->rpc_call(obj_p1->rpc_remote_and_local, NS::RpcRecipient::SERVER_TO_ALL, 555);
+	peer_1_scene.scene_sync->rpc_call(obj_p1->rpc_remote_only, NS::RpcRecipient::SERVER_TO_ALL, 555);
 	server_scene.process_only_network(delta);
 	peer_1_scene.process_only_network(delta);
 	peer_2_scene.process_only_network(delta);
 
 	NS_ASSERT_COND(!peer_2_scene.scene_sync->rpc_is_allowed(obj_p2->rpc_remote_and_local, NS::RpcRecipient::SERVER_TO_ALL));
-	peer_2_scene.scene_sync->rpc_call(obj_p2->rpc_remote_and_local, NS::RpcRecipient::SERVER_TO_ALL, 556);
+	peer_2_scene.scene_sync->rpc_call(obj_p2->rpc_remote_only, NS::RpcRecipient::SERVER_TO_ALL, 556);
 	server_scene.process_only_network(delta);
 	peer_1_scene.process_only_network(delta);
 	peer_2_scene.process_only_network(delta);
@@ -2324,6 +2324,27 @@ void test_rpcs() {
 	NS_ASSERT_COND(obj_server->input==444);
 	NS_ASSERT_COND(obj_p1->input==333);
 	NS_ASSERT_COND(obj_p2->input==333);
+
+	// Despite that, if executed with call_local=true, locally is executed even when the rpc to others is not sent.
+	NS_ASSERT_COND(!peer_1_scene.scene_sync->rpc_is_allowed(obj_p1->rpc_remote_and_local, NS::RpcRecipient::SERVER_TO_ALL));
+	peer_1_scene.scene_sync->rpc_call(obj_p1->rpc_remote_and_local, NS::RpcRecipient::SERVER_TO_ALL, 99);
+	server_scene.process_only_network(delta);
+	peer_1_scene.process_only_network(delta);
+	peer_2_scene.process_only_network(delta);
+
+	NS_ASSERT_COND(obj_server->input==444);
+	NS_ASSERT_COND(obj_p1->input==99);
+	NS_ASSERT_COND(obj_p2->input==333);
+
+	NS_ASSERT_COND(!peer_2_scene.scene_sync->rpc_is_allowed(obj_p2->rpc_remote_and_local, NS::RpcRecipient::SERVER_TO_ALL));
+	peer_2_scene.scene_sync->rpc_call(obj_p2->rpc_remote_and_local, NS::RpcRecipient::SERVER_TO_ALL, 100);
+	server_scene.process_only_network(delta);
+	peer_1_scene.process_only_network(delta);
+	peer_2_scene.process_only_network(delta);
+
+	NS_ASSERT_COND(obj_server->input==444);
+	NS_ASSERT_COND(obj_p1->input==99);
+	NS_ASSERT_COND(obj_p2->input==100);
 
 	// Assert rpc from server to all works
 	NS_ASSERT_COND(server_scene.scene_sync->rpc_is_allowed(obj_server->rpc_remote_only, NS::RpcRecipient::SERVER_TO_ALL));

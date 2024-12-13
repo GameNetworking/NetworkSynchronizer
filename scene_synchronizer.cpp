@@ -805,19 +805,24 @@ GlobalFrameIndex SceneSynchronizerBase::scheduled_procedure_start(
 		std::vector<int> peers;
 		static_cast<ServerSynchronizer *>(synchronizer)->sync_group_fetch_object_simulating_peers(*od, peers);
 
+		std::vector<int> recipients;
 		for (int peer : peers) {
 			if (peer != network_interface->get_server_peer()) {
 				const PeerNetworkedController *peer_controller = get_controller_for_peer(peer);
 				if (peer_controller) {
-					rpc_handle_notify_scheduled_procedure_start.rpc(
-							get_network_interface(),
-							peer,
-							od->get_net_id(),
-							p_procedure_id,
-							execute_on_frame,
-							od->scheduled_procedure_get_args(p_procedure_id));
+					// TODO why this check, can I remove it?
+					recipients.push_back(peer);
 				}
 			}
+		}
+		if (!recipients.empty()) {
+			rpc_handle_notify_scheduled_procedure_start.rpc(
+					get_network_interface(),
+					recipients,
+					od->get_net_id(),
+					p_procedure_id,
+					execute_on_frame,
+					od->scheduled_procedure_get_args(p_procedure_id));
 		}
 	}
 
@@ -846,17 +851,22 @@ void SceneSynchronizerBase::scheduled_procedure_stop(
 		std::vector<int> peers;
 		static_cast<ServerSynchronizer *>(synchronizer)->sync_group_fetch_object_simulating_peers(*od, peers);
 
+		std::vector<int> recipients;
 		for (int peer : peers) {
 			if (peer != network_interface->get_server_peer()) {
 				const PeerNetworkedController *peer_controller = get_controller_for_peer(peer);
 				if (peer_controller) {
-					rpc_handle_notify_scheduled_procedure_stop.rpc(
-							get_network_interface(),
-							peer,
-							od->get_net_id(),
-							p_procedure_id);
+					// TODO why this check, can I remove it?
+					recipients.push_back(peer);
 				}
 			}
+		}
+		if (!recipients.empty()) {
+			rpc_handle_notify_scheduled_procedure_stop.rpc(
+					get_network_interface(),
+					recipients,
+					od->get_net_id(),
+					p_procedure_id);
 		}
 	}
 }
@@ -883,18 +893,23 @@ void SceneSynchronizerBase::scheduled_procedure_pause(
 		std::vector<int> peers;
 		static_cast<ServerSynchronizer *>(synchronizer)->sync_group_fetch_object_simulating_peers(*od, peers);
 
+		std::vector<int> recipients;
 		for (int peer : peers) {
 			if (peer != network_interface->get_server_peer()) {
 				const PeerNetworkedController *peer_controller = get_controller_for_peer(peer);
 				if (peer_controller) {
-					rpc_handle_notify_scheduled_procedure_pause.rpc(
-							get_network_interface(),
-							peer,
-							od->get_net_id(),
-							p_procedure_id,
-							global_frame_index);
+					// TODO why this check, can I remove it?
+					recipients.push_back(peer);
 				}
 			}
+		}
+		if (!recipients.empty()) {
+			rpc_handle_notify_scheduled_procedure_pause.rpc(
+					get_network_interface(),
+					recipients,
+					od->get_net_id(),
+					p_procedure_id,
+					global_frame_index);
 		}
 	}
 }
@@ -927,19 +942,24 @@ GlobalFrameIndex SceneSynchronizerBase::scheduled_procedure_unpause(
 		std::vector<int> peers;
 		static_cast<ServerSynchronizer *>(synchronizer)->sync_group_fetch_object_simulating_peers(*od, peers);
 
+		std::vector<int> recipients;
 		for (int peer : peers) {
 			if (peer != network_interface->get_server_peer()) {
 				const PeerNetworkedController *peer_controller = get_controller_for_peer(peer);
 				if (peer_controller) {
-					rpc_handle_notify_scheduled_procedure_start.rpc(
-							get_network_interface(),
-							peer,
-							od->get_net_id(),
-							p_procedure_id,
-							execute_on_frame,
-							od->scheduled_procedure_get_args(p_procedure_id));
+					// TODO why this check, can I remove it?
+					recipients.push_back(peer);
 				}
 			}
+		}
+		if (!recipients.empty()) {
+			rpc_handle_notify_scheduled_procedure_start.rpc(
+					get_network_interface(),
+					recipients,
+					od->get_net_id(),
+					p_procedure_id,
+					execute_on_frame,
+					od->scheduled_procedure_get_args(p_procedure_id));
 		}
 	}
 
@@ -1781,10 +1801,10 @@ void SceneSynchronizerBase::rpc_notify_scheduled_procedure_pause(ObjectNetId p_o
 	od->scheduled_procedure_pause(p_scheduled_procedure_id, p_pause_frame);
 }
 
-void SceneSynchronizerBase::call_rpc_receive_inputs(int p_recipient, int p_peer, const std::vector<std::uint8_t> &p_data) {
+void SceneSynchronizerBase::call_rpc_receive_inputs(const std::vector<int> &p_recipients, int p_peer, const std::vector<std::uint8_t> &p_data) {
 	rpc_handle_receive_input.rpc(
 			get_network_interface(),
-			p_recipient,
+			p_recipients,
 			p_peer,
 			p_data);
 }
@@ -3299,12 +3319,10 @@ void ServerSynchronizer::process_trickled_sync(float p_delta) {
 
 		if (update_node_count > 0) {
 			global_buffer.dry();
-			for (int peer : group.get_listening_peers()) {
-				scene_synchronizer->rpc_handler_trickled_sync_data.rpc(
-						scene_synchronizer->get_network_interface(),
-						peer,
-						global_buffer.get_buffer().get_bytes());
-			}
+			scene_synchronizer->rpc_handler_trickled_sync_data.rpc(
+					scene_synchronizer->get_network_interface(),
+					group.get_listening_peers(),
+					global_buffer.get_buffer().get_bytes());
 		}
 	}
 }
