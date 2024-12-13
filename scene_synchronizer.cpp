@@ -802,19 +802,10 @@ GlobalFrameIndex SceneSynchronizerBase::scheduled_procedure_start(
 
 	if (is_server()) {
 		// Notify all the peers right away, without waiting for the snapshot.
-		std::vector<int> peers;
-		static_cast<ServerSynchronizer *>(synchronizer)->sync_group_fetch_object_simulating_peers(*od, peers);
-
 		std::vector<int> recipients;
-		for (int peer : peers) {
-			if (peer != network_interface->get_server_peer()) {
-				const PeerNetworkedController *peer_controller = get_controller_for_peer(peer);
-				if (peer_controller) {
-					// TODO why this check, can I remove it?
-					recipients.push_back(peer);
-				}
-			}
-		}
+		static_cast<ServerSynchronizer *>(synchronizer)->sync_group_fetch_object_simulating_peers(*od, recipients);
+
+		VecFunc::remove_unordered(recipients, network_interface->get_server_peer());
 		if (!recipients.empty()) {
 			rpc_handle_notify_scheduled_procedure_start.rpc(
 					get_network_interface(),
@@ -848,19 +839,10 @@ void SceneSynchronizerBase::scheduled_procedure_stop(
 
 	if (is_server()) {
 		// Notify all the peers right away, without waiting for the snapshot.
-		std::vector<int> peers;
-		static_cast<ServerSynchronizer *>(synchronizer)->sync_group_fetch_object_simulating_peers(*od, peers);
-
 		std::vector<int> recipients;
-		for (int peer : peers) {
-			if (peer != network_interface->get_server_peer()) {
-				const PeerNetworkedController *peer_controller = get_controller_for_peer(peer);
-				if (peer_controller) {
-					// TODO why this check, can I remove it?
-					recipients.push_back(peer);
-				}
-			}
-		}
+		static_cast<ServerSynchronizer *>(synchronizer)->sync_group_fetch_object_simulating_peers(*od, recipients);
+
+		VecFunc::remove_unordered(recipients, network_interface->get_server_peer());
 		if (!recipients.empty()) {
 			rpc_handle_notify_scheduled_procedure_stop.rpc(
 					get_network_interface(),
@@ -890,19 +872,10 @@ void SceneSynchronizerBase::scheduled_procedure_pause(
 
 	if (is_server()) {
 		// Notify all the peers right away, without waiting for the snapshot.
-		std::vector<int> peers;
-		static_cast<ServerSynchronizer *>(synchronizer)->sync_group_fetch_object_simulating_peers(*od, peers);
-
 		std::vector<int> recipients;
-		for (int peer : peers) {
-			if (peer != network_interface->get_server_peer()) {
-				const PeerNetworkedController *peer_controller = get_controller_for_peer(peer);
-				if (peer_controller) {
-					// TODO why this check, can I remove it?
-					recipients.push_back(peer);
-				}
-			}
-		}
+		static_cast<ServerSynchronizer *>(synchronizer)->sync_group_fetch_object_simulating_peers(*od, recipients);
+
+		VecFunc::remove_unordered(recipients, network_interface->get_server_peer());
 		if (!recipients.empty()) {
 			rpc_handle_notify_scheduled_procedure_pause.rpc(
 					get_network_interface(),
@@ -939,19 +912,10 @@ GlobalFrameIndex SceneSynchronizerBase::scheduled_procedure_unpause(
 
 	if (is_server()) {
 		// Notify all the peers right away, without waiting for the snapshot.
-		std::vector<int> peers;
-		static_cast<ServerSynchronizer *>(synchronizer)->sync_group_fetch_object_simulating_peers(*od, peers);
-
 		std::vector<int> recipients;
-		for (int peer : peers) {
-			if (peer != network_interface->get_server_peer()) {
-				const PeerNetworkedController *peer_controller = get_controller_for_peer(peer);
-				if (peer_controller) {
-					// TODO why this check, can I remove it?
-					recipients.push_back(peer);
-				}
-			}
-		}
+		static_cast<ServerSynchronizer *>(synchronizer)->sync_group_fetch_object_simulating_peers(*od, recipients);
+
+		VecFunc::remove_unordered(recipients, network_interface->get_server_peer());
 		if (!recipients.empty()) {
 			rpc_handle_notify_scheduled_procedure_start.rpc(
 					get_network_interface(),
