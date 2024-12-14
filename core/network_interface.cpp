@@ -11,6 +11,51 @@ SceneSynchronizerDebugger &NetworkInterface::get_debugger() const {
 	return debugger;
 }
 
+bool NetworkInterface::validate_rpc_sender_receive(int p_sender_peer, const RPCInfo &p_rpc_info, const ObjectData *p_od) const {
+	if (p_rpc_info.call_local && p_sender_peer == get_local_peer_id()) {
+		return true;
+	}
+
+	return validate_rpc_sender(p_sender_peer, p_rpc_info, p_od);
+}
+
+bool NetworkInterface::validate_rpc_sender(int p_sender_peer, const RPCInfo &p_rpc_info, const ObjectData *p_od) const {
+	if (p_rpc_info.call_local && p_sender_peer == get_local_peer_id()) {
+		return true;
+	}
+
+	switch (p_rpc_info.allowed_sender) {
+		case RpcAllowedSender::ALL:
+			// Always true.
+			return true;
+		case RpcAllowedSender::DOLL:
+			if (p_od) {
+				if (p_od->get_controlled_by_peer() > 0) {
+					return p_od->get_controlled_by_peer() != p_sender_peer;
+				} else {
+					// Always true when the object is not controlled
+					return true;
+				}
+			} else {
+				// Never allow for rpcs toward to SceneSynchronizer.
+				return false;
+			}
+		case RpcAllowedSender::PLAYER:
+			if (p_od) {
+				return p_od->get_controlled_by_peer() == p_sender_peer;
+			} else {
+				// Never allow for rpcs toward to SceneSynchronizer.
+				return false;
+			}
+		case RpcAllowedSender::SERVER:
+			return p_sender_peer == get_server_peer();
+	}
+
+	// Please implement all.
+	NS_ASSERT_NO_ENTRY();
+	return false;
+}
+
 void NetworkInterface::rpc_receive(int p_sender_peer, DataBuffer &p_db) {
 	rpc_last_sender = p_sender_peer;
 
@@ -35,6 +80,7 @@ void NetworkInterface::rpc_receive(int p_sender_peer, DataBuffer &p_db) {
 			// function at this point because as soon as the object is deregistered
 			// the RPCs are deregistered.
 			NS_ASSERT_COND(od->rpcs_info[rpc_id].func);
+			NS_ENSURE_MSG(validate_rpc_sender_receive(p_sender_peer, od->rpcs_info[rpc_id], od), "The RPC `"+std::to_string(rpc_id)+"` validation failed for the Object `"+std::to_string(od->get_net_id().id)+"#"+od->get_object_name()+"`, is the peer `"+std::to_string(p_sender_peer)+"` cheating?");
 			od->rpcs_info[rpc_id].func(p_db);
 		} else {
 			// The rpc was not delivered because the object is not spawned yet,
@@ -46,6 +92,7 @@ void NetworkInterface::rpc_receive(int p_sender_peer, DataBuffer &p_db) {
 		// This can't be triggered because the rpc always points to a valid
 		// function at this point.
 		NS_ASSERT_COND(rpcs_info[rpc_id].func);
+		NS_ENSURE_MSG(validate_rpc_sender_receive(p_sender_peer, rpcs_info[rpc_id], nullptr), "The RPC `"+std::to_string(rpc_id)+"` validation failed for the SceneSynchronizer RPC, is the peer `"+std::to_string(p_sender_peer)+"` cheating?");
 		rpcs_info[rpc_id].func(p_db);
 	}
 }

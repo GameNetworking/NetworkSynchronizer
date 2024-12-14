@@ -968,26 +968,30 @@ GlobalFrameIndex SceneSynchronizerBase::scheduled_procedure_compensate_execution
 	return p_execute_on_frame;
 }
 
-bool SceneSynchronizerBase::rpc_is_allowed(ObjectLocalId p_id, int p_rpc_id, RpcRecipient p_recipient) const {
+bool SceneSynchronizerBase::rpc_is_allowed(ObjectLocalId p_id, int p_rpc_id, RpcRecipientFetch p_recipient) const {
 	NS_ENSURE_V(p_id != ObjectLocalId::NONE, false);
 
 	const ObjectData *OD = get_object_data(p_id);
 	NS_ENSURE_V(OD, false);
 	NS_ENSURE_V(OD->get_net_id()!=ObjectNetId::NONE, false);
+	NS_ENSURE_V(OD->rpcs_info.size() > p_rpc_id, false);
+
+	// Validate sender.
+	NS_ENSURE_V(network_interface->validate_rpc_sender(network_interface->get_local_peer_id(), OD->rpcs_info[p_rpc_id], OD), false);
 
 	const int object_controlled_by_peer = OD->get_controlled_by_peer();
 
 	switch (p_recipient) {
-		case RpcRecipient::PLAYER_TO_SERVER:
+		case RpcRecipientFetch::PLAYER_TO_SERVER:
 			return network_interface->get_local_peer_id() == object_controlled_by_peer;
-		case RpcRecipient::DOLL_TO_SERVER:
+		case RpcRecipientFetch::DOLL_TO_SERVER:
 			return network_interface->get_local_peer_id() != object_controlled_by_peer;
-		case RpcRecipient::ALL_TO_SERVER:
+		case RpcRecipientFetch::ALL_TO_SERVER:
 			return !network_interface->is_local_peer_server();
-		case RpcRecipient::SERVER_TO_PLAYER:
+		case RpcRecipientFetch::SERVER_TO_PLAYER:
 			return object_controlled_by_peer > 0;
-		case RpcRecipient::SERVER_TO_DOLL:
-		case RpcRecipient::SERVER_TO_ALL:
+		case RpcRecipientFetch::SERVER_TO_DOLL:
+		case RpcRecipientFetch::SERVER_TO_ALL:
 			return network_interface->is_local_peer_server();
 	}
 
@@ -996,35 +1000,37 @@ bool SceneSynchronizerBase::rpc_is_allowed(ObjectLocalId p_id, int p_rpc_id, Rpc
 	return false;
 }
 
-std::vector<int> SceneSynchronizerBase::rpc_fetch_recipients(ObjectLocalId p_id, int p_rpc_id, RpcRecipient p_recipient) const {
+std::vector<int> SceneSynchronizerBase::rpc_fetch_recipients(ObjectLocalId p_id, int p_rpc_id, RpcRecipientFetch p_recipient) const {
 	NS_ENSURE_V(p_id != ObjectLocalId::NONE, std::vector<int>());
 
 	const ObjectData *OD = get_object_data(p_id);
 	NS_ENSURE_V(OD, std::vector<int>());
 	NS_ENSURE_V(OD->get_net_id()!=ObjectNetId::NONE, std::vector<int>());
 
+	NS_ENSURE_V(network_interface->validate_rpc_sender(network_interface->get_local_peer_id(), OD->rpcs_info[p_rpc_id], OD), std::vector<int>());
+
 	const int object_controlled_by_peer = OD->get_controlled_by_peer();
 
 	std::vector<int> recipients;
 
 	switch (p_recipient) {
-		case RpcRecipient::PLAYER_TO_SERVER:
+		case RpcRecipientFetch::PLAYER_TO_SERVER:
 			NS_ENSURE_V(network_interface->get_local_peer_id() == object_controlled_by_peer, std::vector<int>());
 			recipients.push_back(network_interface->get_server_peer());
 			break;
-		case RpcRecipient::DOLL_TO_SERVER:
+		case RpcRecipientFetch::DOLL_TO_SERVER:
 			NS_ENSURE_V(network_interface->get_local_peer_id() != object_controlled_by_peer, std::vector<int>());
 			recipients.push_back(network_interface->get_server_peer());
 			break;
-		case RpcRecipient::ALL_TO_SERVER:
+		case RpcRecipientFetch::ALL_TO_SERVER:
 			NS_ENSURE_V(!network_interface->is_local_peer_server(), std::vector<int>());
 			recipients.push_back(network_interface->get_server_peer());
 			break;
-		case RpcRecipient::SERVER_TO_PLAYER:
+		case RpcRecipientFetch::SERVER_TO_PLAYER:
 			NS_ENSURE_V(object_controlled_by_peer > 0, std::vector<int>());
 			recipients.push_back(object_controlled_by_peer);
 			break;
-		case RpcRecipient::SERVER_TO_DOLL:
+		case RpcRecipientFetch::SERVER_TO_DOLL:
 			NS_ENSURE_V(network_interface->is_local_peer_server(), std::vector<int>());
 			for (auto &peer_it : peer_data) {
 				if (peer_it.first != object_controlled_by_peer
@@ -1034,7 +1040,7 @@ std::vector<int> SceneSynchronizerBase::rpc_fetch_recipients(ObjectLocalId p_id,
 				}
 			}
 			break;
-		case RpcRecipient::SERVER_TO_ALL:
+		case RpcRecipientFetch::SERVER_TO_ALL:
 			NS_ENSURE_V(network_interface->is_local_peer_server(), std::vector<int>());
 			for (auto &peer_it : peer_data) {
 				if (peer_it.first != network_interface->get_server_peer()) {
@@ -3580,7 +3586,7 @@ void ClientSynchronizer::store_snapshot() {
 	NS_PROFILE
 
 #ifdef NS_DEBUG_ENABLED
-	if make_unlikely(client_snapshots.size() > 0 && player_controller->get_current_frame_index() <= client_snapshots.back().input_id) {
+	if make_unlikely(client_snapshots.size() > 0 && player_controller->get_current_frame_index() <= client_snapshots.back().input_id && client_snapshots.back().input_id != FrameIndex::NONE) {
 		NS_ASSERT_NO_ENTRY_MSG("During snapshot creation, for controller " + std::to_string(player_controller->get_authority_peer()) + ", was found an ID for an older snapshots. New input ID: " + std::string(player_controller->get_current_frame_index()) + " Last saved snapshot input ID: " + std::string(client_snapshots.back().input_id) + ".");
 	}
 #endif

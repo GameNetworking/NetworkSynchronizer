@@ -128,21 +128,6 @@ struct Settings {
 	LagCompensationSettings lag_compensation;
 };
 
-enum class RpcRecipient {
-	// Send the rpc if the local peer is the authority of the object to the server.
-	PLAYER_TO_SERVER,
-	// Send the rpc if the local peer is NOT the authority of the object to the server.
-	DOLL_TO_SERVER,
-	// Send the rpc to the server.
-	ALL_TO_SERVER,
-	// Send the rpc to the player if local peer is server.
-	SERVER_TO_PLAYER,
-	// Send the rpc to the dolls if local peer is server.
-	SERVER_TO_DOLL,
-	// Send the rpc to all if local peer is server.
-	SERVER_TO_ALL,
-};
-
 /// # SceneSynchronizer
 ///
 /// NOTICE: Do not instantiate this class directly, please use `SceneSynchronizer<>` instead.
@@ -688,8 +673,8 @@ private:
 	GlobalFrameIndex scheduled_procedure_compensate_execution_frame(GlobalFrameIndex p_execute_on_frame, int p_peer_to_compensate, float p_max_compensation_seconds) const;
 
 private:
-	bool rpc_is_allowed(ObjectLocalId p_id, int p_rpc_index, RpcRecipient p_recipient) const;
-	std::vector<int> rpc_fetch_recipients(ObjectLocalId p_id, int p_rpc_id, RpcRecipient p_recipient) const;
+	bool rpc_is_allowed(ObjectLocalId p_id, int p_rpc_index, RpcRecipientFetch p_recipient) const;
+	std::vector<int> rpc_fetch_recipients(ObjectLocalId p_id, int p_rpc_id, RpcRecipientFetch p_recipient) const;
 
 public:
 	/// Register a new RPC
@@ -698,22 +683,23 @@ public:
 			ObjectLocalId p_id,
 			std::function<void(ARGS...)> p_rpc_func,
 			bool p_reliable,
-			bool p_call_local) {
+			bool p_call_local,
+			RpcAllowedSender p_allowed_senders = RpcAllowedSender::ALL) {
 		ObjectData *object_data = get_object_data(p_id);
 		NS_ENSURE_V_MSG(object_data, RpcHandle<ARGS...>(), "The objectLocalId `"+std::to_string(p_id.id)+"` was not found. RPC registration failed.");
 		NS_ENSURE_V_MSG(network_interface, RpcHandle<ARGS...>(), "Network interface not specified. RPC registration failed.");
-		return network_interface->rpc_config(p_rpc_func, p_reliable, p_call_local, p_id, &object_data->rpcs_info);
+		return network_interface->rpc_config(p_rpc_func, p_reliable, p_call_local, p_allowed_senders, p_id, &object_data->rpcs_info);
 	}
 
 	/// Used to verify if the rpc can be triggered from this peer to the target peer.
 	template <typename... ARGS>
-	bool rpc_is_allowed(const RpcHandle<ARGS...> &p_rpc, RpcRecipient p_recipient) const {
+	bool rpc_is_allowed(const RpcHandle<ARGS...> &p_rpc, RpcRecipientFetch p_recipient) const {
 		return rpc_is_allowed(p_rpc.get_target_id(), p_rpc.get_index(), p_recipient);
 	}
 
 	/// Call the rpc
 	template <typename... ARGS>
-	void rpc_call(const RpcHandle<ARGS...> &p_rpc, RpcRecipient p_recipient, ARGS... p_args) {
+	void rpc_call(const RpcHandle<ARGS...> &p_rpc, RpcRecipientFetch p_recipient, ARGS... p_args) {
 		const std::vector<int> recipients = rpc_fetch_recipients(p_rpc.get_target_id(), p_rpc.get_index(), p_recipient);
 		p_rpc.rpc(get_network_interface(), recipients, p_args...);
 	}

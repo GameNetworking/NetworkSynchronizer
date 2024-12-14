@@ -107,7 +107,7 @@ public: // ---------------------------------------------------------------- APIs
 	}
 
 	template <typename... ARGS>
-	RpcHandle<ARGS...> rpc_config(std::function<void(ARGS...)> p_rpc_func, bool p_reliable, bool p_call_local, ObjectLocalId p_rpc_owner = ObjectLocalId::NONE, std::vector<RPCInfo> *r_object_data_rpc_info = nullptr) {
+	RpcHandle<ARGS...> rpc_config(std::function<void(ARGS...)> p_rpc_func, bool p_reliable, bool p_call_local, RpcAllowedSender p_allowed_sender = RpcAllowedSender::ALL, ObjectLocalId p_rpc_owner = ObjectLocalId::NONE, std::vector<RPCInfo> *r_object_data_rpc_info = nullptr) {
 		if (r_object_data_rpc_info) {
 			NS_ASSERT_COND(p_rpc_owner != ObjectLocalId::NONE);
 		}
@@ -117,7 +117,8 @@ public: // ---------------------------------------------------------------- APIs
 				r_object_data_rpc_info ? p_rpc_owner : ObjectLocalId::NONE,
 				r_object_data_rpc_info ? *r_object_data_rpc_info : rpcs_info,
 				p_reliable,
-				p_call_local);
+				p_call_local,
+				p_allowed_sender);
 	}
 
 private:
@@ -127,7 +128,8 @@ private:
 			ObjectLocalId p_target_id,
 			std::vector<RPCInfo> &r_rpcs_info,
 			bool p_reliable,
-			bool p_call_local) {
+			bool p_call_local,
+			RpcAllowedSender p_allowed_sender) {
 		// Stores the rpc info.
 
 		// Create an intermediate lambda, which is easy to store, that is
@@ -138,11 +140,15 @@ private:
 		};
 
 		const std::uint8_t rpc_index = std::uint8_t(r_rpcs_info.size());
-		r_rpcs_info.push_back({ p_reliable, p_call_local, func });
+		r_rpcs_info.push_back({ p_reliable, p_call_local, p_allowed_sender, func });
 		return RpcHandle<ARGS...>(rpc_index, p_target_id);
 	}
 
+	bool validate_rpc_sender_receive(int p_sender_peer, const RPCInfo &p_rpc_info, const ObjectData *p_od) const;
+
 public:
+	bool validate_rpc_sender(int p_sender_peer, const RPCInfo &p_rpc_info, const ObjectData *p_od) const;
+	
 	/// This function must be called by the `Network` manager when this unit receives an rpc.
 	void rpc_receive(int p_sender_peer, DataBuffer &p_db);
 

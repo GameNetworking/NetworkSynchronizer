@@ -2218,6 +2218,8 @@ public:
 
 	int input = 0;
 
+	NS::RpcAllowedSender allowed_sender = NS::RpcAllowedSender::ALL;
+
 	RpcObject() {
 	}
 
@@ -2238,7 +2240,8 @@ public:
 					this->input = i;
 				}),
 				true,
-				false);
+				false,
+				allowed_sender);
 
 		rpc_remote_and_local = p_scene_sync.register_rpc(
 				local_id,
@@ -2246,7 +2249,29 @@ public:
 					this->input = i;
 				}),
 				true,
-				true);
+				true,
+				allowed_sender);
+	}
+};
+
+class RpcObjectSenderServer : public RpcObject {
+public:
+	RpcObjectSenderServer() {
+		allowed_sender = NS::RpcAllowedSender::SERVER;
+	}
+};
+
+class RpcObjectSenderPlayer : public RpcObject {
+public:
+	RpcObjectSenderPlayer() {
+		allowed_sender = NS::RpcAllowedSender::PLAYER;
+	}
+};
+
+class RpcObjectSenderDoll : public RpcObject {
+public:
+	RpcObjectSenderDoll() {
+		allowed_sender = NS::RpcAllowedSender::DOLL;
 	}
 };
 
@@ -2289,8 +2314,8 @@ void test_rpcs() {
 	NS_ASSERT_COND(obj_p1->input==0);
 	NS_ASSERT_COND(obj_p2->input==0);
 
-	NS_ASSERT_COND(server_scene.scene_sync->rpc_is_allowed(obj_server->rpc_remote_and_local, NS::RpcRecipient::SERVER_TO_ALL));
-	server_scene.scene_sync->rpc_call(obj_server->rpc_remote_and_local, NS::RpcRecipient::SERVER_TO_ALL, 444);
+	NS_ASSERT_COND(server_scene.scene_sync->rpc_is_allowed(obj_server->rpc_remote_and_local, NS::RpcRecipientFetch::SERVER_TO_ALL));
+	server_scene.scene_sync->rpc_call(obj_server->rpc_remote_and_local, NS::RpcRecipientFetch::SERVER_TO_ALL, 444);
 	server_scene.process_only_network(delta);
 	peer_1_scene.process_only_network(delta);
 	peer_2_scene.process_only_network(delta);
@@ -2299,8 +2324,8 @@ void test_rpcs() {
 	NS_ASSERT_COND(obj_p1->input==444);
 	NS_ASSERT_COND(obj_p2->input==444);
 
-	NS_ASSERT_COND(server_scene.scene_sync->rpc_is_allowed(obj_server->rpc_remote_only, NS::RpcRecipient::SERVER_TO_ALL));
-	server_scene.scene_sync->rpc_call(obj_server->rpc_remote_only, NS::RpcRecipient::SERVER_TO_ALL, 333);
+	NS_ASSERT_COND(server_scene.scene_sync->rpc_is_allowed(obj_server->rpc_remote_only, NS::RpcRecipientFetch::SERVER_TO_ALL));
+	server_scene.scene_sync->rpc_call(obj_server->rpc_remote_only, NS::RpcRecipientFetch::SERVER_TO_ALL, 333);
 	server_scene.process_only_network(delta);
 	peer_1_scene.process_only_network(delta);
 	peer_2_scene.process_only_network(delta);
@@ -2309,14 +2334,14 @@ void test_rpcs() {
 	NS_ASSERT_COND(obj_p2->input==333);
 
 	// Assert the rpc from SERVER_TO_ALL used by client is not propagated.
-	NS_ASSERT_COND(!peer_1_scene.scene_sync->rpc_is_allowed(obj_p1->rpc_remote_and_local, NS::RpcRecipient::SERVER_TO_ALL));
-	peer_1_scene.scene_sync->rpc_call(obj_p1->rpc_remote_only, NS::RpcRecipient::SERVER_TO_ALL, 555);
+	NS_ASSERT_COND(!peer_1_scene.scene_sync->rpc_is_allowed(obj_p1->rpc_remote_and_local, NS::RpcRecipientFetch::SERVER_TO_ALL));
+	peer_1_scene.scene_sync->rpc_call(obj_p1->rpc_remote_only, NS::RpcRecipientFetch::SERVER_TO_ALL, 555);
 	server_scene.process_only_network(delta);
 	peer_1_scene.process_only_network(delta);
 	peer_2_scene.process_only_network(delta);
 
-	NS_ASSERT_COND(!peer_2_scene.scene_sync->rpc_is_allowed(obj_p2->rpc_remote_and_local, NS::RpcRecipient::SERVER_TO_ALL));
-	peer_2_scene.scene_sync->rpc_call(obj_p2->rpc_remote_only, NS::RpcRecipient::SERVER_TO_ALL, 556);
+	NS_ASSERT_COND(!peer_2_scene.scene_sync->rpc_is_allowed(obj_p2->rpc_remote_and_local, NS::RpcRecipientFetch::SERVER_TO_ALL));
+	peer_2_scene.scene_sync->rpc_call(obj_p2->rpc_remote_only, NS::RpcRecipientFetch::SERVER_TO_ALL, 556);
 	server_scene.process_only_network(delta);
 	peer_1_scene.process_only_network(delta);
 	peer_2_scene.process_only_network(delta);
@@ -2326,8 +2351,8 @@ void test_rpcs() {
 	NS_ASSERT_COND(obj_p2->input==333);
 
 	// Despite that, if executed with call_local=true, locally is executed even when the rpc to others is not sent.
-	NS_ASSERT_COND(!peer_1_scene.scene_sync->rpc_is_allowed(obj_p1->rpc_remote_and_local, NS::RpcRecipient::SERVER_TO_ALL));
-	peer_1_scene.scene_sync->rpc_call(obj_p1->rpc_remote_and_local, NS::RpcRecipient::SERVER_TO_ALL, 99);
+	NS_ASSERT_COND(!peer_1_scene.scene_sync->rpc_is_allowed(obj_p1->rpc_remote_and_local, NS::RpcRecipientFetch::SERVER_TO_ALL));
+	peer_1_scene.scene_sync->rpc_call(obj_p1->rpc_remote_and_local, NS::RpcRecipientFetch::SERVER_TO_ALL, 99);
 	server_scene.process_only_network(delta);
 	peer_1_scene.process_only_network(delta);
 	peer_2_scene.process_only_network(delta);
@@ -2336,8 +2361,8 @@ void test_rpcs() {
 	NS_ASSERT_COND(obj_p1->input==99);
 	NS_ASSERT_COND(obj_p2->input==333);
 
-	NS_ASSERT_COND(!peer_2_scene.scene_sync->rpc_is_allowed(obj_p2->rpc_remote_and_local, NS::RpcRecipient::SERVER_TO_ALL));
-	peer_2_scene.scene_sync->rpc_call(obj_p2->rpc_remote_and_local, NS::RpcRecipient::SERVER_TO_ALL, 100);
+	NS_ASSERT_COND(!peer_2_scene.scene_sync->rpc_is_allowed(obj_p2->rpc_remote_and_local, NS::RpcRecipientFetch::SERVER_TO_ALL));
+	peer_2_scene.scene_sync->rpc_call(obj_p2->rpc_remote_and_local, NS::RpcRecipientFetch::SERVER_TO_ALL, 100);
 	server_scene.process_only_network(delta);
 	peer_1_scene.process_only_network(delta);
 	peer_2_scene.process_only_network(delta);
@@ -2347,8 +2372,8 @@ void test_rpcs() {
 	NS_ASSERT_COND(obj_p2->input==100);
 
 	// Assert rpc from server to all works
-	NS_ASSERT_COND(server_scene.scene_sync->rpc_is_allowed(obj_server->rpc_remote_only, NS::RpcRecipient::SERVER_TO_ALL));
-	server_scene.scene_sync->rpc_call(obj_server->rpc_remote_only, NS::RpcRecipient::SERVER_TO_ALL, 873);
+	NS_ASSERT_COND(server_scene.scene_sync->rpc_is_allowed(obj_server->rpc_remote_only, NS::RpcRecipientFetch::SERVER_TO_ALL));
+	server_scene.scene_sync->rpc_call(obj_server->rpc_remote_only, NS::RpcRecipientFetch::SERVER_TO_ALL, 873);
 	server_scene.process_only_network(delta);
 	peer_1_scene.process_only_network(delta);
 	peer_2_scene.process_only_network(delta);
@@ -2358,8 +2383,8 @@ void test_rpcs() {
 	NS_ASSERT_COND(obj_p2->input==873);
 
 	// Assert rpc to non controlled object can't use player.
-	NS_ASSERT_COND(!server_scene.scene_sync->rpc_is_allowed(obj_server->rpc_remote_only, NS::RpcRecipient::SERVER_TO_PLAYER));
-	server_scene.scene_sync->rpc_call(obj_server->rpc_remote_only, NS::RpcRecipient::SERVER_TO_PLAYER, 111);
+	NS_ASSERT_COND(!server_scene.scene_sync->rpc_is_allowed(obj_server->rpc_remote_only, NS::RpcRecipientFetch::SERVER_TO_PLAYER));
+	server_scene.scene_sync->rpc_call(obj_server->rpc_remote_only, NS::RpcRecipientFetch::SERVER_TO_PLAYER, 111);
 	server_scene.process_only_network(delta);
 	peer_1_scene.process_only_network(delta);
 	peer_2_scene.process_only_network(delta);
@@ -2369,8 +2394,8 @@ void test_rpcs() {
 	NS_ASSERT_COND(obj_p2->input==873);
 
 	/// Though it works when using dolls.
-	NS_ASSERT_COND(server_scene.scene_sync->rpc_is_allowed(obj_server->rpc_remote_only, NS::RpcRecipient::SERVER_TO_DOLL));
-	server_scene.scene_sync->rpc_call(obj_server->rpc_remote_only, NS::RpcRecipient::SERVER_TO_DOLL, 123);
+	NS_ASSERT_COND(server_scene.scene_sync->rpc_is_allowed(obj_server->rpc_remote_only, NS::RpcRecipientFetch::SERVER_TO_DOLL));
+	server_scene.scene_sync->rpc_call(obj_server->rpc_remote_only, NS::RpcRecipientFetch::SERVER_TO_DOLL, 123);
 	server_scene.process_only_network(delta);
 	peer_1_scene.process_only_network(delta);
 	peer_2_scene.process_only_network(delta);
@@ -2383,8 +2408,8 @@ void test_rpcs() {
 	server_scene.scene_sync->set_controlled_by_peer(obj_server->local_id, peer_1_scene.get_peer());
 	peer_1_scene.scene_sync->set_controlled_by_peer(obj_p1->local_id, peer_1_scene.get_peer());
 	peer_2_scene.scene_sync->set_controlled_by_peer(obj_p2->local_id, peer_1_scene.get_peer());
-	NS_ASSERT_COND(peer_1_scene.scene_sync->rpc_is_allowed(obj_p1->rpc_remote_only, NS::RpcRecipient::PLAYER_TO_SERVER));
-	peer_1_scene.scene_sync->rpc_call(obj_p1->rpc_remote_only, NS::RpcRecipient::PLAYER_TO_SERVER, 823);
+	NS_ASSERT_COND(peer_1_scene.scene_sync->rpc_is_allowed(obj_p1->rpc_remote_only, NS::RpcRecipientFetch::PLAYER_TO_SERVER));
+	peer_1_scene.scene_sync->rpc_call(obj_p1->rpc_remote_only, NS::RpcRecipientFetch::PLAYER_TO_SERVER, 823);
 	server_scene.process_only_network(delta);
 	peer_1_scene.process_only_network(delta);
 	peer_2_scene.process_only_network(delta);
@@ -2394,8 +2419,8 @@ void test_rpcs() {
 	NS_ASSERT_COND(obj_p2->input!=823);
 
 	// Now test the same but from a doll and ensure it fails
-	NS_ASSERT_COND(!peer_2_scene.scene_sync->rpc_is_allowed(obj_p2->rpc_remote_only, NS::RpcRecipient::PLAYER_TO_SERVER));
-	peer_2_scene.scene_sync->rpc_call(obj_p2->rpc_remote_only, NS::RpcRecipient::PLAYER_TO_SERVER, 493);
+	NS_ASSERT_COND(!peer_2_scene.scene_sync->rpc_is_allowed(obj_p2->rpc_remote_only, NS::RpcRecipientFetch::PLAYER_TO_SERVER));
+	peer_2_scene.scene_sync->rpc_call(obj_p2->rpc_remote_only, NS::RpcRecipientFetch::PLAYER_TO_SERVER, 493);
 	server_scene.process_only_network(delta);
 	peer_1_scene.process_only_network(delta);
 	peer_2_scene.process_only_network(delta);
@@ -2405,8 +2430,8 @@ void test_rpcs() {
 	NS_ASSERT_COND(obj_p2->input!=493);
 
 	// Now try to execute from doll
-	NS_ASSERT_COND(peer_2_scene.scene_sync->rpc_is_allowed(obj_p2->rpc_remote_only, NS::RpcRecipient::DOLL_TO_SERVER));
-	peer_2_scene.scene_sync->rpc_call(obj_p2->rpc_remote_only, NS::RpcRecipient::DOLL_TO_SERVER, 490);
+	NS_ASSERT_COND(peer_2_scene.scene_sync->rpc_is_allowed(obj_p2->rpc_remote_only, NS::RpcRecipientFetch::DOLL_TO_SERVER));
+	peer_2_scene.scene_sync->rpc_call(obj_p2->rpc_remote_only, NS::RpcRecipientFetch::DOLL_TO_SERVER, 490);
 	server_scene.process_only_network(delta);
 	peer_1_scene.process_only_network(delta);
 	peer_2_scene.process_only_network(delta);
@@ -2416,8 +2441,8 @@ void test_rpcs() {
 	NS_ASSERT_COND(obj_p2->input!=490);
 
 	// and from ALL
-	NS_ASSERT_COND(peer_2_scene.scene_sync->rpc_is_allowed(obj_p2->rpc_remote_only, NS::RpcRecipient::ALL_TO_SERVER));
-	peer_2_scene.scene_sync->rpc_call(obj_p2->rpc_remote_only, NS::RpcRecipient::ALL_TO_SERVER, 983);
+	NS_ASSERT_COND(peer_2_scene.scene_sync->rpc_is_allowed(obj_p2->rpc_remote_only, NS::RpcRecipientFetch::ALL_TO_SERVER));
+	peer_2_scene.scene_sync->rpc_call(obj_p2->rpc_remote_only, NS::RpcRecipientFetch::ALL_TO_SERVER, 983);
 	server_scene.process_only_network(delta);
 	peer_1_scene.process_only_network(delta);
 	peer_2_scene.process_only_network(delta);
@@ -2427,8 +2452,8 @@ void test_rpcs() {
 	NS_ASSERT_COND(obj_p2->input!=983);
 
 	// However from DOLL bug done on player fails
-	NS_ASSERT_COND(!peer_1_scene.scene_sync->rpc_is_allowed(obj_p1->rpc_remote_only, NS::RpcRecipient::DOLL_TO_SERVER));
-	peer_1_scene.scene_sync->rpc_call(obj_p1->rpc_remote_only, NS::RpcRecipient::DOLL_TO_SERVER, 293);
+	NS_ASSERT_COND(!peer_1_scene.scene_sync->rpc_is_allowed(obj_p1->rpc_remote_only, NS::RpcRecipientFetch::DOLL_TO_SERVER));
+	peer_1_scene.scene_sync->rpc_call(obj_p1->rpc_remote_only, NS::RpcRecipientFetch::DOLL_TO_SERVER, 293);
 	server_scene.process_only_network(delta);
 	peer_1_scene.process_only_network(delta);
 	peer_2_scene.process_only_network(delta);
@@ -2441,8 +2466,8 @@ void test_rpcs() {
 	server_scene.scene_sync->set_controlled_by_peer(obj_server->local_id, server_scene.get_peer());
 	peer_1_scene.scene_sync->set_controlled_by_peer(obj_p1->local_id, server_scene.get_peer());
 	peer_2_scene.scene_sync->set_controlled_by_peer(obj_p2->local_id, server_scene.get_peer());
-	NS_ASSERT_COND(server_scene.scene_sync->rpc_is_allowed(obj_server->rpc_remote_only, NS::RpcRecipient::SERVER_TO_PLAYER));
-	server_scene.scene_sync->rpc_call(obj_server->rpc_remote_only, NS::RpcRecipient::SERVER_TO_PLAYER, 321);
+	NS_ASSERT_COND(server_scene.scene_sync->rpc_is_allowed(obj_server->rpc_remote_only, NS::RpcRecipientFetch::SERVER_TO_PLAYER));
+	server_scene.scene_sync->rpc_call(obj_server->rpc_remote_only, NS::RpcRecipientFetch::SERVER_TO_PLAYER, 321);
 	server_scene.process_only_network(delta);
 	peer_1_scene.process_only_network(delta);
 	peer_2_scene.process_only_network(delta);
@@ -2459,13 +2484,13 @@ void test_rpcs() {
 	RpcObject *obj_2_p2 = peer_2_scene.add_object<RpcObject>("obj_2", server_scene.get_peer());
 
 	// Try to RPC the server from a client when the object NetId is not yet networked
-	NS_ASSERT_COND(!server_scene.scene_sync->rpc_is_allowed(obj_2_server->rpc_remote_only, NS::RpcRecipient::SERVER_TO_PLAYER));
-	NS_ASSERT_COND(server_scene.scene_sync->rpc_is_allowed(obj_2_server->rpc_remote_only, NS::RpcRecipient::SERVER_TO_DOLL));
-	NS_ASSERT_COND(server_scene.scene_sync->rpc_is_allowed(obj_2_server->rpc_remote_only, NS::RpcRecipient::SERVER_TO_ALL));
-	NS_ASSERT_COND(!peer_1_scene.scene_sync->rpc_is_allowed(obj_2_p1->rpc_remote_only, NS::RpcRecipient::PLAYER_TO_SERVER));
-	NS_ASSERT_COND(!peer_1_scene.scene_sync->rpc_is_allowed(obj_2_p1->rpc_remote_only, NS::RpcRecipient::DOLL_TO_SERVER));
-	NS_ASSERT_COND(!peer_1_scene.scene_sync->rpc_is_allowed(obj_2_p1->rpc_remote_only, NS::RpcRecipient::ALL_TO_SERVER));
-	peer_1_scene.scene_sync->rpc_call(obj_2_p1->rpc_remote_only, NS::RpcRecipient::ALL_TO_SERVER, 872);
+	NS_ASSERT_COND(!server_scene.scene_sync->rpc_is_allowed(obj_2_server->rpc_remote_only, NS::RpcRecipientFetch::SERVER_TO_PLAYER));
+	NS_ASSERT_COND(server_scene.scene_sync->rpc_is_allowed(obj_2_server->rpc_remote_only, NS::RpcRecipientFetch::SERVER_TO_DOLL));
+	NS_ASSERT_COND(server_scene.scene_sync->rpc_is_allowed(obj_2_server->rpc_remote_only, NS::RpcRecipientFetch::SERVER_TO_ALL));
+	NS_ASSERT_COND(!peer_1_scene.scene_sync->rpc_is_allowed(obj_2_p1->rpc_remote_only, NS::RpcRecipientFetch::PLAYER_TO_SERVER));
+	NS_ASSERT_COND(!peer_1_scene.scene_sync->rpc_is_allowed(obj_2_p1->rpc_remote_only, NS::RpcRecipientFetch::DOLL_TO_SERVER));
+	NS_ASSERT_COND(!peer_1_scene.scene_sync->rpc_is_allowed(obj_2_p1->rpc_remote_only, NS::RpcRecipientFetch::ALL_TO_SERVER));
+	peer_1_scene.scene_sync->rpc_call(obj_2_p1->rpc_remote_only, NS::RpcRecipientFetch::ALL_TO_SERVER, 872);
 	server_scene.process_only_network(delta);
 	peer_1_scene.process_only_network(delta);
 	peer_2_scene.process_only_network(delta);
@@ -2476,7 +2501,7 @@ void test_rpcs() {
 	NS_ASSERT_COND(obj_2_p2->input==0);
 
 	// Test the server to client rpc remains in pending.
-	server_scene.scene_sync->rpc_call(obj_2_server->rpc_remote_only, NS::RpcRecipient::SERVER_TO_ALL, 999);
+	server_scene.scene_sync->rpc_call(obj_2_server->rpc_remote_only, NS::RpcRecipientFetch::SERVER_TO_ALL, 999);
 	server_scene.process_only_network(delta);
 	peer_1_scene.process_only_network(delta);
 	peer_2_scene.process_only_network(delta);
@@ -2499,12 +2524,95 @@ void test_rpcs() {
 	NS_ASSERT_COND(obj_2_p1->input==999);
 	NS_ASSERT_COND(obj_2_p2->input==999);
 
-	NS_ASSERT_COND(!server_scene.scene_sync->rpc_is_allowed(obj_2_server->rpc_remote_only, NS::RpcRecipient::SERVER_TO_PLAYER));
-	NS_ASSERT_COND(server_scene.scene_sync->rpc_is_allowed(obj_2_server->rpc_remote_only, NS::RpcRecipient::SERVER_TO_DOLL));
-	NS_ASSERT_COND(server_scene.scene_sync->rpc_is_allowed(obj_2_server->rpc_remote_only, NS::RpcRecipient::SERVER_TO_ALL));
-	NS_ASSERT_COND(!peer_1_scene.scene_sync->rpc_is_allowed(obj_2_p1->rpc_remote_only, NS::RpcRecipient::PLAYER_TO_SERVER));
-	NS_ASSERT_COND(peer_1_scene.scene_sync->rpc_is_allowed(obj_2_p1->rpc_remote_only, NS::RpcRecipient::DOLL_TO_SERVER));
-	NS_ASSERT_COND(peer_1_scene.scene_sync->rpc_is_allowed(obj_2_p1->rpc_remote_only, NS::RpcRecipient::ALL_TO_SERVER));
+	NS_ASSERT_COND(!server_scene.scene_sync->rpc_is_allowed(obj_2_server->rpc_remote_only, NS::RpcRecipientFetch::SERVER_TO_PLAYER));
+	NS_ASSERT_COND(server_scene.scene_sync->rpc_is_allowed(obj_2_server->rpc_remote_only, NS::RpcRecipientFetch::SERVER_TO_DOLL));
+	NS_ASSERT_COND(server_scene.scene_sync->rpc_is_allowed(obj_2_server->rpc_remote_only, NS::RpcRecipientFetch::SERVER_TO_ALL));
+	NS_ASSERT_COND(!peer_1_scene.scene_sync->rpc_is_allowed(obj_2_p1->rpc_remote_only, NS::RpcRecipientFetch::PLAYER_TO_SERVER));
+	NS_ASSERT_COND(peer_1_scene.scene_sync->rpc_is_allowed(obj_2_p1->rpc_remote_only, NS::RpcRecipientFetch::DOLL_TO_SERVER));
+	NS_ASSERT_COND(peer_1_scene.scene_sync->rpc_is_allowed(obj_2_p1->rpc_remote_only, NS::RpcRecipientFetch::ALL_TO_SERVER));
+
+	// -------------------------------------------------- Test sender validation
+	RpcObjectSenderServer *objServer_server = server_scene.add_object<RpcObjectSenderServer>("obj_3", peer_1_scene.get_peer());
+	RpcObjectSenderServer *objServer_p1 = peer_1_scene.add_object<RpcObjectSenderServer>("obj_3", peer_1_scene.get_peer());
+	RpcObjectSenderServer *objServer_p2 = peer_2_scene.add_object<RpcObjectSenderServer>("obj_3", peer_1_scene.get_peer());
+	server_scene.scene_sync->set_controlled_by_peer(objServer_server->local_id, peer_1_scene.get_peer());
+	peer_1_scene.scene_sync->set_controlled_by_peer(objServer_p1->local_id, peer_1_scene.get_peer());
+	peer_2_scene.scene_sync->set_controlled_by_peer(objServer_p2->local_id, peer_1_scene.get_peer());
+
+	RpcObjectSenderPlayer *objPlayer_server = server_scene.add_object<RpcObjectSenderPlayer>("obj_4", peer_1_scene.get_peer());
+	RpcObjectSenderPlayer *objPlayer_p1 = peer_1_scene.add_object<RpcObjectSenderPlayer>("obj_4", peer_1_scene.get_peer());
+	RpcObjectSenderPlayer *objPlayer_p2 = peer_2_scene.add_object<RpcObjectSenderPlayer>("obj_4", peer_1_scene.get_peer());
+	server_scene.scene_sync->set_controlled_by_peer(objPlayer_server->local_id, peer_1_scene.get_peer());
+	peer_1_scene.scene_sync->set_controlled_by_peer(objPlayer_p1->local_id, peer_1_scene.get_peer());
+	peer_2_scene.scene_sync->set_controlled_by_peer(objPlayer_p2->local_id, peer_1_scene.get_peer());
+
+	RpcObjectSenderDoll *objDoll_server = server_scene.add_object<RpcObjectSenderDoll>("obj_5", peer_1_scene.get_peer());
+	RpcObjectSenderDoll *objDoll_p1 = peer_1_scene.add_object<RpcObjectSenderDoll>("obj_5", peer_1_scene.get_peer());
+	RpcObjectSenderDoll *objDoll_p2 = peer_2_scene.add_object<RpcObjectSenderDoll>("obj_5", peer_1_scene.get_peer());
+	server_scene.scene_sync->set_controlled_by_peer(objDoll_server->local_id, peer_1_scene.get_peer());
+	peer_1_scene.scene_sync->set_controlled_by_peer(objDoll_p1->local_id, peer_1_scene.get_peer());
+	peer_2_scene.scene_sync->set_controlled_by_peer(objDoll_p2->local_id, peer_1_scene.get_peer());
+
+	server_scene.scene_sync->force_state_notify_all();
+
+	// Process the scene twice to ensure the scene is setup and all ObjectNetId
+	// are networked.
+	for (int i = 0; i < 2; i++) {
+		server_scene.process(delta);
+		peer_1_scene.process(delta);
+		peer_2_scene.process(delta);
+	}
+
+	// Verify that all RPCs are discarded but the server one.
+	server_scene.scene_sync->rpc_call(objServer_server->rpc_remote_only, NS::RpcRecipientFetch::SERVER_TO_ALL, 999);
+	peer_1_scene.scene_sync->rpc_call(objServer_p1->rpc_remote_only, NS::RpcRecipientFetch::ALL_TO_SERVER, 888);
+	peer_2_scene.scene_sync->rpc_call(objServer_p2->rpc_remote_only, NS::RpcRecipientFetch::ALL_TO_SERVER, 777);
+	server_scene.process_only_network(delta);
+	peer_1_scene.process_only_network(delta);
+	peer_2_scene.process_only_network(delta);
+
+	NS_ASSERT_COND(objServer_server->input==0);
+	NS_ASSERT_COND(objServer_p1->input==999);
+	NS_ASSERT_COND(objServer_p2->input==999);
+
+	// Now verify the is allowed
+	NS_ASSERT_COND(server_scene.scene_sync->rpc_is_allowed(objServer_server->rpc_remote_only, NS::RpcRecipientFetch::SERVER_TO_PLAYER));
+	NS_ASSERT_COND(!peer_1_scene.scene_sync->rpc_is_allowed(objServer_p1->rpc_remote_only, NS::RpcRecipientFetch::ALL_TO_SERVER));
+	NS_ASSERT_COND(!peer_2_scene.scene_sync->rpc_is_allowed(objServer_p2->rpc_remote_only, NS::RpcRecipientFetch::ALL_TO_SERVER));
+
+	// Verify sender - player - 
+	server_scene.scene_sync->rpc_call(objPlayer_server->rpc_remote_only, NS::RpcRecipientFetch::SERVER_TO_ALL, 11);
+	peer_1_scene.scene_sync->rpc_call(objPlayer_p1->rpc_remote_only, NS::RpcRecipientFetch::ALL_TO_SERVER, 22);
+	peer_2_scene.scene_sync->rpc_call(objPlayer_p2->rpc_remote_only, NS::RpcRecipientFetch::ALL_TO_SERVER, 33);
+	server_scene.process_only_network(delta);
+	peer_1_scene.process_only_network(delta);
+	peer_2_scene.process_only_network(delta);
+
+	NS_ASSERT_COND(objPlayer_server->input==22);
+	NS_ASSERT_COND(objPlayer_p1->input==0);
+	NS_ASSERT_COND(objPlayer_p2->input==0);
+
+	// Now verify the is allowed
+	NS_ASSERT_COND(!server_scene.scene_sync->rpc_is_allowed(objPlayer_server->rpc_remote_only, NS::RpcRecipientFetch::SERVER_TO_PLAYER));
+	NS_ASSERT_COND(peer_1_scene.scene_sync->rpc_is_allowed(objPlayer_p1->rpc_remote_only, NS::RpcRecipientFetch::ALL_TO_SERVER));
+	NS_ASSERT_COND(!peer_2_scene.scene_sync->rpc_is_allowed(objPlayer_p2->rpc_remote_only, NS::RpcRecipientFetch::ALL_TO_SERVER));
+
+	// Verify sender - doll - 
+	server_scene.scene_sync->rpc_call(objDoll_server->rpc_remote_only, NS::RpcRecipientFetch::SERVER_TO_ALL, 5);
+	peer_1_scene.scene_sync->rpc_call(objDoll_p1->rpc_remote_only, NS::RpcRecipientFetch::ALL_TO_SERVER, 6);
+	peer_2_scene.scene_sync->rpc_call(objDoll_p2->rpc_remote_only, NS::RpcRecipientFetch::ALL_TO_SERVER, 7);
+	server_scene.process_only_network(delta);
+	peer_1_scene.process_only_network(delta);
+	peer_2_scene.process_only_network(delta);
+
+	NS_ASSERT_COND(objDoll_server->input==7);
+	NS_ASSERT_COND(objDoll_p1->input==5); // NOTICE: The server is a doll in this case, so it's propagated.
+	NS_ASSERT_COND(objDoll_p2->input==5); // NOTICE: The server is a doll in this case, so it's propagated.
+
+	// Now verify the is allowed
+	NS_ASSERT_COND(server_scene.scene_sync->rpc_is_allowed(objDoll_server->rpc_remote_only, NS::RpcRecipientFetch::SERVER_TO_PLAYER)); // NOTICE: The server is a doll in this case, so it's propagated.
+	NS_ASSERT_COND(!peer_1_scene.scene_sync->rpc_is_allowed(objDoll_p1->rpc_remote_only, NS::RpcRecipientFetch::ALL_TO_SERVER));
+	NS_ASSERT_COND(peer_2_scene.scene_sync->rpc_is_allowed(objDoll_p2->rpc_remote_only, NS::RpcRecipientFetch::ALL_TO_SERVER));
 }
 
 void test_scene_synchronizer() {

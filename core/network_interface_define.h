@@ -5,9 +5,11 @@
 #include <functional>
 
 NS_NAMESPACE_BEGIN
-	struct RPCInfo {
-		bool is_reliable = false;
-		bool call_local = false;
-		std::function<void(DataBuffer &p_db)> func;
-	};
+struct RPCInfo {
+	bool is_reliable = false;
+	bool call_local = false;
+	RpcAllowedSender allowed_sender;
+	std::function<void(DataBuffer &p_db)> func;
+};
+
 NS_NAMESPACE_END
