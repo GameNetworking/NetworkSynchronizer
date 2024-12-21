@@ -10,6 +10,8 @@
 
 NS_NAMESPACE_BEGIN
 class LocalSceneObject {
+	const std::size_t type_index;
+
 protected:
 	friend class LocalScene;
 	class LocalScene *scene_owner = nullptr;
@@ -18,7 +20,19 @@ protected:
 public:
 	std::string name;
 
+	static std::size_t fetch_class_type_index(const char *cn) {
+		return std::hash<std::string>{}(cn);
+	}
+
+	LocalSceneObject(const char *p_class_name) :
+		type_index(fetch_class_type_index(p_class_name)) {
+	}
+
 	virtual ~LocalSceneObject();
+
+	std::size_t get_type_index() const {
+		return type_index;
+	}
 
 	class LocalScene *get_scene() const;
 
@@ -188,7 +202,7 @@ template <class T>
 T *LocalScene::fetch_object(const char *p_object_name) {
 	for (auto o : objects) {
 		if (o->name == p_object_name) {
-			return dynamic_cast<T *>(o.get());
+			return static_cast<T *>(o.get());
 		}
 	}
 	return nullptr;

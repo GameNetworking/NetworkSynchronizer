@@ -22,6 +22,10 @@ public:
 	float weight = 1.0f;
 	Vec3 position;
 
+	MagnetSceneObject() :
+		LocalSceneObject("MagnetSceneObject") {
+	}
+
 	virtual void on_scene_entry() override {
 		set_weight(1.0f);
 		set_position(Vec3());
@@ -79,7 +83,9 @@ public:
 	float weight = 1.0;
 	Vec3 position;
 
-	TSLocalNetworkedController() = default;
+	TSLocalNetworkedController() :
+		LocalSceneObject("TSLocalNetworkedController") {
+	}
 
 	virtual void on_scene_entry() override {
 		set_weight(1.0);
@@ -201,7 +207,7 @@ public:
 
 void process_magnet_simulation(NS::LocalSceneSynchronizer &scene_sync, float p_delta, bool p_move_magnet, MagnetSceneObject &p_mag) {
 	NS_ASSERT_COND(p_delta == delta);
-	const float pushing_force = 200.0;
+	const float pushing_force = 200.0f;
 
 	for (const NS::ObjectData *od : scene_sync.get_sorted_objects_data()) {
 		if (!od) {
@@ -209,7 +215,7 @@ void process_magnet_simulation(NS::LocalSceneSynchronizer &scene_sync, float p_d
 		}
 
 		NS::LocalSceneObject *lso = scene_sync.from_handle(od->app_object_handle);
-		TSLocalNetworkedController *controller = dynamic_cast<TSLocalNetworkedController *>(lso);
+		TSLocalNetworkedController *controller = NS::LocalSceneObject::fetch_class_type_index("TSLocalNetworkedController") == lso->get_type_index() ? static_cast<TSLocalNetworkedController *>(lso) : nullptr;
 		if (controller) {
 			{
 				const Vec3 mag_to_controller_dir = (controller->get_position() - p_mag.get_position()).normalized();
@@ -231,7 +237,7 @@ void process_magnets_simulation(NS::LocalSceneSynchronizer &scene_sync, float p_
 		}
 
 		NS::LocalSceneObject *lso = scene_sync.from_handle(od->app_object_handle);
-		MagnetSceneObject *mso = dynamic_cast<MagnetSceneObject *>(lso);
+		MagnetSceneObject *mso = NS::LocalSceneObject::fetch_class_type_index("MagnetSceneObject") == lso->get_type_index() ? static_cast<MagnetSceneObject *>(lso) : nullptr;
 		if (mso) {
 			process_magnet_simulation(scene_sync, p_delta, p_move_magnets, *mso);
 		}
@@ -496,6 +502,10 @@ public:
 	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
 	Vec3 position;
 
+	ActorSceneObject() :
+		LocalSceneObject("ActorSceneObject") {
+	}
+
 	virtual void on_scene_entry() override {
 		set_position(Vec3());
 
@@ -536,7 +546,7 @@ void process_actors_simulation(NS::LocalSceneSynchronizer &scene_sync, float p_d
 		}
 
 		NS::LocalSceneObject *lso = scene_sync.from_handle(od->app_object_handle);
-		ActorSceneObject *aso = dynamic_cast<ActorSceneObject *>(lso);
+		ActorSceneObject *aso = NS::LocalSceneObject::fetch_class_type_index("ActorSceneObject") == lso->get_type_index() ? static_cast<ActorSceneObject *>(lso) : nullptr;
 		if (aso) {
 			aso->set_position(aso->get_position() + Vec3(0.2f * p_delta, 0.3f * p_delta, 0.4f * p_delta));
 		}
@@ -699,7 +709,7 @@ void process_actors_drag_simulation(NS::LocalSceneSynchronizer &scene_sync, floa
 		}
 
 		NS::LocalSceneObject *lso = scene_sync.from_handle(od->app_object_handle);
-		ActorSceneObject *aso = dynamic_cast<ActorSceneObject *>(lso);
+		ActorSceneObject *aso = NS::LocalSceneObject::fetch_class_type_index("ActorSceneObject") == lso->get_type_index() ? static_cast<ActorSceneObject *>(lso) : nullptr;
 		if (aso) {
 			const float drag = float(p_actors_drags[od->get_net_id().id]) / 100.0f;
 			aso->set_position(aso->get_position() - Vec3(drag * p_delta, drag * p_delta, drag * p_delta));

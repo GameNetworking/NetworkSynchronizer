@@ -45,7 +45,8 @@ public:
 	float previous_input = 0.0f;
 	std::vector<NS::GlobalFrameIndex> rewinded_frames;
 
-	LocalNetworkedController() {
+	LocalNetworkedController() :
+		LocalSceneObject("LocalNetworkedController") {
 	}
 
 	virtual void on_scene_entry() override {
@@ -286,7 +287,8 @@ public:
 	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
 	NS::VarData position;
 
-	LocalNetworkedControllerServerOnlyRegistration() {
+	LocalNetworkedControllerServerOnlyRegistration() :
+		LocalSceneObject("LocalNetworkedControllerServerOnlyRegistration") {
 	}
 
 	virtual void on_scene_entry() override {
@@ -406,6 +408,10 @@ public:
 	NS::GlobalFrameIndex procedure_execution_scheduled_for;
 
 	std::vector<NS::GlobalFrameIndex> rewinded_frames;
+
+	TSS_TestSceneObject() :
+		LocalSceneObject("TSS_TestSceneObject") {
+	}
 
 	virtual void on_scene_entry() override {
 		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
@@ -1908,6 +1914,10 @@ public:
 
 	NS::PHandler processing_handler = NS::NullPHandler;
 
+	TestProcessingSceneObject() :
+		LocalSceneObject("TestProcessingSceneObject") {
+	}
+
 	virtual void on_scene_entry() override {
 		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
 	}
@@ -2220,7 +2230,8 @@ public:
 
 	NS::RpcAllowedSender allowed_sender = NS::RpcAllowedSender::ALL;
 
-	RpcObject() {
+	RpcObject() :
+		LocalSceneObject("RpcObject") {
 	}
 
 	virtual void on_scene_entry() override {

@@ -31,7 +31,9 @@ public:
 	bool modify_input_on_next_frame = false;
 	NS::VarData xy;
 
-	TDSControlledObject() = default;
+	TDSControlledObject() :
+		LocalSceneObject("TDSControlledObject") {
+	}
 
 	virtual void on_scene_entry() override {
 		if (get_scene()->scene_sync->is_server()) {
@@ -500,6 +502,10 @@ class TestSceneObject : public NS::LocalSceneObject {
 public:
 	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
 	NS::VarData var_1;
+
+	TestSceneObject() :
+		LocalSceneObject("TestSceneObject") {
+	}
 
 	virtual void on_scene_entry() override {
 		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));

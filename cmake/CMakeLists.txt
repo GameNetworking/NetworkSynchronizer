@@ -48,6 +48,9 @@ if (MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fp:precise") # Ensure floating point is not fast to make math operations deterministic.
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /fp:precise") # Ensure floating point is not fast to make math operations deterministic.
     
+    # Disable RTTI
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /GR-")
+    
 	# Set runtime library
 	if (USE_STATIC_MSVC_RUNTIME_LIBRARY)
 		set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
@@ -79,6 +82,13 @@ if (MSVC)
     endif()
     set(CMAKE_CXX_FLAGS_DISTRIBUTION "${CMAKE_CXX_FLAGS_RELEASE}")
 else()
+    # Floating point is always precise to ensure determinism across platforms.
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-fast-math -frounding-math -fsignaling-nans -fno-trapping-math -mfpmath=both")
+    set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -fno-fast-math -frounding-math -fsignaling-nans -fno-trapping-math -mfpmath=both")
+    
+    # Disable RTTI
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
+    
 	if (GENERATE_DEBUG_SYMBOLS)
 		set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /DEBUG")
 	endif()

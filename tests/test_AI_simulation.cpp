@@ -32,7 +32,9 @@ public:
 	bool modify_input_on_next_frame = false;
 	NS::VarData xy;
 
-	TAIControlledObject() = default;
+	TAIControlledObject() :
+		LocalSceneObject("TAIControlledObject") {
+	}
 
 	virtual void on_scene_entry() override {
 		if (get_scene()->scene_sync->is_server()) {

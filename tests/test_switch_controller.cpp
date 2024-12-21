@@ -23,6 +23,10 @@ public:
 	Vec3 position;
 	Vec3 velocity;
 
+	FeatherSceneObject() :
+		LocalSceneObject("FeatherSceneObject") {
+	}
+
 	virtual void on_scene_entry() override {
 		set_position(Vec3());
 		set_velocity(Vec3());
@@ -81,7 +85,9 @@ public:
 	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
 	Vec3 position;
 
-	FeatherPlayerController() = default;
+	FeatherPlayerController() :
+		LocalSceneObject("FeatherPlayerController") {
+	}
 
 	virtual void on_scene_entry() override {
 		set_position(Vec3());
@@ -241,7 +247,7 @@ void process_movable_feathers_simulation(NS::LocalSceneSynchronizer &scene_sync,
 		}
 
 		NS::LocalSceneObject *lso = scene_sync.from_handle(od->app_object_handle);
-		FeatherSceneObject *fso = dynamic_cast<FeatherSceneObject *>(lso);
+		FeatherSceneObject *fso = FeatherSceneObject::fetch_class_type_index("FeatherSceneObject") == lso->get_type_index() ? static_cast<FeatherSceneObject *>(lso) : nullptr;
 		if (fso) {
 			fso->set_position(fso->get_position() + (fso->get_velocity() * p_delta));
 		}
