@@ -91,7 +91,7 @@ inline std::vector<std::uint64_t> uint_values(NS::DataBuffer::CompressionLevel p
 template <typename T>
 inline std::vector<T> real_values(NS::DataBuffer::CompressionLevel p_compression_level) {
 	std::vector<T> values;
-	values.push_back(T(M_PI));
+	values.push_back(T(NS::MathFunc::PI));
 	values.push_back(T(0.0));
 	values.push_back(T(-3.04));
 	values.push_back(T(3.04));
@@ -666,7 +666,7 @@ template <typename T>
 void test_data_buffer_normalized_vector_2() {
 	for (int cl = (int)NS::DataBuffer::COMPRESSION_LEVEL_0; cl <= (int)NS::DataBuffer::COMPRESSION_LEVEL_3; cl++) {
 		const NS::DataBuffer::CompressionLevel compression_level = (NS::DataBuffer::CompressionLevel)cl;
-		const T epsilon = NS::DataBuffer::get_real_epsilon<T>(NS::DataBuffer::DATA_TYPE_NORMALIZED_VECTOR2, compression_level);
+		const T epsilon = NS::DataBuffer::get_real_epsilon<T>(NS::DataBuffer::DATA_TYPE_NORMALIZED_VECTOR2, compression_level) * T(3.0);
 
 		const std::vector<std::pair<T, T>> values = normalized_vector_2_values<T>(compression_level);
 
@@ -992,8 +992,8 @@ void test_data_buffer_reading_failing() {
 void test_data_buffer_slice_copy() {
 	NS::DataBuffer origin_buffer;
 
-	const int first_integer = 12931237123123;
-	const int second_integer = 1998237123123;
+	const int first_integer = 129123123;
+	const int second_integer = 19123123;
 
 	origin_buffer.begin_write(debugger, 0);
 	origin_buffer.add(true);

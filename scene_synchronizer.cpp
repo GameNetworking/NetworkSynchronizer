@@ -7,6 +7,7 @@
 #include "core/net_utilities.h"
 #include "core/object_data.h"
 #include "core/peer_networked_controller.h"
+#include "core/quick_sort.h"
 #include "core/snapshot.h"
 #include "core/var_data.h"
 #include <limits>
@@ -2056,7 +2057,7 @@ bool SceneSynchronizerBase::process_functions__execute() {
 			for (const auto [peer, _] : peer_data) {
 				peers.push_back(peer);
 			}
-			std::sort(peers.begin(), peers.end());
+			NS_JOLT::QuickSort(peers.begin(), peers.end());
 
 			// For each peer, add the process function.
 			for (int peer : peers) {

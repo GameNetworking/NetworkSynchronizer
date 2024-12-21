@@ -794,11 +794,11 @@ void DataBuffer::add_normalized_vector2(T x, T y, CompressionLevel p_compression
 	const int bits_for_the_angle = bits - 1;
 	const int bits_for_zero = 1;
 
-	const T angle = is_not_zero ? MathFunc::vec2_angle(x, y) : 0.0f;
+	const float angle = is_not_zero ? MathFunc::vec2_angle(float(x), float(y)) : 0.0f;
 
-	const T max_value = static_cast<T>(~(UINT64_MAX << bits_for_the_angle));
+	const float max_value = static_cast<float>(~(UINT64_MAX << bits_for_the_angle));
 
-	const uint64_t compressed_angle = compress_unit_float<T>((angle + T(M_PI)) / T(M_TAU), max_value);
+	const uint64_t compressed_angle = compress_unit_float<float>((angle + MathFunc::PI) / MathFunc::TAU, max_value);
 
 	make_room_in_bits(bits);
 	if (!buffer.store_bits(bit_offset, is_not_zero, bits_for_zero)) {
@@ -816,9 +816,9 @@ void DataBuffer::add_normalized_vector2(T x, T y, CompressionLevel p_compression
 
 #ifdef DEBUG_DATA_BUFFER
 	{
-		const T decompressed_angle = (decompress_unit_float<T>(compressed_angle, max_value) * T(M_TAU)) - T(M_PI);
-		const T read_x = std::cos(decompressed_angle) * static_cast<T>(is_not_zero);
-		const T read_y = std::sin(decompressed_angle) * static_cast<T>(is_not_zero);
+		const float decompressed_angle = (decompress_unit_float<float>(compressed_angle, max_value) * MathFunc::TAU) - MathFunc::PI;
+		const float read_x = MathFunc::cos(decompressed_angle) * static_cast<float>(is_not_zero);
+		const float read_y = MathFunc::sin(decompressed_angle) * static_cast<float>(is_not_zero);
 		DEB_WRITE(DATA_TYPE_NORMALIZED_VECTOR2, p_compression_level, "X: " + std::to_string(read_x) + " Y: " + std::to_string(read_y));
 	}
 #endif
@@ -838,7 +838,7 @@ void DataBuffer::read_normalized_vector2(T &x, T &y, CompressionLevel p_compress
 	const int bits_for_the_angle = bits - 1;
 	const int bits_for_zero = 1;
 
-	const T max_value = static_cast<T>(~(UINT64_MAX << bits_for_the_angle));
+	const float max_value = static_cast<float>(~(UINT64_MAX << bits_for_the_angle));
 
 	std::uint64_t is_not_zero;
 	if (!buffer.read_bits(bit_offset, bits_for_zero, is_not_zero)) {
@@ -852,9 +852,9 @@ void DataBuffer::read_normalized_vector2(T &x, T &y, CompressionLevel p_compress
 	}
 	bit_offset += bits;
 
-	const T decompressed_angle = (decompress_unit_float<T>(compressed_angle, max_value) * T(M_TAU)) - T(M_PI);
-	x = std::cos(decompressed_angle) * static_cast<T>(is_not_zero);
-	y = std::sin(decompressed_angle) * static_cast<T>(is_not_zero);
+	const float decompressed_angle = (decompress_unit_float<float>(compressed_angle, max_value) * MathFunc::TAU) - MathFunc::PI;
+	x = MathFunc::cos(decompressed_angle) * static_cast<float>(is_not_zero);
+	y = MathFunc::sin(decompressed_angle) * static_cast<float>(is_not_zero);
 
 	DEB_READ(DATA_TYPE_NORMALIZED_VECTOR2, p_compression_level, "X: " + std::to_string(x) + " Y: " + std::to_string(y));
 }

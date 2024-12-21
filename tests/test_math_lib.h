@@ -41,4 +41,5 @@ struct Vec3 {
 	float distance_to(const Vec3 &p_v) const;
 };
 
+void test_math();
 }; //namespace NS_Test

@@ -87,6 +87,9 @@ else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-fast-math -frounding-math -fno-trapping-math")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-fast-math -frounding-math -fno-trapping-math")
     
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffp-model=precise -msse2 -mfpmath=sse")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ffp-model=precise -msse2 -mfpmath=sse")
+    
     # Disable RTTI
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
     
@@ -109,6 +112,9 @@ set(NS_ROOT ${REPO_ROOT}/NetworkSynchronizer)
 set(NS_SRC_FILES
 	${NS_ROOT}/scene_synchronizer.h
 	${NS_ROOT}/scene_synchronizer.cpp
+	${NS_ROOT}/core/insertion_sort.h
+	${NS_ROOT}/core/quick_sort.h
+	${NS_ROOT}/core/bit_array.cpp
 	${NS_ROOT}/core/bit_array.h
 	${NS_ROOT}/core/bit_array.cpp
 	${NS_ROOT}/core/bitcasts.h

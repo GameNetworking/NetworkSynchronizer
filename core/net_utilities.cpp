@@ -4,6 +4,7 @@
 #include "ensure.h"
 #include "object_data.h"
 #include "peer_networked_controller.h"
+#include "quick_sort.h"
 #include "scene_synchronizer_debugger.h"
 
 NS::SceneSynchronizerDebugger &NS::SyncGroup::get_debugger() const {
@@ -412,7 +413,7 @@ float NS::SyncGroup::get_trickled_update_rate(const NS::ObjectData *p_object_dat
 }
 
 void NS::SyncGroup::sort_trickled_node_by_update_priority() {
-	std::sort(
+	NS_JOLT::QuickSort(
 			trickled_sync_objects.begin(),
 			trickled_sync_objects.end(),
 			[](const TrickledObjectInfo &a, const TrickledObjectInfo &b) {

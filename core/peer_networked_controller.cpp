@@ -2,6 +2,7 @@
 
 #include "../scene_synchronizer.h"
 #include "ensure.h"
+#include "quick_sort.h"
 #include "scene_synchronizer_debugger.h"
 #include <algorithm>
 #include <string>
@@ -867,7 +868,7 @@ bool RemotelyControlledController::receive_inputs(const std::vector<std::uint8_t
 					pd->controller.frames_input.push_back(rfs);
 
 					// Sort the added frame input.
-					std::sort(
+					NS_JOLT::QuickSort(
 							pd->controller.frames_input.begin(),
 							pd->controller.frames_input.end(),
 							is_remote_frame_A_older);
@@ -1317,7 +1318,7 @@ bool DollController::receive_inputs(const std::vector<uint8_t> &p_data) {
 					pd->controller.frames_input.push_back(std::move(rfs));
 
 					// Sort the added frame input.
-					std::sort(
+					NS_JOLT::QuickSort(
 							pd->controller.frames_input.begin(),
 							pd->controller.frames_input.end(),
 							is_remote_frame_A_older);
@@ -1672,7 +1673,7 @@ void DollController::copy_controlled_objects_snapshot(
 	}
 
 	// This array must be always sorted to ensure the snapshots order.
-	std::sort(
+	NS_JOLT::QuickSort(
 			r_snapshots.begin(),
 			r_snapshots.end(),
 			is_doll_snap_A_older);
