@@ -83,8 +83,8 @@ if (MSVC)
     set(CMAKE_CXX_FLAGS_DISTRIBUTION "${CMAKE_CXX_FLAGS_RELEASE}")
 else()
     # Floating point is always precise to ensure determinism across platforms.
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-fast-math -frounding-math -fsignaling-nans -fno-trapping-math -mfpmath=both")
-    set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -fno-fast-math -frounding-math -fsignaling-nans -fno-trapping-math -mfpmath=both")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-fast-math -frounding-math -fno-trapping-math")
+    set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -fno-fast-math -frounding-math -fno-trapping-math")
     
     # Disable RTTI
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
