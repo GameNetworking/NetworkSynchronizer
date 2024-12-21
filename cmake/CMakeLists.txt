@@ -3,6 +3,7 @@ project(NetworkSynchronizer CXX)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 # When turning this option on, the library will be compiled with debug symbols
 option(GENERATE_DEBUG_SYMBOLS "Generate debug symbols" OFF)
@@ -84,7 +85,7 @@ if (MSVC)
 else()
     # Floating point is always precise to ensure determinism across platforms.
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-fast-math -frounding-math -fno-trapping-math")
-    set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -fno-fast-math -frounding-math -fno-trapping-math")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-fast-math -frounding-math -fno-trapping-math")
     
     # Disable RTTI
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
