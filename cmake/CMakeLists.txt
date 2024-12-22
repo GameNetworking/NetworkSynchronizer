@@ -90,6 +90,9 @@ else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffp-model=precise -msse2 -mfpmath=sse")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ffp-model=precise -msse2 -mfpmath=sse")
     
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffp-contract=off")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ffp-contract=off")
+    
     # Disable RTTI
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
     
