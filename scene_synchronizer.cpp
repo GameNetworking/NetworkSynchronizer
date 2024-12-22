@@ -251,7 +251,7 @@ void SceneSynchronizerBase::print_flush_stdout() {
 
 void SceneSynchronizerBase::set_frames_per_seconds(int p_fps) {
 	frames_per_seconds = std::max(p_fps, 1);
-	fixed_frame_delta = 1.0f / frames_per_seconds;
+	fixed_frame_delta = 1.0f / static_cast<float>(frames_per_seconds);
 }
 
 int SceneSynchronizerBase::get_frames_per_seconds() const {
