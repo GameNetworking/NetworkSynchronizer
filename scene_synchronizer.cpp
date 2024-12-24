@@ -190,9 +190,10 @@ void SceneSynchronizerBase::process(float p_delta) {
 
 	try_fetch_unnamed_objects_data_names();
 
-	synchronizer->process(p_delta);
-
-	event_app_process_end.broadcast(p_delta);
+	if (p_delta > 0.0001f) {
+		synchronizer->process(p_delta);
+		event_app_process_end.broadcast(p_delta);
+	}
 }
 
 void SceneSynchronizerBase::on_app_object_removed(ObjectHandle p_app_object_handle) {
