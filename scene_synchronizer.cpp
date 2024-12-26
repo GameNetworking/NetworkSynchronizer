@@ -3793,6 +3793,8 @@ void ClientSynchronizer::process_received_server_state() {
 				std::string("Recover input: ") + std::string(last_checked_input) + " - Last input: " + std::string(inner_player_controller->get_stored_frame_index(-1)),
 				scene_synchronizer->get_network_interface().get_owner_name());
 
+		scene_synchronizer->event_rewind_starting.broadcast();
+		
 		// Sync.
 		__pcr__sync__rewind(
 				last_checked_input,
