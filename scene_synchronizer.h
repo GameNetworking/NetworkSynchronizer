@@ -374,6 +374,7 @@ public: // -------------------------------------------------------------- Events
 	Processor<float/*delta seconds*/> event_app_process_end;
 	Processor<int /*p_peer*/, bool /*p_connected*/, bool /*p_enabled*/> event_peer_status_updated;
 	Processor<FrameIndex, bool /*p_desync_detected*/> event_state_validated;
+	Processor<> event_rewind_completed;
 	Processor<FrameIndex, int /*p_peer*/> event_sent_snapshot;
 	/// This event is emitted when the current client state is stored into the snapshot.
 	/// NOTE: This even is also executed during the rewinding, to update the previously stored states.

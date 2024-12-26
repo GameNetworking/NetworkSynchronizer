@@ -3808,6 +3808,9 @@ void ClientSynchronizer::process_received_server_state() {
 				frame_count_after_input_id,
 				player_controller,
 				inner_player_controller);
+
+		// The rewind is now completed.
+		scene_synchronizer->event_rewind_completed.broadcast();
 	} else {
 		if (no_rewind_recover.input_id == FrameIndex{ { 0 } }) {
 			scene_synchronizer->get_debugger().notify_event(SceneSynchronizerDebugger::FrameEvent::CLIENT_DESYNC_DETECTED_SOFT);
