@@ -166,7 +166,7 @@ public:
 	}
 
 	void init_test(bool p_no_sub_ticks = false) {
-		disable_sub_ticks = p_no_sub_t;
+		disable_sub_ticks = p_no_sub_ticks;
 
 		server_scene.get_network().network_properties = &network_properties;
 		peer_1_scene.get_network().network_properties = &network_properties;
