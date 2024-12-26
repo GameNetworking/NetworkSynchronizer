@@ -336,7 +336,7 @@ void test_event_processor() {
 		NS_ASSERT_COND(the_a == 6);
 		NS_ASSERT_COND(the_b == 6);
 
-		event_handler_1 = std::unique_ptr<NS::EventProcessor<int, int>::Handler>();
+		event_handler_1 = nullptr;
 
 		NS_ASSERT_COND(test_event.bind_count() == 2);
 		test_event.broadcast(2, 2);

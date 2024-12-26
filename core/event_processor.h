@@ -96,7 +96,6 @@ void EventProcessor<ARGS...>::clear() {
 		auto h = binded_functions.back().handler;
 		h->clear();
 	}
-	NS_ASSERT_COND(binded_functions.size()==0);
 	id_counter = 0;
 }
 

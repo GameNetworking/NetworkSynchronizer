@@ -219,8 +219,7 @@ void PeerNetworkedController::remove_synchronizer() {
 	authority_peer = -1;
 
 	// Unregister the event processors with the scene synchronizer.
-	scene_synchronizer->event_peer_status_updated.unbind(event_handler_peer_status_updated);
-	event_handler_peer_status_updated = NS::NullPHandler;
+	event_handler_peer_status_updated = nullptr;
 	scene_synchronizer = nullptr;
 }
 
@@ -963,8 +962,7 @@ AutonomousServerController::AutonomousServerController(
 }
 
 AutonomousServerController::~AutonomousServerController() {
-	peer_controller->scene_synchronizer->event_app_process_end.unbind(event_handler_on_app_process_end);
-	event_handler_on_app_process_end = NullPHandler;
+	event_handler_on_app_process_end = nullptr;
 }
 
 bool AutonomousServerController::receive_inputs(const std::vector<std::uint8_t> &p_data) {
@@ -1041,14 +1039,9 @@ PlayerController::PlayerController(PeerNetworkedController *p_peer_controller) :
 }
 
 PlayerController::~PlayerController() {
-	peer_controller->scene_synchronizer->event_app_process_end.unbind(event_handler_on_app_process_end);
-	event_handler_on_app_process_end = NullPHandler;
-
-	peer_controller->scene_synchronizer->event_rewind_frame_begin.unbind(event_handler_rewind_frame_begin);
-	event_handler_rewind_frame_begin = NullPHandler;
-
-	peer_controller->scene_synchronizer->event_state_validated.unbind(event_handler_state_validated);
-	event_handler_state_validated = NullPHandler;
+	event_handler_rewind_frame_begin = nullptr;
+	event_handler_state_validated = nullptr;
+	event_handler_on_app_process_end = nullptr;
 }
 
 void PlayerController::notify_frame_checked(FrameIndex p_frame_index) {
@@ -1266,20 +1259,11 @@ DollController::DollController(PeerNetworkedController *p_peer_controller) :
 }
 
 DollController::~DollController() {
-	peer_controller->scene_synchronizer->event_received_server_snapshot.unbind(event_handler_received_snapshot);
-	event_handler_received_snapshot = NS::NullPHandler;
-
-	peer_controller->scene_synchronizer->event_snapshot_update_finished.unbind(event_handler_client_snapshot_updated);
-	event_handler_client_snapshot_updated = NS::NullPHandler;
-
-	peer_controller->scene_synchronizer->event_state_validated.unbind(event_handler_state_validated);
-	event_handler_state_validated = NS::NullPHandler;
-
-	peer_controller->scene_synchronizer->event_rewind_frame_begin.unbind(event_handler_rewind_frame_begin);
-	event_handler_rewind_frame_begin = NS::NullPHandler;
-
-	peer_controller->scene_synchronizer->event_snapshot_applied.unbind(event_handler_snapshot_applied);
-	event_handler_snapshot_applied = NS::NullPHandler;
+	event_handler_received_snapshot = nullptr;
+	event_handler_client_snapshot_updated = nullptr;
+	event_handler_state_validated = nullptr;
+	event_handler_rewind_frame_begin = nullptr;
+	event_handler_snapshot_applied = nullptr;
 }
 
 bool DollController::receive_inputs(const std::vector<uint8_t> &p_data) {

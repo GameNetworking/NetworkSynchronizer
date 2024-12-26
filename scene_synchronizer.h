@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/event_processor.h"
 #include "core/network_interface.h"
 #include "core/object_data_storage.h"
 #include "core/processor.h"
@@ -364,29 +365,29 @@ protected: // -------------------------------------------------------- Internals
 
 public: // -------------------------------------------------------------- Events
 	/// Called when the SceneSync starts to synchronize the objects.
-	Processor<> event_sync_started;
+	EventProcessor<> event_sync_started;
 	/// Is called when the synchronization is paused.
-	Processor<> event_sync_paused;
-	Processor<const Settings &> event_settings_changed;
+	EventProcessor<> event_sync_paused;
+	EventProcessor<const Settings &> event_settings_changed;
 	/// Executed at the end of the processing.
 	/// Notice this is not the sub and fixed time processing which is sync.
 	/// This is emitted by the application processing function and the delta time is frame dependent.
-	Processor<float/*delta seconds*/> event_app_process_end;
-	Processor<int /*p_peer*/, bool /*p_connected*/, bool /*p_enabled*/> event_peer_status_updated;
-	Processor<FrameIndex, bool /*p_desync_detected*/> event_state_validated;
-	Processor<> event_rewind_starting;
-	Processor<> event_rewind_completed;
-	Processor<FrameIndex, int /*p_peer*/> event_sent_snapshot;
+	EventProcessor<float/*delta seconds*/> event_app_process_end;
+	EventProcessor<int /*p_peer*/, bool /*p_connected*/, bool /*p_enabled*/> event_peer_status_updated;
+	EventProcessor<FrameIndex, bool /*p_desync_detected*/> event_state_validated;
+	EventProcessor<> event_rewind_starting;
+	EventProcessor<> event_rewind_completed;
+	EventProcessor<FrameIndex, int /*p_peer*/> event_sent_snapshot;
 	/// This event is emitted when the current client state is stored into the snapshot.
 	/// NOTE: This even is also executed during the rewinding, to update the previously stored states.
 	/// NOTE: Something to remark is that the Snapshot data passed, is equal to
 	///       the data read through the get functions, at the moment of the event.
 	///       So, you can assume the snapshot contains the result of the last executed input.
-	Processor<const Snapshot & /*p_snapshot*/> event_snapshot_update_finished;
-	Processor<const Snapshot & /*p_snapshot*/, int /*p_frame_count_to_rewind*/> event_snapshot_applied;
-	Processor<const Snapshot & /*p_received_snapshot*/> event_received_server_snapshot;
-	Processor<FrameIndex /*p_frame_index*/, int /*p_rewinding_index*/, int /*p_rewinding_frame_count*/> event_rewind_frame_begin;
-	Processor<FrameIndex, ObjectHandle /*p_app_object_handle*/, const std::vector<std::optional<VarData>> & /*p_client_values*/, const std::vector<std::optional<VarData>> & /*p_server_values*/> event_desync_detected_with_info;
+	EventProcessor<const Snapshot & /*p_snapshot*/> event_snapshot_update_finished;
+	EventProcessor<const Snapshot & /*p_snapshot*/, int /*p_frame_count_to_rewind*/> event_snapshot_applied;
+	EventProcessor<const Snapshot & /*p_received_snapshot*/> event_received_server_snapshot;
+	EventProcessor<FrameIndex /*p_frame_index*/, int /*p_rewinding_index*/, int /*p_rewinding_frame_count*/> event_rewind_frame_begin;
+	EventProcessor<FrameIndex, ObjectHandle /*p_app_object_handle*/, const std::vector<std::optional<VarData>> & /*p_client_values*/, const std::vector<std::optional<VarData>> & /*p_server_values*/> event_desync_detected_with_info;
 
 private:
 	// This is private so this class can be created only from

@@ -2,6 +2,7 @@
 
 #include "core.h"
 #include "data_buffer.h"
+#include "event_processor.h"
 #include "processor.h"
 #include "snapshot.h"
 
@@ -86,12 +87,12 @@ private:
 	bool are_controllable_objects_sorted = false;
 	std::vector<ObjectData *> _sorted_controllable_objects;
 
-	PHandler event_handler_peer_status_updated = NullPHandler;
+	std::unique_ptr<EventProcessor<int, bool, bool>::Handler> event_handler_peer_status_updated;
 
 public: // -------------------------------------------------------------- Events
-	Processor<> event_controller_reset;
+	EventProcessor<> event_controller_reset;
 #ifdef NS_DEBUG_ENABLED
-	Processor<FrameIndex> event_input_missed;
+	EventProcessor<FrameIndex> event_input_missed;
 #endif
 
 public:
@@ -257,7 +258,7 @@ struct ServerController : public RemotelyControlledController {
 };
 
 struct AutonomousServerController final : public ServerController {
-	PHandler event_handler_on_app_process_end = NullPHandler;
+	std::unique_ptr<EventProcessor<float>::Handler> event_handler_on_app_process_end = nullptr;
 
 	std::vector<std::uint8_t> cached_packet_data;
 
@@ -273,9 +274,9 @@ struct AutonomousServerController final : public ServerController {
 };
 
 struct PlayerController final : public Controller {
-	PHandler event_handler_rewind_frame_begin = NullPHandler;
-	PHandler event_handler_state_validated = NullPHandler;
-	PHandler event_handler_on_app_process_end = NullPHandler;
+	std::unique_ptr<EventProcessor<FrameIndex, int, int>::Handler> event_handler_rewind_frame_begin = nullptr;
+	std::unique_ptr<EventProcessor<FrameIndex, bool>::Handler> event_handler_state_validated = nullptr;
+	std::unique_ptr<EventProcessor<float>::Handler> event_handler_on_app_process_end = nullptr;
 
 	FrameIndex current_input_id;
 	std::uint32_t input_buffers_counter;
@@ -349,11 +350,11 @@ public:
 	};
 
 public:
-	PHandler event_handler_received_snapshot = NullPHandler;
-	PHandler event_handler_rewind_frame_begin = NullPHandler;
-	PHandler event_handler_state_validated = NullPHandler;
-	PHandler event_handler_client_snapshot_updated = NullPHandler;
-	PHandler event_handler_snapshot_applied = NullPHandler;
+	std::unique_ptr<EventProcessor<const Snapshot &>::Handler> event_handler_received_snapshot = nullptr;
+	std::unique_ptr<EventProcessor<FrameIndex, int, int>::Handler> event_handler_rewind_frame_begin = nullptr;
+	std::unique_ptr<EventProcessor<FrameIndex, bool>::Handler> event_handler_state_validated = nullptr;
+	std::unique_ptr<EventProcessor<const Snapshot &>::Handler> event_handler_client_snapshot_updated = nullptr;
+	std::unique_ptr<EventProcessor<const Snapshot &, int>::Handler> event_handler_snapshot_applied = nullptr;
 
 	// The lastest `FrameIndex` validated.
 	FrameIndex last_doll_validated_input = FrameIndex::NONE;

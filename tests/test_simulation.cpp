@@ -464,6 +464,9 @@ public:
 	std::vector<NS::FrameIndex> client_rewinded_frames;
 	// The ID of snapshot sent by the server.
 	NS::FrameIndex correction_snapshot_sent = NS::FrameIndex{ { 0 } };
+	std::unique_ptr<NS::EventProcessor<NS::FrameIndex>::Handler> event_input_missed_handle = nullptr;
+	std::unique_ptr<NS::EventProcessor<NS::FrameIndex, int>::Handler> state_validated_handle = nullptr;
+	std::unique_ptr<NS::EventProcessor<NS::FrameIndex, bool>::Handler> event_state_validated_handle = nullptr;
 
 	TestSimulationWithRewind(float p_notify_state_interval) :
 		notify_state_interval(p_notify_state_interval) {
@@ -475,17 +478,19 @@ public:
 		server_scene.scene_sync->set_max_predicted_intervals(20);
 
 #ifdef NS_DEBUG_ENABLED
-		controller_server->event_input_missed.bind([](NS::FrameIndex p_frame_index) {
-			// The input should be never missing!
-			NS_ASSERT_NO_ENTRY();
-		});
+		event_input_missed_handle =
+				controller_server->event_input_missed.bind([](NS::FrameIndex p_frame_index) {
+					// The input should be never missing!
+					NS_ASSERT_NO_ENTRY();
+				});
 #endif
 
-		controller_p1->get_scene_synchronizer()->event_state_validated.bind([this](NS::FrameIndex p_frame_index, bool p_desync) {
-			if (p_desync) {
-				client_rewinded_frames.push_back(p_frame_index);
-			}
-		});
+		event_state_validated_handle =
+				controller_p1->get_scene_synchronizer()->event_state_validated.bind([this](NS::FrameIndex p_frame_index, bool p_desync) {
+					if (p_desync) {
+						client_rewinded_frames.push_back(p_frame_index);
+					}
+				});
 	}
 
 	virtual void on_server_process(float p_delta) override {
@@ -493,7 +498,7 @@ public:
 			// Reset the character position only on the server, to simulate a desync.
 			controlled_obj_server->set_position(Vec3(0.0, 0.0, 0.0));
 
-			server_scene.scene_sync->event_sent_snapshot.bind([this](NS::FrameIndex p_frame_index, int p_peer) {
+			state_validated_handle = server_scene.scene_sync->event_sent_snapshot.bind([this](NS::FrameIndex p_frame_index, int p_peer) {
 				correction_snapshot_sent = p_frame_index;
 
 				// Make sure this function is not called once again.
@@ -617,6 +622,10 @@ struct TestObjectSimulationWithPartialUpdate : public TestSimulationBase {
 	ActorSceneObject *actor_4_on_server = nullptr;
 	ActorSceneObject *actor_4_on_peer1 = nullptr;
 
+	std::unique_ptr<NS::EventProcessor<NS::FrameIndex>::Handler> event_input_missed_handle = nullptr;
+	std::unique_ptr<NS::EventProcessor<NS::FrameIndex, int>::Handler> state_validated_handle = nullptr;
+	std::unique_ptr<NS::EventProcessor<NS::FrameIndex, bool>::Handler> event_state_validated_handle = nullptr;
+
 public:
 	std::vector<NS::FrameIndex> client_rewinded_frames;
 	// The ID of snapshot sent by the server.
@@ -632,16 +641,18 @@ public:
 		// Make sure the client can predict as many frames it needs (no need to add some more noise to this test).
 		server_scene.scene_sync->set_max_predicted_intervals(20);
 
-		controller_server->event_input_missed.bind([](NS::FrameIndex p_frame_index) {
-			// The input should be never missing!
-			NS_ASSERT_NO_ENTRY();
-		});
+		event_input_missed_handle =
+				controller_server->event_input_missed.bind([](NS::FrameIndex p_frame_index) {
+					// The input should be never missing!
+					NS_ASSERT_NO_ENTRY();
+				});
 
-		controller_p1->get_scene_synchronizer()->event_state_validated.bind([this](NS::FrameIndex p_frame_index, bool p_desync) {
-			if (p_desync) {
-				client_rewinded_frames.push_back(p_frame_index);
-			}
-		});
+		event_state_validated_handle =
+				controller_p1->get_scene_synchronizer()->event_state_validated.bind([this](NS::FrameIndex p_frame_index, bool p_desync) {
+					if (p_desync) {
+						client_rewinded_frames.push_back(p_frame_index);
+					}
+				});
 
 		actor_1_on_server = server_scene.add_object<ActorSceneObject>("actor_1", server_scene.get_peer());
 		actor_1_on_peer1 = peer_1_scene.add_object<ActorSceneObject>("actor_1", server_scene.get_peer());
@@ -699,18 +710,19 @@ public:
 			actor_3_on_server->set_position(Vec3(10.0, 10.0, 10.0));
 			actor_4_on_server->set_position(Vec3(10.0, 10.0, 10.0));
 
-			server_scene.scene_sync->event_sent_snapshot.bind([this](NS::FrameIndex p_frame_index, int p_peer) {
-				correction_snapshots_sent.push_back(p_frame_index);
-				if (rolling_update) {
-					if (p_frame_index == (reset_position_on_frame + 2)) {
-						server_scene.scene_sync->event_sent_snapshot.clear();
-					}
-				} else {
-					if (p_frame_index == (reset_position_on_frame + 1)) {
-						server_scene.scene_sync->event_sent_snapshot.clear();
-					}
-				}
-			});
+			state_validated_handle =
+					server_scene.scene_sync->event_sent_snapshot.bind([this](NS::FrameIndex p_frame_index, int p_peer) {
+						correction_snapshots_sent.push_back(p_frame_index);
+						if (rolling_update) {
+							if (p_frame_index == (reset_position_on_frame + 2)) {
+								server_scene.scene_sync->event_sent_snapshot.clear();
+							}
+						} else {
+							if (p_frame_index == (reset_position_on_frame + 1)) {
+								server_scene.scene_sync->event_sent_snapshot.clear();
+							}
+						}
+					});
 		} else if (rolling_update && controller_server->get_current_frame_index() == reset_position_on_frame + 1) {
 			// Change the location of the objects just notified.
 			actor_1_on_server->set_position(Vec3(11.0, 12.0, 13.0));

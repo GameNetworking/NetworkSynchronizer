@@ -139,6 +139,9 @@ struct TestDollSimulationBase {
 
 	float frame_confirmation_timespan = 1.f / 60.f;
 
+	std::unique_ptr<NS::EventProcessor<NS::FrameIndex, bool>::Handler> event_state_validated_handle_p1 = nullptr;
+	std::unique_ptr<NS::EventProcessor<NS::FrameIndex, bool>::Handler> event_state_validated_handle_p2 = nullptr;
+
 private:
 	virtual void on_scenes_initialized() {
 	}
@@ -163,7 +166,7 @@ public:
 	}
 
 	void init_test(bool p_no_sub_ticks = false) {
-		disable_sub_ticks = p_no_sub_ticks;
+		disable_sub_ticks = p_no_sub_t;
 
 		server_scene.get_network().network_properties = &network_properties;
 		peer_1_scene.get_network().network_properties = &network_properties;
@@ -220,16 +223,18 @@ public:
 			on_client_2_process(p_delta);
 		});
 
-		peer_1_scene.scene_sync->event_state_validated.bind([this](NS::FrameIndex fi, bool p_desync_detected) -> void {
-			if (p_desync_detected) {
-				peer1_desync_detected.push_back(fi);
-			}
-		});
-		peer_2_scene.scene_sync->event_state_validated.bind([this](NS::FrameIndex fi, bool p_desync_detected) -> void {
-			if (p_desync_detected) {
-				peer2_desync_detected.push_back(fi);
-			}
-		});
+		event_state_validated_handle_p1 =
+				peer_1_scene.scene_sync->event_state_validated.bind([this](NS::FrameIndex fi, bool p_desync_detected) -> void {
+					if (p_desync_detected) {
+						peer1_desync_detected.push_back(fi);
+					}
+				});
+		event_state_validated_handle_p2 =
+				peer_2_scene.scene_sync->event_state_validated.bind([this](NS::FrameIndex fi, bool p_desync_detected) -> void {
+					if (p_desync_detected) {
+						peer2_desync_detected.push_back(fi);
+					}
+				});
 
 		// Set the position of each object:
 		controlled_1_serv->set_xy(100., 0.);
