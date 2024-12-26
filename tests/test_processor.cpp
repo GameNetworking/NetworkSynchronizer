@@ -1,10 +1,10 @@
-
 #include "test_processor.h"
 
 #include "../core/ensure.h"
 #include "../core/processor.h"
+#include "NetworkSynchronizer/core/event_processor.h"
 
-void NS_Test::test_processor() {
+void test_internal_processor() {
 	NS::Processor<int, int> test_event;
 	NS_ASSERT_COND(test_event.size() == 0);
 
@@ -204,6 +204,7 @@ void NS_Test::test_processor() {
 
 		struct TestLambda {
 			int v = 0;
+
 			NS::PHandler add_lambda(NS::Processor<int, int> &p_processor) {
 				return p_processor.bind([this](int a, int b) {
 					v = a + b;
@@ -224,4 +225,128 @@ void NS_Test::test_processor() {
 		NS_ASSERT_COND(test_event.is_bind(H_2));
 		NS_ASSERT_COND(H_1 != H_2);
 	}
+}
+
+void test_event_processor() {
+	NS::EventProcessor<int, int> test_event;
+
+	int the_a = 2, the_b = 2;
+	test_event.broadcast(55, 223);
+	NS_ASSERT_COND(test_event.bind_count() == 0);
+	NS_ASSERT_COND(the_a == 2);
+	NS_ASSERT_COND(the_b == 2);
+
+	{
+		std::unique_ptr<NS::EventProcessor<int, int>::Handler> event_handler = test_event.bind([&](int a, int b) {
+			the_a = a;
+			the_b = b;
+		});
+		NS_ASSERT_COND(test_event.bind_count() == 1);
+
+		NS_ASSERT_COND(the_a == 2);
+		NS_ASSERT_COND(the_b == 2);
+
+		test_event.broadcast(55, 223);
+		NS_ASSERT_COND(the_a == 55);
+		NS_ASSERT_COND(the_b == 223);
+	}
+
+	test_event.broadcast(43, 32);
+	NS_ASSERT_COND(test_event.bind_count() == 0);
+	NS_ASSERT_COND(the_a == 55);
+	NS_ASSERT_COND(the_b == 223);
+
+	// Test that the clear function is able to correctly destroy all the registered functions.
+	{
+		std::unique_ptr<NS::EventProcessor<int, int>::Handler> event_handler = test_event.bind([&](int a, int b) {
+			the_a = a;
+			the_b = b;
+		});
+		NS_ASSERT_COND(test_event.bind_count() == 1);
+
+		event_handler->clear();
+		NS_ASSERT_COND(the_a == 55);
+		NS_ASSERT_COND(the_b == 223);
+
+		test_event.broadcast(43, 32);
+		NS_ASSERT_COND(test_event.bind_count() == 0);
+		NS_ASSERT_COND(the_a == 55);
+		NS_ASSERT_COND(the_b == 223);
+	}
+
+	// Test that the clear function is able to correctly destroy all the registered functions.
+	{
+		std::unique_ptr<NS::EventProcessor<int, int>::Handler> event_handler = test_event.bind([&](int a, int b) {
+			the_a = a;
+			the_b = b;
+		});
+		NS_ASSERT_COND(test_event.bind_count() == 1);
+
+		test_event.clear();
+		NS_ASSERT_COND(event_handler && !event_handler->is_valid());
+
+		test_event.broadcast(43, 32);
+		NS_ASSERT_COND(test_event.bind_count() == 0);
+		NS_ASSERT_COND(the_a == 55);
+		NS_ASSERT_COND(the_b == 223);
+	}
+
+	// Test the event override.
+	{
+		std::unique_ptr<NS::EventProcessor<int, int>::Handler> event_handler = test_event.bind([&](int a, int b) {
+			the_a = 0;
+			the_b = 0;
+		});
+		event_handler = test_event.bind([&](int a, int b) {
+			the_a = 1;
+			the_b = 1;
+		});
+		event_handler = test_event.bind([&](int a, int b) {
+			the_a = a;
+			the_b = b;
+		});
+
+		NS_ASSERT_COND(test_event.bind_count() == 1);
+		test_event.broadcast(43, 32);
+
+		NS_ASSERT_COND(the_a == 43);
+		NS_ASSERT_COND(the_b == 32);
+	}
+
+	// Test multiple functions
+	{
+		the_a = 0;
+		the_b = 0;
+		std::unique_ptr<NS::EventProcessor<int, int>::Handler> event_handler_0 = test_event.bind([&](int a, int b) {
+			the_a += a;
+			the_b += b;
+		});
+		std::unique_ptr<NS::EventProcessor<int, int>::Handler> event_handler_1 = test_event.bind([&](int a, int b) {
+			the_a += a;
+			the_b += b;
+		});
+		std::unique_ptr<NS::EventProcessor<int, int>::Handler> event_handler_2 = test_event.bind([&](int a, int b) {
+			the_a += a;
+			the_b += b;
+		});
+
+		NS_ASSERT_COND(test_event.bind_count() == 3);
+		test_event.broadcast(2, 2);
+
+		NS_ASSERT_COND(the_a == 6);
+		NS_ASSERT_COND(the_b == 6);
+
+		event_handler_1 = std::unique_ptr<NS::EventProcessor<int, int>::Handler>();
+
+		NS_ASSERT_COND(test_event.bind_count() == 2);
+		test_event.broadcast(2, 2);
+
+		NS_ASSERT_COND(the_a == 10);
+		NS_ASSERT_COND(the_b == 10);
+	}
+}
+
+void NS_Test::test_processor() {
+	test_internal_processor();
+	test_event_processor();
 }

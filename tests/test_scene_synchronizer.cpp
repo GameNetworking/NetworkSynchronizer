@@ -204,6 +204,7 @@ void test_client_and_server_initialization() {
 	NS_ASSERT_COND_MSG(peer_2_scene.scene_sync->get_controller_for_peer(server_scene.get_peer())->can_simulate() == false, "This must be disabled at this point.");
 }
 
+
 void test_late_name_initialization() {
 	NS::LocalScene server_scene;
 	server_scene.start_as_server();
