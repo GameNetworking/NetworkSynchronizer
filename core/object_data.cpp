@@ -56,6 +56,18 @@ ObjectData::ObjectData(ObjectDataStorage &p_storage) :
 	storage(p_storage) {
 }
 
+void ObjectData::flush_everything_registered() {
+	vars.clear();
+	for (int process_phase = PROCESS_PHASE_EARLY; process_phase < PROCESS_PHASE_COUNT; ++process_phase) {
+		functions[process_phase].clear();
+	}
+	scheduled_procedures.clear();
+	rpcs_info.clear();
+	controller_funcs.collect_input = nullptr;
+	controller_funcs.are_inputs_different = nullptr;
+	controller_funcs.process = nullptr;
+}
+
 void ObjectData::set_net_id(ObjectNetId p_id) {
 	storage.object_set_net_id(*this, p_id);
 }
@@ -74,6 +86,11 @@ bool ObjectData::has_registered_process_functions() const {
 			return true;
 		}
 	}
+
+	if (controller_funcs.collect_input) {
+		return true;
+	}
+
 	return false;
 }
 

@@ -464,6 +464,31 @@ void SceneSynchronizerBase::unregister_app_object(ObjectLocalId p_id) {
 	drop_object_data(*od);
 }
 
+void SceneSynchronizerBase::re_register_app_object(ObjectLocalId p_id) {
+	if (p_id == ObjectLocalId::NONE) {
+		// Nothing to do.
+		return;
+	}
+
+	ObjectData *od = objects_data_storage.get_object_data(p_id, false);
+	NS_ENSURE_MSG(od, "The object re-registration failed because the ObjectData doesn't exist.");
+	if (od->get_net_id() == ObjectNetId::NONE) {
+		// This happens on client when the object is not yet fully registered,
+		// the net sync will register it as soon as the NetId is assigned so
+		// nothing to do right now.
+		return;
+	}
+
+	// Clear everything regarding this object.
+	if (od->has_registered_process_functions()) {
+		process_functions__clear();
+	}
+	od->flush_everything_registered();
+
+	// Register everything again.
+	synchronizer_manager->setup_synchronizer_for(od->app_object_handle, p_id);
+}
+
 void SceneSynchronizerBase::setup_controller(
 		ObjectLocalId p_id,
 		std::function<void(float /*delta*/, DataBuffer & /*r_data_buffer*/)> p_collect_input_func,
@@ -471,10 +496,11 @@ void SceneSynchronizerBase::setup_controller(
 		std::function<void(float /*delta*/, DataBuffer & /*p_data_buffer*/)> p_process_func) {
 	NS_ENSURE_MSG(p_id != ObjectLocalId::NONE, "The passed object_id is not valid.");
 
-	NS::ObjectData *object_data = get_object_data(p_id);
+	ObjectData *object_data = get_object_data(p_id);
 	NS_ENSURE(object_data != nullptr);
 
 	object_data->setup_controller(p_collect_input_func, p_are_inputs_different_func, p_process_func);
+	process_functions__clear();
 }
 
 void SceneSynchronizerBase::set_controlled_by_peer(
@@ -3794,7 +3820,7 @@ void ClientSynchronizer::process_received_server_state() {
 				scene_synchronizer->get_network_interface().get_owner_name());
 
 		scene_synchronizer->event_rewind_starting.broadcast();
-		
+
 		// Sync.
 		__pcr__sync__rewind(
 				last_checked_input,

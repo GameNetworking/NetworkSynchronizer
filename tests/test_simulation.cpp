@@ -263,6 +263,12 @@ struct TestSimulationBase {
 	TSLocalNetworkedController *controlled_obj_p1 = nullptr;
 	NS::PeerNetworkedController *controller_p1 = nullptr;
 
+	MagnetSceneObject *light_magnet_server = nullptr;
+	MagnetSceneObject *light_magnet_p1 = nullptr;
+
+	MagnetSceneObject *heavy_magnet_server = nullptr;
+	MagnetSceneObject *heavy_magnet_p1 = nullptr;
+
 	NS::FrameIndex process_until_frame = NS::FrameIndex{ { 300 } };
 	int process_until_frame_timeout = 20;
 
@@ -312,11 +318,11 @@ public:
 		controlled_obj_p1 = peer_1_scene.add_object<TSLocalNetworkedController>("controller_1", peer_1_scene.get_peer());
 		controller_p1 = peer_1_scene.scene_sync->get_controller_for_peer(peer_1_scene.get_peer());
 
-		MagnetSceneObject *light_magnet_server = server_scene.add_object<MagnetSceneObject>("magnet_1", server_scene.get_peer());
-		MagnetSceneObject *light_magnet_p1 = peer_1_scene.add_object<MagnetSceneObject>("magnet_1", server_scene.get_peer());
+		light_magnet_server = server_scene.add_object<MagnetSceneObject>("magnet_1", server_scene.get_peer());
+		light_magnet_p1 = peer_1_scene.add_object<MagnetSceneObject>("magnet_1", server_scene.get_peer());
 
-		MagnetSceneObject *heavy_magnet_server = server_scene.add_object<MagnetSceneObject>("magnet_2", server_scene.get_peer());
-		MagnetSceneObject *heavy_magnet_p1 = peer_1_scene.add_object<MagnetSceneObject>("magnet_2", server_scene.get_peer());
+		heavy_magnet_server = server_scene.add_object<MagnetSceneObject>("magnet_2", server_scene.get_peer());
+		heavy_magnet_p1 = peer_1_scene.add_object<MagnetSceneObject>("magnet_2", server_scene.get_peer());
 
 		// Register the process
 		server_scene.scene_sync->register_process(controlled_obj_server->local_id, PROCESS_PHASE_POST, [=](float p_delta) -> void {
@@ -412,6 +418,37 @@ public:
 		NS_ASSERT_COND(global_frame_index_on_server == global_frame_index_on_p1);
 
 		on_scenes_done();
+	}
+};
+
+struct TestSimulationReRegistration : public TestSimulationBase {
+public:
+	TestSimulationReRegistration() {
+	}
+
+	virtual void on_scenes_processed(float _) override {
+		// Re register everything each frame, this MUST not cause any issues on
+		// the normal processing of the scene.
+		server_scene.scene_sync->re_register_app_object(controlled_obj_server->local_id);
+		server_scene.scene_sync->re_register_app_object(light_magnet_server->local_id);
+		server_scene.scene_sync->re_register_app_object(heavy_magnet_server->local_id);
+		peer_1_scene.scene_sync->re_register_app_object(controlled_obj_p1->local_id);
+		peer_1_scene.scene_sync->re_register_app_object(light_magnet_p1->local_id);
+		peer_1_scene.scene_sync->re_register_app_object(heavy_magnet_p1->local_id);
+
+		// Register the process once again, as re_register deregisters everything.
+		server_scene.scene_sync->register_process(controlled_obj_server->local_id, PROCESS_PHASE_POST, [=](float p_delta) -> void {
+			process_magnets_simulation(*server_scene.scene_sync, p_delta, move_magnets);
+		});
+		peer_1_scene.scene_sync->register_process(controlled_obj_p1->local_id, PROCESS_PHASE_POST, [=](float p_delta) -> void {
+			process_magnets_simulation(*peer_1_scene.scene_sync, p_delta, move_magnets);
+		});
+		server_scene.scene_sync->register_process(controlled_obj_server->local_id, PROCESS_PHASE_LATE, [=](float p_delta) -> void {
+			on_server_process(p_delta);
+		});
+		peer_1_scene.scene_sync->register_process(controlled_obj_p1->local_id, PROCESS_PHASE_LATE, [=](float p_delta) -> void {
+			on_client_process(p_delta);
+		});
 	}
 };
 
@@ -973,6 +1010,7 @@ struct TestObjectSimulationWithPartialUpdateAndCustomDataAndDoll : public TestOb
 
 void test_simulation() {
 	TestSimulationBase().do_test();
+	TestSimulationReRegistration().do_test();
 	TestSimulationWithRewind(0.0f).do_test();
 	TestSimulationWithRewind(1.0f).do_test();
 	TestSimulationWithRewindAndPartialUpdate(0.0f).do_test();

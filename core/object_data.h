@@ -109,6 +109,8 @@ public:
 	std::function<void(float /*delta*/, float /*interpolation_alpha*/, DataBuffer & /*past_buffer*/, DataBuffer & /*future_buffer*/)> func_trickled_apply;
 
 public:
+	void flush_everything_registered();
+	
 	void set_net_id(ObjectNetId p_id);
 	ObjectNetId get_net_id() const;
 

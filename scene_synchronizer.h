@@ -360,7 +360,7 @@ protected: // -------------------------------------------------------- Internals
 	bool debug_server_speedup = false;
 	bool debug_log_nodes_relevancy_update = false;
 
-	float time_bank = 0.0;
+	float time_bank = 0.0f;
 
 public: // -------------------------------------------------------------- Events
 	/// Called when the SceneSync starts to synchronize the objects.
@@ -582,6 +582,7 @@ public: // ---------------------------------------------------------------- APIs
 
 	void register_app_object(ObjectHandle p_app_object_handle, ObjectLocalId *out_id = nullptr);
 	void unregister_app_object(ObjectLocalId p_id);
+	void re_register_app_object(ObjectLocalId p_id);
 	void setup_controller(
 			ObjectLocalId p_id,
 			std::function<void(float /*delta*/, DataBuffer & /*r_data_buffer*/)> p_collect_input_func,
