@@ -92,24 +92,45 @@ public:
 	}
 
 	template <typename F>
-	static F lerp(F a, F b, F alpha) {
+	static inline F lerp(F a, F b, F alpha) {
 		return a + alpha * (b - a);
 	}
 
 	template <typename T, typename T2, typename T3>
-	static T clamp(const T m_a, const T2 m_min, const T3 m_max) {
-		return m_a < m_min ? m_min : (m_a > m_max ? m_max : m_a);
+	static inline T clamp(const T value, const T2 min, const T3 max) {
+		return value < min ? min : (value > max ? max : value);
+	}
+
+	template <typename T>
+	static inline T abs(const T value) {
+		return value >= T(0.0) ? value : -value;
+	}
+
+	static inline std::int64_t round_to_nearest(double num_to_round) {
+		if (num_to_round >= 0.0) {
+			return static_cast<std::int64_t>(num_to_round + 0.5);
+		} else {
+			return static_cast<std::int64_t>(num_to_round - 0.5);
+		}
+	}
+
+	static inline int round_to_nearest(float num_to_round) {
+		if (num_to_round >= 0.0f) {
+			return static_cast<int>(num_to_round + 0.5f);
+		} else {
+			return static_cast<int>(num_to_round - 0.5f);
+		}
 	}
 
 	// Ported from Jolt - Deterministic across platforms.
-	static float sin(float in_x) {
+	static inline float sin(float in_x) {
 		float s, c;
 		CrossSinCosInternal(in_x, s, c);
 		return s;
 	}
 
 	// Ported from Jolt - Deterministic across platforms.
-	static float cos(float in_x) {
+	static inline float cos(float in_x) {
 		float s, c;
 		CrossSinCosInternal(in_x, s, c);
 		return c;
