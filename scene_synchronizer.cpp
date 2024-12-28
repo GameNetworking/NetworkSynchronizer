@@ -1279,6 +1279,9 @@ float SceneSynchronizerBase::sync_group_get_trickled_update_rate(ObjectNetId p_i
 }
 
 void SceneSynchronizerBase::sync_group_notify_scheduled_procedure_changed(ObjectData &p_object_data, ScheduledProcedureId p_scheduled_procedure_id) {
+	if(is_no_network()) {
+		return;
+	}
 	NS_ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
 	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_notify_scheduled_procedure_changed(p_object_data, p_scheduled_procedure_id);
 }
