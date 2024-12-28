@@ -213,6 +213,7 @@ protected:
 	static void (*var_data_decode_func)(VarData &r_val, DataBuffer &p_buffer, std::uint8_t p_var_type);
 	static bool (*var_data_compare_func)(const VarData &p_A, const VarData &p_B);
 	static std::string (*var_data_stringify_func)(const VarData &p_var_data, bool p_verbose);
+	static bool var_data_stringify_force_verbose;
 
 	static void (*print_line_func)(PrintMessageType p_level, const std::string &p_str);
 	static void (*print_code_message_func)(const char *p_function, const char *p_file, int p_line, const std::string &p_error, const std::string &p_message, NS::PrintMessageType p_type);
@@ -556,6 +557,9 @@ public:
 	bool get_debug_log_nodes_relevancy_update() const {
 		return debug_log_nodes_relevancy_update;
 	}
+
+	static void var_data_stringify_set_force_verbose(bool p_force);
+	static bool var_data_stringify_get_force_verbose();
 
 public: // ---------------------------------------------------------------- RPCs
 	void rpc_receive_state(DataBuffer &p_snapshot);

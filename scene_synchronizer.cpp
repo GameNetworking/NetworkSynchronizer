@@ -19,6 +19,7 @@ void (*SceneSynchronizerBase::var_data_encode_func)(DataBuffer &r_buffer, const 
 void (*SceneSynchronizerBase::var_data_decode_func)(VarData &r_val, DataBuffer &p_buffer, std::uint8_t p_variable_type) = nullptr;
 bool (*SceneSynchronizerBase::var_data_compare_func)(const VarData &p_A, const VarData &p_B) = nullptr;
 std::string (*SceneSynchronizerBase::var_data_stringify_func)(const VarData &p_var_data, bool p_verbose) = nullptr;
+bool SceneSynchronizerBase::var_data_stringify_force_verbose = false;
 void (*SceneSynchronizerBase::print_line_func)(PrintMessageType p_level, const std::string &p_str) = nullptr;
 void (*SceneSynchronizerBase::print_code_message_func)(const char *p_function, const char *p_file, int p_line, const std::string &p_error, const std::string &p_message, NS::PrintMessageType p_type) = nullptr;
 void (*SceneSynchronizerBase::print_flush_stdout_func)() = nullptr;
@@ -223,7 +224,7 @@ bool SceneSynchronizerBase::var_data_compare(const VarData &p_A, const VarData &
 
 std::string SceneSynchronizerBase::var_data_stringify(const VarData &p_var_data, bool p_verbose) {
 	NS_PROFILE
-	return var_data_stringify_func(p_var_data, p_verbose);
+	return var_data_stringify_func(p_var_data, p_verbose || var_data_stringify_force_verbose);
 }
 
 void SceneSynchronizerBase::__print_line(PrintMessageType p_level, const std::string &p_str) {
@@ -1279,7 +1280,7 @@ float SceneSynchronizerBase::sync_group_get_trickled_update_rate(ObjectNetId p_i
 }
 
 void SceneSynchronizerBase::sync_group_notify_scheduled_procedure_changed(ObjectData &p_object_data, ScheduledProcedureId p_scheduled_procedure_id) {
-	if(is_no_network()) {
+	if (is_no_network()) {
 		return;
 	}
 	NS_ENSURE_MSG(is_server(), "This function CAN be used only on the server.");
@@ -1654,6 +1655,14 @@ void SceneSynchronizerBase::reset() {
 	rpc_handle_notify_netstats.reset();
 	rpc_handle_receive_input.reset();
 	network_interface->reset();
+}
+
+void SceneSynchronizerBase::var_data_stringify_set_force_verbose(bool p_force) {
+	var_data_stringify_force_verbose = p_force;
+}
+
+bool SceneSynchronizerBase::var_data_stringify_get_force_verbose() {
+	return var_data_stringify_force_verbose ;
 }
 
 void SceneSynchronizerBase::rpc_receive_state(DataBuffer &p_snapshot) {
