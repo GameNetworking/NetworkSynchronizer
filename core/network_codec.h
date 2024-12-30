@@ -11,6 +11,9 @@ void decode_variable(bool &val, DataBuffer &p_buffer);
 void encode_variable(std::uint8_t val, DataBuffer &r_buffer);
 void decode_variable(std::uint8_t &val, DataBuffer &p_buffer);
 
+void encode_variable(std::uint16_t val, DataBuffer &r_buffer);
+void decode_variable(std::uint16_t &val, DataBuffer &p_buffer);
+
 void encode_variable(int val, DataBuffer &r_buffer);
 void decode_variable(int &val, DataBuffer &p_buffer);
 

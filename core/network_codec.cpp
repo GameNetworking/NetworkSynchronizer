@@ -21,6 +21,14 @@ void decode_variable(std::uint8_t &val, DataBuffer &p_buffer) {
 	p_buffer.read(val);
 }
 
+void encode_variable(std::uint16_t val, DataBuffer &r_buffer) {
+	r_buffer.add(val);
+}
+
+void decode_variable(std::uint16_t &val, DataBuffer &p_buffer) {
+	p_buffer.read(val);
+}
+
 void encode_variable(int val, DataBuffer &r_buffer) {
 	// TODO optimize
 	r_buffer.add_int(val, DataBuffer::COMPRESSION_LEVEL_0);
