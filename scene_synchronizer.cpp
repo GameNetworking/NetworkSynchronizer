@@ -2279,7 +2279,7 @@ int SceneSynchronizerBase::get_peer_controlling_object(ObjectNetId Id) const {
 }
 
 bool SceneSynchronizerBase::is_locally_controlled(ObjectLocalId Id) const {
-	const ObjectData *OD = get_object_data(Id);
+	const ObjectData *OD = get_object_data(Id, false);
 	if (OD) {
 		return OD->get_controlled_by_peer() == get_network_interface().get_local_peer_id();
 	}
