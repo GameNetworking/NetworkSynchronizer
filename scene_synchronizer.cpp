@@ -480,6 +480,9 @@ void SceneSynchronizerBase::re_register_app_object(ObjectLocalId p_id) {
 		return;
 	}
 
+	// Ensure the object is totally cleared everywhere for a fresh start.
+	synchronizer->on_object_data_removed(*od);
+
 	// Clear everything regarding this object.
 	if (od->has_registered_process_functions()) {
 		process_functions__clear();
@@ -488,6 +491,9 @@ void SceneSynchronizerBase::re_register_app_object(ObjectLocalId p_id) {
 
 	// Register everything again.
 	synchronizer_manager->setup_synchronizer_for(od->app_object_handle, p_id);
+
+	// Now register the object again.
+	synchronizer->on_object_data_added(*od);
 }
 
 void SceneSynchronizerBase::setup_controller(
@@ -1662,7 +1668,7 @@ void SceneSynchronizerBase::var_data_stringify_set_force_verbose(bool p_force) {
 }
 
 bool SceneSynchronizerBase::var_data_stringify_get_force_verbose() {
-	return var_data_stringify_force_verbose ;
+	return var_data_stringify_force_verbose;
 }
 
 void SceneSynchronizerBase::rpc_receive_state(DataBuffer &p_snapshot) {
@@ -2434,7 +2440,7 @@ void NoNetSynchronizer::process(float p_delta) {
 }
 
 void NoNetSynchronizer::on_object_data_added(NS::ObjectData &p_object_data) {
-	NS::VecFunc::insert_unique(active_objects, &p_object_data);
+	VecFunc::insert_unique(active_objects, &p_object_data);
 }
 
 void NoNetSynchronizer::on_object_data_removed(NS::ObjectData &p_object_data) {
@@ -5286,7 +5292,11 @@ void ClientSynchronizer::apply_snapshot(
 
 		// NOTE: The vars may not contain ALL the variables: it depends on how
 		//       the snapshot was captured.
-		for (VarId v = VarId{ { 0 } }; v < VarId{ { VarId::IdType(object_data_snapshot.vars.size()) } }; v += 1) {
+		// NOTE: Since it's possible to re-register the object changing the variables
+		//       registered dynamically, the snapshot might contain more variables
+		//       than the new registered one. The line below address that.
+		const VarId::IdType vars_count = std::min(object_data_snapshot.vars.size(), object_data->vars.size());
+		for (VarId v = VarId{ { 0 } }; v < VarId{ { vars_count } }; v += 1) {
 			if (!object_data_snapshot.vars[v.id].has_value()) {
 				// This variable was not set, skip it.
 				continue;

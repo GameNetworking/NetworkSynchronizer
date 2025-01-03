@@ -943,6 +943,9 @@ void DataBuffer::read_normalized_vector3(T &x, T &y, T &z, CompressionLevel p_co
 	DEB_READ(DATA_TYPE_NORMALIZED_VECTOR3, p_compression_level, "X: " + std::to_string(x) + " Y: " + std::to_string(y) + " Z: " + std::to_string(z));
 }
 
+// 30'000 bits equals to 3.75Kb
+#define MAX_SUB_DB_SIZE_BITS 30000
+
 void DataBuffer::add_data_buffer(const DataBuffer &p_db) {
 	if (is_reading) {
 		buffer_failed = true;
@@ -950,11 +953,9 @@ void DataBuffer::add_data_buffer(const DataBuffer &p_db) {
 	}
 
 	const std::uint32_t other_db_bit_size = p_db.metadata_size + p_db.bit_size;
-	NS_ASSERT_COND_MSG(other_db_bit_size <= UINT32_MAX, "DataBuffer can't add DataBuffer bigger than `" + std::to_string(UINT32_MAX) + "` bits at the moment. [If this feature is needed ask for it.]");
+	NS_ASSERT_COND_MSG(other_db_bit_size <= MAX_SUB_DB_SIZE_BITS, "DataBuffer can't add DataBuffer bigger than `" + std::to_string(MAX_SUB_DB_SIZE_BITS) + "` bits at the moment. You are adding "+std::to_string(other_db_bit_size)+". [If this feature is needed ask for it.]");
 
-	const bool using_compression_lvl_2 = other_db_bit_size < UINT16_MAX;
-	add(using_compression_lvl_2);
-	add_uint(other_db_bit_size, using_compression_lvl_2 ? COMPRESSION_LEVEL_2 : COMPRESSION_LEVEL_1);
+	add(std::uint16_t(other_db_bit_size));
 
 	make_room_pad_to_next_byte();
 	const std::uint8_t *ptr = p_db.buffer.get_bytes().data();
@@ -970,10 +971,14 @@ void DataBuffer::read_data_buffer(DataBuffer &r_db) {
 	NS_ASSERT_COND(!r_db.is_reading);
 	r_db.buffer.set_debugger(get_debugger());
 
-	bool using_compression_lvl_2 = false;
-	read(using_compression_lvl_2);
+	std::uint16_t other_db_bit_size;
+	read(other_db_bit_size);
 	NS_ENSURE(!is_buffer_failed());
-	const int other_db_bit_size = int(read_uint(using_compression_lvl_2 ? COMPRESSION_LEVEL_2 : COMPRESSION_LEVEL_1));
+
+	if (other_db_bit_size >= MAX_SUB_DB_SIZE_BITS) {
+		buffer_failed = true;
+		NS_ENSURE_NO_ENTRY_MSG("A sub DataBuffer can't be bigger than: " + std::to_string(MAX_SUB_DB_SIZE_BITS));
+	}
 
 	pad_to_next_byte();
 	r_db.add_bits(&(buffer.get_bytes()[bit_offset / 8]), other_db_bit_size);
