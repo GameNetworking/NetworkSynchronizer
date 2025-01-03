@@ -773,8 +773,15 @@ public:
 	void sync_group_set_user_data(SyncGroupId p_group_id, uint64_t p_user_ptr);
 	uint64_t sync_group_get_user_data(SyncGroupId p_group_id) const;
 
-	bool is_recovered() const;
-	bool is_resetted() const;
+	/// Returns true during the rewinding process and the preceding snapshot apply,
+	/// this is very useful to skip the execution of code during the rewinding process.
+	bool is_resyncing() const;
+
+	/// This returns true when the SceneSynchronizer is applying a snapshot just
+	/// before starting a rewinding.
+	bool is_resetting() const;
+
+	/// Returns true during the rewinding process.
 	bool is_rewinding() const;
 	bool is_end_sync() const;
 

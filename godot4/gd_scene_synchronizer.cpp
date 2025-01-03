@@ -154,8 +154,8 @@ void GdSceneSynchronizer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("sync_group_set_trickled_update_rate", "node_id", "group_id", "update_rate"), &GdSceneSynchronizer::sync_group_set_trickled_update_rate_by_id);
 	ClassDB::bind_method(D_METHOD("sync_group_get_trickled_update_rate", "node_id", "group_id"), &GdSceneSynchronizer::sync_group_get_trickled_update_rate_by_id);
 
-	ClassDB::bind_method(D_METHOD("is_recovered"), &GdSceneSynchronizer::is_recovered);
-	ClassDB::bind_method(D_METHOD("is_resetted"), &GdSceneSynchronizer::is_resetted);
+	ClassDB::bind_method(D_METHOD("is_resyncing"), &GdSceneSynchronizer::is_resyncing);
+	ClassDB::bind_method(D_METHOD("is_resetting"), &GdSceneSynchronizer::is_resetting);
 	ClassDB::bind_method(D_METHOD("is_rewinding"), &GdSceneSynchronizer::is_rewinding);
 	ClassDB::bind_method(D_METHOD("is_end_sync"), &GdSceneSynchronizer::is_end_sync);
 
@@ -810,12 +810,12 @@ uint64_t GdSceneSynchronizer::sync_group_get_user_data(uint32_t p_group_id) cons
 	return scene_synchronizer.sync_group_get_user_data(NS::SyncGroupId{ { p_group_id } });
 }
 
-bool GdSceneSynchronizer::is_recovered() const {
-	return scene_synchronizer.is_recovered();
+bool GdSceneSynchronizer::is_resyncing() const {
+	return scene_synchronizer.is_resyncing();
 }
 
-bool GdSceneSynchronizer::is_resetted() const {
-	return scene_synchronizer.is_resetted();
+bool GdSceneSynchronizer::is_resetting() const {
+	return scene_synchronizer.is_resetting();
 }
 
 bool GdSceneSynchronizer::is_rewinding() const {

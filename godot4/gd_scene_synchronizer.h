@@ -185,8 +185,8 @@ public: // ---------------------------------------------------------------- APIs
 	void sync_group_set_user_data(uint32_t p_group_id, uint64_t p_user_ptr);
 	uint64_t sync_group_get_user_data(uint32_t p_group_id) const;
 
-	bool is_recovered() const;
-	bool is_resetted() const;
+	bool is_resyncing() const;
+	bool is_resetting() const;
 	bool is_rewinding() const;
 	bool is_end_sync() const;
 

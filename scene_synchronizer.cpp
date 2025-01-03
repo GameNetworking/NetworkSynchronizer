@@ -1297,11 +1297,11 @@ uint64_t SceneSynchronizerBase::sync_group_get_user_data(SyncGroupId p_group_id)
 	return static_cast<ServerSynchronizer *>(synchronizer)->sync_group_get_user_data(p_group_id);
 }
 
-bool SceneSynchronizerBase::is_recovered() const {
+bool SceneSynchronizerBase::is_resyncing() const {
 	return recover_in_progress;
 }
 
-bool SceneSynchronizerBase::is_resetted() const {
+bool SceneSynchronizerBase::is_resetting() const {
 	return reset_in_progress;
 }
 
@@ -2529,7 +2529,7 @@ void ServerSynchronizer::on_peer_disconnected(int p_peer_id) {
 void ServerSynchronizer::on_object_data_added(NS::ObjectData &p_object_data) {
 #ifdef NS_DEBUG_ENABLED
 	// Can't happen on server
-	NS_ASSERT_COND(!scene_synchronizer->is_recovered());
+	NS_ASSERT_COND(!scene_synchronizer->is_resyncing());
 	// On server the ID is always known.
 	NS_ASSERT_COND(p_object_data.get_net_id() != ObjectNetId::NONE);
 #endif
@@ -2580,7 +2580,7 @@ void ServerSynchronizer::on_object_data_controller_changed(ObjectData &p_object_
 void ServerSynchronizer::on_variable_added(ObjectData *p_object_data, const std::string &p_var_name) {
 #ifdef NS_DEBUG_ENABLED
 	// Can't happen on server
-	NS_ASSERT_COND(!scene_synchronizer->is_recovered());
+	NS_ASSERT_COND(!scene_synchronizer->is_resyncing());
 	// On server the ID is always known.
 	NS_ASSERT_COND(p_object_data->get_net_id() != ObjectNetId::NONE);
 #endif
@@ -2596,7 +2596,7 @@ void ServerSynchronizer::on_variable_added(ObjectData *p_object_data, const std:
 void ServerSynchronizer::on_variable_changed(NS::ObjectData *p_object_data, VarId p_var_id, const VarData &p_old_value, int p_flag) {
 #ifdef NS_DEBUG_ENABLED
 	// Can't happen on server
-	NS_ASSERT_COND(!scene_synchronizer->is_recovered());
+	NS_ASSERT_COND(!scene_synchronizer->is_resyncing());
 	// On server the ID is always known.
 	NS_ASSERT_COND(p_object_data->get_net_id() != ObjectNetId::NONE);
 #endif

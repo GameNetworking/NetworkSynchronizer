@@ -229,12 +229,12 @@
 			<description>
 			</description>
 		</method>
-		<method name="is_recovered" qualifiers="const">
+		<method name="is_resyncing" qualifiers="const">
 			<return type="bool" />
 			<description>
 			</description>
 		</method>
-		<method name="is_resetted" qualifiers="const">
+		<method name="is_resetting" qualifiers="const">
 			<return type="bool" />
 			<description>
 			</description>

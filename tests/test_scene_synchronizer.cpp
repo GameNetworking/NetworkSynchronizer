@@ -1252,21 +1252,21 @@ void test_variable_change_event() {
 			NS::ListenerHandle server_lh = server_scene.scene_sync->track_variable_changes(
 					server_obj_1_oh, "var_1", [&is_server_change_event_triggered, &server_scene](const std::vector<NS::VarData> &p_old_values) {
 						is_server_change_event_triggered = true;
-						NS_ASSERT_COND(server_scene.scene_sync->is_resetted());
+						NS_ASSERT_COND(server_scene.scene_sync->is_resetting());
 					},
 					NetEventFlag::SYNC_RESET);
 
 			NS::ListenerHandle p1_lh = peer_1_scene.scene_sync->track_variable_changes(
 					p1_obj_1_oh, "var_1", [&is_p1_change_event_triggered, &peer_1_scene](const std::vector<NS::VarData> &p_old_values) {
 						is_p1_change_event_triggered = true;
-						NS_ASSERT_COND(peer_1_scene.scene_sync->is_resetted());
+						NS_ASSERT_COND(peer_1_scene.scene_sync->is_resetting());
 					},
 					NetEventFlag::SYNC_RESET);
 
 			NS::ListenerHandle p2_lh = peer_2_scene.scene_sync->track_variable_changes(
 					p2_obj_1_oh, "var_1", [&is_p2_change_event_triggered, &peer_2_scene](const std::vector<NS::VarData> &p_old_values) {
 						is_p2_change_event_triggered = true;
-						NS_ASSERT_COND(peer_2_scene.scene_sync->is_resetted());
+						NS_ASSERT_COND(peer_2_scene.scene_sync->is_resetting());
 					},
 					NetEventFlag::SYNC_RESET);
 
