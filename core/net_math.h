@@ -91,8 +91,8 @@ public:
 		}
 	}
 
-	template <typename F>
-	static inline F lerp(F a, F b, F alpha) {
+	template <typename F, typename A>
+	static inline F lerp(F a, F b, A alpha) {
 		return a + alpha * (b - a);
 	}
 
