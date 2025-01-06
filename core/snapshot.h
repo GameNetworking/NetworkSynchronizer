@@ -75,6 +75,9 @@ struct ScheduledProcedureSnapshot {
 struct ObjectDataSnapshot {
 	std::vector<std::optional<VarData>> vars;
 	std::vector<ScheduledProcedureSnapshot> procedures;
+
+	void copy(const ObjectDataSnapshot &p_other);
+	void clear();
 };
 
 struct Snapshot {

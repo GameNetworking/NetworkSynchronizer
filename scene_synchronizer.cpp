@@ -598,7 +598,7 @@ void SceneSynchronizerBase::unregister_variable(ObjectLocalId p_id, const std::s
 }
 
 ObjectNetId SceneSynchronizerBase::get_app_object_net_id(ObjectLocalId p_local_id) const {
-	const ObjectData *nd = objects_data_storage.get_object_data(p_local_id);
+	const ObjectData *nd = objects_data_storage.get_object_data(p_local_id, false);
 	if (nd) {
 		return nd->get_net_id();
 	} else {
@@ -4249,6 +4249,8 @@ void ClientSynchronizer::process_simulation(float p_delta) {
 bool ClientSynchronizer::parse_sync_data(
 		DataBuffer &p_snapshot,
 		void *p_user_pointer,
+		ClientParsingErrors &r_parsing_errors,
+		void (*p_notify_parsing_failed_for_object)(void *p_user_pointer, ObjectData &p_object_data),
 		void (*p_notify_update_mode)(void *p_user_pointer, bool p_is_partial_update),
 		void (*p_parse_global_frame_index)(void *p_user_pointer, GlobalFrameIndex p_global_frame_index),
 		void (*p_custom_data_parse)(void *p_user_pointer, VarData &&p_custom_data),
@@ -4472,13 +4474,14 @@ bool ClientSynchronizer::parse_sync_data(
 				// ObjectData not found, fetch it using the object name.
 
 				if (object_name.empty()) {
-					// The object_name was not specified by this snapshot, so fetch it.
+					// The object_name was not specified, fetch if using the NetId
 					const std::string *object_name_ptr = MapFunc::get_or_null(objects_names, net_id);
 
 					if (object_name_ptr == nullptr) {
-						// The name for this `NetId` doesn't exists yet.
+						// The name for this `NetId` doesn't exist, it was never
+						// delivered on this client.
 						scene_synchronizer->get_debugger().print(WARNING, "The object with ID `" + net_id + "` is not know by this peer yet.");
-						notify_server_full_snapshot_is_needed();
+						r_parsing_errors.missing_object_names += 1;
 					} else {
 						object_name = *object_name_ptr;
 					}
@@ -4540,7 +4543,6 @@ bool ClientSynchronizer::parse_sync_data(
 #endif
 				if (!slicing_success || object_snapshot_buffer.get_bit_offset() != vars_size_in_bits) {
 					get_debugger().print(ERROR, "The received snapshot is corrupted because it was impossible to properly slice the Object info using the encoded size `" + std::to_string(vars_size_in_bits) + "`. This should never happen.");
-					notify_server_full_snapshot_is_needed();
 					return false;
 				}
 				// Store the extracted object info.
@@ -4554,21 +4556,28 @@ bool ClientSynchronizer::parse_sync_data(
 			}
 
 			// Skip the object data now.
-			p_snapshot.seek(p_snapshot.get_bit_offset() + vars_size_in_bits);
+			p_snapshot.seek(offset_after_vars_reading);
 		} else {
-			if (!parse_sync_data_object_info(
+			const bool object_data_parsing_state = parse_sync_data_object_info(
 					p_snapshot,
 					p_user_pointer,
 					*synchronizer_object_data,
 					p_variable_parse,
-					p_scheduled_procedure_parse)) {
-				return false;
-			}
+					p_scheduled_procedure_parse);
+
 			if make_unlikely(scene_synchronizer->pedantic_checks) {
+				NS_ASSERT_COND(object_data_parsing_state);
 				NS_ASSERT_COND_MSG(p_snapshot.get_bit_offset() == offset_after_vars_reading, "The snapshot is corrupted because the data_object parsing failed for the object: " + synchronizer_object_data->get_object_name() + " - NetId: " + std::to_string(synchronizer_object_data->get_net_id().id));
 			} else {
-				notify_server_full_snapshot_is_needed();
-				NS_ENSURE_V_MSG(p_snapshot.get_bit_offset() == offset_after_vars_reading, false, "The snapshot is corrupted because the data_object parsing failed for the object: " + synchronizer_object_data->get_object_name() + " - NetId: " + std::to_string(synchronizer_object_data->get_net_id().id));
+				if (!object_data_parsing_state || p_snapshot.get_bit_offset() != offset_after_vars_reading) {
+					get_debugger().print(ERROR,
+							"The snapshot is corrupted because the data_object parsing failed for the object: " + synchronizer_object_data->get_object_name() + " - NetId: " + std::to_string(synchronizer_object_data->get_net_id().id) + " - Size in bits: " + std::to_string(vars_size_in_bits) + " - Expected offset: " + std::to_string(offset_after_vars_reading) + " - Current offset: " + std::to_string(p_snapshot.get_bit_offset()));
+					r_parsing_errors.objects += 1;
+					p_notify_parsing_failed_for_object(p_user_pointer, *synchronizer_object_data);
+					// Set the buffer cursor to the correct offset to keep
+					// reading the data for the other objects.
+					p_snapshot.seek(offset_after_vars_reading);
+				}
 			}
 		}
 	}
@@ -4841,6 +4850,7 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot, bool p_is_server
 
 	struct ParseData {
 		RollingUpdateSnapshot &snapshot;
+		const RollingUpdateSnapshot &last_received_snapshot;
 		PeerNetworkedController *player_controller;
 		SceneSynchronizerBase *scene_synchronizer;
 		ClientSynchronizer *client_synchronizer;
@@ -4849,15 +4859,36 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot, bool p_is_server
 
 	ParseData parse_data{
 		received_snapshot,
+		last_received_snapshot,
 		player_controller,
 		scene_synchronizer,
 		this,
 		p_is_server_snapshot
 	};
 
+	ClientParsingErrors parsing_errors;
+
 	const bool success = parse_sync_data(
 			p_snapshot,
 			&parse_data,
+			parsing_errors,
+
+			// Failed parsing for object.
+			[](void *p_user_pointer, ObjectData &p_object_data) {
+				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
+
+				// Do not mark this object as updated, it has corrupted values.
+				VecFunc::remove_unordered(pd->snapshot.just_updated_object_vars, p_object_data.get_net_id());
+
+				// Resets the objects to the previous snapshots values.
+				if (uint32_t(pd->snapshot.objects.size()) > p_object_data.get_net_id().id) {
+					if (uint32_t(pd->last_received_snapshot.objects.size()) > p_object_data.get_net_id().id) {
+						pd->snapshot.objects[p_object_data.get_net_id().id].copy(pd->last_received_snapshot.objects[p_object_data.get_net_id().id]);
+					} else {
+						pd->snapshot.objects[p_object_data.get_net_id().id].clear();
+					}
+				}
+			},
 
 			// Notify update mode:
 			[](void *p_user_pointer, bool p_is_partial_update) {
@@ -4891,7 +4922,7 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot, bool p_is_server
 
 				pd->snapshot.just_updated_object_vars.push_back(p_object_data->get_net_id());
 
-				// Make sure this node is part of the server node too.
+				// make sure this node is part of the server node too.
 				if (uint32_t(pd->snapshot.objects.size()) <= p_object_data->get_net_id().id) {
 					pd->snapshot.objects.resize(p_object_data->get_net_id().id + 1);
 				}
@@ -4970,8 +5001,27 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot, bool p_is_server
 				pd->snapshot.is_just_updated_simulated_objects = true;
 			});
 
-	if (success == false) {
-		scene_synchronizer->get_debugger().print(ERROR, "Snapshot parsing failed.", scene_synchronizer->get_network_interface().get_owner_name());
+	if (!success || parsing_errors.objects > 0 || parsing_errors.missing_object_names > 0) {
+		snapshot_parsing_failures += 1;
+		if (snapshot_parsing_failures > scene_synchronizer->max_snapshot_parsing_failures || parsing_errors.missing_object_names > 0) {
+			// Parsing failed for way too many times OR one or more objects
+			// names were never delivered to this client.
+			// NOTE: It's unlikely that the object name is missing because the
+			//       SceneSync ensure it never happens, since this happen 
+			//       sporadically or never it's acceptable to request a full
+			//       snapshot and not just the name: integrating a feature to
+			//       specifically update the name would be way too much work for
+			//       no reason.
+			snapshot_parsing_failures = 0;
+			notify_server_full_snapshot_is_needed();
+			scene_synchronizer->get_debugger().print(ERROR, "Snapshot parsing failed way too many times, requesting a full snapshot.", scene_synchronizer->get_network_interface().get_owner_name());
+		} else {
+			scene_synchronizer->get_debugger().print(WARNING, "Snapshot parsing failed.", scene_synchronizer->get_network_interface().get_owner_name());
+		}
+	}
+
+	if (!success) {
+		// Can't store this snapshot as the failure was way too deep.
 		return false;
 	}
 
@@ -4982,6 +5032,8 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot, bool p_is_server
 	}
 
 	last_received_snapshot = std::move(received_snapshot);
+
+	snapshot_parsing_failures = 0;
 
 	// Success.
 	return true;
@@ -5303,7 +5355,7 @@ void ClientSynchronizer::apply_snapshot(
 		// NOTE: Since it's possible to re-register the object changing the variables
 		//       registered dynamically, the snapshot might contain more variables
 		//       than the new registered one. The line below address that.
-		const VarId::IdType vars_count = std::min(object_data_snapshot.vars.size(), object_data->vars.size());
+		const VarId::IdType vars_count = VarId::IdType(std::min(object_data_snapshot.vars.size(), object_data->vars.size()));
 		for (VarId v = VarId{ { 0 } }; v < VarId{ { vars_count } }; v += 1) {
 			if (!object_data_snapshot.vars[v.id].has_value()) {
 				// This variable was not set, skip it.

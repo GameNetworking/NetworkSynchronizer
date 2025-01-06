@@ -307,6 +307,10 @@ protected: // --------------------------------------------------------- Settings
 	/// found at the time of the RPC receival.
 	int store_undelivered_rpcs = true;
 
+	/// The number of snapshots failures before the client requests a full
+	/// snapshot to the server.
+	int max_snapshot_parsing_failures = 10;
+
 protected: // ----------------------------------------------------- User defined
 	class NetworkInterface *network_interface = nullptr;
 	SynchronizerManager *synchronizer_manager = nullptr;
@@ -529,6 +533,14 @@ public:
 
 	void set_latency_update_rate(float p_rate_seconds);
 	float get_latency_update_rate() const;
+
+	void set_max_snapshot_parsing_failures(int p_max_snapshot_parsing_failures) {
+		max_snapshot_parsing_failures = p_max_snapshot_parsing_failures;
+	}
+
+	int get_max_snapshot_parsing_failures() const {
+		return max_snapshot_parsing_failures;
+	}
 
 	bool is_variable_registered(ObjectLocalId p_id, const std::string &p_variable) const;
 
@@ -1074,6 +1086,13 @@ public:
 	float acceleration_fps_timer = 0.0;
 	float pretended_delta = 1.0;
 
+	struct ClientParsingErrors {
+		int objects = 0;
+		int missing_object_names = 0;
+	};
+
+	int snapshot_parsing_failures = 0;
+
 	std::vector<SimulatedObjectInfo> simulated_objects;
 	std::vector<ObjectData *> active_objects;
 	PeerNetworkedController *player_controller = nullptr;
@@ -1213,6 +1232,8 @@ public:
 	bool parse_sync_data(
 			DataBuffer &p_snapshot,
 			void *p_user_pointer,
+			ClientParsingErrors &r_parsing_errors,
+			void (*p_notify_parsing_failed_for_object)(void *p_user_pointer, ObjectData &p_object_data),
 			void (*p_notify_update_mode)(void *p_user_pointer, bool p_is_partial_update),
 			void (*p_parse_global_frame_index)(void *p_user_pointer, GlobalFrameIndex p_global_frame_index),
 			void (*p_custom_data_parse)(void *p_user_pointer, VarData &&p_custom_data),

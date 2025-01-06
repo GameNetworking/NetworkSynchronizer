@@ -2,6 +2,7 @@
 
 #include "../scene_synchronizer.h"
 
+NS_NAMESPACE_BEGIN
 NS::Snapshot::operator std::string() const {
 	std::string s;
 	s += "Snapshot input ID: " + input_id;
@@ -167,42 +168,51 @@ bool compare_procedures(
 	return true;
 }
 
-const std::vector<std::optional<NS::VarData>> *NS::Snapshot::get_object_vars(ObjectNetId p_id) const {
+const std::vector<std::optional<VarData>> *Snapshot::get_object_vars(ObjectNetId p_id) const {
 	if (objects.size() > p_id.id) {
 		return &objects[p_id.id].vars;
 	}
 	return nullptr;
 }
 
-const std::vector<NS::ScheduledProcedureSnapshot> *NS::Snapshot::get_object_procedures(ObjectNetId p_id) const {
+const std::vector<ScheduledProcedureSnapshot> *Snapshot::get_object_procedures(ObjectNetId p_id) const {
 	if (objects.size() > p_id.id) {
 		return &objects[p_id.id].procedures;
 	}
 	return nullptr;
 }
 
-NS::Snapshot NS::Snapshot::make_copy(const Snapshot &p_other) {
+Snapshot Snapshot::make_copy(const Snapshot &p_other) {
 	Snapshot s;
 	s.copy(p_other);
 	return s;
 }
 
-void NS::Snapshot::copy(const Snapshot &p_other) {
+void ObjectDataSnapshot::copy(const ObjectDataSnapshot &p_other) {
+	vars.resize(p_other.vars.size());
+	for (std::size_t s = 0; s < p_other.vars.size(); s++) {
+		if (p_other.vars[s].has_value()) {
+			vars[s].emplace(VarData::make_copy(p_other.vars[s].value()));
+		} else {
+			vars[s].reset();
+		}
+	}
+	procedures = p_other.procedures;
+}
+
+void ObjectDataSnapshot::clear() {
+	vars.clear();
+	procedures.clear();
+}
+
+void Snapshot::copy(const Snapshot &p_other) {
 	input_id = p_other.input_id;
 	global_frame_index = p_other.global_frame_index;
 	simulated_objects = p_other.simulated_objects;
 	peers_frames_index = p_other.peers_frames_index;
 	objects.resize(p_other.objects.size());
 	for (std::size_t i = 0; i < p_other.objects.size(); i++) {
-		objects[i].vars.resize(p_other.objects[i].vars.size());
-		for (std::size_t s = 0; s < p_other.objects[i].vars.size(); s++) {
-			if (p_other.objects[i].vars[s].has_value()) {
-				objects[i].vars[s].emplace(VarData::make_copy(p_other.objects[i].vars[s].value()));
-			} else {
-				objects[i].vars[s].reset();
-			}
-		}
-		objects[i].procedures = p_other.objects[i].procedures;
+		objects[i].copy(p_other.objects[i]);
 	}
 	has_custom_data = p_other.has_custom_data;
 	custom_data.copy(p_other.custom_data);
@@ -369,3 +379,5 @@ bool NS::Snapshot::compare(
 	return true;
 #endif
 }
+
+NS_NAMESPACE_END
