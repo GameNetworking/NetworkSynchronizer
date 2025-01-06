@@ -4523,6 +4523,8 @@ bool ClientSynchronizer::parse_sync_data(
 		p_snapshot.read(vars_size_in_bits);
 		NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `vars_count` was expected here.");
 
+		const int offset_after_vars_reading = p_snapshot.get_bit_offset() + vars_size_in_bits;
+
 		if (skip_object) {
 			if (net_id != ObjectNetId::NONE) {
 				// Store the snapshot information so we can use them to sync the
@@ -4537,7 +4539,7 @@ bool ClientSynchronizer::parse_sync_data(
 				}
 #endif
 				if (!slicing_success || object_snapshot_buffer.get_bit_offset() != vars_size_in_bits) {
-					get_debugger().print(ERROR, "The received snapshot is corrupted because it was impossible to properly slice the Object info using the encoded size. This should never happen.");
+					get_debugger().print(ERROR, "The received snapshot is corrupted because it was impossible to properly slice the Object info using the encoded size `" + std::to_string(vars_size_in_bits) + "`. This should never happen.");
 					notify_server_full_snapshot_is_needed();
 					return false;
 				}
@@ -4561,6 +4563,12 @@ bool ClientSynchronizer::parse_sync_data(
 					p_variable_parse,
 					p_scheduled_procedure_parse)) {
 				return false;
+			}
+			if make_unlikely(scene_synchronizer->pedantic_checks) {
+				NS_ASSERT_COND_MSG(p_snapshot.get_bit_offset() == offset_after_vars_reading, "The snapshot is corrupted because the data_object parsing failed for the object: " + synchronizer_object_data->get_object_name() + " - NetId: " + std::to_string(synchronizer_object_data->get_net_id().id));
+			} else {
+				notify_server_full_snapshot_is_needed();
+				NS_ENSURE_V_MSG(p_snapshot.get_bit_offset() == offset_after_vars_reading, false, "The snapshot is corrupted because the data_object parsing failed for the object: " + synchronizer_object_data->get_object_name() + " - NetId: " + std::to_string(synchronizer_object_data->get_net_id().id));
 			}
 		}
 	}
