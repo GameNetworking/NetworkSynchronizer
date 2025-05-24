@@ -1951,6 +1951,10 @@ bool SceneSynchronizerBase::client_is_simulated_object(ObjectLocalId p_id) const
 }
 
 void SceneSynchronizerBase::drop_object_data(NS::ObjectData &p_object_data) {
+	if (is_client() && get_network_interface().get_local_peer_id() == 2) {
+		// TODO remove this.
+		get_debugger().print(INFO, "TODO remove this.");
+	}
 	synchronizer_manager->on_drop_object_data(p_object_data);
 
 	if (synchronizer) {
@@ -2058,6 +2062,92 @@ bool SceneSynchronizerBase::is_no_network() const {
 
 bool SceneSynchronizerBase::is_networked() const {
 	return is_client() || is_server();
+}
+
+/// |--------------|---------------|----------------|
+std::string debug_table_row_border(int values_count, int column_width) {
+	std::string row = "|";
+	for (int i = 0; i < values_count; ++i) {
+		row.append(column_width + 2, '-'); // column of dashes
+		row.push_back('|');
+	}
+	row += "\n";
+	return row;
+}
+
+///	Returns a string such as ` Value 1      ` each cell is clamped or padded to
+///	column_width characters.
+static std::string clamp_or_pad(const std::string &value, int column_width) {
+	if (static_cast<int>(value.size()) >= column_width) {
+		return value.substr(0, column_width); // clamp
+	} else {
+		return value + std::string(column_width - value.size(), ' '); // pad
+	}
+}
+
+/// Creates a row like this, notice the string is clamped if it exceeds the column width.
+/// | Value 1      | Value 2       | Value 3        |
+std::string debug_table_row(const std::vector<std::string> &p_values, int column_width) {
+	std::string row = "|";
+	for (const std::string &v : p_values) {
+		row += " " + clamp_or_pad(v, column_width) + " ";
+		row.push_back('|');
+	}
+	row += "\n";
+	return row;
+}
+
+std::string SceneSynchronizerBase::debug_get_data_objects_table(int table_column_width) const {
+	std::string table = "";
+
+	const std::vector<ObjectData *> &objects_data = objects_data_storage.get_sorted_objects_data();
+	std::vector<std::string> table_values;
+	table_values.reserve(objects_data.size());
+
+	// ------------------------------------------------------------------ Header
+	int columns_count = 0;
+	table_values.clear();
+	for (const ObjectData *od : objects_data) {
+		if (od) {
+			table_values.push_back(od->get_object_name());
+			columns_count += 1;
+		}
+	}
+
+	table += debug_table_row_border(columns_count, table_column_width);
+	table += debug_table_row(table_values, table_column_width);
+	table += debug_table_row_border(columns_count, table_column_width);
+
+	// ------------------------------------------------------------------ Values
+
+	// First find the object with the most valeus.
+	int rows_count = 0;
+	for (const ObjectData *od : objects_data) {
+		if (od) {
+			rows_count = std::max(int(od->vars.size()), rows_count);
+		}
+	}
+
+	for (int i = 0; i < rows_count; ++i) {
+		table_values.clear();
+		for (const ObjectData *od : objects_data) {
+			std::string value = "";
+			if (od) {
+				if (od->vars.size() > i) {
+					value = od->vars[i].enabled ? " " : "!";
+					value += od->vars[i].var.name + ": ";
+					value += var_data_stringify(od->vars[i].var.value, false);
+				}
+				table_values.push_back(value);
+			}
+		}
+		table += debug_table_row(table_values, table_column_width);
+	}
+
+	// ----------------------------------------------------------- Bottom border
+	table += debug_table_row_border(columns_count, table_column_width);
+
+	return table;
 }
 
 void SceneSynchronizerBase::try_fetch_unnamed_objects_data_names() {

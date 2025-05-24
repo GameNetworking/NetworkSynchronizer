@@ -842,6 +842,8 @@ public:
 		return time_bank;
 	}
 
+	std::string debug_get_data_objects_table(int TableColumnWidth) const;
+
 public: // ------------------------------------------------------------ INTERNAL
 	void try_fetch_unnamed_objects_data_names();
 	void update_objects_relevancy();
