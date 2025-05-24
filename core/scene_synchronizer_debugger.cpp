@@ -402,11 +402,13 @@ void SceneSynchronizerDebugger::print(PrintMessageType p_level, const std::strin
 #ifdef NS_DEBUG_ENABLED
 
 	if (NS::PrintMessageType::WARNING & p_level) {
-		frame_dump_storage->frame_dump__has_warnings = true;
+		if (frame_dump_storage)
+			frame_dump_storage->frame_dump__has_warnings = true;
 	}
 
 	if (NS::PrintMessageType::ERROR & p_level) {
-		frame_dump_storage->frame_dump__has_errors = true;
+		if (frame_dump_storage)
+			frame_dump_storage->frame_dump__has_errors = true;
 	}
 
 	const std::string log_level_str = get_log_level_txt(p_level);
@@ -436,7 +438,8 @@ void SceneSynchronizerDebugger::notify_event(FrameEvent p_event) {
 
 void SceneSynchronizerDebugger::__add_message(const std::string &p_message, const std::string &p_object_name) {
 #ifdef NS_DEBUG_ENABLED
-	if (!dump_enabled) {
+	if (!dump_enabled ||
+		!frame_dump_storage) {
 		return;
 	}
 
