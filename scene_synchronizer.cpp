@@ -2126,7 +2126,7 @@ std::string SceneSynchronizerBase::debug_get_data_objects_table(int columns_coun
 std::string SceneSynchronizerBase::debug_get_data_objects_table(int columns_count, int table_column_width, const std::vector<const ObjectData *> &objects) const {
 	// Prepare the data.
 	std::vector<std::vector<const ObjectData *>> table_data;
-	for (int y = 0; y < objects.size(); y++) {
+	for (int y = 0; y < objects.size();) {
 		std::vector<const ObjectData *> row;
 		for (int i = 0; i < columns_count && y < objects.size(); i += 1, y += 1) {
 			row.push_back(objects[y]);
@@ -2149,7 +2149,7 @@ std::string SceneSynchronizerBase::debug_get_data_objects_table(int columns_coun
 	table_values.clear();
 	table_values.push_back("Local peer: " + std::to_string(get_network_interface().get_local_peer_id()));
 	table += debug_table_row(table_values, table_column_width * columns_count);
-	
+
 	table_values.clear();
 	table_values.push_back("Objects count: " + std::to_string(objects_data_storage.get_objects_data().size()));
 	table += debug_table_row(table_values, table_column_width * columns_count);
