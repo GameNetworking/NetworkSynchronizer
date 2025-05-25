@@ -2075,6 +2075,26 @@ std::string debug_table_row_border(int values_count, int column_width) {
 	return row;
 }
 
+std::string debug_table_row_top_border(int values_count, int column_width) {
+	std::string row = "/";
+	for (int i = 0; i < values_count; ++i) {
+		row.append(column_width + 3, '*'); // column of dashes
+	}
+	row[row.size() - 1] = '\\';
+	row += "\n";
+	return row;
+}
+
+std::string debug_table_row_bottom_border(int values_count, int column_width) {
+	std::string row = "\\";
+	for (int i = 0; i < values_count; ++i) {
+		row.append(column_width + 3, '*'); // column of dashes
+	}
+	row[row.size() - 1] = '/';
+	row += "\n";
+	return row;
+}
+
 ///	Returns a string such as ` Value 1      ` each cell is clamped or padded to
 ///	column_width characters.
 static std::string clamp_or_pad(const std::string &value, int column_width) {
@@ -2097,55 +2117,104 @@ std::string debug_table_row(const std::vector<std::string> &p_values, int column
 	return row;
 }
 
-std::string SceneSynchronizerBase::debug_get_data_objects_table(int table_column_width) const {
-	std::string table = "";
-
+std::string SceneSynchronizerBase::debug_get_data_objects_table(int columns_count, int table_column_width) const {
 	const std::vector<ObjectData *> &objects_data = objects_data_storage.get_sorted_objects_data();
+	const std::vector<const ObjectData *> objects_data_const(objects_data.begin(), objects_data.end());
+	return debug_get_data_objects_table(columns_count, table_column_width, objects_data_const);
+}
+
+std::string SceneSynchronizerBase::debug_get_data_objects_table(int columns_count, int table_column_width, const std::vector<const ObjectData *> &objects) const {
+	// Prepare the data.
+	std::vector<std::vector<const ObjectData *>> table_data;
+	for (int y = 0; y < objects.size(); y++) {
+		std::vector<const ObjectData *> row;
+		for (int i = 0; i < columns_count && y < objects.size(); i += 1, y += 1) {
+			row.push_back(objects[y]);
+		}
+		table_data.push_back(row);
+	}
+
 	std::vector<std::string> table_values;
-	table_values.reserve(objects_data.size());
+	table_values.reserve(objects.size());
 
-	// ------------------------------------------------------------------ Header
-	int columns_count = 0;
+	// Info about the running instance.
+
+	std::string table = "";
+	table += debug_table_row_top_border(1, table_column_width * columns_count);
+
 	table_values.clear();
-	for (const ObjectData *od : objects_data) {
-		if (od) {
-			table_values.push_back(od->get_object_name());
-			columns_count += 1;
-		}
-	}
+	table_values.push_back("Network mode: " + std::string(is_no_network() ? "No network (local)" : (is_server() ? "Server" : "Client")));
+	table += debug_table_row(table_values, table_column_width * columns_count);
 
-	table += debug_table_row_border(columns_count, table_column_width);
-	table += debug_table_row(table_values, table_column_width);
-	table += debug_table_row_border(columns_count, table_column_width);
+	table_values.clear();
+	table_values.push_back("Local peer: " + std::to_string(get_network_interface().get_local_peer_id()));
+	table += debug_table_row(table_values, table_column_width * columns_count);
+	
+	table_values.clear();
+	table_values.push_back("Objects count: " + std::to_string(objects_data_storage.get_objects_data().size()));
+	table += debug_table_row(table_values, table_column_width * columns_count);
 
-	// ------------------------------------------------------------------ Values
+	table += debug_table_row_bottom_border(1, table_column_width * columns_count);
+	table += "\n";
 
-	// First find the object with the most valeus.
-	int rows_count = 0;
-	for (const ObjectData *od : objects_data) {
-		if (od) {
-			rows_count = std::max(int(od->vars.size()), rows_count);
-		}
-	}
-
-	for (int i = 0; i < rows_count; ++i) {
+	for (const std::vector<const ObjectData *> &objects_data : table_data) {
+		// ------------------------------------------------------------------ Header
+		int sub_columns_count = 0;
 		table_values.clear();
 		for (const ObjectData *od : objects_data) {
-			std::string value = "";
 			if (od) {
-				if (od->vars.size() > i) {
-					value = od->vars[i].enabled ? " " : "!";
-					value += od->vars[i].var.name + ": ";
-					value += var_data_stringify(od->vars[i].var.value, false);
-				}
-				table_values.push_back(value);
+				std::string header = od->get_object_name();
+				table_values.push_back(header);
+				sub_columns_count += 1;
+			}
+		}
+
+		table += debug_table_row_top_border(sub_columns_count, table_column_width);
+		table += debug_table_row(table_values, table_column_width);
+
+		table_values.clear();
+		for (const ObjectData *od : objects_data) {
+			if (od) {
+				std::string header2 = "";
+				header2 += " (NetID: " + std::to_string(od->get_net_id().id) + ", LocalID: " + std::to_string(od->get_local_id().id) + "";
+				header2 += od->get_controlled_by_peer() >= 0 ? ", Controlled by peer: " + std::to_string(od->get_controlled_by_peer()) : "";
+				header2 += ")";
+				table_values.push_back(header2);
 			}
 		}
 		table += debug_table_row(table_values, table_column_width);
-	}
+		table += debug_table_row_border(sub_columns_count, table_column_width);
 
-	// ----------------------------------------------------------- Bottom border
-	table += debug_table_row_border(columns_count, table_column_width);
+		// ------------------------------------------------------------------ Values
+
+		// First find the object with the most valeus.
+		int rows_count = 0;
+		for (const ObjectData *od : objects_data) {
+			if (od) {
+				rows_count = std::max(int(od->vars.size()), rows_count);
+			}
+		}
+
+		for (int i = 0; i < rows_count; ++i) {
+			table_values.clear();
+			for (const ObjectData *od : objects_data) {
+				std::string value = "";
+				if (od) {
+					if (od->vars.size() > i) {
+						value = od->vars[i].enabled ? " " : "!";
+						value += od->vars[i].var.name + ": ";
+						value += var_data_stringify(od->vars[i].var.value, false);
+					}
+					table_values.push_back(value);
+				}
+			}
+			table += debug_table_row(table_values, table_column_width);
+		}
+
+		// ----------------------------------------------------------- Bottom border
+		table += debug_table_row_bottom_border(sub_columns_count, table_column_width);
+		table += "\n";
+	}
 
 	return table;
 }
