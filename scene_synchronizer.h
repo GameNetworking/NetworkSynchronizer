@@ -1095,6 +1095,9 @@ public:
 	};
 
 	int snapshot_parsing_failures = 0;
+#ifdef NS_DEBUG_ENABLED
+	std::uint64_t snapshot_parsing_failures_ever = 0;
+#endif
 
 	std::vector<SimulatedObjectInfo> simulated_objects;
 	std::vector<ObjectData *> active_objects;

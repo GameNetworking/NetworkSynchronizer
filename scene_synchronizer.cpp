@@ -2124,6 +2124,9 @@ std::string SceneSynchronizerBase::debug_get_data_objects_table(int columns_coun
 }
 
 std::string SceneSynchronizerBase::debug_get_data_objects_table(int columns_count, int table_column_width, const std::vector<const ObjectData *> &objects) const {
+	std::string table = "";
+
+#ifdef NS_DEBUG_ENABLED
 	// Prepare the data.
 	std::vector<std::vector<const ObjectData *>> table_data;
 	for (int y = 0; y < objects.size();) {
@@ -2139,7 +2142,6 @@ std::string SceneSynchronizerBase::debug_get_data_objects_table(int columns_coun
 
 	// Info about the running instance.
 
-	std::string table = "";
 	table += debug_table_row_top_border(1, table_column_width * columns_count);
 
 	table_values.clear();
@@ -2153,6 +2155,17 @@ std::string SceneSynchronizerBase::debug_get_data_objects_table(int columns_coun
 	table_values.clear();
 	table_values.push_back("Objects count: " + std::to_string(objects_data_storage.get_objects_data().size()));
 	table += debug_table_row(table_values, table_column_width * columns_count);
+
+	if (is_client()) {
+		const std::uint64_t spfe = static_cast<ClientSynchronizer *>(synchronizer)->snapshot_parsing_failures_ever;
+		table_values.clear();
+		if (spfe <= 0) {
+			table_values.push_back("Snapshot parsing no errors");
+		} else {
+			table_values.push_back("[WARNING] Snapshot parsing error count: `" + std::to_string(spfe) + "` parsing should never fail.");
+		}
+		table += debug_table_row(table_values, table_column_width * columns_count);
+	}
 
 	table += debug_table_row_bottom_border(1, table_column_width * columns_count);
 	table += "\n";
@@ -2215,6 +2228,7 @@ std::string SceneSynchronizerBase::debug_get_data_objects_table(int columns_coun
 		table += debug_table_row_bottom_border(sub_columns_count, table_column_width);
 		table += "\n";
 	}
+#endif
 
 	return table;
 }
@@ -5162,6 +5176,11 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot, bool p_is_server
 
 	if (!success || parsing_errors.objects > 0 || parsing_errors.missing_object_names > 0) {
 		snapshot_parsing_failures += 1;
+#ifdef NS_DEBUG_ENABLED
+		if (snapshot_parsing_failures_ever < std::numeric_limits<std::uint64_t>::max()) {
+			snapshot_parsing_failures_ever += 1;
+		}
+#endif
 		if (snapshot_parsing_failures > scene_synchronizer->max_snapshot_parsing_failures || parsing_errors.missing_object_names > 0) {
 			// Parsing failed for way too many times OR one or more objects
 			// names were never delivered to this client.
