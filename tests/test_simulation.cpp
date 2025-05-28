@@ -21,6 +21,7 @@ public:
 	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
 	float weight = 1.0f;
 	Vec3 position;
+	std::vector<std::uint16_t> used_schemes_on_client;
 
 	MagnetSceneObject() :
 		LocalSceneObject("MagnetSceneObject") {
@@ -54,6 +55,23 @@ public:
 				[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, NS::VarData &r_value) {
 					r_value = static_cast<const MagnetSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->position;
 				});
+
+		// This is used to alter the registered variables dynamically based on
+		// the `scheme_id` and ensure that the snapshot parsing doesn't fail.
+		for (int i = 0; i < int(get_scheme_id()); i++) {
+			p_scene_sync.register_variable(
+					p_id, "position" + std::to_string(i),
+					[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, const NS::VarData &p_value) {
+						static_cast<MagnetSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->position = Vec3::from(p_value);
+					},
+					[](const NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, NS::VarData &r_value) {
+						r_value = static_cast<const MagnetSceneObject *>(NS::LocalSceneSynchronizer::from_handle(p_handle))->position;
+					});
+		}
+
+		if (p_scene_sync.is_client()) {
+			used_schemes_on_client.push_back(get_scheme_id());
+		}
 	}
 
 	virtual void on_scene_exit() override {
@@ -449,6 +467,39 @@ public:
 		peer_1_scene.scene_sync->register_process(controlled_obj_p1->local_id, PROCESS_PHASE_LATE, [=](float p_delta) -> void {
 			on_client_process(p_delta);
 		});
+	}
+};
+
+struct TestSimulationSchemeChange : public TestSimulationBase {
+public:
+	std::uint16_t server_scheme_id = 0;
+	float time_bank = 0.f;
+
+	TestSimulationSchemeChange() {
+	}
+
+	virtual void on_server_process(float p_delta) override {
+		// Each frame we are changing the scheme.
+		time_bank += p_delta;
+		if (time_bank > 0.4) {
+			time_bank = 0.f;
+			server_scheme_id += 1;
+			server_scene.scene_sync->re_register_app_object(light_magnet_server->local_id, server_scheme_id);
+		}
+	}
+
+	virtual void on_scenes_done() override {
+		// Assert the scheme was updated on the client.
+		std::uint16_t max_client_scheme_id = 0;
+		for (std::uint16_t s : light_magnet_p1->used_schemes_on_client) {
+			max_client_scheme_id = std::max(s, max_client_scheme_id);
+		}
+		NS_ASSERT_COND(max_client_scheme_id > 0);
+		NS_ASSERT_COND(max_client_scheme_id <= server_scheme_id);
+
+		// Assert any snapshot parsing failed.
+		const std::uint64_t spfe = static_cast<NS::ClientSynchronizer *>(peer_1_scene.scene_sync->get_synchronizer_internal())->snapshot_parsing_failures_ever;
+		NS_ASSERT_COND(spfe == 0);
 	}
 };
 
@@ -1023,6 +1074,7 @@ struct TestObjectSimulationWithPartialUpdateAndCustomDataAndDoll : public TestOb
 void test_simulation() {
 	TestSimulationBase().do_test();
 	TestSimulationReRegistration().do_test();
+	TestSimulationSchemeChange().do_test();
 	TestSimulationWithRewind(0.0f).do_test();
 	TestSimulationWithRewind(1.0f).do_test();
 	TestSimulationWithRewindAndPartialUpdate(0.0f).do_test();

@@ -84,6 +84,13 @@ public:
 	// The local application object handle associated to this `NodeData`.
 	ObjectHandle app_object_handle = ObjectHandle::NONE;
 
+	/// The scheme_id is used to identify the type of object when the
+	/// synchronized variables change dynamically based on the represented type.
+	/// This function is very useful for synchronizing characters, since
+	/// the class is the same but the synchronized variables change depending on
+	/// the loaded abilities.
+	std::uint16_t scheme_id = 0;
+
 	bool realtime_sync_enabled_on_client = false;
 
 	/// The sync variables of this node. The order of this vector matters
@@ -110,7 +117,7 @@ public:
 
 public:
 	void flush_everything_registered();
-	
+
 	void set_net_id(ObjectNetId p_id);
 	ObjectNetId get_net_id() const;
 

@@ -10,11 +10,14 @@
 
 NS_NAMESPACE_BEGIN
 class LocalSceneObject {
+	friend class LocalSceneSynchronizer;
+
 	const std::size_t type_index;
 
 protected:
 	friend class LocalScene;
 	class LocalScene *scene_owner = nullptr;
+	std::uint16_t scheme_id = 0;
 	int authoritative_peer_id = 0;
 
 public:
@@ -37,6 +40,10 @@ public:
 	class LocalScene *get_scene() const;
 
 	virtual void on_scene_entry() {
+	}
+
+	std::uint16_t get_scheme_id() const {
+		return scheme_id;
 	}
 
 	virtual void setup_synchronizer(class LocalSceneSynchronizer &p_scene_sync, ObjectLocalId p_id) {
@@ -70,7 +77,7 @@ public:
 	virtual uint64_t debug_only_get_object_id(ObjectHandle p_app_object_handle) const override;
 #endif
 	virtual std::string fetch_object_name(ObjectHandle p_app_object_handle) const override;
-	virtual void setup_synchronizer_for(ObjectHandle p_app_object_handle, ObjectLocalId p_id) override;
+	virtual void setup_synchronizer_for(ObjectHandle p_app_object_handle, ObjectLocalId p_id, std::uint16_t p_scheme_id) override;
 
 	std::function<bool(const SyncGroup *p_group,
 			bool p_is_partial_update,

@@ -402,7 +402,7 @@ const Settings &SceneSynchronizerBase::get_settings() const {
 	return settings;
 }
 
-void SceneSynchronizerBase::register_app_object(ObjectHandle p_app_object_handle, ObjectLocalId *out_id) {
+void SceneSynchronizerBase::register_app_object(ObjectHandle p_app_object_handle, ObjectLocalId *out_id, std::uint16_t p_scheme_id) {
 	NS_ENSURE(p_app_object_handle != ObjectHandle::NONE);
 
 	ObjectLocalId id = objects_data_storage.find_object_local_id(p_app_object_handle);
@@ -423,6 +423,7 @@ void SceneSynchronizerBase::register_app_object(ObjectHandle p_app_object_handle
 #endif
 		od->set_object_name(synchronizer_manager->fetch_object_name(p_app_object_handle), true);
 		od->app_object_handle = p_app_object_handle;
+		od->scheme_id = p_scheme_id;
 
 		if (generate_id) {
 #ifdef NS_DEBUG_ENABLED
@@ -436,7 +437,7 @@ void SceneSynchronizerBase::register_app_object(ObjectHandle p_app_object_handle
 			process_functions__clear();
 		}
 
-		synchronizer_manager->setup_synchronizer_for(p_app_object_handle, id);
+		synchronizer_manager->setup_synchronizer_for(p_app_object_handle, id, od->scheme_id);
 
 		if (synchronizer) {
 			synchronizer->on_object_data_added(*od);
@@ -465,7 +466,7 @@ void SceneSynchronizerBase::unregister_app_object(ObjectLocalId p_id) {
 	drop_object_data(*od);
 }
 
-void SceneSynchronizerBase::re_register_app_object(ObjectLocalId p_id) {
+void SceneSynchronizerBase::re_register_app_object(ObjectLocalId p_id, std::uint16_t p_scheme_id) {
 	if (p_id == ObjectLocalId::NONE) {
 		// Nothing to do.
 		return;
@@ -490,10 +491,14 @@ void SceneSynchronizerBase::re_register_app_object(ObjectLocalId p_id) {
 	od->flush_everything_registered();
 
 	// Register everything again.
-	synchronizer_manager->setup_synchronizer_for(od->app_object_handle, p_id);
+	od->scheme_id = p_scheme_id;
+	synchronizer_manager->setup_synchronizer_for(od->app_object_handle, p_id, od->scheme_id);
 
 	// Now register the object again.
 	synchronizer->on_object_data_added(*od);
+	
+	// The local id doesn't change!
+	NS_ASSERT_COND(od->get_local_id() == p_id);
 }
 
 void SceneSynchronizerBase::setup_controller(
@@ -3252,11 +3257,13 @@ void ServerSynchronizer::generate_snapshot(
 	if (p_group.is_trickled_node_list_changed() || p_force_full_snapshot) {
 		for (int i = 0; i < int(p_group.get_trickled_sync_objects().size()); ++i) {
 			if (p_group.get_trickled_sync_objects()[i]._unknown || p_force_full_snapshot) {
-				generate_snapshot_object_data(
-						p_group.get_trickled_sync_objects()[i].od,
-						SnapshotObjectGeneratorMode::FORCE_NODE_PATH_ONLY,
-						NS::SyncGroup::Change(),
-						r_snapshot_db);
+				if (p_group.get_trickled_sync_objects()[i].od) {
+					generate_snapshot_object_data(
+							*p_group.get_trickled_sync_objects()[i].od,
+							SnapshotObjectGeneratorMode::FORCE_NODE_PATH_ONLY,
+							NS::SyncGroup::Change(),
+							r_snapshot_db);
+				}
 			}
 		}
 	}
@@ -3269,7 +3276,7 @@ void ServerSynchronizer::generate_snapshot(
 		for (std::size_t index : p_partial_update_simulated_objects_info_indices) {
 			if (relevant_node_data[index].od) {
 				generate_snapshot_object_data(
-						relevant_node_data[index].od,
+						*relevant_node_data[index].od,
 						object_generator_mode,
 						relevant_node_data[index].change,
 						r_snapshot_db);
@@ -3280,7 +3287,7 @@ void ServerSynchronizer::generate_snapshot(
 		for (uint32_t i = 0; i < relevant_node_data.size(); i += 1) {
 			if (relevant_node_data[i].od) {
 				generate_snapshot_object_data(
-						relevant_node_data[i].od,
+						*relevant_node_data[i].od,
 						object_generator_mode,
 						relevant_node_data[i].change,
 						r_snapshot_db);
@@ -3293,11 +3300,11 @@ void ServerSynchronizer::generate_snapshot(
 }
 
 void ServerSynchronizer::generate_snapshot_object_data(
-		const ObjectData *p_object_data,
+		const ObjectData &p_object_data,
 		SnapshotObjectGeneratorMode p_mode,
 		const SyncGroup::Change &p_change,
 		DataBuffer &r_snapshot_db) const {
-	if (p_object_data->app_object_handle == ObjectHandle::NONE || p_object_data->get_object_name().empty()) {
+	if (p_object_data.app_object_handle == ObjectHandle::NONE || p_object_data.get_object_name().empty()) {
 		return;
 	}
 
@@ -3317,15 +3324,23 @@ void ServerSynchronizer::generate_snapshot_object_data(
 	}
 
 	// Insert OBJECT DATA NetId.
-	r_snapshot_db.add(p_object_data->get_net_id().id);
+	r_snapshot_db.add(p_object_data.get_net_id().id);
 
 	if (force_using_node_path || unknown) {
 		// This object is unknown.
 		r_snapshot_db.add(true); // Has the object name?
-		r_snapshot_db.add(p_object_data->get_object_name());
+		r_snapshot_db.add(p_object_data.get_object_name());
 	} else {
 		// This node is already known on clients, just set the node ID.
 		r_snapshot_db.add(false); // Has the object name?
+	}
+
+	// Insert the NetSchemeID
+	if (unknown) {
+		r_snapshot_db.add(true); // Has the NetSchemeID?
+		r_snapshot_db.add(p_object_data.scheme_id);
+	} else {
+		r_snapshot_db.add(false); // Has the NetSchemeID?
 	}
 
 	const bool allow_vars =
@@ -3347,8 +3362,8 @@ void ServerSynchronizer::generate_snapshot_object_data(
 
 	// This is assuming the client and the server have the same vars registered
 	// with the same order.
-	for (VarId::IdType i = 0; i < p_object_data->vars.size(); i += 1) {
-		const VarDescriptor &var = p_object_data->vars[i];
+	for (VarId::IdType i = 0; i < p_object_data.vars.size(); i += 1) {
+		const VarDescriptor &var = p_object_data.vars[i];
 
 		bool var_has_value = allow_vars;
 
@@ -3369,7 +3384,7 @@ void ServerSynchronizer::generate_snapshot_object_data(
 			VarData current_val;
 			var.get_func(
 					scene_synchronizer->get_synchronizer_manager(),
-					p_object_data->app_object_handle,
+					p_object_data.app_object_handle,
 					var.var.name.c_str(),
 					current_val);
 			NS_ASSERT_COND(scene_synchronizer->var_data_compare(current_val, var.var.value));
@@ -3384,17 +3399,17 @@ void ServerSynchronizer::generate_snapshot_object_data(
 
 	// This is assuming the client and the server have the same procedures registered
 	// with the same order.
-	for (ScheduledProcedureId::IdType i = 0; i < p_object_data->get_scheduled_procedures().size(); i += 1) {
+	for (ScheduledProcedureId::IdType i = 0; i < p_object_data.get_scheduled_procedures().size(); i += 1) {
 		const ScheduledProcedureId procedure_id{ i };
-		const ObjectData::ScheduledProcedureInfo &proc_info = p_object_data->get_scheduled_procedures()[i];
+		const ObjectData::ScheduledProcedureInfo &proc_info = p_object_data.get_scheduled_procedures()[i];
 
 		bool procedure_has_value = allow_scheduled_procedures;
 
-		if (!p_object_data->scheduled_procedure_exist(procedure_id)) {
+		if (!p_object_data.scheduled_procedure_exist(procedure_id)) {
 			procedure_has_value = false;
 		}
 
-		if (procedure_has_value && !force_snapshot_procedures && !VecFunc::has(p_change.changed_scheduled_procedures, ScheduledProcedureHandle(p_object_data->get_net_id(), procedure_id))) {
+		if (procedure_has_value && !force_snapshot_procedures && !VecFunc::has(p_change.changed_scheduled_procedures, ScheduledProcedureHandle(p_object_data.get_net_id(), procedure_id))) {
 			// This is a delta snapshot and this procedure didn't change.
 			// Skip it.
 			procedure_has_value = false;
@@ -3402,16 +3417,16 @@ void ServerSynchronizer::generate_snapshot_object_data(
 
 		r_snapshot_db.add(procedure_has_value);
 		if (procedure_has_value) {
-			r_snapshot_db.add(p_object_data->scheduled_procedure_is_inprogress(procedure_id));
-			if (p_object_data->scheduled_procedure_is_inprogress(procedure_id)) {
+			r_snapshot_db.add(p_object_data.scheduled_procedure_is_inprogress(procedure_id));
+			if (p_object_data.scheduled_procedure_is_inprogress(procedure_id)) {
 				// In progress
-				r_snapshot_db.add(p_object_data->get_scheduled_procedures()[procedure_id.id].execute_frame.id);
-				r_snapshot_db.add(p_object_data->get_scheduled_procedures()[procedure_id.id].args);
-			} else if (p_object_data->scheduled_procedure_is_paused(procedure_id)) {
+				r_snapshot_db.add(p_object_data.get_scheduled_procedures()[procedure_id.id].execute_frame.id);
+				r_snapshot_db.add(p_object_data.get_scheduled_procedures()[procedure_id.id].args);
+			} else if (p_object_data.scheduled_procedure_is_paused(procedure_id)) {
 				// Paused
 				r_snapshot_db.add(true);
-				r_snapshot_db.add(p_object_data->get_scheduled_procedures()[procedure_id.id].execute_frame.id);
-				r_snapshot_db.add(p_object_data->get_scheduled_procedures()[procedure_id.id].paused_frame.id);
+				r_snapshot_db.add(p_object_data.get_scheduled_procedures()[procedure_id.id].execute_frame.id);
+				r_snapshot_db.add(p_object_data.get_scheduled_procedures()[procedure_id.id].paused_frame.id);
 				// NOTE: No need to network the args here because as soon as we restart this the arguments are
 				//       networked again.
 			} else {
@@ -4692,6 +4707,29 @@ bool ClientSynchronizer::parse_sync_data(
 #endif
 
 			p_object_parse(p_user_pointer, synchronizer_object_data);
+		}
+
+		// Fetch the NetSchemeID
+		bool has_scheme_id;
+		p_snapshot.read(has_scheme_id);
+		NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `has_scheme_id` was expected here.");
+		if (has_scheme_id) {
+			std::uint16_t scheme_id;
+			p_snapshot.read(scheme_id);
+			NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `scheme_id` was expected here.");
+
+			if (synchronizer_object_data && synchronizer_object_data->scheme_id != scheme_id) {
+				// The object scheme changed so it's necessary to re-register the object.
+				// Notice 1: that this call clears the previous recorded snapshot,
+				// which is exactly what it's supposed to happen. Indeed, the
+				// object is totally new, and it's not supposed to rewind using
+				// the old data.
+				// Notice 2: The registration happens before the parsing because
+				// it can succeed only when the server and client registered
+				// variables are exactly the same, which means the scheme_id are
+				// the same.
+				scene_synchronizer->re_register_app_object(synchronizer_object_data->get_local_id(), scheme_id);
+			}
 		}
 
 		// Now it's time to fetch the variables.

@@ -152,7 +152,8 @@ std::string LocalSceneSynchronizer::fetch_object_name(ObjectHandle p_app_object_
 	return from_handle(p_app_object_handle)->name;
 }
 
-void LocalSceneSynchronizer::setup_synchronizer_for(ObjectHandle p_app_object_handle, ObjectLocalId p_id) {
+void LocalSceneSynchronizer::setup_synchronizer_for(ObjectHandle p_app_object_handle, ObjectLocalId p_id, std::uint16_t p_scheme_id) {
+	from_handle(p_app_object_handle)->scheme_id = p_scheme_id;
 	from_handle(p_app_object_handle)->setup_synchronizer(*get_scene()->scene_sync, p_id);
 }
 
