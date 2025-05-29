@@ -2194,7 +2194,7 @@ std::string SceneSynchronizerBase::debug_get_data_objects_table(int columns_coun
 		for (const ObjectData *od : objects_data) {
 			if (od) {
 				std::string header2 = "";
-				header2 += " (NetID: " + std::to_string(od->get_net_id().id) + ", LocalID: " + std::to_string(od->get_local_id().id) + "";
+				header2 += " (NetID: " + std::to_string(od->get_net_id().id) + ", LocalID: " + std::to_string(od->get_local_id().id) + ", SchemeID: " + std::to_string(od->scheme_id) + "";
 				header2 += od->get_controlled_by_peer() >= 0 ? ", Controlled by peer: " + std::to_string(od->get_controlled_by_peer()) : "";
 				header2 += ")";
 				table_values.push_back(header2);
