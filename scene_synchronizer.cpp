@@ -2219,7 +2219,8 @@ std::string SceneSynchronizerBase::debug_get_data_objects_table(int columns_coun
 				std::string value = "";
 				if (od) {
 					if (od->vars.size() > i) {
-						value = od->vars[i].enabled ? " " : "!";
+						value = od->vars[i].enabled ? "" : "[Disabled] ";
+						value += od->vars[i].skip_rewinding ? "[No rewinding] " : "";
 						value += od->vars[i].var.name + ": ";
 						value += var_data_stringify(od->vars[i].var.value, false);
 					}
