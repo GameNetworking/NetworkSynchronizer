@@ -957,6 +957,67 @@ void test_state_notify() {
 	}
 }
 
+void test_net_id_reuse() {
+	NS::LocalScene server_scene;
+	server_scene.start_as_server();
+
+	NS::LocalScene peer_1_scene;
+	peer_1_scene.start_as_client(server_scene);
+
+	// Add the scene sync
+	server_scene.scene_sync =
+			server_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+	peer_1_scene.scene_sync =
+			peer_1_scene.add_object<NS::LocalSceneSynchronizer>("sync", server_scene.get_peer());
+
+	// Create the objects on server and client
+	TSS_TestSceneObject *server_object = server_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer());
+	TSS_TestSceneObject *client_object = peer_1_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer());
+
+	NS::ObjectData *server_object_data = server_scene.scene_sync->get_object_data(server_object->local_id);
+	NS::ObjectData *client_object_data = peer_1_scene.scene_sync->get_object_data(client_object->local_id);
+
+	const NS::ObjectNetId NetId = server_object_data->get_net_id();
+
+	// Assert that the server has the NetId but the client doesn't yet.
+	NS_ASSERT_COND(server_object_data->get_net_id() != NS::ObjectNetId::NONE);
+	NS_ASSERT_COND(client_object_data->get_net_id() == NS::ObjectNetId::NONE);
+
+	// Set the confirmation timespan to 0 to network the states quickly.
+	server_scene.scene_sync->set_frame_confirmation_timespan(0.0);
+
+	// Process both sides, this triggers the sync.
+	server_scene.process(delta);
+	peer_1_scene.process(delta);
+
+	// Asserts the client has the same net ID as specified on the server.
+	NS_ASSERT_COND(client_object_data->get_net_id() == NetId);
+
+	// Now drop the object only on the server, so we can trigger the NetSync to
+	// reuse the same NetId.
+	server_scene.remove_object("obj_1");
+	server_object = nullptr;
+	server_object_data = nullptr;
+	LocalNetworkedController *server_controller_object = server_scene.add_object<LocalNetworkedController>("controller", server_scene.get_peer());
+	LocalNetworkedController *p1_controller_object = peer_1_scene.add_object<LocalNetworkedController>("controller", server_scene.get_peer());
+
+	NS::ObjectData *server_controller_object_data = server_scene.scene_sync->get_object_data(server_controller_object->local_id);
+	NS::ObjectData *client_controller_object_data = peer_1_scene.scene_sync->get_object_data(p1_controller_object->local_id);
+
+	// Asserts that the new object is RE-using the same NetID
+	NS_ASSERT_COND(server_controller_object_data->get_net_id() == NetId);
+	NS_ASSERT_COND(client_controller_object_data->get_net_id() == NS::ObjectNetId::NONE);
+
+	// Process both sides, this triggers the sync.
+	server_scene.process(delta);
+	peer_1_scene.process(delta);
+
+	// Assert the NetId used is now the same while the old ObjectData on the client
+	// is gone.
+	NS_ASSERT_COND(server_controller_object_data->get_net_id() == NetId);
+	NS_ASSERT_COND(client_controller_object_data->get_net_id() == NetId);
+}
+
 /// Verify the state can be applied for variables that do not trigger a rewind, without triggering a rewind.
 void test_state_no_rewind_notify() {
 	NS::LocalScene server_scene;
@@ -2240,7 +2301,7 @@ public:
 	}
 
 	virtual void on_scene_entry() override {
-		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this),nullptr,88);
+		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this), nullptr, 88);
 	}
 
 	virtual void on_scene_exit() override {
@@ -2639,6 +2700,7 @@ void test_scene_synchronizer() {
 	test_late_object_spawning();
 	test_sync_groups();
 	test_state_notify();
+	test_net_id_reuse();
 	test_state_no_rewind_notify();
 	test_processing_with_late_controller_registration();
 	test_snapshot_generation();
