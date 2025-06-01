@@ -70,6 +70,13 @@ private:
 
 	std::string object_name;
 
+	/// The scheme_id is used to identify the type of object when the
+	/// synchronized variables change dynamically based on the represented type.
+	/// This function is very useful for synchronizing characters, since
+	/// the class is the same but the synchronized variables change depending on
+	/// the loaded abilities.
+	std::uint16_t scheme_id = 0;
+
 public:
 	struct {
 		std::function<void(float /*delta*/, DataBuffer & /*r_data_buffer*/)> collect_input;
@@ -84,12 +91,6 @@ public:
 	// The local application object handle associated to this `NodeData`.
 	ObjectHandle app_object_handle = ObjectHandle::NONE;
 
-	/// The scheme_id is used to identify the type of object when the
-	/// synchronized variables change dynamically based on the represented type.
-	/// This function is very useful for synchronizing characters, since
-	/// the class is the same but the synchronized variables change depending on
-	/// the loaded abilities.
-	std::uint16_t scheme_id = 0;
 
 	bool realtime_sync_enabled_on_client = false;
 
@@ -122,6 +123,14 @@ public:
 	ObjectNetId get_net_id() const;
 
 	ObjectLocalId get_local_id() const;
+
+	void set_scheme_id(std::uint16_t p_scheme_id) {
+		scheme_id = p_scheme_id;
+	}
+
+	std::uint16_t get_scheme_id() const {
+		return scheme_id;
+	}
 
 	bool has_registered_process_functions() const;
 	bool can_trickled_sync() const;

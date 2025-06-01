@@ -1103,6 +1103,7 @@ public:
 	std::vector<ObjectData *> active_objects;
 	PeerNetworkedController *player_controller = nullptr;
 	std::map<ObjectNetId, std::string> objects_names;
+	std::map<ObjectNetId, std::uint16_t> objects_schemes_id;
 	std::map<ObjectNetId, std::vector<DataBuffer>> objects_pending_snapshots;
 
 	RollingUpdateSnapshot last_received_snapshot;

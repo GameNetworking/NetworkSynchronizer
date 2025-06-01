@@ -50,7 +50,7 @@ public:
 	}
 
 	virtual void on_scene_entry() override {
-		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
+		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this), nullptr, 2);
 	}
 
 	virtual void on_scene_exit() override {
@@ -58,6 +58,7 @@ public:
 	}
 
 	virtual void setup_synchronizer(NS::LocalSceneSynchronizer &p_scene_sync, NS::ObjectLocalId p_id) override {
+		NS_ASSERT_COND(scheme_id == 2);
 		local_id = p_id;
 
 		p_scene_sync.setup_controller(
@@ -294,7 +295,7 @@ public:
 
 	virtual void on_scene_entry() override {
 		if (get_scene()->scene_sync->is_server()) {
-			get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
+			get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this), nullptr, 12);
 		}
 	}
 
@@ -303,6 +304,7 @@ public:
 	}
 
 	virtual void setup_synchronizer(NS::LocalSceneSynchronizer &p_scene_sync, NS::ObjectLocalId p_id) override {
+		NS_ASSERT_COND(scheme_id==12);
 		local_id = p_id;
 
 		p_scene_sync.setup_controller(
@@ -415,10 +417,11 @@ public:
 	}
 
 	virtual void on_scene_entry() override {
-		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
+		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this), nullptr, 1238);
 	}
 
 	virtual void setup_synchronizer(NS::LocalSceneSynchronizer &p_scene_sync, NS::ObjectLocalId p_id) override {
+		NS_ASSERT_COND(scheme_id==1238);
 		local_id = p_id;
 		p_scene_sync.register_variable(
 				p_id,
@@ -1920,10 +1923,11 @@ public:
 	}
 
 	virtual void on_scene_entry() override {
-		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
+		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this), nullptr, 77);
 	}
 
 	virtual void setup_synchronizer(NS::LocalSceneSynchronizer &p_scene_sync, NS::ObjectLocalId p_id) override {
+		NS_ASSERT_COND(scheme_id==77);
 		local_id = p_id;
 
 		p_scene_sync.register_variable(
@@ -2236,7 +2240,7 @@ public:
 	}
 
 	virtual void on_scene_entry() override {
-		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this));
+		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this),nullptr,88);
 	}
 
 	virtual void on_scene_exit() override {
@@ -2244,6 +2248,7 @@ public:
 	}
 
 	virtual void setup_synchronizer(NS::LocalSceneSynchronizer &p_scene_sync, NS::ObjectLocalId p_id) override {
+		NS_ASSERT_COND(scheme_id==88);
 		local_id = p_id;
 
 		rpc_remote_only = p_scene_sync.register_rpc(
