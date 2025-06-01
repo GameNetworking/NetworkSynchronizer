@@ -3340,7 +3340,7 @@ void ServerSynchronizer::generate_snapshot_object_data(
 	}
 
 	// Insert the NetSchemeID
-	if ((unknown || force_snapshot_scheme_id) && p_object_data.get_scheme_id() != 0) {
+	if (unknown || force_snapshot_scheme_id) {
 		r_snapshot_db.add(true); // Has the NetSchemeID?
 		r_snapshot_db.add(p_object_data.get_scheme_id());
 	} else {

@@ -483,8 +483,14 @@ public:
 		time_bank += p_delta;
 		if (time_bank > 0.4) {
 			time_bank = 0.f;
-			server_scheme_id += 1;
-			server_scene.scene_sync->re_register_app_object(light_magnet_server->local_id, server_scheme_id);
+			// Switch the scheme_id back and forth from 0 (default) to ensure
+			// that it's always possible to switch back to the default scheme id.
+			if (light_magnet_server->get_scheme_id() == 0) {
+				server_scheme_id += 1;
+				server_scene.scene_sync->re_register_app_object(light_magnet_server->local_id, server_scheme_id);
+			} else {
+				server_scene.scene_sync->re_register_app_object(light_magnet_server->local_id, 0);
+			}
 		}
 	}
 
