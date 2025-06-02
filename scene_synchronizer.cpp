@@ -4680,6 +4680,19 @@ bool ClientSynchronizer::parse_sync_data(
 
 			// Fetch the ObjectData.
 			synchronizer_object_data = scene_synchronizer->get_object_data(net_id, false);
+
+			// Check the current object is still the same on the server.
+			if (synchronizer_object_data && has_object_name && synchronizer_object_data->get_object_name() != object_name) {
+				// The object was changed, this happens when the previous object was
+				// destroyed on the server and its NetId is reused immediately.
+				// So here we have to unregister the previous object and register
+				// the new one.
+				scene_synchronizer->unregister_app_object(synchronizer_object_data->get_local_id());
+				synchronizer_object_data = nullptr;
+				// No need to do anything else here, the following code will take
+				// care to register the new object if possible.
+			}
+
 			if (!synchronizer_object_data) {
 				// ObjectData not found, fetch it using the object name.
 

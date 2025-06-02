@@ -975,13 +975,13 @@ void test_net_id_reuse() {
 	TSS_TestSceneObject *client_object = peer_1_scene.add_object<TSS_TestSceneObject>("obj_1", server_scene.get_peer());
 
 	NS::ObjectData *server_object_data = server_scene.scene_sync->get_object_data(server_object->local_id);
-	NS::ObjectData *client_object_data = peer_1_scene.scene_sync->get_object_data(client_object->local_id);
+	NS::ObjectData *p1_object_data = peer_1_scene.scene_sync->get_object_data(client_object->local_id);
 
-	const NS::ObjectNetId NetId = server_object_data->get_net_id();
+	const NS::ObjectNetId reused_net_id = server_object_data->get_net_id();
 
 	// Assert that the server has the NetId but the client doesn't yet.
 	NS_ASSERT_COND(server_object_data->get_net_id() != NS::ObjectNetId::NONE);
-	NS_ASSERT_COND(client_object_data->get_net_id() == NS::ObjectNetId::NONE);
+	NS_ASSERT_COND(p1_object_data->get_net_id() == NS::ObjectNetId::NONE);
 
 	// Set the confirmation timespan to 0 to network the states quickly.
 	server_scene.scene_sync->set_frame_confirmation_timespan(0.0);
@@ -991,7 +991,7 @@ void test_net_id_reuse() {
 	peer_1_scene.process(delta);
 
 	// Asserts the client has the same net ID as specified on the server.
-	NS_ASSERT_COND(client_object_data->get_net_id() == NetId);
+	NS_ASSERT_COND(p1_object_data->get_net_id() == reused_net_id);
 
 	// Now drop the object only on the server, so we can trigger the NetSync to
 	// reuse the same NetId.
@@ -1002,11 +1002,11 @@ void test_net_id_reuse() {
 	LocalNetworkedController *p1_controller_object = peer_1_scene.add_object<LocalNetworkedController>("controller", server_scene.get_peer());
 
 	NS::ObjectData *server_controller_object_data = server_scene.scene_sync->get_object_data(server_controller_object->local_id);
-	NS::ObjectData *client_controller_object_data = peer_1_scene.scene_sync->get_object_data(p1_controller_object->local_id);
+	NS::ObjectData *p1_controller_object_data = peer_1_scene.scene_sync->get_object_data(p1_controller_object->local_id);
 
 	// Asserts that the new object is RE-using the same NetID
-	NS_ASSERT_COND(server_controller_object_data->get_net_id() == NetId);
-	NS_ASSERT_COND(client_controller_object_data->get_net_id() == NS::ObjectNetId::NONE);
+	NS_ASSERT_COND(server_controller_object_data->get_net_id() == reused_net_id);
+	NS_ASSERT_COND(p1_controller_object_data->get_net_id() == NS::ObjectNetId::NONE);
 
 	// Process both sides, this triggers the sync.
 	server_scene.process(delta);
@@ -1014,8 +1014,13 @@ void test_net_id_reuse() {
 
 	// Assert the NetId used is now the same while the old ObjectData on the client
 	// is gone.
-	NS_ASSERT_COND(server_controller_object_data->get_net_id() == NetId);
-	NS_ASSERT_COND(client_controller_object_data->get_net_id() == NetId);
+	NS_ASSERT_COND(server_controller_object_data->get_net_id() == reused_net_id);
+	NS_ASSERT_COND(p1_controller_object_data->get_net_id() == reused_net_id);
+
+	NS_ASSERT_COND(server_scene.scene_sync->get_object_data(reused_net_id) != server_object_data);
+	NS_ASSERT_COND(server_scene.scene_sync->get_object_data(reused_net_id) == server_controller_object_data);
+	NS_ASSERT_COND(peer_1_scene.scene_sync->get_object_data(reused_net_id) != p1_object_data);
+	NS_ASSERT_COND(peer_1_scene.scene_sync->get_object_data(reused_net_id) == p1_controller_object_data);
 }
 
 /// Verify the state can be applied for variables that do not trigger a rewind, without triggering a rewind.
