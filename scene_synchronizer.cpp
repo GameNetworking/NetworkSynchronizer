@@ -4681,14 +4681,25 @@ bool ClientSynchronizer::parse_sync_data(
 			// Fetch the ObjectData.
 			synchronizer_object_data = scene_synchronizer->get_object_data(net_id, false);
 
+			struct {
+				bool should_copy = false;
+				int controlled_by_peer;
+				bool realtime_sync_enabled_on_client;
+			} object_data_info_to_copy;
+
 			// Check the current object is still the same on the server.
 			if (synchronizer_object_data && has_object_name && synchronizer_object_data->get_object_name() != object_name) {
 				// The object was changed, this happens when the previous object was
 				// destroyed on the server and its NetId is reused immediately.
 				// So here we have to unregister the previous object and register
 				// the new one.
+
+				object_data_info_to_copy.should_copy = true;
+				object_data_info_to_copy.controlled_by_peer = synchronizer_object_data->get_controlled_by_peer();
+				object_data_info_to_copy.realtime_sync_enabled_on_client = synchronizer_object_data->realtime_sync_enabled_on_client;
 				scene_synchronizer->unregister_app_object(synchronizer_object_data->get_local_id());
 				synchronizer_object_data = nullptr;
+
 				// No need to do anything else here, the following code will take
 				// care to register the new object if possible.
 			}
@@ -4742,18 +4753,29 @@ bool ClientSynchronizer::parse_sync_data(
 				}
 			}
 
-			if (synchronizer_object_data && has_scheme_id && synchronizer_object_data->get_scheme_id() != scheme_id) {
-				// The object scheme changed so it's necessary to re-register the object.
-				// Notice 1: that this call clears the previous recorded snapshot,
-				// which is exactly what it's supposed to happen. Indeed, the
-				// object is totally new, and it's not supposed to rewind using
-				// the old data.
-				// Notice 2: The registration happens before the parsing because
-				// it can succeed only when the server and client registered
-				// variables are exactly the same, which means that both scheme_ids are
-				// the same.
-				get_debugger().print(INFO, "[Snapshot parsing] The object scheme changed for: " + synchronizer_object_data->get_object_name() + " NetID: " + std::to_string(synchronizer_object_data->get_net_id().id) + " previous SchemeID: " + std::to_string(synchronizer_object_data->get_scheme_id().id) + " new SchemeID: " + std::to_string(scheme_id.id), scene_synchronizer->get_network_interface().get_owner_name());
-				scene_synchronizer->re_register_app_object(synchronizer_object_data->get_local_id(), scheme_id);
+			if (synchronizer_object_data) {
+				if (has_scheme_id && synchronizer_object_data->get_scheme_id() != scheme_id) {
+					// The object scheme changed so it's necessary to re-register the object.
+					// Notice 1: that this call clears the previous recorded snapshot,
+					// which is exactly what it's supposed to happen. Indeed, the
+					// object is totally new, and it's not supposed to rewind using
+					// the old data.
+					// Notice 2: The registration happens before the parsing because
+					// it can succeed only when the server and client registered
+					// variables are exactly the same, which means that both scheme_ids are
+					// the same.
+					get_debugger().print(INFO, "[Snapshot parsing] The object scheme changed for: " + synchronizer_object_data->get_object_name() + " NetID: " + std::to_string(synchronizer_object_data->get_net_id().id) + " previous SchemeID: " + std::to_string(synchronizer_object_data->get_scheme_id().id) + " new SchemeID: " + std::to_string(scheme_id.id), scene_synchronizer->get_network_interface().get_owner_name());
+					scene_synchronizer->re_register_app_object(synchronizer_object_data->get_local_id(), scheme_id);
+				}
+
+				if (object_data_info_to_copy.should_copy) {
+					// The object was changed, this happens when the previous object was
+					// destroyed on the server and its NetId is reused immediately.
+					// So here we have to restore some information that are lost during
+					// the ObjectData recreation and that should not be lost.
+					synchronizer_object_data->set_controlled_by_peer(*scene_synchronizer, object_data_info_to_copy.controlled_by_peer);
+					synchronizer_object_data->realtime_sync_enabled_on_client = object_data_info_to_copy.realtime_sync_enabled_on_client;
+				}
 			}
 		}
 
@@ -5237,7 +5259,7 @@ bool ClientSynchronizer::parse_snapshot(DataBuffer &p_snapshot, bool p_is_server
 			[](void *p_user_pointer, bool p_add, SimulatedObjectInfo &&p_simulated_objects) {
 				ParseData *pd = static_cast<ParseData *>(p_user_pointer);
 				if (p_add) {
-					VecFunc::insert_unique(pd->snapshot.simulated_objects, std::move(p_simulated_objects));
+					VecFunc::insert_or_update(pd->snapshot.simulated_objects, std::move(p_simulated_objects));
 				} else {
 					VecFunc::remove_unordered(pd->snapshot.simulated_objects, p_simulated_objects);
 				}

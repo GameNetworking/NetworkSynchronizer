@@ -143,7 +143,7 @@ void insert_or_update(std::vector<V> &r_vec, const T &p_val) {
 	if (it == r_vec.end()) {
 		r_vec.push_back(p_val);
 	} else {
-		return *it = p_val;
+		*it = p_val;
 	}
 }
 

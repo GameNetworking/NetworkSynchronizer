@@ -417,7 +417,7 @@ public:
 	}
 
 	virtual void on_scene_entry() override {
-		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this), nullptr, NS::SchemeId({ 244}));
+		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this), nullptr, NS::SchemeId({ 244 }));
 	}
 
 	virtual void setup_synchronizer(NS::LocalSceneSynchronizer &p_scene_sync, NS::ObjectLocalId p_id) override {
@@ -1021,6 +1021,38 @@ void test_net_id_reuse() {
 	NS_ASSERT_COND(server_scene.scene_sync->get_object_data(reused_net_id) == server_controller_object_data);
 	NS_ASSERT_COND(peer_1_scene.scene_sync->get_object_data(reused_net_id) != p1_object_data);
 	NS_ASSERT_COND(peer_1_scene.scene_sync->get_object_data(reused_net_id) == p1_controller_object_data);
+
+	// Assert the peer was correctly synchronized too.
+	NS_ASSERT_COND(server_controller_object_data->get_controlled_by_peer() == server_scene.get_peer());
+	NS_ASSERT_COND(p1_controller_object_data->get_controlled_by_peer() == server_scene.get_peer());
+
+	// Phase 2 ---------------------------------------------- Controlled By Peer
+	// Now let's destroy the controller again to spawn a new controller reusing
+	// the same NetId but letting it be controlled by the p1 and then verify
+	// the peer was correctly assigned.
+	server_scene.remove_object("controller");
+	server_controller_object = nullptr;
+	server_controller_object_data = nullptr;
+	server_controller_object = server_scene.add_object<LocalNetworkedController>("controller_2", peer_1_scene.get_peer());
+	p1_controller_object = peer_1_scene.add_object<LocalNetworkedController>("controller_2", peer_1_scene.get_peer());
+	
+	server_controller_object_data = server_scene.scene_sync->get_object_data(server_controller_object->local_id);
+	p1_controller_object_data = peer_1_scene.scene_sync->get_object_data(p1_controller_object->local_id);
+	
+	// Asserts that the new object is RE-using the same NetID
+	NS_ASSERT_COND(server_controller_object_data->get_net_id() == reused_net_id);
+	NS_ASSERT_COND(p1_controller_object_data->get_net_id() == NS::ObjectNetId::NONE);
+	
+	server_scene.process(delta);
+	peer_1_scene.process(delta);
+	
+	// Assert the NetId used is now the same while the old ObjectData on the client
+	// is gone.
+	NS_ASSERT_COND(server_controller_object_data->get_net_id() == reused_net_id);
+	NS_ASSERT_COND(p1_controller_object_data->get_net_id() == reused_net_id);
+	
+	NS_ASSERT_COND(server_controller_object_data->get_controlled_by_peer() == peer_1_scene.get_peer());
+	NS_ASSERT_COND(p1_controller_object_data->get_controlled_by_peer() == peer_1_scene.get_peer());
 }
 
 /// Verify the state can be applied for variables that do not trigger a rewind, without triggering a rewind.
@@ -1989,7 +2021,7 @@ public:
 	}
 
 	virtual void on_scene_entry() override {
-		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this), nullptr, NS::SchemeId({77}));
+		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this), nullptr, NS::SchemeId({ 77 }));
 	}
 
 	virtual void setup_synchronizer(NS::LocalSceneSynchronizer &p_scene_sync, NS::ObjectLocalId p_id) override {
@@ -2306,7 +2338,7 @@ public:
 	}
 
 	virtual void on_scene_entry() override {
-		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this), nullptr, NS::SchemeId({88}));
+		get_scene()->scene_sync->register_app_object(get_scene()->scene_sync->to_handle(this), nullptr, NS::SchemeId({ 88 }));
 	}
 
 	virtual void on_scene_exit() override {

@@ -91,7 +91,6 @@ public:
 	// The local application object handle associated to this `NodeData`.
 	ObjectHandle app_object_handle = ObjectHandle::NONE;
 
-
 	bool realtime_sync_enabled_on_client = false;
 
 	/// The sync variables of this node. The order of this vector matters
