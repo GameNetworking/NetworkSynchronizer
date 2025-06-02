@@ -18,6 +18,7 @@ const ScheduledProcedureId ScheduledProcedureId::NONE = ScheduledProcedureId{ { 
 const ObjectLocalId ObjectLocalId::NONE = ObjectLocalId{ { std::numeric_limits<uint32_t>::max() } };
 const ObjectNetId ObjectNetId::NONE = ObjectNetId{ { std::numeric_limits<std::uint16_t>::max() } };
 const ObjectHandle ObjectHandle::NONE = ObjectHandle{ { 0 } };
+const SchemeId SchemeId::DEFAULT = SchemeId{ { 0 } };
 
 static const char *ProcessPhaseName[PROCESS_PHASE_COUNT] = {
 	"EARLY PROCESS",

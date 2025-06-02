@@ -21,7 +21,7 @@ public:
 	NS::ObjectLocalId local_id = NS::ObjectLocalId::NONE;
 	float weight = 1.0f;
 	Vec3 position;
-	std::vector<std::uint16_t> used_schemes_on_client;
+	std::vector<NS::SchemeId> used_schemes_on_client;
 
 	MagnetSceneObject() :
 		LocalSceneObject("MagnetSceneObject") {
@@ -58,7 +58,7 @@ public:
 
 		// This is used to alter the registered variables dynamically based on
 		// the `scheme_id` and ensure that the snapshot parsing doesn't fail.
-		for (int i = 0; i < int(get_scheme_id()); i++) {
+		for (int i = 0; i < int(get_scheme_id().id); i++) {
 			p_scene_sync.register_variable(
 					p_id, "position" + std::to_string(i),
 					[](NS::SynchronizerManager &p_synchronizer_manager, NS::ObjectHandle p_handle, const std::string &p_var_name, const NS::VarData &p_value) {
@@ -472,7 +472,7 @@ public:
 
 struct TestSimulationSchemeChange : public TestSimulationBase {
 public:
-	std::uint16_t server_scheme_id = 0;
+	NS::SchemeId server_scheme_id = NS::SchemeId::DEFAULT;
 	float time_bank = 0.f;
 
 	TestSimulationSchemeChange() {
@@ -485,22 +485,22 @@ public:
 			time_bank = 0.f;
 			// Switch the scheme_id back and forth from 0 (default) to ensure
 			// that it's always possible to switch back to the default scheme id.
-			if (light_magnet_server->get_scheme_id() == 0) {
+			if (light_magnet_server->get_scheme_id() == NS::SchemeId::DEFAULT) {
 				server_scheme_id += 1;
 				server_scene.scene_sync->re_register_app_object(light_magnet_server->local_id, server_scheme_id);
 			} else {
-				server_scene.scene_sync->re_register_app_object(light_magnet_server->local_id, 0);
+				server_scene.scene_sync->re_register_app_object(light_magnet_server->local_id, NS::SchemeId::DEFAULT);
 			}
 		}
 	}
 
 	virtual void on_scenes_done() override {
 		// Assert the scheme was updated on the client.
-		std::uint16_t max_client_scheme_id = 0;
-		for (std::uint16_t s : light_magnet_p1->used_schemes_on_client) {
+		NS::SchemeId max_client_scheme_id = NS::SchemeId::DEFAULT;
+		for (NS::SchemeId s : light_magnet_p1->used_schemes_on_client) {
 			max_client_scheme_id = std::max(s, max_client_scheme_id);
 		}
-		NS_ASSERT_COND(max_client_scheme_id > 0);
+		NS_ASSERT_COND(max_client_scheme_id.id > 0);
 		NS_ASSERT_COND(max_client_scheme_id <= server_scheme_id);
 
 		// Assert any snapshot parsing failed.

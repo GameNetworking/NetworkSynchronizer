@@ -402,7 +402,7 @@ const Settings &SceneSynchronizerBase::get_settings() const {
 	return settings;
 }
 
-void SceneSynchronizerBase::register_app_object(ObjectHandle p_app_object_handle, ObjectLocalId *out_id, std::uint16_t p_scheme_id) {
+void SceneSynchronizerBase::register_app_object(ObjectHandle p_app_object_handle, ObjectLocalId *out_id, SchemeId p_scheme_id) {
 	NS_ENSURE(p_app_object_handle != ObjectHandle::NONE);
 
 	ObjectLocalId id = objects_data_storage.find_object_local_id(p_app_object_handle);
@@ -445,7 +445,7 @@ void SceneSynchronizerBase::register_app_object(ObjectHandle p_app_object_handle
 
 		synchronizer_manager->on_add_object_data(*od);
 
-		get_debugger().print(INFO, "New object registered" + (generate_id ? " #ID: " + std::to_string(od->get_net_id().id) : "") + ": " + od->get_object_name() + " SchemeID: " + std::to_string(od->get_scheme_id()), network_interface->get_owner_name());
+		get_debugger().print(INFO, "New object registered" + (generate_id ? " #ID: " + std::to_string(od->get_net_id().id) : "") + ": " + od->get_object_name() + " SchemeID: " + std::to_string(od->get_scheme_id().id), network_interface->get_owner_name());
 	}
 
 	NS_ASSERT_COND(id != ObjectLocalId::NONE);
@@ -466,7 +466,7 @@ void SceneSynchronizerBase::unregister_app_object(ObjectLocalId p_id) {
 	drop_object_data(*od);
 }
 
-void SceneSynchronizerBase::re_register_app_object(ObjectLocalId p_id, std::uint16_t p_scheme_id) {
+void SceneSynchronizerBase::re_register_app_object(ObjectLocalId p_id, SchemeId p_scheme_id) {
 	if (p_id == ObjectLocalId::NONE) {
 		// Nothing to do.
 		return;
@@ -500,7 +500,7 @@ void SceneSynchronizerBase::re_register_app_object(ObjectLocalId p_id, std::uint
 	// The local id doesn't change!
 	NS_ASSERT_COND(od->get_local_id() == p_id);
 
-	get_debugger().print(INFO, "Object re-registered " + (generate_id ? "#ID: " + std::to_string(od->get_net_id().id) : "") + ": " + od->get_object_name() + " SchemeID: " + std::to_string(od->get_scheme_id()), network_interface->get_owner_name());
+	get_debugger().print(INFO, "Object re-registered " + (generate_id ? "#ID: " + std::to_string(od->get_net_id().id) : "") + ": " + od->get_object_name() + " SchemeID: " + std::to_string(od->get_scheme_id().id), network_interface->get_owner_name());
 }
 
 void SceneSynchronizerBase::setup_controller(
@@ -2196,7 +2196,7 @@ std::string SceneSynchronizerBase::debug_get_data_objects_table(int columns_coun
 		for (const ObjectData *od : objects_data) {
 			if (od) {
 				std::string header2 = "";
-				header2 += " (NetID: " + std::to_string(od->get_net_id().id) + ", LocalID: " + std::to_string(od->get_local_id().id) + ", SchemeID: " + std::to_string(od->get_scheme_id()) + "";
+				header2 += " (NetID: " + std::to_string(od->get_net_id().id) + ", LocalID: " + std::to_string(od->get_local_id().id) + ", SchemeID: " + std::to_string(od->get_scheme_id().id) + "";
 				header2 += od->get_controlled_by_peer() >= 0 ? ", Controlled by peer: " + std::to_string(od->get_controlled_by_peer()) : "";
 				header2 += ")";
 				table_values.push_back(header2);
@@ -3342,7 +3342,7 @@ void ServerSynchronizer::generate_snapshot_object_data(
 	// Insert the NetSchemeID
 	if (unknown || force_snapshot_scheme_id) {
 		r_snapshot_db.add(true); // Has the NetSchemeID?
-		r_snapshot_db.add(p_object_data.get_scheme_id());
+		r_snapshot_db.add(p_object_data.get_scheme_id().id);
 	} else {
 		r_snapshot_db.add(false); // Has the NetSchemeID?
 	}
@@ -3811,10 +3811,10 @@ void ClientSynchronizer::try_fetch_pending_snapshot_objects() {
 					scene_synchronizer->synchronizer_manager->fetch_app_object(*object_name);
 			if (app_object_handle != ObjectHandle::NONE) {
 				// Try fetching the SchemeID, if nullptr the scheme id is 0.
-				const std::uint16_t *scheme_id_ptr = MapFunc::get_or_null(objects_schemes_id, pending_registration_net_id);
+				const SchemeId *scheme_id_ptr = MapFunc::get_or_null(objects_schemes_id, pending_registration_net_id);
 
 				ObjectLocalId reg_obj_id;
-				scene_synchronizer->register_app_object(app_object_handle, &reg_obj_id, scheme_id_ptr ? *scheme_id_ptr : 0);
+				scene_synchronizer->register_app_object(app_object_handle, &reg_obj_id, scheme_id_ptr ? *scheme_id_ptr : SchemeId::DEFAULT);
 				ObjectData *od = scene_synchronizer->get_object_data(reg_obj_id);
 				od->set_net_id(pending_registration_net_id);
 				finalize_object_data_synchronization(*od);
@@ -4669,9 +4669,9 @@ bool ClientSynchronizer::parse_sync_data(
 			bool has_scheme_id;
 			p_snapshot.read(has_scheme_id);
 			NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `has_scheme_id` was expected here.");
-			std::uint16_t scheme_id;
+			SchemeId scheme_id;
 			if (has_scheme_id) {
-				p_snapshot.read(scheme_id);
+				p_snapshot.read(scheme_id.id);
 				NS_ENSURE_V_MSG(!p_snapshot.is_buffer_failed(), false, "This snapshot is corrupted. The `scheme_id` was expected here.");
 
 				// Associate the ID with the path.
@@ -4713,7 +4713,7 @@ bool ClientSynchronizer::parse_sync_data(
 				// Fetch the scheme ID using the NetId
 				if (!has_scheme_id) {
 					// The scheme ID wasn't specified, try to see if it was received earlier.
-					const std::uint16_t *object_scheme_id_ptr = MapFunc::get_or_null(objects_schemes_id, net_id);
+					const SchemeId *object_scheme_id_ptr = MapFunc::get_or_null(objects_schemes_id, net_id);
 					if (object_scheme_id_ptr != nullptr) {
 						// The scheme_id for this `NetId` was received already.
 						has_scheme_id = true;
@@ -4731,7 +4731,7 @@ bool ClientSynchronizer::parse_sync_data(
 				} else {
 					// Register this object, so to make sure the client is tracking it.
 					ObjectLocalId reg_obj_id;
-					scene_synchronizer->register_app_object(app_object_handle, &reg_obj_id, has_scheme_id ? scheme_id : 0);
+					scene_synchronizer->register_app_object(app_object_handle, &reg_obj_id, has_scheme_id ? scheme_id : SchemeId::DEFAULT);
 					if (reg_obj_id != ObjectLocalId::NONE) {
 						synchronizer_object_data = scene_synchronizer->get_object_data(reg_obj_id);
 						// Set the NetId.
@@ -4750,9 +4750,9 @@ bool ClientSynchronizer::parse_sync_data(
 				// the old data.
 				// Notice 2: The registration happens before the parsing because
 				// it can succeed only when the server and client registered
-				// variables are exactly the same, which means the scheme_id are
+				// variables are exactly the same, which means that both scheme_ids are
 				// the same.
-				get_debugger().print(INFO, "[Snapshot parsing] The object scheme changed for: " + synchronizer_object_data->get_object_name() + " NetID: " + std::to_string(synchronizer_object_data->get_net_id().id) + " previous SchemeID: " + std::to_string(synchronizer_object_data->get_scheme_id()) + " new SchemeID: " + std::to_string(scheme_id), scene_synchronizer->get_network_interface().get_owner_name());
+				get_debugger().print(INFO, "[Snapshot parsing] The object scheme changed for: " + synchronizer_object_data->get_object_name() + " NetID: " + std::to_string(synchronizer_object_data->get_net_id().id) + " previous SchemeID: " + std::to_string(synchronizer_object_data->get_scheme_id().id) + " new SchemeID: " + std::to_string(scheme_id.id), scene_synchronizer->get_network_interface().get_owner_name());
 				scene_synchronizer->re_register_app_object(synchronizer_object_data->get_local_id(), scheme_id);
 			}
 		}
@@ -4821,7 +4821,7 @@ bool ClientSynchronizer::parse_sync_data(
 				const int buffer_offset = p_snapshot.get_bit_offset();
 				if (!object_data_parsing_state || buffer_offset != offset_after_vars_reading) {
 					get_debugger().print(ERROR,
-							"The snapshot is corrupted because the data_object parsing failed for the object: " + synchronizer_object_data->get_object_name() + " - NetId: " + std::to_string(synchronizer_object_data->get_net_id().id) + " - SchemeID: " + std::to_string(synchronizer_object_data->get_scheme_id()) + " - Size in bits: " + std::to_string(vars_size_in_bits) + " - Expected offset: " + std::to_string(offset_after_vars_reading) + " - Current offset: " + std::to_string(buffer_offset));
+							"The snapshot is corrupted because the data_object parsing failed for the object: " + synchronizer_object_data->get_object_name() + " - NetId: " + std::to_string(synchronizer_object_data->get_net_id().id) + " - SchemeID: " + std::to_string(synchronizer_object_data->get_scheme_id().id) + " - Size in bits: " + std::to_string(vars_size_in_bits) + " - Expected offset: " + std::to_string(offset_after_vars_reading) + " - Current offset: " + std::to_string(buffer_offset));
 					r_parsing_errors.objects += 1;
 					p_notify_parsing_failed_for_object(p_user_pointer, *synchronizer_object_data);
 					// Set the buffer cursor to the correct offset to keep
@@ -5307,7 +5307,7 @@ void ClientSynchronizer::finalize_object_data_synchronization(ObjectData &p_obje
 				p_object_data.set_net_id(net_id);
 				get_debugger().print(INFO, "The object data finalization was able to fetch the object NetID using the object name. Object name `" + p_object_data.get_object_name() + "`, NetId `" + std::to_string(p_object_data.get_net_id().id) + "`");
 
-				const std::uint16_t *scheme_id_ptr = MapFunc::get_or_null(objects_schemes_id, p_object_data.get_net_id());
+				const SchemeId *scheme_id_ptr = MapFunc::get_or_null(objects_schemes_id, p_object_data.get_net_id());
 				if (scheme_id_ptr) {
 					if (p_object_data.get_scheme_id() != *scheme_id_ptr) {
 						scene_synchronizer->re_register_app_object(p_object_data.get_local_id(), *scheme_id_ptr);
@@ -5326,13 +5326,13 @@ void ClientSynchronizer::finalize_object_data_synchronization(ObjectData &p_obje
 		return;
 	}
 
-	const std::uint16_t *scheme_id_ptr = MapFunc::get_or_null(objects_schemes_id, p_object_data.get_net_id());
+	const SchemeId *scheme_id_ptr = MapFunc::get_or_null(objects_schemes_id, p_object_data.get_net_id());
 	if (scheme_id_ptr) {
 		// The scheme_id was networked and at this point it should have been set.
 		NS_ASSERT_COND(p_object_data.get_scheme_id() == *scheme_id_ptr);
 	} else {
-		// The scheme_id was never networked, so it's default (0).
-		NS_ASSERT_COND(p_object_data.get_scheme_id() == 0);
+		// The scheme_id was never networked, so it's default.
+		NS_ASSERT_COND(p_object_data.get_scheme_id() == SchemeId::DEFAULT);
 	}
 
 	std::vector<DataBuffer> *pending_snapshots = MapFunc::get_or_null(objects_pending_snapshots, p_object_data.get_net_id());

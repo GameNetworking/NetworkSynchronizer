@@ -99,7 +99,7 @@ public:
 	///         the name must remain the same forever.
 	/// NOTICE: The name must be unique across all the peers!
 	virtual std::string fetch_object_name(ObjectHandle p_app_object_handle) const = 0;
-	virtual void setup_synchronizer_for(ObjectHandle p_app_object_handle, ObjectLocalId p_id, std::uint16_t p_scheme_id) = 0;
+	virtual void setup_synchronizer_for(ObjectHandle p_app_object_handle, ObjectLocalId p_id, SchemeId p_scheme_id) = 0;
 
 	/// This allows the client to drop a server snapshot.
 	/// This is for advanced use and allows to skip some snapshots based on some criteria.
@@ -597,9 +597,9 @@ public: // ---------------------------------------------------------------- APIs
 	Settings &get_settings_mutable();
 	const Settings &get_settings() const;
 
-	void register_app_object(ObjectHandle p_app_object_handle, ObjectLocalId *out_id = nullptr, std::uint16_t p_scheme_id = 0);
+	void register_app_object(ObjectHandle p_app_object_handle, ObjectLocalId *out_id = nullptr, SchemeId p_scheme_id = SchemeId::DEFAULT);
 	void unregister_app_object(ObjectLocalId p_id);
-	void re_register_app_object(ObjectLocalId p_id, std::uint16_t p_scheme_id = 0);
+	void re_register_app_object(ObjectLocalId p_id, SchemeId p_scheme_id = SchemeId::DEFAULT);
 	void setup_controller(
 			ObjectLocalId p_id,
 			std::function<void(float /*delta*/, DataBuffer & /*r_data_buffer*/)> p_collect_input_func,
@@ -1103,7 +1103,7 @@ public:
 	std::vector<ObjectData *> active_objects;
 	PeerNetworkedController *player_controller = nullptr;
 	std::map<ObjectNetId, std::string> objects_names;
-	std::map<ObjectNetId, std::uint16_t> objects_schemes_id;
+	std::map<ObjectNetId, SchemeId> objects_schemes_id;
 	std::map<ObjectNetId, std::vector<DataBuffer>> objects_pending_snapshots;
 
 	RollingUpdateSnapshot last_received_snapshot;

@@ -202,6 +202,10 @@ struct ObjectHandle : public IdMaker<ObjectHandle, std::intptr_t> {
 	static const ObjectHandle NONE;
 };
 
+struct SchemeId : public IdMaker<SchemeId, std::uint8_t> {
+	static const SchemeId DEFAULT;
+};
+
 enum class ScheduledProcedurePhase : std::uint8_t {
 	/// The procedure is called with in this phase only on the server when collecting the arguments.
 	COLLECTING_ARGUMENTS = 0,

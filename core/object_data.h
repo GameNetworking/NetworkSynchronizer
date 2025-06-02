@@ -75,7 +75,7 @@ private:
 	/// This function is very useful for synchronizing characters, since
 	/// the class is the same but the synchronized variables change depending on
 	/// the loaded abilities.
-	std::uint16_t scheme_id = 0;
+	SchemeId scheme_id = SchemeId::DEFAULT;
 
 public:
 	struct {
@@ -124,11 +124,11 @@ public:
 
 	ObjectLocalId get_local_id() const;
 
-	void set_scheme_id(std::uint16_t p_scheme_id) {
+	void set_scheme_id(SchemeId p_scheme_id) {
 		scheme_id = p_scheme_id;
 	}
 
-	std::uint16_t get_scheme_id() const {
+	SchemeId get_scheme_id() const {
 		return scheme_id;
 	}
 
