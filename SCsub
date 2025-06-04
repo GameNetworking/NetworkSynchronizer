@@ -1,23 +1,40 @@
 #!/usr/bin/env python
 
-from debugger_ui import cpplize_debugger
 
-cpplize_debugger.create_debugger_header()
+import os
+from debugger_ui import cpplize_debugger
 
 Import("env")
 Import("env_modules")
 
+# Get the absolute path to the current directory where SCsub is located
+source_path = env.Dir('.').abspath
+print(f"source_path: {source_path}")
+
+# Call the function with the correct source_path
+cpplize_debugger.create_debugger_header(source_path)
+
+# Clone the module environment
 env_network_synchronizer = env_modules.Clone()
 
+# Check if Tracy is enabled and add the definition if necessary
 if "tracy_enable" in env and env["tracy_enable"] == "yes":
     env_network_synchronizer.Append(CPPDEFINES=["TRACY_ENABLE"])
 
-# TODO ensure debugs are enabled only in debug builds.
+# TODO: Ensure that debugs are enabled only in debug builds.
 env_network_synchronizer.Append(CPPDEFINES=["NS_DEBUG_ENABLED"])
 
+# Add the definition to disable the debug data buffer
 env_network_synchronizer.Append(CPPDEFINES=["DISABLE_DEBUG_DATA_BUFFER"])
 
+# Add the GENERATE_DEBUG_SYMBOLS preprocessor definition
+env_network_synchronizer.Append(CPPDEFINES=["GENERATE_DEBUG_SYMBOLS=ON"])
+
+# Add source files to the environment
 env_network_synchronizer.add_source_files(env.modules_sources, "core/**.cpp")
 env_network_synchronizer.add_source_files(env.modules_sources, "godot4/**.cpp")
 env_network_synchronizer.add_source_files(env.modules_sources, "*.cpp")
 env_network_synchronizer.add_source_files(env.modules_sources, "tests/**.cpp")
+
+# Invoke CMake with the GENERATE_DEBUG_SYMBOLS flag
+env.Execute("cmake ../cmake/ -DGENERATE_DEBUG_SYMBOLS=ON")
