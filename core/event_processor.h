@@ -68,6 +68,8 @@ public:
 	void broadcast(ARGS... p_args);
 	void clear();
 	int bind_count() const;
+	/// Returns true if any function is bound to this.
+	bool is_bound() const;
 };
 
 template <typename... ARGS>
@@ -109,6 +111,11 @@ void EventProcessor<ARGS...>::broadcast(ARGS... p_args) {
 template <typename... ARGS>
 int EventProcessor<ARGS...>::bind_count() const {
 	return int(binded_functions.size());
+}
+
+template <typename... ARGS>
+bool EventProcessor<ARGS...>::is_bound() const {
+	return binded_functions.size() > 0;
 }
 
 NS_NAMESPACE_END
